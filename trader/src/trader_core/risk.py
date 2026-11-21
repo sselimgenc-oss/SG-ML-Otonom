@@ -36,6 +36,9 @@ PAPER_LIMITS = {**HARD_LIMITS,
                 "daily_max_loss": 0.08,
                 "max_open_risk": 0.24,   # 20 Kasim 2026: kullanici onayli kagit gevsetmesi (0.12 -> 0.24)
                 "max_same_dir_risk": 0.16}
+# 21 Kasim 2026 kullanici karari: kagit kaldiraci 5x (teminat toplami darbogazi; islem basi risk %1 ayni). Yalniz mode="paper"
+# varsayilani; HARD_LIMITS araligi [min_leverage, max_leverage] icinde. Testnet/canli/geri test LOCKED_CFG.min_leverage (3) kalir.
+PAPER_LEVERAGE = 5
 
 
 def _num(x, name: str = "değer") -> float:

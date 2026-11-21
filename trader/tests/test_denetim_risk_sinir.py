@@ -157,3 +157,16 @@ def test_live_testnet_locked_daily_budget_unchanged(sabit_boyut):
     assert not _dec([], cfg=risk.LOCKED_CFG, equity=EQ, day_start=EQ + 40.0).allowed                    # 40 + 16 > 51.2
     import dataclasses
     assert "daily_budget_includes_open_risk" not in {f.name for f in dataclasses.fields(risk.LOCKED_CFG)}
+
+
+def test_kagit_kaldirac_5x_canli_testnet_3x():
+    """21 Kasim 2026 kullanici karari: kagit varsayilan kaldiraci 5x; testnet/canli kilitli 3x (LOCKED_CFG.min_leverage)."""
+    from pathlib import Path
+
+    from trader_core.risk import LOCKED_CFG, PAPER_LEVERAGE
+    from trader_engine.config import load_cli_config
+    cfg_dir = Path(__file__).resolve().parents[1] / "config"
+    assert PAPER_LEVERAGE == 5 and LOCKED_CFG.min_leverage == 3
+    assert load_cli_config(cfg_dir, "learner", "paper").leverage == 5
+    assert load_cli_config(cfg_dir, "learner", "testnet").leverage == 3
+    assert load_cli_config(cfg_dir, "learner", "live").leverage == 3
