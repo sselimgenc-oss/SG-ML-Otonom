@@ -5,7 +5,7 @@ Kaynak: sselimgenc-oss/SG-Orkestra-Sefi (silinmeden önce kopyalandı). Yalnız 
 ## Pazartesi gündemi
 1. X algo fikirleri (`x-algo-fikirleri.md`): ML'yi ilgilendirenleri özetle, hangilerinin başlatılacağını kullanıcıya sor.
 2. Bu klasördeki 3 PDF: bizde olmayan ve ML'ye yarayacak fikirler, sade tablo.
-3. Kararlar (21.11 kullanıcı): kâğıt kaldıraç 5x (uygulanıyor); S1 stop bandı 2,0 ATR kalır.
+3. Kararlar (21.11 kullanıcı): kâğıt kaldıraç 3x kalır; S1 stop bandı 2,0 ATR kalır.
 4. Canlı sonrası fikir: aşağıda (a).
 
 ## (a) Canlı sonrası fikir (yalnız konuşma)
