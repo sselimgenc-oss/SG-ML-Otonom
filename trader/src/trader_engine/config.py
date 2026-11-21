@@ -16,7 +16,7 @@ from typing import Any, Literal, Mapping
 from trader_core import etiket_kurallari as _EK
 from trader_core import exit_modes as _xm
 from trader_core.config_loader import deep_merge
-from trader_core.risk import LOCKED_CFG, PAPER_KEYS, PAPER_LEVERAGE, RiskConfig, paper_config, tightened
+from trader_core.risk import LOCKED_CFG, PAPER_KEYS, RiskConfig, paper_config, tightened
 
 from .errors import ConfigError
 from .types import canon_pair
@@ -515,10 +515,7 @@ def _validate(raw: Mapping[str, Any]) -> EngineConfig:
     if not isinstance(pause_file, str) or not pause_file:
         raise ConfigError("pause_file bos olmayan str olmali")
     startup_wait = _num("startup_wait_s", raw.get("startup_wait_s", 600.0), 0.0, 86_400.0)
-    # 21 Kasim 2026 kullanici karari: kagit KATMANI (engine.paper.json: `arms` ile) yuklendiginde varsayilan kaldirac 5x.
-    # Katmansiz yukleme, testnet, canli ve geri test LOCKED_CFG.min_leverage (3) ile aynen kalir.
-    lev_varsayilan = PAPER_LEVERAGE if (mode == "paper" and raw.get("arms")) else LOCKED_CFG.min_leverage
-    lev = _int("leverage", raw.get("leverage", lev_varsayilan),
+    lev = _int("leverage", raw.get("leverage", LOCKED_CFG.min_leverage),
                LOCKED_CFG.min_leverage, LOCKED_CFG.max_leverage)
     ladder_follow = raw.get("ladder_follow")
     if ladder_follow is not None:
