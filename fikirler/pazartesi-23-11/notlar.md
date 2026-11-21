@@ -28,3 +28,4 @@ ML+CT'yi izometrik 3D ofis gibi oyunlaştırıp YouTube canlı yayını. Şartla
 - Veri eşlemesi: kol = bina/ekip, açık pozisyon = çalışan masa, kasa = hazine, risk kademesi = surlar, gece eğitimi = laboratuvar, reddedilen sinyal = kapıdan dönen. Kaynak: canli-durum (durum.json) — salt okuma.
 - Örnek: "ETRE v2" ofis görünümü (v3'te sade panoya dönmüş — bakım yükü/asıl işi gölgeleme uyarısı).
 - Sıra: önce kâğıt → küçük canlı kâr kanıtı (birkaç ay) → basit 2D/izometrik ofis ekranı + kısa videolarla ilgi ölçümü → tam oyun görseli + günlük yayın.
+- KULLANICI KARARI (21.11): Oyun/ofis görseli ÇOK SONRA ve ayrı proje; tek amaç YouTube geliri. Gerekçe: önceki bir projede ofis görsellerini düzenlemek asıl işi gölgeledi ve proje başarısız oldu. Şimdilik yalnız sade pano.
