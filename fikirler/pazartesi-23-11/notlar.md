@@ -14,7 +14,7 @@ ML+CT'yi izometrik 3D ofis gibi oyunlaştırıp YouTube canlı yayını. Şartla
 ## (b) Canlı öncesi açık sorular
 | No | Soru |
 |---|---|
-| K1 | Sunucu konumu / yasal durum |
+| K1 | Sunucu konumu / yasal durum. CT notu (binance-arastirma.md): Binance vadeli Hollanda'da kapalı; Amsterdam sunucu IP'si canlıda 451 ile reddedilebilir — canlı öncesi sunucu bölgesi doğrulanmalı |
 | K2 | Hesap ülke kaydı, KYC, TradFi sözleşmesi |
 | K3 | 1.500 $ tavan: CT alt hesabı mı, toplam mı? |
 | K4 | İlk canlı tavanı (öneri 100–150 $) |
