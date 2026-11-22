@@ -43,3 +43,11 @@ ML+CT'yi izometrik 3D ofis gibi oyunlaştırıp YouTube canlı yayını. Şartla
 | h | Repolar canlıdan önce private; sunucuya yalnız okuma yetkili anahtar; otomatik güncelleme yeniden test edilir |
 | ek | Hafta sonu hisse büyüklük tavanı: gerek yok (kullanıcı: riskleri biliyorum) |
 Uygulama: pazartesi 15:00 TSİ sonrası, kullanıcı "okey" deyince.
+
+## PAZARTESİ İLK İŞ (22.11 gece eklendi)
+Telegram: "HYPE, BCH, 1000SHIB için fiyat gelmiyor" uyarısı. Muhtemelen yanlış alarm:
+sağlık kontrolü fiyatı yalnız engine.base.json'daki 10 coinde arıyor (scripts/health_run.py:404 market_pairs),
+kâğıt bot 44 enstrümanla çalışıyor (health.py:690 _c_open_price).
+1) Kullanıcı sunucuda teyit eder:
+   sudo sqlite3 -readonly /home/trader/SG-Github-AB-proje/trader/var/market.sqlite "SELECT pair, datetime(MAX(open_ms)/1000,'unixepoch') FROM bars WHERE kind='last' AND tf='1m' AND pair IN ('HYPE/USDT','BCH/USDT','1000SHIB/USDT','BTC/USDT') GROUP BY pair;"
+2) Düzeltme: açık pozisyon çiftleri doğrudan DB'den sorgulansın (seans kapalı hisseler yine uyarı vermesin). Test önce.
