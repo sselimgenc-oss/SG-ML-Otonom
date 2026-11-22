@@ -2,6 +2,7 @@
   "mode": "testnet",
   "veto_mode": "off",
   "var_dir": "var-testnet",
+  "pairs": ["BTC/USDT", "ETH/USDT", "BNB/USDT", "SOL/USDT", "XRP/USDT", "DOGE/USDT", "ADA/USDT", "TRX/USDT", "LINK/USDT", "AVAX/USDT", "HYPE/USDT", "BCH/USDT", "XLM/USDT", "SUI/USDT", "HBAR/USDT", "LTC/USDT", "TON/USDT", "1000SHIB/USDT", "DOT/USDT", "XMR/USDT"],
   "kill_file": "shared/testnet/KILL",
   "pause_file": "shared/testnet/PAUSE",
   "live": {

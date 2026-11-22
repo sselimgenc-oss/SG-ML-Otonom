@@ -1,6 +1,7 @@
 {
   "mode": "live",
   "var_dir": "var-live",
+  "pairs": ["BTC/USDT", "ETH/USDT", "BNB/USDT", "SOL/USDT", "XRP/USDT", "DOGE/USDT", "ADA/USDT", "TRX/USDT", "LINK/USDT", "AVAX/USDT", "HYPE/USDT", "BCH/USDT", "XLM/USDT", "SUI/USDT", "HBAR/USDT", "LTC/USDT", "1000SHIB/USDT", "DOT/USDT", "XMR/USDT"],
   "kill_file": "shared/live/KILL",
   "pause_file": "shared/live/PAUSE",
   "live": {
