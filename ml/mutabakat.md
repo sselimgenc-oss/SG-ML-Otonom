@@ -1,23 +1,23 @@
 # İşlem mutabakatı
 
-Son kontrol: 2026-11-22 07:40 (TSİ). İşlem: 41 (kapanan 34, açık 7). Uyuşmazlık: 0.
+Son kontrol: 2026-11-22 10:34 (TSİ). İşlem: 42 (kapanan 34, açık 8). Uyuşmazlık: 0.
 
 ## Kontroller
 
 | Kontrol | Sonuç | Ayrıntı |
 |---|---|---|
-| Kasa = başlangıç + Σ net K/Z | geçti | Kasa 1.131,38 $ tutuyor |
+| Kasa = başlangıç + Σ net K/Z | geçti | Kasa 1.131,21 $ tutuyor |
 | Net K/Z: SQL toplamı = motor toplamı = brüt - komisyon - fonlama | geçti | Defter toplamları tutuyor (+130,39 $) |
 | Long toplamı (motor = panel) | geçti | Long işlemler panelle aynı (5 işlem) |
 | Short toplamı (motor = panel) | geçti | Short işlemler panelle aynı (29 işlem) |
 | Toplam kapanan (motor = panel 'tümü') | geçti | Kapanan işlemlerin toplamı panelle aynı (34 işlem) |
-| Açık pozisyon sayısı (motor = panel = şerit = durum) | geçti | 7 açık işlem, hepsi aynı |
-| Açık K/Z fiyat kaynağı (panel = motor mark) | geçti | Açık işlemlerin kâr/zararı panelle aynı |
+| Açık pozisyon sayısı (motor = panel = şerit = durum) | geçti | 8 açık işlem, hepsi aynı |
+| Açık K/Z fiyat kaynağı (panel = motor mark) | geçti | Açık işlemlerin kâr/zararı panelle aynı; fiyat bekleniyor (piyasa kapalı/veri yok): #20, #39, #40, #59, #61, #64, #65, #66 |
 | Günlük zarar limiti oranı (panel = kâğıt ayarı) | geçti | Günlük zarar limiti %8,00 (panelle aynı) |
 
 ## Bilgi
 
-- Açık işlemlerin anlık kâr/zararı: kasada +13,89 $, panelde +13,85 $ · fark 0,04 $ (fiyat zamanlaması, uyuşmazlık sayılmaz)
+- Fiyatı gelmeyen açık işlemler: #20, #39, #40, #59, #61, #64, #65, #66 · fiyat bekleniyor (piyasa kapalı/veri yok); uyuşmazlık sayılmaz
 
 ## Telegram kaynağı
 
@@ -72,3 +72,4 @@ Yok.
 | 63 | Yapay zekâ adayı · 15 dakika | ETH | short | kapalı | 2026-11-22 02:15 | 2026-11-22 05:45 | 1.682,740000 | 1.671,110000 | 7,7572 | 1,1185 | -0,0305 | 6,6692 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 64 | Trend geri çekilmesi · 1 saat | BTC | short | açık | 2026-11-22 06:00 | — | 59.463,100000 | — | — | 0,2379 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
 | 65 | Trend geri çekilmesi · 1 saat | ETH | short | açık | 2026-11-22 06:00 | — | 1.671,050000 | — | — | 0,3534 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
+| 66 | Sıkışma kırılımı · 1 saat | BCH | short | açık | 2026-11-22 09:00 | — | 194,620000 | — | — | 0,1707 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
