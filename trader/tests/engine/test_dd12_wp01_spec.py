@@ -37,6 +37,11 @@ CONFIG = ROOT / "config"
 BASELINE_COMMIT = "0fc8b5c"
 
 BASE10 = ["BTC", "ETH", "BNB", "SOL", "XRP", "DOGE", "ADA", "TRX", "LINK", "AVAX"]
+# 22 Kasim: testnet/canli kendi "pairs" listesini tasir (kripto; TradFi ertelendi). Sayilar TEK yerden: bu sabitler.
+KRIPTO20 = ["BTC", "ETH", "BNB", "SOL", "XRP", "DOGE", "ADA", "TRX", "LINK", "AVAX", "HYPE", "BCH", "XLM", "SUI", "HBAR", "LTC",
+            "TON", "1000SHIB", "DOT", "XMR"]
+ENV_PAIRS = {"testnet": [f"{b}/USDT" for b in KRIPTO20], "live": [f"{b}/USDT" for b in KRIPTO20 if b != "TON"]}   # TON canlida yok
+ENV_PAIRS_LINE = {k: ('  "pairs": [' + ", ".join(f'"{x}"' for x in v) + '],\n').encode() for k, v in ENV_PAIRS.items()}
 BUYUK = {"BTC", "ETH", "XRP", "BNB", "SOL"}
 TEKNOLOJI = {"NVDA", "MSFT", "AAPL", "GOOGL", "AMZN", "META", "AVGO", "TSLA", "ORCL", "NFLX", "PLTR", "AMD"}
 METAL = {"XAU", "XAG"}
@@ -49,8 +54,8 @@ CAPS = {"kripto_buyuk": 6, "kripto_diger": 9, "hisse": 8, "hisse_teknoloji": 5, 
 PINNED_SHA = {
     "engine.base.json": "ba218ea0404803c9e5af7ffbd276fad79b6d0af714c94150172f7d56e674c328",   # WP-06a: yalniz veto_config yolu
     "engine.learner.json": "30ca2842c40cacafbf6cdd90c9e6f1f54fc62b9a9ec913476d1399ac5352cb12",
-    "engine.testnet.json": "4ec3d09f85862b1f70a0129bea4444b09c8c626c7840eb70eb1b6ed5ef84ca5e",
-    "engine.live.json": "feb22c1c4db3b705d44d793836139d588d999fb44095c0bed1812e90c037b47e",
+    "engine.testnet.json": "54247bbd4d0fcea5eda5add465809938178ec4a1decf7f61cb9aa838daa4e952",
+    "engine.live.json": "764d1558d3918094de480e942cc0255b53528b759a3cd2e44cb436fd21a39573",
 }
 UNIT_SHA = {
     "trader-engine-testnet.service": "c753d965c4b8e4a239f6ca44fa83a17e3824ed501583aadc8c7a21c27c5ac07d",
@@ -148,6 +153,9 @@ def test_dt1_katmansiz_yukleme_onceki_engineconfig_ile_esit(baseline, envname):
         if k == "veto_config" and v == "config/veto.json":  # WP-06a yeniden adlandirma (engine.base.json), beklenen
             assert cur["cfg"][k] == "config/veto.live.json"
             continue
+        if k == "pairs" and envname in ENV_PAIRS:           # 22.11: tek beklenen fark: kendi pairs listesi (kripto)
+            assert len(v) == 10 and cur["cfg"][k] == ENV_PAIRS[envname]
+            continue
         assert cur["cfg"][k] == v, f"{envname}: alan {k} degisti"
     assert cur["risk"] == old["risk"]
 
@@ -169,6 +177,9 @@ def test_dt1_dt13_config_dosyalari_degismedi(name):
         head = head.replace(b'"config/veto.json"', b'"config/veto.live.json"')
     if name == "engine.testnet.json":   # DD-12 QC: LLM veto kaldirildi, testnet veto_mode "off"; baska fark yok
         head = head.replace(b'  "mode": "testnet",\n', b'  "mode": "testnet",\n  "veto_mode": "off",\n', 1)
+    if name in ("engine.testnet.json", "engine.live.json"):   # 22.11: kendi "pairs" satiri (kill_file'dan once); baska fark yok
+        env = name.split(".")[1]
+        head = head.replace(b'  "kill_file"', ENV_PAIRS_LINE[env] + b'  "kill_file"', 1)
     assert p.read_bytes() == head
 
 
@@ -295,7 +306,7 @@ def test_dt2_paper_katmani_yalniz_env_paper_ile_uygulanir():
     assert plain.exit_modes == {} and paper.exit_modes != {}
     for env in ("testnet", "live"):
         c = load_cli_config(CONFIG, "learner", env)
-        assert c.mode == env and len(c.pairs) == 10 and c.ml_mode == "off"
+        assert c.mode == env and list(c.pairs) == ENV_PAIRS[env] and c.ml_mode == "off"
         assert getattr(c, "max_positions", None) in (None, 0, 1)   # yeni alan varsayilan (kapali) kalir
 
 

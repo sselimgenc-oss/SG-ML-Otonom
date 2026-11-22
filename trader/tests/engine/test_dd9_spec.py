@@ -205,7 +205,7 @@ def test_k_01_live_layer_loads_with_fixed_contract_values():
 def test_k_02_live_json_exact_key_sets():
     live = json.loads(read(CONFIG / "engine.live.json"))
     testnet = json.loads(read(CONFIG / "engine.testnet.json"))
-    assert set(live) == {"mode", "var_dir", "kill_file", "pause_file", "live"}
+    assert set(live) == {"mode", "var_dir", "kill_file", "pause_file", "live", "pairs"}   # 22.11: kendi pairs listesi
     assert set(live["live"]) == set(testnet["live"])
 
 
