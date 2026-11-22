@@ -143,6 +143,9 @@ def closed_row(t: L.TradeRecord, ctx: Ctx) -> dict:
             "neden": (lambda x: {"i": "İ"}.get(x[:1], x[:1].upper()) + x[1:])(TS.kapanis_neden(t.exit_reason, pnl)),
             "giris": _px(t.entry_price), "cikis": _px(t.exit_price), "sure": sure_metni(t.entry_ts, t.exit_ts),
             "komisyon": (t.fee_entry or 0.0) + (t.fee_exit or 0.0), "fonlama": t.funding_paid or 0.0,
+            "buyukluk": notional, "kaldirac": t.leverage,
+            "marj": (notional / t.leverage) if (notional and t.leverage) else None,
+            "kapanis_ts": t.exit_ts.timestamp() if t.exit_ts else None, "acilis_ts": t.entry_ts.timestamp() if t.entry_ts else None,
             "ders": bool(d is not None and d.lesson_ids)}
 
 
@@ -178,7 +181,8 @@ def open_view(ctx: Ctx, status: Mapping | None, now: datetime) -> dict:
                      "kz_yuzde": _f(p.get("unrealized_pct")), "sure": sure_metni(t.entry_ts, now),
                      "stop": _f(p.get("stop")) if p.get("stop") is not None else _px(t.planned_stop),
                      "hedef": _px(t.planned_target), "buyukluk": notional, "kaldirac": t.leverage,
-                     "acilis": tsi_kisa(t.entry_ts), "neden": f"{TS.kurulum_adi(t.setup)} sinyali" + (f", {reg}" if reg else ""),
+                     "acilis": tsi_kisa(t.entry_ts), "acilis_ts": t.entry_ts.timestamp() if t.entry_ts else None,
+                     "neden": f"{TS.kurulum_adi(t.setup)} sinyali" + (f", {reg}" if reg else ""),
                      "_marj": (notional / t.leverage) if (notional and t.leverage) else None})
     kz = [r["kz"] for r in rows if r["kz"] is not None]
     eq = _f((status or {}).get("equity"))

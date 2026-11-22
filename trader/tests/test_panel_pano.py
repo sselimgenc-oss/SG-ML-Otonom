@@ -90,6 +90,20 @@ def test_kol_adi_used_like_telegram(env):
     assert d.pano("learner")["acik"]["rows"][0]["kol"] == "Yatay piyasa kenarı · 1 saat"
 
 
+def test_closed_row_has_size_leverage_margin(env):
+    d = PanelData(load_config(env.cfg_path), clock=lambda: NOW)
+    rows = d.kapanan("learner", "tumu")["rows"]
+    assert rows
+    for r in rows:
+        assert r["buyukluk"] is not None and r["buyukluk"] > 0
+        assert "kaldirac" in r and "marj" in r
+        if r["kaldirac"]:
+            assert r["marj"] == pytest.approx(r["buyukluk"] / r["kaldirac"])
+        else:
+            assert r["marj"] is None
+        assert isinstance(r["kapanis_ts"], float)
+
+
 def test_tsi_day_boundary(env):
     d = PanelData(load_config(env.cfg_path), clock=lambda: NOW)
     # 2026-11-15 21:30 UTC = 16.11 00:30 TSI => 16.11 gunune dahil, 15.11'e degil; 20:59 UTC = 15.11 23:59 TSI
