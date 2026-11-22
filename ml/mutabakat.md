@@ -1,23 +1,23 @@
 # İşlem mutabakatı
 
-Son kontrol: 2026-11-22 10:34 (TSİ). İşlem: 42 (kapanan 34, açık 8). Uyuşmazlık: 0.
+Son kontrol: 2026-11-22 22:34 (TSİ). İşlem: 46 (kapanan 40, açık 6). Uyuşmazlık: 0.
 
 ## Kontroller
 
 | Kontrol | Sonuç | Ayrıntı |
 |---|---|---|
-| Kasa = başlangıç + Σ net K/Z | geçti | Kasa 1.131,21 $ tutuyor |
-| Net K/Z: SQL toplamı = motor toplamı = brüt - komisyon - fonlama | geçti | Defter toplamları tutuyor (+130,39 $) |
-| Long toplamı (motor = panel) | geçti | Long işlemler panelle aynı (5 işlem) |
-| Short toplamı (motor = panel) | geçti | Short işlemler panelle aynı (29 işlem) |
-| Toplam kapanan (motor = panel 'tümü') | geçti | Kapanan işlemlerin toplamı panelle aynı (34 işlem) |
-| Açık pozisyon sayısı (motor = panel = şerit = durum) | geçti | 8 açık işlem, hepsi aynı |
-| Açık K/Z fiyat kaynağı (panel = motor mark) | geçti | Açık işlemlerin kâr/zararı panelle aynı; fiyat bekleniyor (piyasa kapalı/veri yok): #20, #39, #40, #59, #61, #64, #65, #66 |
+| Kasa = başlangıç + Σ net K/Z | geçti | Kasa 1.078,63 $ tutuyor |
+| Net K/Z: SQL toplamı = motor toplamı = brüt - komisyon - fonlama | geçti | Defter toplamları tutuyor (+79,38 $) |
+| Long toplamı (motor = panel) | geçti | Long işlemler panelle aynı (6 işlem) |
+| Short toplamı (motor = panel) | geçti | Short işlemler panelle aynı (34 işlem) |
+| Toplam kapanan (motor = panel 'tümü') | geçti | Kapanan işlemlerin toplamı panelle aynı (40 işlem) |
+| Açık pozisyon sayısı (motor = panel = şerit = durum) | geçti | 6 açık işlem, hepsi aynı |
+| Açık K/Z fiyat kaynağı (panel = motor mark) | geçti | Açık işlemlerin kâr/zararı panelle aynı; fiyat bekleniyor (piyasa kapalı/veri yok): #20, #39, #40, #61, #66, #70 |
 | Günlük zarar limiti oranı (panel = kâğıt ayarı) | geçti | Günlük zarar limiti %8,00 (panelle aynı) |
 
 ## Bilgi
 
-- Fiyatı gelmeyen açık işlemler: #20, #39, #40, #59, #61, #64, #65, #66 · fiyat bekleniyor (piyasa kapalı/veri yok); uyuşmazlık sayılmaz
+- Fiyatı gelmeyen açık işlemler: #20, #39, #40, #61, #66, #70 · fiyat bekleniyor (piyasa kapalı/veri yok); uyuşmazlık sayılmaz
 
 ## Telegram kaynağı
 
@@ -65,11 +65,15 @@ Yok.
 | 56 | Kırılım yeniden testi · 1 saat | AVAX | short | kapalı | 2026-11-21 11:00 | 2026-11-21 14:31 | 6,270000 | 6,419000 | -11,3240 | 0,4822 | 0,0000 | -11,8062 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 57 | İki bacaklı geri çekilme · 1 saat | DOT | short | kapalı | 2026-11-21 15:00 | 2026-11-21 16:39 | 0,643100 | 0,661000 | -11,3218 | 0,4124 | 0,0000 | -11,7342 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 58 | Trend geri çekilmesi · 15 dakika | JPM | short | kapalı | 2026-11-21 15:30 | 2026-11-21 16:45 | 312,120000 | 313,890000 | -6,6198 | 1,1706 | 0,0000 | -7,7904 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
-| 59 | Trend geri çekilmesi · 1 saat | COST | long | açık | 2026-11-21 17:00 | — | 1.110,550000 | — | — | 0,5664 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
+| 59 | Trend geri çekilmesi · 1 saat | COST | long | kapalı | 2026-11-21 17:00 | 2026-11-22 13:30 | 1.110,550000 | 1.116,705000 | 6,2781 | 1,1359 | 0,0000 | 5,1422 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 60 | Sahte kırılım dönüşü · 15 dakika | NVDA | short | kapalı | 2026-11-21 17:15 | 2026-11-21 23:31 | 129,930000 | 131,560000 | -12,4206 | 0,9963 | -0,3769 | -13,0400 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 61 | Trend geri çekilmesi · 1 saat | AMZN | short | açık | 2026-11-21 18:00 | — | 253,810000 | — | — | 0,3858 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
 | 62 | Yapay zekâ adayı · 15 dakika | BTC | short | kapalı | 2026-11-21 23:45 | 2026-11-22 02:13 | 60.389,900000 | 60.332,600000 | 1,0314 | 1,0865 | 0,0000 | -0,0551 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 63 | Yapay zekâ adayı · 15 dakika | ETH | short | kapalı | 2026-11-22 02:15 | 2026-11-22 05:45 | 1.682,740000 | 1.671,110000 | 7,7572 | 1,1185 | -0,0305 | 6,6692 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
-| 64 | Trend geri çekilmesi · 1 saat | BTC | short | açık | 2026-11-22 06:00 | — | 59.463,100000 | — | — | 0,2379 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
-| 65 | Trend geri çekilmesi · 1 saat | ETH | short | açık | 2026-11-22 06:00 | — | 1.671,050000 | — | — | 0,3534 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
+| 64 | Trend geri çekilmesi · 1 saat | BTC | short | kapalı | 2026-11-22 06:00 | 2026-11-22 12:50 | 59.463,100000 | 60.668,200000 | -9,6408 | 0,4805 | -0,0259 | -10,0954 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
+| 65 | Trend geri çekilmesi · 1 saat | ETH | short | kapalı | 2026-11-22 06:00 | 2026-11-22 11:36 | 1.671,050000 | 1.697,930000 | -11,3702 | 0,7125 | 0,0078 | -12,0906 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 66 | Sıkışma kırılımı · 1 saat | BCH | short | açık | 2026-11-22 09:00 | — | 194,620000 | — | — | 0,1707 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
+| 67 | Yapay zekâ adayı · 1 saat | AVAX | short | kapalı | 2026-11-22 12:00 | 2026-11-22 12:56 | 6,595000 | 6,680000 | -10,2000 | 0,7965 | 0,0000 | -10,9965 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
+| 68 | Yapay zekâ adayı · 1 saat | XMR | short | kapalı | 2026-11-22 13:00 | 2026-11-22 17:23 | 484,830000 | 492,930000 | -10,1331 | 0,6116 | 0,0000 | -10,7447 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
+| 69 | Sahte kırılım dönüşü · 15 dakika | NVDA | short | kapalı | 2026-11-22 13:45 | 2026-11-22 15:19 | 132,220000 | 133,580000 | -11,1384 | 1,0885 | 0,0000 | -12,2269 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
+| 70 | Sıkışma kırılımı · 15 dakika | GOOGL | short | açık | 2026-11-22 15:30 | — | 274,500000 | — | — | 0,5394 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
