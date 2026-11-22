@@ -51,3 +51,5 @@ kâğıt bot 44 enstrümanla çalışıyor (health.py:690 _c_open_price).
 1) Kullanıcı sunucuda teyit eder:
    sudo sqlite3 -readonly /home/trader/SG-Github-AB-proje/trader/var/market.sqlite "SELECT pair, datetime(MAX(open_ms)/1000,'unixepoch') FROM bars WHERE kind='last' AND tf='1m' AND pair IN ('HYPE/USDT','BCH/USDT','1000SHIB/USDT','BTC/USDT') GROUP BY pair;"
 2) Düzeltme: açık pozisyon çiftleri doğrudan DB'den sorgulansın (seans kapalı hisseler yine uyarı vermesin). Test önce.
+3) Asıl eksik: genel "1m mum bayat" kontrolü (health.py ~664 market_bars) de yalnız 10 coini izliyor; diğer 34 enstrümanın
+   fiyatı kesilse alarm gelmez. Düzeltme 44'ün hepsini kapsasın; hisse/emtia seans dışındayken uyarı vermesin (session_tag).
