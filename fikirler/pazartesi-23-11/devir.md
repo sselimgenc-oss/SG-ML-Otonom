@@ -48,7 +48,7 @@ Tam tablo: `notlar.md` sonu ("KULLANICI KARARLARI 22.11").
 
 ### 2) ML + algoritmik fikirler (birlikte, sonra kullanıcı seçer)
 - `x-algo-fikirleri.md` + aynı klasördeki 3 PDF (trading-ml-arastirmalari, trading-ml-dunya-taramasi, en-uygun-5-calisma-proje).
-- 3 kitap (telifli; repo PUBLIC olduğu için repoya KONMADI): Gizlyk "MQL5 ile Algoritmik Alım Satım için Yapay Sinir Ağları" 752 sf, Jansen "Algoritmik Trading için Makine Öğrenimi" 1161 sf, Giller "Finansal Veri Biliminin İzinde" 500 sf. Eski oturumun diskinde kaldı — yeni oturumda kullanıcıdan yeniden yüklemesini iste. Önce içindekiler, sonra yalnız ML'ye yarayan bölümler.
+- 3 kitap (telifli; repo PUBLIC olduğu için repoya KONMADI): Gizlyk "MQL5 ile Algoritmik Alım Satım için Yapay Sinir Ağları" 752 sf, Jansen "Algoritmik Trading için Makine Öğrenimi" 1161 sf, Giller "Finansal Veri Biliminin İzinde" 500 sf. Kitaplar kullanıcının bilgisayarındaki arşivde (masaüstü pdfler klasörü) zaten var — yeniden yükletme; arşiv taramasıyla (Remote Control + pdftotext) birlikte okunur. Önce içindekiler, sonra yalnız ML'ye yarayan bölümler.
 - Kullanıcının 3200 PDF arşivinden "Özel-Makine Öğrenmesi 1" ve "Özel-Algoritmik Trading 1" klasörleri.
 - Çıktı: tek birleşik sade tablo (bizde olmayan + ML'ye yarayan).
 
