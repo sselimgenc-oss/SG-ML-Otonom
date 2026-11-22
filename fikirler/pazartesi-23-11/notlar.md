@@ -29,3 +29,17 @@ ML+CT'yi izometrik 3D ofis gibi oyunlaştırıp YouTube canlı yayını. Şartla
 - Örnek: "ETRE v2" ofis görünümü (v3'te sade panoya dönmüş — bakım yükü/asıl işi gölgeleme uyarısı).
 - Sıra: önce kâğıt → küçük canlı kâr kanıtı (birkaç ay) → basit 2D/izometrik ofis ekranı + kısa videolarla ilgi ölçümü → tam oyun görseli + günlük yayın.
 - KULLANICI KARARI (21.11): Oyun/ofis görseli ÇOK SONRA ve ayrı proje; tek amaç YouTube geliri. Gerekçe: önceki bir projede ofis görsellerini düzenlemek asıl işi gölgeledi ve proje başarısız oldu. Şimdilik yalnız sade pano.
+
+## KULLANICI KARARLARI (22.11 akşam, Fable görüşü okunduktan sonra)
+| Madde | Karar |
+|---|---|
+| a | Kâğıt kaldıraç 3x kalır; S1 stop bandı 2,0 kalır, 2 hafta ölçülür sonra karar |
+| b | Zirveden düşüş kilidi %15, kâğıtta da açık; açık pozisyonlar kalır, yalnız kullanıcı açar; başlangıç −%20 kuralı ikinci emniyet olarak kalır; zirve değeri yeniden başlatmada silinmez |
+| c | Canlıda HEPSİ (kripto + hisse + emtia). TradFi için kod değişikliği gerekli (config contract_types + broker extract_all_rules); sembol adları sunucuda doğrulanacak |
+| d | Canlı kasa tavanı 2.000 $ (toplam vadeli cüzdan, sonradan eklenenler dahil) — koddaki kilitli 1.500 $ sınırı kullanıcı kararıyla 2.000 $ olacak |
+| e | İlk canlı kasa en az 1.000 $, en çok 2.000 $ (kullanıcı: riskleri biliyorum) |
+| f | BNB ile ücret indirimi: hayır (şimdilik) |
+| g | İki komut: "Durdur" = yalnız yeni girişler durur; "Hepsini kapat" = ayrı komut, onay sorar |
+| h | Repolar canlıdan önce private; sunucuya yalnız okuma yetkili anahtar; otomatik güncelleme yeniden test edilir |
+| ek | Hafta sonu hisse büyüklük tavanı: gerek yok (kullanıcı: riskleri biliyorum) |
+Uygulama: pazartesi 15:00 TSİ sonrası, kullanıcı "okey" deyince.
