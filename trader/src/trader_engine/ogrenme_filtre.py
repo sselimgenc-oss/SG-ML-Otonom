@@ -87,6 +87,14 @@ def model_dizini(ledger_path: str | os.PathLike) -> Path:
     return Path(ledger_path).parent.joinpath(*MODEL_ALT)
 
 
+def model_dizini_cfg(cfg) -> Path:
+    """Giris kapisinin model dizini. Kagit: kendi defterinin yani. Canli (23.11 kullanici karari: canli = kagit): modeli HICBIR sey
+    `var-live` altina yazmaz; kagidin dizini (`<var_dir ust dizini>/var/<bot>/models/ortak_filtre`) YALNIZ OKUNUR. Eksik paket => fail-open."""
+    if getattr(cfg, "mode", None) == "live":
+        return Path(cfg.var_dir).parent.joinpath("var", cfg.bot, *MODEL_ALT)
+    return model_dizini(cfg.ledger_path)
+
+
 def kapali(env: Mapping[str, str] | None = None) -> bool:
     return (os.environ if env is None else env).get(ENV_KAPALI) == "1"
 

@@ -162,8 +162,10 @@ class LiveBroker:
     is_simulated = False
 
     def __init__(self, live: LiveSettings, env: Literal["testnet", "live"], leverage: int, pairs: Sequence[str],
-                 rest: Any, clock: Clock, taker_fee_fallback: float, environ: Mapping[str, str] | None = None) -> None:
+                 rest: Any, clock: Clock, taker_fee_fallback: float, environ: Mapping[str, str] | None = None,
+                 contract_types: Sequence[str] | None = None) -> None:
         self._live, self._env, self._lev = live, env, int(leverage)
+        self._contract_types = tuple(contract_types) if contract_types else ("PERPETUAL",)   # 23.11: canli = kagit (cfg.contract_types)
         self._environ: Mapping[str, str] = os.environ if environ is None else environ
         self._pairs = tuple(pairs)
         self._sym = {p: p.replace("/", "") for p in self._pairs}
@@ -350,7 +352,8 @@ class LiveBroker:
 
     def _apply_rules(self, info: Any) -> None:
         now = self._now()
-        res = extract_all_rules(info if isinstance(info, dict) else {}, [self._sym[p] for p in self._pairs])
+        res = extract_all_rules(info if isinstance(info, dict) else {}, [self._sym[p] for p in self._pairs],
+                                self._contract_types)
         for p in self._pairs:
             r = res.get(self._sym[p])
             if isinstance(r, SymbolRuleSpec):

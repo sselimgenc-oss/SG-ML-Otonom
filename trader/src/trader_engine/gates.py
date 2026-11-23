@@ -300,7 +300,7 @@ class EntryGate:
         `arm_conflict` ile yazilir (kagit; veto yok; `mark_decided` yok - kazananin karari isaretler)."""
         row = frame.last
         tk: dict = {}
-        if self.cfg.mode == "paper":
+        if self.cfg.mode in ("paper", "live"):                                          # 23.11 kullanici karari: canli = kagit
             tk = {"session_tag": AG.session_tag(AG.asset_class(row.pair, self.cfg.clusters), frame.last.bar_close_ts)}
         return self._skip(row, _tf_of(row), "arm_conflict", mark=False, skip_reason="arm_conflict",
                           veto_reason=f"gate:arm_conflict:{winner.arm_id or winner.setup}", **tk)
@@ -311,7 +311,7 @@ class EntryGate:
         row = frame.last
         pair = row.pair
         tf = _tf_of(row)
-        paper = self.cfg.mode == "paper"                                                # DD-12 WP-04: yalniz kagit
+        paper = self.cfg.mode in ("paper", "live")                                      # DD-12 WP-04: kagit sistemi; 23.11 kullanici karari: canli = kagit
         tk: dict = {}
         cls = ""
         if paper:

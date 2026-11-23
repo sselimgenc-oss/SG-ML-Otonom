@@ -70,6 +70,7 @@ _GATE_QUOTE_MAX_AGE_S = 5.0   # D17 sorgusunun `order_quote` icin yeniden kullan
 TESTNET_PRICE_DIVERGENCE_MAX = 0.005
 # DD-6 (D1): `opening` + borsada pozisyon gorulurse protect_first en sik bu aralikla
 OPENING_PROTECT_MIN_GAP_S = 5.0
+PAPER_SYSTEM_MODES = ("paper", "live")           # 23.11 kullanici karari: canli = kagit (ayni strateji/kapi/ML/kume/risk sistemi)
 FEED_MODES = ("paper", "testnet", "live")        # 11 §6.1: "feed'li canli dongu" (benzetimli broker ayrimi: is_paper)
 _BROKER_REASONS = ("exchange_auth", "exchange_unknown_code", "working_type_unverified", "exchange_unreachable",
                    "exchange_rate_limited")
@@ -150,7 +151,7 @@ class Engine:
             self.orders.tick_fn = tick_fn                    # legacy_compat: giris-ayi tarihsel tick
         self.gate = EntryGate(cfg, ledger, state, kill, veto, clock, broker, rules_fn, entry_ref_fn, pause, ladder)
         self.gate.symbol_blocked = lambda p: self.sembol_izleyici is not None and self.sembol_izleyici.is_blocked(p)   # 4f
-        if cfg.mode == "paper":                  # DD-12 WP-13: ders kapattigi kurulumlar (salt okunur dosya; yoksa hepsi acik)
+        if cfg.mode in PAPER_SYSTEM_MODES:       # DD-12 WP-13: ders kapattigi kurulumlar (salt okunur dosya; yoksa hepsi acik); 23.11 kullanici karari: canli = kagit
             _arms_path = Path(cfg.ledger_path).parent / "arms_off.json"
             self.gate.arms_off = lambda: load_arms_off(_arms_path)
             if cfg.etiket_kurallari:                                    # rejim etiketi kurali (sabit; girisi yalniz atlatabilir; docs/etiket-kurallari-spec.md)
@@ -159,7 +160,7 @@ class Engine:
                 try:
                     from . import ogrenme_filtre as _OF
                     if not _OF.kapali():
-                        self.gate.ml_filtre = _OF.FiltreDeposu(_OF.model_dizini(cfg.ledger_path))
+                        self.gate.ml_filtre = _OF.FiltreDeposu(_OF.model_dizini_cfg(cfg))   # canli: kagidin model dizini (YALNIZ OKUR)
                 except Exception as e:  # noqa: BLE001 - filtre kurulamazsa motor filtresiz surer
                     log.warning("ML filtresi kurulamadi, filtre YOK: %s: %s", type(e).__name__, e)
         self.reconciler = reconciler if reconciler is not None else self._make_reconciler()
@@ -175,6 +176,8 @@ class Engine:
             signals.position_fn = self._position_for_arms       # type: ignore[attr-defined]
         self._params_map: dict | None = None
         self._mode_flags: dict[str, int] = {}                  # etkin defter surumunun cikis kipi bayraklari (exit_breakeven/exit_partial)
+        if cfg.mode == "live" and cfg.exit_modes:               # 23.11 kullanici karari: canli = kagit; borsada basa-bas/kismi = FAZ 2
+            log.warning("cikis modlari canlida faz 2: exit_modes yapilandirmada var ama canlida YOK SAYILIR (basa-bas/kismi kapanis yok)")
         self._act_id: int | None = None
         self._version_id = 0
         self._params_ok = False
@@ -556,7 +559,7 @@ class Engine:
 
     def cluster_counts(self) -> dict | None:
         """status.json `clusters` (DD-12 §4.1): kume basina acik + acilmakta pozisyon sayisi ve tavan; hesap geneli. Yalniz kagit."""
-        if self.cfg.mode != "paper" or not self.cfg.clusters:
+        if self.cfg.mode not in PAPER_SYSTEM_MODES or not self.cfg.clusters:
             return None
         held = [p.pair for p in self.state.open_positions()]
         out = {name: {"open": sum(1 for h in held if h in spec.pairs), "max": spec.max_positions}
@@ -2282,7 +2285,8 @@ def _build_live_broker(cfg: EngineConfig, clock: Clock | None, env: Mapping[str,
                             now_ms=now_ms, sleep=clk.sleep,
                             recv_window_ms=cfg.live.recv_window_ms, conditional_mode=cfg.live.conditional_mode,
                             ban_guard=guard)
-    broker = LiveBroker(cfg.live, cfg.mode, cfg.leverage, cfg.pairs, rest, clk, cfg.cost.taker_fee, environ=env)
+    broker = LiveBroker(cfg.live, cfg.mode, cfg.leverage, cfg.pairs, rest, clk, cfg.cost.taker_fee, environ=env,
+                        contract_types=cfg.contract_types)
     broker.startup_check()
     return broker
 
@@ -2357,12 +2361,12 @@ def build_engine(cfg: EngineConfig, *, clock: Clock | None = None, view: MarketV
         from .config import load_keys
         load_keys(env)                               # ConfigError("keys_missing: ...") aynen (11 §3.2)
     strategy = get_strategy(cfg.strategy, mode=cfg.mode, ml_mode=cfg.ml_mode, arms=cfg.arms or None)
-    if cfg.mode == "paper" and cfg.ml_mode == "active" and not cfg.ml_model_path and not cfg.ml_pairs \
+    if cfg.mode in PAPER_SYSTEM_MODES and cfg.ml_mode == "active" and not cfg.ml_model_path and not cfg.ml_pairs \
             and hasattr(strategy, "set_ml_mode"):
         strategy.set_ml_mode("off")      # 19.11: model yolu yok; ML etkinligi kurulum filtresiyle (EntryGate.ml_filtre). Eski yol sessiz ve saglik alarmsiz
-    if cfg.mode == "paper" and hasattr(strategy, "fail_open"):
+    if cfg.mode in PAPER_SYSTEM_MODES and hasattr(strategy, "fail_open"):    # 23.11 kullanici karari: canli = kagit
         strategy.fail_open = True                               # DD-12 spec 5 / D-T8: kagitta model yok => aday GECER (`ml_no_model`)
-    if cfg.mode == "paper" and cfg.ml_pairs and hasattr(strategy, "set_ml_universe"):
+    if cfg.mode in PAPER_SYSTEM_MODES and cfg.ml_pairs and hasattr(strategy, "set_ml_universe"):
         strategy.set_ml_universe(cfg.ml_pairs)                  # DD-12 spec 5.1: r03 yalniz ml_pairs'i puanlar/eler
     clock = clock or SystemClock()
     view = view or StoreSource(cfg.market_db)
