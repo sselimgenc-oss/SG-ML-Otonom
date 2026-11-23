@@ -1,23 +1,24 @@
 # İşlem mutabakatı
 
-Son kontrol: 2026-11-23 07:40 (TSİ). İşlem: 55 (kapanan 46, açık 9). Uyuşmazlık: 1.
+Son kontrol: 2026-11-23 10:34 (TSİ). İşlem: 55 (kapanan 47, açık 8). Uyuşmazlık: 0.
 
 ## Kontroller
 
 | Kontrol | Sonuç | Ayrıntı |
 |---|---|---|
-| Kasa = başlangıç + Σ net K/Z | geçti | Kasa 1.037,60 $ tutuyor |
-| Net K/Z: SQL toplamı = motor toplamı = brüt - komisyon - fonlama | geçti | Defter toplamları tutuyor (+39,25 $) |
+| Kasa = başlangıç + Σ net K/Z | geçti | Kasa 1.033,04 $ tutuyor |
+| Net K/Z: SQL toplamı = motor toplamı = brüt - komisyon - fonlama | geçti | Defter toplamları tutuyor (+34,45 $) |
 | Long toplamı (motor = panel) | geçti | Long işlemler panelle aynı (6 işlem) |
-| Short toplamı (motor = panel) | geçti | Short işlemler panelle aynı (40 işlem) |
-| Toplam kapanan (motor = panel 'tümü') | geçti | Kapanan işlemlerin toplamı panelle aynı (46 işlem) |
-| Açık pozisyon sayısı (motor = panel = şerit = durum) | geçti | 9 açık işlem, hepsi aynı |
-| Açık K/Z fiyat kaynağı (panel = motor mark) | kaldı | Açık işlem kâr/zararı panelde farklı: #40 fark 0,03 $, #66 fark 0,19 $, #71 fark 0,27 $ |
+| Short toplamı (motor = panel) | geçti | Short işlemler panelle aynı (41 işlem) |
+| Toplam kapanan (motor = panel 'tümü') | geçti | Kapanan işlemlerin toplamı panelle aynı (47 işlem) |
+| Açık pozisyon sayısı (motor = panel = şerit = durum) | geçti | 8 açık işlem, hepsi aynı |
+| Açık K/Z fiyat kaynağı (panel = motor mark) | geçti | Açık işlemlerin kâr/zararı panelle aynı; fiyat bekleniyor (piyasa kapalı/veri yok): #20, #71, #77, #79 |
 | Günlük zarar limiti oranı (panel = kâğıt ayarı) | geçti | Günlük zarar limiti %8,00 (panelle aynı) |
 
 ## Bilgi
 
-- Açık işlemlerin anlık kâr/zararı: kasada -7,00 $, panelde -6,61 $ · fark 0,39 $ (fiyat zamanlaması, uyuşmazlık sayılmaz)
+- Açık işlemlerin anlık kâr/zararı: kasada -13,24 $, panelde -16,86 $ · fark 3,62 $ (fiyat zamanlaması, uyuşmazlık sayılmaz)
+- Fiyatı gelmeyen açık işlemler: #20, #71, #77, #79 · fiyat bekleniyor (piyasa kapalı/veri yok); uyuşmazlık sayılmaz
 
 ## Telegram kaynağı
 
@@ -25,7 +26,7 @@ Telegram geçmişine erişim yok; motorun gönderdi kaydı (imleç) kullanıldı
 
 ## Uyuşmazlıklar
 
-- Açık işlem kâr/zararı panelde farklı: #40 fark 0,03 $, #66 fark 0,19 $, #71 fark 0,27 $
+Yok.
 
 ## İşlemler
 
@@ -84,5 +85,5 @@ Telegram geçmişine erişim yok; motorun gönderdi kaydı (imleç) kullanıldı
 | 75 | Trend geri çekilmesi · 15 dakika | XMR | short | kapalı | 2026-11-23 04:45 | 2026-11-23 05:22 | 491,750000 | 496,020000 | -9,1848 | 1,0623 | 0,0000 | -10,2471 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 76 | Trend kırılımı · 15 dakika | DOGE | short | kapalı | 2026-11-23 05:30 | 2026-11-23 06:11 | 0,054610 | 0,054980 | -7,1602 | 1,0604 | 0,0000 | -8,2206 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 77 | Sahte kırılım dönüşü · 15 dakika | BRKB | short | açık | 2026-11-23 06:30 | — | 573,640000 | — | — | 0,5134 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
-| 78 | Sahte kırılım dönüşü · 15 dakika | ADA | short | açık | 2026-11-23 06:45 | — | 0,144200 | — | — | 0,2396 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
+| 78 | Sahte kırılım dönüşü · 15 dakika | ADA | short | kapalı | 2026-11-23 06:45 | 2026-11-23 08:31 | 0,144200 | 0,145500 | -4,3199 | 0,4813 | 0,0000 | -4,8012 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 79 | Yapay zekâ adayı · 4 saat | NVDA | short | açık | 2026-11-23 07:00 | — | 134,260000 | — | — | 0,1645 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
