@@ -19,7 +19,7 @@ import numpy as np
 
 from . import guard, inputs as I
 from .guard import BacktestArgError
-from .stats import MIN_G, cluster_mean
+from .stats import MIN_G, cluster_mean, merge
 
 SCHEMA = "ml.tur1_olcum.v1"
 
@@ -356,11 +356,11 @@ def al_tut(trades, mumlar: MumDeposu | None, kasa0: float | None = None) -> dict
             getiri[pair] = g - 1.0
         else:
             yok.append(pair)
-    out.update({"n_enstruman": len(getiri) + len(yok), "n_veri_var": len(getiri), "veri_yok_enstruman": yok,
+    merge(out, {"n_enstruman": len(getiri) + len(yok), "n_veri_var": len(getiri), "veri_yok_enstruman": yok,
                 "donem": [iso_ms(bas), iso_ms(bit)], "kilitli_aralik_disarida": len(parcalar) > 1})
     if not getiri:
         return {**out, "durum": "veri_yok"}
-    out.update({"durum": "ok", "ort_getiri": float(np.mean(list(getiri.values()))), "enstruman_getirisi": getiri,
+    merge(out, {"durum": "ok", "ort_getiri": float(np.mean(list(getiri.values()))), "enstruman_getirisi": getiri,
                 "masraf": "yok (al-tut masrafsız; bizimki masraflı)"})
     if kasa0:
         out["bizim_getiri"] = toplam(t["pnl"] for t in trades) / kasa0
@@ -622,7 +622,7 @@ def dsr_pbo(trades) -> dict:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", RuntimeWarning)       # çok küçük/dejenere örnekte basıklık uyarısı: bilgi satırı, gürültü yok
             dsr = float(S.deflated_sharpe(sr, len(rs), sk, ku, trial_srs=srs if len(srs) > 1 else None, n_trials=max(1, len(kol))))
-        out.update({"kol_sayisi": len(kol), "deneme_sharpe_sayisi": len(srs), "sr_islem_basina": sr, "dsr": dsr})
+        merge(out, {"kol_sayisi": len(kol), "deneme_sharpe_sayisi": len(srs), "sr_islem_basina": sr, "dsr": dsr})
     gunler = sorted({t["entry_ts"][:10] for t in trades})
     kollar = sorted({t["arm"] for t in trades})
     if gunler and len(kollar) >= 2:
@@ -726,7 +726,7 @@ def kosu_testi(trades) -> dict:
     out = {"n": n, "etiket": etiket(n)}
     seq = [t["net_r"] > 0 for t in ts]
     n1, n2 = sum(seq), n - sum(seq)
-    out.update({"kazanc": n1, "kayip": n2})
+    merge(out, {"kazanc": n1, "kayip": n2})
     if n < YETERSIZ_N:
         return {**out, "durum": "yetersiz_ornek"}
     if n1 == 0 or n2 == 0:
