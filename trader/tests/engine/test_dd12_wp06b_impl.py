@@ -14,16 +14,16 @@ def _cfg():
 
 
 def test_services_no_veto():
-    assert B.SERVICES == ("haftalik_ozet", "lesson")
+    assert B.SERVICES == ("haftalik_ozet", "lesson", "haber_kolu", "yorumcu")   # 23.11 ust lig: haber kolu + yorumcu
 
 
 def test_config_json_no_veto_entries():
     d = _cfg()
     for k in ("daily_cap_usd", "api_key_env", "reservation_ttl_s"):
-        assert set(d[k]) == {"haftalik_ozet", "lesson"}
-    assert set(d["retry"]["deadline_s"]) == {"haftalik_ozet", "lesson"}
+        assert set(d[k]) == {"haftalik_ozet", "lesson", "haber_kolu", "yorumcu"}
+    assert set(d["retry"]["deadline_s"]) == {"haftalik_ozet", "lesson", "haber_kolu", "yorumcu"}
     assert "veto" not in json.dumps(d).lower()
-    assert d["monthly_cap_usd"] == 10.0 and d["prepaid_credit_usd"] == 10.0
+    assert d["monthly_cap_usd"] == 20.0 and d["prepaid_credit_usd"] == 10.0   # 23.11 kullanici karari: aylik tavan 20 $
 
 
 def test_config_loads_and_caps():
