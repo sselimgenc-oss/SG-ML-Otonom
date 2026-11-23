@@ -83,7 +83,7 @@ def test_feed_config_env(tmp_path):
     base = F.feed_config_from_base(d)
     paper = F.feed_config_from_base(d, "paper")
     assert len(base.pairs) == 10 and base.optional_pairs == () and base.contract_types == ("PERPETUAL",)
-    assert len(paper.pairs) == 44 and len(paper.optional_pairs) == 25 and "TRADIFI_PERPETUAL" in paper.contract_types
+    assert len(paper.pairs) == 43 and len(paper.optional_pairs) == 24 and "TRADIFI_PERPETUAL" in paper.contract_types   # 23.11 kullanici karari: TON cikarildi (SETTLING)
     assert paper.db_path == base.db_path
 
 

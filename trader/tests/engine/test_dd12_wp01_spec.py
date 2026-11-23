@@ -223,13 +223,13 @@ def test_dt1_eski_katman_dosyalari_silindi():
 def test_dt2_paper_44_cift_taban_10_ust_kumesi():
     cfg = _paper()
     assert cfg.mode == "paper" and cfg.bot == "learner"
-    assert len(cfg.pairs) == 44 and len(set(cfg.pairs)) == 44
+    assert len(cfg.pairs) == 43 and len(set(cfg.pairs)) == 43   # 23.11 kullanici karari: TON cikarildi (SETTLING)
     bases = [_base(p) for p in cfg.pairs]
     base10 = load_cli_config(CONFIG, "learner", None).pairs
     assert set(base10) <= set(cfg.pairs)
     assert set(BASE10) <= set(bases)
     assert STOCKS20 <= set(bases) and COMMODITY4 <= set(bases)
-    assert len(set(bases) - STOCKS20 - COMMODITY4) == 20          # 20 kripto
+    assert len(set(bases) - STOCKS20 - COMMODITY4) == 19          # 19 kripto   # 23.11 kullanici karari: TON cikarildi (SETTLING)
 
 
 def test_dt2_paper_ml_kapali_golgesiz_16_pozisyon():
@@ -254,8 +254,8 @@ def test_dt2_paper_ml_pairs_kaldirildi():
 def test_dt2_paper_optional_pairs_hisse_emtia_24():
     cfg = _paper()
     # 19 Kasim: TON vadelisi Binance'te not_trading; zorunlu olunca besleme acilmiyordu => istege bagli
-    assert len(cfg.optional_pairs) == 25
-    assert {_base(p) for p in cfg.optional_pairs} == STOCKS20 | COMMODITY4 | {"TON"}
+    assert len(cfg.optional_pairs) == 24   # 23.11 kullanici karari: TON cikarildi (SETTLING)
+    assert {_base(p) for p in cfg.optional_pairs} == STOCKS20 | COMMODITY4
     assert set(cfg.optional_pairs) <= set(cfg.pairs)
 
 
@@ -269,7 +269,7 @@ def test_dt2_paper_kumeler_ve_tavanlar_4_6_5_3_2_2():
     assert cl["hisse_teknoloji"][0] == TEKNOLOJI
     assert cl["metal"][0] == METAL and cl["enerji_sanayi"][0] == ENERJI
     assert cl["hisse"][0] == STOCKS20 and len(cl["hisse"][0]) == 20
-    assert len(cl["kripto_diger"][0]) == 15 and not (cl["kripto_diger"][0] & BUYUK)
+    assert len(cl["kripto_diger"][0]) == 14 and not (cl["kripto_diger"][0] & BUYUK)   # 23.11 kullanici karari: TON cikarildi (SETTLING)
     assert not (cl["kripto_diger"][0] & (STOCKS20 | COMMODITY4))
     assert TEKNOLOJI <= cl["hisse"][0]                              # cok uyelik: teknoloji ayni zamanda hisse
     pair_bases = {_base(p) for p in cfg.pairs}
@@ -305,7 +305,7 @@ def test_dt2_paper_yeni_anahtar_ham_json_listesi():
 def test_dt2_paper_katmani_yalniz_env_paper_ile_uygulanir():
     plain = load_cli_config(CONFIG, "learner", None)
     paper = load_cli_config(CONFIG, "learner", "paper")
-    assert len(plain.pairs) == 10 and len(paper.pairs) == 44
+    assert len(plain.pairs) == 10 and len(paper.pairs) == 43   # 23.11 kullanici karari: TON cikarildi (SETTLING)
     assert plain.ml_mode == "off" and paper.ml_mode == "active"      # 19.11: ML kagitta aktif
     assert plain.shadow_blocks != () and paper.shadow_blocks == plain.shadow_blocks      # 19.11: kagitta golge satirlar acik
     assert plain.exit_modes == {} and paper.exit_modes != {}
@@ -320,7 +320,7 @@ def test_dt2_cli_env_paper_kabul_ve_yukler():
     a = ap.parse_args(["run", "--bot", "learner", "--env", "paper", "--config-dir", str(CONFIG)])
     assert a.env == "paper"
     cfg = cli._load_cfg(a)
-    assert cfg.mode == "paper" and len(cfg.pairs) == 44
+    assert cfg.mode == "paper" and len(cfg.pairs) == 43   # 23.11 kullanici karari: TON cikarildi (SETTLING)
     b = ap.parse_args(["run", "--bot", "learner", "--config-dir", str(CONFIG)])
     assert b.env is None and len(cli._load_cfg(b).pairs) == 10
 
@@ -358,7 +358,7 @@ def _inject_cluster_pair(raw: dict, pair: str):
 
 def test_dt2_paper_kopyasi_kontrol_yuklenir(tmp_path):
     cfg = _load_overlay(_write(tmp_path, "ok.json", _paper_raw()))
-    assert len(cfg.pairs) == 44
+    assert len(cfg.pairs) == 43   # 23.11 kullanici karari: TON cikarildi (SETTLING)
 
 
 @pytest.mark.parametrize("which", ["cluster", "ml_pairs", "optional_pairs"])

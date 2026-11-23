@@ -119,7 +119,7 @@ def test_commodities_kept_even_when_not_trading(env, tmp_path):
     doc, rep = UR.build(cfg, var, _marketcap(tmp_path, []), NOW)
     assert "XAU/USDT" in doc["pairs"] and "BZ/USDT" in doc["pairs"]
     assert "XAU/USDT" in doc["optional_pairs"]
-    assert len(doc["pairs"]) == 44
+    assert len(doc["pairs"]) == 43   # 23.11 kullanici karari: TON cikarildi (SETTLING)
     assert any("XAU/USDT" in n for n in doc["notes"])
 
 
@@ -136,7 +136,7 @@ def test_open_position_pair_retained_as_optional(env, tmp_path):
     assert dropped in doc["pairs"] and dropped in doc["optional_pairs"]
     assert "NEWC/USDT" in doc["pairs"]
     assert rep["removed"] == []  # DOT korunur; eski listede de vardi
-    assert len(doc["pairs"]) == 45  # 44 + korunan acik pozisyon
+    assert len(doc["pairs"]) == 44  # 43 + korunan acik pozisyon   # 23.11 kullanici karari: TON cikarildi (SETTLING)
 
 
 def test_closed_position_not_retained(env, tmp_path):
@@ -204,7 +204,7 @@ def test_apply_writes_valid_overlay_atomically(env, tmp_path):
     assert rc == 0
     obj = json.loads((var / "universe" / "paper_pairs.json").read_text(encoding="utf-8"))
     assert U.validate_overlay(obj)["pairs"] == obj["pairs"]
-    assert len(obj["pairs"]) == 44 and obj["source"] == "marketcap"
+    assert len(obj["pairs"]) == 43 and obj["source"] == "marketcap"   # 23.11 kullanici karari: TON cikarildi (SETTLING)
 
 
 # --- kaplama (config.py) ----------------------------------------------------------------------------------------------

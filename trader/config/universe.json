@@ -2,7 +2,7 @@
   "schema": "universe/1",
   "n_crypto": 20,
   "n_stocks": 20,
-  "exclude_bases": ["USDT", "USDC", "FDUSD", "TUSD", "DAI", "USDE", "USDP", "BUSD", "PYUSD", "USD1", "USDS", "EURI",
+  "exclude_bases": ["TON", "USDT", "USDC", "FDUSD", "TUSD", "DAI", "USDE", "USDP", "BUSD", "PYUSD", "USD1", "USDS", "EURI",
                     "WBTC", "WETH", "STETH", "WSTETH", "WBETH", "BETH", "CBBTC", "CBETH", "RETH", "BNSOL", "JITOSOL", "MSOL"],
   "commodities": ["XAU/USDT", "XAG/USDT", "BZ/USDT", "COPPER/USDT"],
   "stocks_ordered": ["NVDA/USDT", "MSFT/USDT", "AAPL/USDT", "GOOGL/USDT", "AMZN/USDT", "META/USDT", "AVGO/USDT", "TSLA/USDT",

@@ -40,7 +40,8 @@ NY = ZoneInfo("America/New_York")
 H = timedelta(hours=1)
 
 BUYUK = ["BTC", "ETH", "XRP", "BNB", "SOL"]
-DIGER = ["DOGE", "ADA", "TRX", "LINK", "AVAX", "HYPE", "BCH", "XLM", "SUI", "HBAR", "LTC", "TON", "1000SHIB", "DOT", "XMR"]
+# 23.11 kullanici karari: TON cikarildi (SETTLING)
+DIGER = ["DOGE", "ADA", "TRX", "LINK", "AVAX", "HYPE", "BCH", "XLM", "SUI", "HBAR", "LTC", "1000SHIB", "DOT", "XMR"]
 TEK = ["NVDA", "MSFT", "AAPL", "GOOGL", "AMZN", "META", "AVGO", "TSLA", "ORCL", "NFLX", "PLTR", "AMD"]
 NONTEK = ["BRKB", "JPM", "LLY", "WMT", "V", "COST", "XOM", "HD"]
 METAL = ["XAU", "XAG"]
