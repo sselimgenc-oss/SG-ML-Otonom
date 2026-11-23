@@ -65,3 +65,17 @@ def test_probe_dl1_paket(tmp_path):
     assert p.file_state == "ok" and p.created_at == NOW - timedelta(days=2) and p.expires_at == NOW + timedelta(days=43)
     S.yaz(d / "DL1@1h.json", "{bozuk")
     assert m.probe_dl1_paket(env).file_state == "unreadable"
+
+
+
+def test_dl1_kol_ayarda_yoksa_denetim_uretilmez(tmp_path):
+    """23.11: DL1@1h ayarda kol degilken 'paket yok' WARN gurultu olur (CI hazirlik tatbikati); yalniz kol ayardayken denetlenir."""
+    import json
+    spec = importlib.util.spec_from_file_location("health_run_dl1b", ROOT / "scripts" / "health_run.py")
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    (tmp_path / "engine.paper.json").write_text(json.dumps({"arms": ["T1@1h"]}), encoding="utf-8")
+    assert m.dl1_kolda({"ENGINE_CONFIG_DIR": str(tmp_path)}) is False
+    (tmp_path / "engine.paper.json").write_text(json.dumps({"arms": ["T1@1h", "DL1@1h"]}), encoding="utf-8")
+    assert m.dl1_kolda({"ENGINE_CONFIG_DIR": str(tmp_path)}) is True
+    assert m.dl1_kolda({"ENGINE_CONFIG_DIR": str(tmp_path / "yok")}) is True     # okunamazsa temkinli: denetle

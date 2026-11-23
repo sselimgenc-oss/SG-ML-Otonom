@@ -62,6 +62,6 @@ def test_every_known_check_has_short_turkish_text():
         assert not re.search(r"[a-z]+_[a-z_]+", sorun + duzeldi + anlam), base          # ham kod/ad yok
     # health.py'deki her kontrol adı sözlükte (":bot" eki hariç)
     src = open(H.__file__, encoding="utf-8").read()
-    names = set(re.findall(r'name = f?"([a-z_]+)', src)) | {"disk_free", "memory", "swap", "backup_age",
+    names = set(re.findall(r'name = f?"([a-z0-9_]+)', src)) | {"disk_free", "memory", "swap", "backup_age",
                                                              "veto_file_age", "budget_status"}
     assert names <= set(H._HEALTH_TR), names - set(H._HEALTH_TR)

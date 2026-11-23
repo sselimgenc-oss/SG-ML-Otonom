@@ -54,7 +54,7 @@ EXPECTED_FIELDS = {
     "FundingPoint": ["pair", "ts", "rate", "mark"],
     "SymbolRules": ["pair", "symbol", "tick", "step", "min_qty", "max_qty", "min_notional"],
     "OrderRequest": ["client_id", "pair", "role", "order_side", "qty", "trigger_price", "reduce_only",
-                     "leverage", "working_type", "signal_bar_close_ts", "created_ts"],
+                     "leverage", "working_type", "signal_bar_close_ts", "created_ts", "partial"],   # partial: canli cikis kipleri (kismi kar alma)
     "OrderResult": ["status", "client_id", "order_id", "filled_qty", "avg_price", "fee", "reason", "ts"],
     "BrokerOrder": ["client_id", "pair", "role", "order_side", "qty", "trigger_price", "reduce_only",
                     "status", "filled_qty", "avg_price", "created_ts", "updated_ts"],
@@ -78,7 +78,7 @@ EXPECTED_DEFAULTS = {
     "Fill": {"ref_price": None},
     "Bar": {"v": 0.0},
     "MinuteBar": {"volume": 0.0},
-    "OrderRequest": {"working_type": "MARK_PRICE", "signal_bar_close_ts": None, "created_ts": None},
+    "OrderRequest": {"working_type": "MARK_PRICE", "signal_bar_close_ts": None, "created_ts": None, "partial": False},
     "OrderResult": {"order_id": None, "filled_qty": 0.0, "avg_price": None, "fee": 0.0,
                     "reason": None, "ts": None},
     "BrokerEvent": {"client_id": None, "fill": None, "funding_paid": 0.0, "rate": None,

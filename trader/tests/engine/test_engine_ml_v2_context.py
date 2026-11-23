@@ -141,7 +141,7 @@ def test_engine_two_pass_score_equals_training_score(world, cand_bars, recipe, n
         ).rows[expect_cands[0][0].split(":")[0]]["f_same_bar_signals"] == float(len(expect_cands))
 
 
-_WP11_FIELDS = ("arm_id", "tf")   # DD-12 WP-11: SignalRow'a eklenen alanlar (tekli stratejide None); eski ozetle karsilastirmada disarida
+_WP11_FIELDS = ("arm_id", "tf", "vol_tahmin", "vol_asim")   # fikir 10 (23.11): oynaklik tahmini alanlari da yeni; # DD-12 WP-11: SignalRow'a eklenen alanlar (tekli stratejide None); eski ozetle karsilastirmada disarida
 
 
 def _flag_off_digest(mod, px, fund, cand_bars, mode):
