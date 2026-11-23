@@ -139,7 +139,7 @@ def test_pipeline_runs_r02_r03_like(table, tmp_path, monkeypatch, rid, k):
     md = (tmp_path / "gate_report.md").read_text(encoding="utf-8")
     assert "kısıtlanan" in md and rid in md and "uniq_decay" in md
     oof = pd.read_parquet(tmp_path / "oof_predictions.parquet")
-    assert oof["fold"].nunique() == 4
+    assert oof["fold"].nunique() == 7      # kilit acik: kesim 2026-11-01 -> 7 test dilimi
 
 
 def test_calibration_clamped_writes_red_result_no_package(table, tmp_path, monkeypatch):

@@ -31,7 +31,7 @@ def test_end_to_end_artifacts_and_parity(run, table):
     assert s["parity_max_abs_diff"] <= 1e-9
     pkg = load_package(out / "model_candidate.json", check_expiry=False, require_gate=False)
     assert pkg["meta"]["features"] == feature_columns(table) and pkg["meta"]["expiry_days"] == 21
-    assert pkg["meta"]["train_window"]["end"].startswith("2026-04-30")
+    assert pkg["meta"]["train_window"]["end"].startswith("2026-10-31")      # kesim EGITIM_KESIMI (23.11.2026 kilit acik: veri sonu)
     assert pkg["meta"]["synthetic"] is True
     # paket, motor okuyucusuyla egitim disi satirlarda olasilik verir
     X = table[pkg["meta"]["features"]].to_numpy(float)
@@ -53,7 +53,7 @@ def test_report_is_turkish_and_complete(run):
 def test_oof_never_contains_training_rows(run, table):
     out, _ = run
     oof = pd.read_parquet(out / "oof_predictions.parquet")
-    assert oof["ts"].min() >= pd.Timestamp("2025-08-01", tz="UTC") and oof["fold"].nunique() == 4
+    assert oof["ts"].min() >= pd.Timestamp("2025-08-01", tz="UTC") and oof["fold"].nunique() == 7      # kilit acik: kesim 2026-11-01 -> 7 test dilimi
 
 
 def test_cli_script_synthetic(tmp_path):
