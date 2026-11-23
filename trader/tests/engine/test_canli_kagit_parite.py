@@ -1,14 +1,14 @@
-"""23.11 kullanici karari: canli = kagit. Canli motor kagitla AYNI ticaret sistemini calistirir (faz 1; canli cikis kipleri = faz 2).
+"""23.11 kullanici karari: canli = kagit. Canli motor kagitla AYNI ticaret sistemini calistirir (canli cikis kipleri de kagitla ayni: basa-bas stop tasima + kismi kar alma).
 Parite (config), canli risk sinirlari, %1 kademe baslangici, ML model yolu, genis sozlesme turleri, testnet tarafsizligi."""
 from __future__ import annotations
 
 import json
-import logging
 from datetime import timedelta
 from pathlib import Path
 
 import pytest
 import test_engine_live_spec as LS
+from trader_core import exit_modes as XM
 from trader_core import risk as K
 from trader_core import risk_ladder as RL
 from trader_engine import ogrenme_filtre as OF
@@ -59,7 +59,7 @@ def test_canli_ml_stratejisi_ve_43_cift_yuklenir():
     assert live.arms == paper.arms and live.arm_max_positions == paper.arm_max_positions
     assert live.clusters == paper.clusters and live.cost_overrides == paper.cost_overrides
     assert live.etiket_kurallari == paper.etiket_kurallari
-    assert live.exit_modes == paper.exit_modes          # yapilandirmada var; canli motor FAZ 2'ye kadar yok sayar
+    assert live.exit_modes == paper.exit_modes          # canli kagitla ayni cikis kiplerini kullanir (istisna yok)
 
 
 def test_canli_risk_sinirlari_024_016_008_hedef_001():
@@ -218,9 +218,8 @@ def _live_engine(tmp_path, **over):
     return cfg, build_engine(cfg, clock=clock, view=view, broker=broker, env=env)
 
 
-def test_canli_motor_kagit_yollarini_kurar_ve_exit_modes_yok_sayilir(tmp_path, caplog):
-    with caplog.at_level(logging.WARNING):
-        cfg, eng = _live_engine(tmp_path)
+def test_canli_motor_kagit_yollarini_kurar_ve_exit_modes_uygulanir(tmp_path):
+    cfg, eng = _live_engine(tmp_path)
     try:
         assert eng.strategy.info.name == "price_action_lab_ml"
         assert getattr(eng.strategy, "fail_open", None) is True          # model yok => aday gecer (canli sifir giris yapmaz)
@@ -229,20 +228,21 @@ def test_canli_motor_kagit_yollarini_kurar_ve_exit_modes_yok_sayilir(tmp_path, c
         assert eng.gate.ml_filtre is not None
         assert Path(eng.gate.ml_filtre.klasor) == tmp_path / "var" / "learner" / "models" / "ortak_filtre"
         assert eng.cluster_counts() is None or "clusters" in eng.cluster_counts()
-        # exit_modes: yapilandirmada var ama canlida yok sayilir
-        assert cfg.exit_modes and eng._exit_modes(type("P", (), {"setup": "T1", "trigger_tf": "1h"})) is None
-        assert any("cikis modlari canlida faz 2" in r.getMessage() for r in caplog.records)
+        # exit_modes: canlida kagitla ayni cozumlenir (istisna yok)
+        pos = type("P", (), {"setup": "T1", "trigger_tf": "1h"})
+        m = eng._exit_modes(pos)
+        assert cfg.exit_modes and m is not None and m.breakeven and m.partial
+        assert m == XM.resolve(load_cli_config(CONFIG, "learner", "paper").exit_modes, "T1", "1h", {})
         assert type(eng.cfg.risk_config).__name__ == "LiveRiskConfig"
     finally:
         eng.state.close()
         eng.ledger.close()
 
 
-def test_canli_motor_exit_modes_olmadan_log_satiri_yok(tmp_path, caplog):
-    with caplog.at_level(logging.WARNING):
-        _, eng = _live_engine(tmp_path, exit_modes={})
+def test_canli_motor_exit_modes_olmadan_kip_yok(tmp_path):
+    _, eng = _live_engine(tmp_path, exit_modes={})
     try:
-        assert not any("cikis modlari canlida faz 2" in r.getMessage() for r in caplog.records)
+        assert eng._exit_modes(type("P", (), {"setup": "T1", "trigger_tf": "1h"})) is None
     finally:
         eng.state.close()
         eng.ledger.close()

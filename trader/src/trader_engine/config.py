@@ -598,7 +598,7 @@ def _validate(raw: Mapping[str, Any]) -> EngineConfig:
     toplam_buyukluk_kat = None if tb_raw is None else _num("toplam_buyukluk_kat", tb_raw, 0.0, 100.0)
     if toplam_buyukluk_kat is not None and toplam_buyukluk_kat <= 0:
         raise ConfigError("toplam_buyukluk_kat > 0 olmali")
-    if mode not in ("paper", "backtest", "live") and exit_modes:   # 23.11: canli kabul eder ama FAZ 2'ye kadar motor yok sayar
+    if mode not in ("paper", "backtest", "live") and exit_modes:   # 23.11 kullanici karari: canli = kagit (canli motor da uygular)
         raise ConfigError(f"exit_modes yalniz mode='paper'/'backtest'/'live' ile verilebilir (mode={mode!r})")
     if mode not in ("paper", "live"):                         # 23.11 kullanici karari: canli = kagit
         given = {"optional_pairs": optional_pairs, "ml_pairs": ml_pairs, "max_positions": max_positions, "risk": risk_raw,

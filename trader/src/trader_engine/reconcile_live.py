@@ -691,6 +691,10 @@ class LiveReconciler(Reconciler):
         ids = self._hint_ids(sp) + [o.client_id for o in orders_open if o.client_id not in self._hint_ids(sp)]
         try:
             reg(sp.pair, sp.entry_ts or bp.opened_ts, ids)
+            rp = getattr(self.broker, "register_partial", None)        # cikis kipleri: kismi bacak kapanis olayindan dislanir (yeniden baslatma)
+            pk = self.state.kv_get(f"partial:{sp.trade_id}")
+            if callable(rp) and isinstance(pk, dict) and pk.get("cid") and pk.get("state") in ("pending", "done"):
+                rp(sp.pair, str(pk["cid"]))
         except StateError:
             raise
         except Exception as e:  # noqa: BLE001

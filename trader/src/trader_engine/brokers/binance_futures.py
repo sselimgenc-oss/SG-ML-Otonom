@@ -64,7 +64,7 @@ _COUNTERS = ("fee_rate_fallback", "unknown_reject_codes", "fee_drift", "fee_asse
              "working_type_mismatch", "sync_failures", "exchange_bans", "rules_drift", "working_type_unverified",
              "stop_response_mismatch", "exchange_auth", "close_unresolved", "malformed_trades",
              "account_mode_drift", "account_mode_unverified", "entry_weight_rejects", "account_mode_unverified_ban",
-             "zero_fill_pending", "zero_fill_unresolved", "optional_position_risk_failed")
+             "zero_fill_pending", "zero_fill_unresolved", "optional_position_risk_failed", "partial_exit_events", "partial_fee_estimated")
 _BLOCK_PRIORITY = ("exchange_auth", "exchange_unknown_code", "working_type_unverified", "exchange_unreachable")
 STARTUP_BAN_SLEEP_MAX_S = 300.0
 STARTUP_RULES_TRIES = 2
@@ -147,6 +147,7 @@ class _Pending:
     pair: str
     role: Role
     side: str
+    partial: bool = False      # cikis kipleri: kismi kar alma emri (pozisyonu kapatmaz; dolum dogrudan emirden)
 
 
 @dataclass
@@ -205,6 +206,8 @@ class LiveBroker:
         self._exit_cids: dict[str, str] = {}
         self._entry_fee: dict[str, float] = {}
         self._delivered: set[Any] = set()
+        self._partial_cids: dict[str, set[str]] = {}     # pair -> kismi kar alma emri kimlikleri (kapanis olayindan DISLANIR)
+        self._partial_oids: dict[str, set[str]] = {}     # pair -> bu kimliklerin borsa orderId'leri (cozumlenmis)
         self._delivered_funding: set[Any] = set()
         self._funding_wait: dict[str, datetime] = {}
         self._last_sync: datetime | None = None
@@ -933,7 +936,9 @@ class LiveBroker:
         if req.role == "exit":
             self._exit_cids[cid] = req.pair
         body = self._wait_fill(symbol, cid, body)
-        info = _Pending(req.pair, req.role, req.order_side)
+        info = _Pending(req.pair, req.role, req.order_side, bool(req.partial and req.role == "exit"))
+        if info.partial:
+            self.register_partial(req.pair, cid, None if oid is None else str(oid))
         outcome, qty, avg, fee = self._settle(info, cid, body)
         oid_s = None if oid is None else str(oid)
         if outcome == "filled" and req.role == "entry":
@@ -989,6 +994,8 @@ class LiveBroker:
                 self._entry_fee[pair] = fee
                 self._push(BrokerEvent("fill", ts, pair, cid, Fill(cid, pair, "entry", info.side, float(ex), avg, fee, ts, "market")))  # type: ignore[arg-type]
                 return "filled", float(ex), avg, fee
+            if info.partial and self._settle_partial(info, cid, body, ex, avg, now):
+                return "filled", float(ex), avg, 0.0
             self._pending_close[pair] = self._pos_since.get(pair) or now - timedelta(days=1)
             self._try_close(pair, rereads=0)
             return "filled", float(ex), avg, 0.0
@@ -997,6 +1004,74 @@ class LiveBroker:
             return "partial_exit", float(ex), None, 0.0
         self._push(BrokerEvent("order_rejected", now, pair, cid, detail="expired_unfilled"))
         return "expired_unfilled", 0.0, None, 0.0
+
+    def register_partial(self, pair: str, cid: str, oid: str | None = None) -> None:
+        """Cikis kipleri: kismi kar alma emri kimligi (motor acilista/yeniden baslatmada da bildirir). Bu emrin islemleri son
+        kapanis olayindan dislanir (kismi bacak motorda ayri dolum olarak islenir; defter karma fiyati kendisi hesaplar)."""
+        if not cid:
+            return
+        self._partial_cids.setdefault(pair, set()).add(cid)
+        if oid:
+            self._partial_oids.setdefault(pair, set()).add(str(oid))
+
+    def _partial_oid_set(self, pair: str) -> set[str]:
+        """Kismi emirlerin orderId'leri; bilinmeyen kimlikler (yeniden baslatma) sorgulanir. Sorgulanamazsa _Retry."""
+        out = set(self._partial_oids.get(pair, ()))
+        known_cids = {c for o, (c, p) in self._order_ids.items() if p == pair}
+        for cid in sorted(self._partial_cids.get(pair, ())):
+            hit = next((o for o, (c, p) in self._order_ids.items() if c == cid and p == pair), None)
+            if hit is not None:
+                out.add(hit)
+                continue
+            if cid in known_cids:
+                continue
+            try:
+                r = self._rc("query_order", self._symbol(pair), cid, protective=True, attempts=1)
+            except ExchangeReject:
+                continue                                        # emir yok (kesin): dislanacak islem de yok
+            except ExchangeError:
+                raise _Retry() from None
+            if isinstance(r, dict) and r.get("orderId") is not None:
+                out.add(str(r["orderId"]))
+                self._partial_oids.setdefault(pair, set()).add(str(r["orderId"]))
+        return out
+
+    def _settle_partial(self, info: _Pending, cid: str, body: dict, ex: Decimal, avg: float, now: datetime) -> bool:
+        """Kismi kar alma emrinin dolumu: pozisyon acik kalir (kapanis cozumu YOK); dolum olayi dogrudan emirden uretilir ve son
+        bilinen miktar dusurulur. False: emir aslinda tum pozisyonu kapatti / veri eksik -> normal kapanis yolu."""
+        pair = info.pair
+        known = self._last_pos.get(pair)
+        spec = (self._rules.get(pair).spec if pair in self._rules else None)       # type: ignore[union-attr]
+        eps = (spec.market_step / 2) if spec is not None else D("1e-9")
+        if known is None or known == 0 or ex <= 0 or ex >= abs(known) - eps:
+            return False
+        if not (math.isfinite(avg) and avg > 0):
+            cum = _d(body.get("cumQuote"))
+            avg = float(cum / ex) if cum > 0 else float("nan")
+            if not (math.isfinite(avg) and avg > 0):
+                return False
+        ts = _ts(body.get("updateTime"), now)
+        fee = self._order_commission(pair, body, ex, avg)
+        sign = 1 if known > 0 else -1
+        self._last_pos[pair] = known - D(sign) * ex
+        self._ctr["partial_exit_events"] += 1
+        self._push(BrokerEvent("fill", ts, pair, cid, Fill(cid, pair, "exit", info.side, float(ex), avg, fee, ts, "market")))  # type: ignore[arg-type]
+        return True
+
+    def _order_commission(self, pair: str, body: dict, ex: Decimal, avg: float) -> float:
+        """Emrin gercek komisyonu (userTrades, USDT); okunamazsa/USDT degilse taker orani tahmini (sayac)."""
+        oid = body.get("orderId")
+        if oid is not None:
+            since = _ts(body.get("time", body.get("updateTime")), self._now()) - timedelta(minutes=5)
+            try:
+                trades = self._rc("user_trades", self._symbol(pair), _ms(since))
+            except ExchangeError:
+                trades = None
+            rows = [t for t in (trades or []) if isinstance(t, dict) and str(t.get("orderId")) == str(oid)]
+            if rows and all(str(t.get("commissionAsset", "USDT")) == "USDT" for t in rows):
+                return float(sum((_d(t.get("commission")) for t in rows), D(0)))
+        self._ctr["partial_fee_estimated"] += 1
+        return float(ex) * avg * self._taker_rate(pair)
 
     def _zero_fill_wait(self, pair: str, cid: str, why: str) -> tuple[str, float, float | None, float]:
         """DD-11 D1: sifir/bilinmeyen dolum bekleme sayaci. >=3 deneme VE >=30 sn sonra emri birakir (order_rejected YOK:
@@ -1335,6 +1410,8 @@ class LiveBroker:
         self._entry_fee.pop(pair, None)
         self._hints.pop(pair, None)
         self._registered.discard(pair)
+        self._partial_cids.pop(pair, None)
+        self._partial_oids.pop(pair, None)
         self._cancelled.pop(pair, None)
         for d in (self._stops, self._exit_cids):
             for c in [c for c, p in d.items() if p == pair]:
@@ -1361,7 +1438,11 @@ class LiveBroker:
                 trades = self._rc("user_trades", symbol, _ms(since) - 1000)
             except ExchangeError:
                 return []
-            sel = self._select(trades or [], known, eps)
+            try:
+                skip = self._partial_oid_set(pair) if self._partial_cids.get(pair) else frozenset()
+            except _Retry:
+                return []
+            sel = self._select(trades or [], known, eps, skip)
             if sel is not None:
                 break
             if i < rereads:
@@ -1430,7 +1511,7 @@ class LiveBroker:
         self._finish(pair)
         return fund + [BrokerEvent(ekind, ts, pair, cid, fill, detail=detail)]            # type: ignore[arg-type]
 
-    def _select(self, trades: list[dict], known: Decimal | None, eps: Decimal):
+    def _select(self, trades: list[dict], known: Decimal | None, eps: Decimal, skip_oids: Sequence[str] | frozenset = frozenset()):
         """Son kapanisin azaltan islemleri (en yeni basta), girisleri, yon. Eksikse None.
 
         Tek mod: sondan basa yuru; pozisyon sifirdan baslayana (girisler == azaltmalar) dek TUM azaltan islemler (stop + dis
@@ -1445,24 +1526,27 @@ class LiveBroker:
         d_sign = (1 if known > 0 else -1) if (known is not None and known != 0) else -sg(rows[-1])
         reduces: list[dict] = []
         entries: list[dict] = []
-        r_sum, e_sum = D(0), D(0)
+        r_sum, e_sum, r_all = D(0), D(0), D(0)
         balanced = False
         for t in reversed(rows):
             q = _d(t.get("qty"))
             if sg(t) == -d_sign:
+                r_all += q
+                if str(t.get("orderId")) in skip_oids:
+                    continue                                   # kismi kar alma bacagi: ayri dolum olarak teslim edildi; girisleri tuketir
                 reduces.append(t)
                 r_sum += q
             else:
-                if r_sum == 0:
+                if r_all == 0:
                     continue                                   # kapanistan SONRA gelen (yeni) giris: bu kapanisin parcasi degil
                 entries.append(t)
                 e_sum += q
-                if e_sum >= r_sum - eps:
+                if e_sum >= r_all - eps:
                     balanced = True
                     break
         if not reduces:
             return None
-        if balanced and e_sum > r_sum + eps:
+        if balanced and e_sum > r_all + eps:
             return None                                        # girisler azaltmalardan fazla: kapanis tam gorunmuyor
         if known is not None and known != 0 and r_sum < abs(known) - eps:
             return None                                        # son bilinen miktar kadar azaltma yok: eksik
