@@ -24,7 +24,13 @@ from pathlib import Path
 
 import numpy as np
 
-from trader_core import haber_sinyal as HS
+# Sinyal dosyasi sozlesmesi (trader_core.haber_sinyal ile ayni; motor o modulu ICE AKTARMAZ: bagimlilik yonu).
+# Esitlik tests/engine/test_hb1_kol.py icinde sinanir.
+HS_SEMA = "haber_sinyal/1"
+HS_GECERLILIK_SAAT = 3.0
+HS_PUAN_SINIR = 3.0
+HS_H_MS = 3_600_000
+HS_CIKTI_DOSYASI = "haber_sinyal.json"
 from trader_core import pa_features as PF
 
 from . import ArmInput
@@ -47,11 +53,11 @@ ESIK_PUAN = 0.6          # |sonumlu puan| alt siniri. Tek olay puani = yon * sid
 MIN_KAYNAK = 2           # en az bu kadar farkli haber kaynagi ...
 SIDDET_YETERLI = 3       # ... YA DA enstrumanin en yuksek olay siddeti bu (0-3)
 SIZINTI_MARJ_S = 60      # mum kapanisi > sinyal uretimi + bu kadar sn (sizinti korumasi)
-GECERLILIK_SAAT = HS.GECERLILIK_SAAT   # dosya alani gecerlilik_sonu_ms bundan uzun olsa bile uretim + 3 sa'te tavanlanir
+GECERLILIK_SAAT = HS_GECERLILIK_SAAT   # dosya alani gecerlilik_sonu_ms bundan uzun olsa bile uretim + 3 sa'te tavanlanir
 
 RR = PF.TARGET_ATR / PF.STOP_ATR
 _REPO_ROOT = Path(__file__).resolve().parents[4]
-SINYAL_YOLU = Path(os.environ.get("TRADER_HABER_SINYAL") or (_REPO_ROOT / "var" / "learner" / "sinyal" / HS.CIKTI_DOSYASI))
+SINYAL_YOLU = Path(os.environ.get("TRADER_HABER_SINYAL") or (_REPO_ROOT / "var" / "learner" / "sinyal" / HS_CIKTI_DOSYASI))
 
 # gozlem sayaclari (surec boyunca; log + test): neden -> adet
 COUNTERS: Counter = Counter()
@@ -68,7 +74,7 @@ def _num(x) -> bool:
 
 def belge_dogrula(d) -> dict | None:
     """Ust duzey sema kontrolu; gecerliyse belge, degilse None. Enstruman satirlari tek tek `satir_gecerli` ile sinanir."""
-    if not isinstance(d, dict) or d.get("schema") != HS.SEMA:
+    if not isinstance(d, dict) or d.get("schema") != HS_SEMA:
         return None
     if not _int(d.get("uretim_ms")) or not _int(d.get("gecerlilik_sonu_ms")) or not isinstance(d.get("enstrumanlar"), dict):
         return None
@@ -76,7 +82,7 @@ def belge_dogrula(d) -> dict | None:
 
 
 def satir_gecerli(s) -> bool:
-    return (isinstance(s, dict) and _num(s.get("puan")) and abs(s["puan"]) <= HS.PUAN_SINIR + 1e-9
+    return (isinstance(s, dict) and _num(s.get("puan")) and abs(s["puan"]) <= HS_PUAN_SINIR + 1e-9
             and _int(s.get("kaynak_sayisi")) and s["kaynak_sayisi"] >= 0 and _int(s.get("max_siddet")) and 0 <= s["max_siddet"] <= 3)
 
 
@@ -112,7 +118,7 @@ def yon_sec(inp_pair: str, belge: dict, D: datetime, o: float, c: float) -> tupl
     """Saf karar: (yon, satir) ya da None. Tum giris sartlari (taze, sizinti, esik, kaynak/siddet, mum yonu) burada."""
     D_ms = int(D.astimezone(timezone.utc).timestamp() * 1000)
     uretim = belge["uretim_ms"]
-    son = min(belge["gecerlilik_sonu_ms"], uretim + int(GECERLILIK_SAAT * HS.H_MS))
+    son = min(belge["gecerlilik_sonu_ms"], uretim + int(GECERLILIK_SAAT * HS_H_MS))
     if son <= D_ms:
         return _red("bayat")
     if D_ms <= uretim + SIZINTI_MARJ_S * 1000:
