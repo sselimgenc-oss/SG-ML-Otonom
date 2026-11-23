@@ -24,9 +24,9 @@ def _p(yas_gun, kalan_gun):
     return H.Dl1PaketProbe("ok", NOW - timedelta(days=yas_gun), NOW + timedelta(days=kalan_gun))
 
 
-def test_yok_info():
+def test_yok_warn():
     r = _ev(H.Dl1PaketProbe("missing"))
-    assert r.status is H.Status.OK and r.code == "dl1_paket_info" and r.detail == "INFO: DL1 paketi henuz yok"
+    assert r.status is H.Status.WARN and r.code == "dl1_paket_yok" and "DL1 paketi henuz yok" in r.detail
 
 
 def test_taze_ok_ve_yas_satiri():

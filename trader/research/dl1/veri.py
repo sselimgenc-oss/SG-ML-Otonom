@@ -41,20 +41,30 @@ def indir(pairs: list[str], bas_ay: str, kesim: date, ham_dir: Path, isci: int =
     aylar = F.months(bas, son)
     gunluk_ay = set(aylar[-2:])
 
+    def al(url, dest):
+        """fetch_zip (sha256 dogrulamali). .CHECKSUM YOKSA dosya atlanir (uyari; kayit yok); checksum UYUSMAZLIGI hata (egitim durur)."""
+        try:
+            return F.fetch_zip(url, dest, True)
+        except F.ChecksumError as e:
+            if ".CHECKSUM yok" not in str(e):
+                raise
+            log(f"UYARI: {url}: .CHECKSUM yok; dosya atlandi")
+            return "atlandi"
+
     def is_(pair, mo):
         sym = F.vision_symbol(pair)
         base = f"{F.BASE_URL}/monthly/klines/{sym}/1h/{sym}-1h-{mo}.zip"
         dest = Path(ham_dir) / "monthly" / f"{sym}-1h-{mo}.zip"
         dosyalar = []
         if mo != aylar[-1]:
-            st = F.fetch_zip(base, dest, True)
-            if st != "missing":
+            st = al(base, dest)
+            if st not in ("missing", "atlandi"):
                 return [dest]
         if mo in gunluk_ay:
             for gun in F.days_of(mo, son):
                 u = f"{F.BASE_URL}/daily/klines/{sym}/1h/{sym}-1h-{gun}.zip"
                 d = Path(ham_dir) / "daily" / f"{sym}-1h-{gun}.zip"
-                if F.fetch_zip(u, d, True) != "missing":
+                if al(u, d) not in ("missing", "atlandi"):
                     dosyalar.append(d)
         return dosyalar
 

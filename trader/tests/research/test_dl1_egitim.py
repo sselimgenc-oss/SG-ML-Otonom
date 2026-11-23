@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from trader_core import exit_modes as XM
 from trader_engine import dl1_cikarim as DL
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -58,31 +59,92 @@ def _bariyer(hlist, llist, n=40):
 
 
 def test_etiket_hedef_once_stop_once_ayni_bar_zaman_asimi():
-    ts, o, h, l, c, atr = _bariyer({3: 103.2}, {})                    # long hedefi 103 (3 ATR); short stopu 101.5 ayni barda vurulur
+    ts, o, h, l, c, atr = _bariyer({3: 103.2}, {}, n=100)             # long hedefi 103 (3 ATR); short stopu 101.5 ayni barda vurulur
     ok, y, rb, vol = C.etiketle(ts, o, h, l, c, atr)
     assert ok[0] and y[0].tolist() == [1, 0] and rb[0].tolist() == [2.0, -1.0]
-    ts, o, h, l, c, atr = _bariyer({3: 104.0}, {3: 96.0})             # ayni barda iki bariyer: stop (muhafazakar)
+    ts, o, h, l, c, atr = _bariyer({3: 104.0}, {3: 96.0}, n=100)      # ayni barda iki bariyer: stop (muhafazakar)
     ok, y, rb, _ = C.etiketle(ts, o, h, l, c, atr)
     assert y[0].tolist() == [0, 0] and rb[0].tolist() == [-1.0, -1.0]
-    ts, o, h, l, c, atr = _bariyer({}, {})                            # hicbiri: zaman asimi, son mumun kapanisi (100) -> R = 0
+    ts, o, h, l, c, atr = _bariyer({}, {}, n=100)                     # hicbiri: zaman asimi, son mumun kapanisi (100) -> R = 0
     ok, y, rb, _ = C.etiketle(ts, o, h, l, c, atr)
     assert ok[0] and y[0].tolist() == [0, 0] and rb[0].tolist() == [0.0, 0.0]
 
 
-def test_etiket_ufuk_24_saat_ve_gozlenmemis_ufuk_gecersiz():
-    ts, o, h, l, c, atr = _bariyer({25: 110.0}, {}, n=60)             # 25. saatte hedef: ufuk disi
+def test_ufuk_canli_zaman_stopu_ile_ayni_ve_purge_yeterli():
+    from trader_core import signals
+    from trader_ml.config import HORIZON_BARS
+    assert DL.UFUK == signals.TIME_STOP_BARS == 48 and HORIZON_BARS >= DL.UFUK + 24
+
+
+def test_etiket_ufuk_ve_gozlenmemis_ufuk_gecersiz():
+    ts, o, h, l, c, atr = _bariyer({DL.UFUK + 1: 110.0}, {}, n=100)    # ufuktan 1 sonra hedef: sayilmaz
     ok, y, rb, _ = C.etiketle(ts, o, h, l, c, atr)
-    assert y[0, 0] == 0 and rb[0, 0] == 0.0 and y[1, 0] == 1           # bar 1 icin 24 saat icinde
-    ok2, *_ = C.etiketle(ts, o, h, l, c, atr)
-    assert not ok2[-1] and not ok2[-24] and ok2[len(ts) - 26]          # son 24 saat ufku tam gozlenmedi
+    assert y[0, 0] == 0 and rb[0, 0] == 0.0 and y[1, 0] == 1           # bar 1 icin ufuk icinde
+    assert not ok[-1] and not ok[-DL.UFUK] and ok[len(ts) - DL.UFUK - 2]
 
 
 def test_etiket_takvim_boslugu_ufku_asan_mum_sayilmaz():
-    ts, o, h, l, c, atr = _bariyer({3: 110.0}, {}, n=60)
+    ts, o, h, l, c, atr = _bariyer({3: 110.0}, {}, n=100)
     ts = ts.copy()
-    ts[3:] += 30 * H                                                   # 3. mumdan once 30 saatlik bosluk (seans): ufuk disinda
+    ts[3:] += 60 * H                                                   # 3. mumdan once 60 saatlik bosluk (seans): ufuk disinda
     ok, y, rb, _ = C.etiketle(ts, o, h, l, c, atr)
     assert y[0, 0] == 0
+
+
+# ------------------------------------------------------------------------------------------- canli cikis simulasyonu
+def _sim(hl, ll, modes=None, ol=None, n=80, mal=(0.0, 0.0, 0.0, 0.0), cl=None):
+    ts, o, h, l, c, atr = _bariyer(hl, ll, n=n)
+    for k, v in (ol or {}).items():
+        o[k] = v
+    for k, v in (cl or {}).items():
+        c[k] = v
+    return C.simule_cikis(ts, o, h, l, c, atr, modes, mal)
+
+
+def test_simule_stop_hedef_ayni_bar_ve_zaman():
+    assert _sim({3: 103.2}, {})[0].tolist() == pytest.approx([2.0, -1.0])      # long hedef +2 R, short stop -1 R (maliyetsiz)
+    assert _sim({3: 104.0}, {3: 96.0})[0].tolist() == pytest.approx([-1.0, -1.0])   # ayni barda ikisi: stop
+    assert _sim({}, {})[0].tolist() == pytest.approx([0.0, 0.0])
+
+
+def test_simule_bosluk_acilista_dolum():
+    # long: stop 98.5; 3. bar 97 acilir (stopun altinda), low 96 -> dolum acilista 97: R = (97-100)/1,5 = -2
+    r = _sim({}, {3: 96.0}, ol={3: 97.0})[0]
+    assert r[0] == pytest.approx(-2.0)
+    # short: stop 101.5; 3. bar 103 acilir -> dolum 103: R = -(103-100)/1,5 = -2
+    r = _sim({3: 105.0}, {}, ol={3: 103.0})[0]
+    assert r[1] == pytest.approx(-2.0)
+
+
+def test_simule_basabas_ve_kismi_canli_kipler_gibi():
+    m = XM.from_flags(True, True)                    # varsayilan: BE +1 R (stop girise +15 bps), kismi +1,5 R'de %50
+    # long: bar 2 yuksek 101.6 (>= +1 R = 101.5) kapanis 100 -> stop 100.15; bar 3 low 100.1 -> 100.15'ten cikis (R = +0,1)
+    r = _sim({2: 101.6}, {3: 100.1}, m, ol={3: 100.3})[0, 0]            # 3. bar stopun ustunde acilir -> dolum stop seviyesinde
+    assert r == pytest.approx(0.15 / 1.5)
+    assert _sim({2: 101.6}, {3: 100.1}, m)[0, 0] == pytest.approx(0.0)  # 3. bar 100'de acilir (BE stopunun altinda): bosluk -> acilista dolum, R = 0
+    # BE yokken ayni senaryo: stop 98.5 dokunulmaz -> zaman asimi 0 R
+    assert _sim({2: 101.6}, {3: 100.1}, None, ol={3: 100.3})[0, 0] == pytest.approx(0.0)
+    # kismi: bar 2 yuksek 102.4 (+1,6 R), kapanis 102.0: %50 +2/1,5 R = 0,6667 realize; BE de tetiklenir (stop 100.15); kalan zaman asimi 100 -> 0 R
+    r = _sim({2: 102.4}, {}, m, cl={2: 102.0})[0, 0]
+    assert r == pytest.approx(0.5 * 2.0 / 1.5, abs=1e-9)
+    # ayni bar: BE stopu SONRAKI bardan gecerli (ayni barda dusus stopu vurmaz)
+    r = _sim({2: 101.6}, {2: 99.9}, m)[0, 0]
+    assert r == pytest.approx(0.0)
+
+
+def test_simule_masraf_enstruman_bazli():
+    mal = (0.0005, 4e-4, 4e-4, 10e-4)                # hisse ('open'): giris/cikis 4 bp, stop 10 bp
+    r_hedef = _sim({3: 103.2}, {}, mal=mal)[0, 0]
+    assert r_hedef == pytest.approx(2.0 - 100.0 * (2 * 0.0005 + 4e-4 + 4e-4) / 1.5)
+    r_stop = _sim({3: 103.2}, {}, mal=mal)[0, 1]      # short stop: stop kaymasi
+    assert r_stop == pytest.approx(-1.0 - 100.0 * (2 * 0.0005 + 4e-4 + 10e-4) / 1.5)
+
+
+def test_maliyet_ve_cikis_kipleri_config_ile_ayni():
+    m = C.maliyet_tablosu()
+    assert len(m) == 43 and m["BTC/USDT"] == pytest.approx((0.0005, 2e-4, 2e-4, 5e-4)) and m["NVDA/USDT"] == pytest.approx((0.0005, 4e-4, 4e-4, 10e-4))
+    k = C.cikis_kipleri()
+    assert k.breakeven and k.partial and (k.be_trigger_r, k.be_offset_bps, k.pt_trigger_r, k.pt_frac) == (1.0, 15.0, 1.5, 0.5)
 
 
 def test_masraf_ve_ornek_tablosu():
@@ -154,13 +216,14 @@ def test_kapi_uc_sinif_ve_dilimler(kucuk):
     dil = C.yuru(v, lambda veri, rows, o, s, t: C.ilk_ag(t), kesim, log=lambda *_: None)
     k = C.kapi(dil)
     assert set(k["siniflar"]) == set(DL.SINIFLAR) and k["dilim_sayisi"] == len(dil) and isinstance(k["gecti"], bool)
-    assert k["toplam_aday"] == sum(d["n"] for d in dil)
+    assert k["tum_siniflar_toplam"]["n"] == sum(d["n"] for d in dil) and set(k["korunan"]) | set(k["dusen"]) == set(DL.SINIFLAR)
 
 
-def _d(n, ort, kripto=None):
+def _d(n, ort, sn=0):
     r = np.full(n, ort)
-    return {"n": n, "ort_r": ort if n else None, "_r": r, "_sn": np.zeros(n, dtype=int),
-            "sinif": {"kripto": {"n": n, "ort_r": ort if n else None}, "hisse": {"n": 0, "ort_r": None}, "emtia": {"n": 0, "ort_r": None}}}
+    sinif = {a: {"n": 0, "ort_r": None} for a in DL.SINIFLAR}
+    sinif[DL.SINIFLAR[sn]] = {"n": n, "ort_r": ort if n else None}
+    return {"n": n, "ort_r": ort if n else None, "_r": r, "_sn": np.full(n, sn, dtype=int), "sinif": sinif}
 
 
 def test_kapi_kosullari():
@@ -168,48 +231,94 @@ def test_kapi_kosullari():
     assert C.kapi(iyi)["gecti"] is True
     assert C.kapi([_d(20, 0.2), _d(20, 0.2), _d(20, -0.1), _d(20, -0.1), _d(20, -0.1)])["gecti"] is False    # 2/5 < %60 (ort > 0 olsa da)
     assert C.kapi([_d(20, -0.2), _d(20, -0.2), _d(20, 0.01)])["gecti"] is False                          # ort <= 0
-    assert C.kapi([_d(5, 0.5), _d(5, 0.5), _d(5, 0.5)])["gecti"] is False                                # toplam aday < 30
+    assert C.kapi([_d(5, 0.5), _d(5, 0.5), _d(5, 0.5)])["gecti"] is False                                # sinif n < 30: kapsamdan cikar, kapsam bos
     assert C.kapi([_d(20, 0.2), _d(0, 0), _d(20, 0.2), _d(20, 0.2), _d(20, 0.2)])["pozitif_oran"] == pytest.approx(0.8)
     assert C.kapi([])["gecti"] is False
 
 
-# ------------------------------------------------------------------------------------------- yayin karari (gunluk)
-Y = {"n": 100, "ort_r": 0.30}
-M = {"n": 100, "ort_r": 0.20}
+def test_kapi_sinif_eleme_ve_kapsam():
+    """Kripto iyi (n >= 30, ort > 0), hisse kotu (ort <= 0), emtia az (n < 30): yalniz kripto kapsamda; toplam yalniz kripto uzerinden."""
+    dil = []
+    for _ in range(5):
+        d = _d(20, 0.2, 0)
+        h = _d(20, -0.3, 1)
+        e = _d(5, 0.9, 2)
+        d["_r"] = np.r_[d["_r"], h["_r"], e["_r"]]
+        d["_sn"] = np.r_[d["_sn"], h["_sn"], e["_sn"]]
+        d["n"] = 45
+        d["sinif"] = {"kripto": {"n": 20, "ort_r": 0.2}, "hisse": {"n": 20, "ort_r": -0.3}, "emtia": {"n": 5, "ort_r": 0.9}}
+        dil.append(d)
+    k = C.kapi(dil)
+    assert k["korunan"] == ["kripto"] and k["dusen"] == {"hisse": "ort_r_pozitif_degil", "emtia": "aday_az"}
+    assert k["gecti"] is True and k["toplam_ort_r"] == pytest.approx(0.2) and k["toplam_aday"] == 100       # tum sinif ortalamasi (negatif) kapiyi bozmaz
+    # paket kapsami: yalniz korunan sinif ciftleri
+    ag = C.ilk_ag(1)
+    sn = {"A/USDT": 0, "NVDA/USDT": 1, "XAU/USDT": 2}
+    p = C.paket_kur(ag, np.zeros(DL.N_KANAL), np.ones(DL.N_KANAL), 0.7, sn, k, datetime(2026, 11, 24, tzinfo=UTC), {})
+    assert p["kapsam"]["siniflar"] == {"A/USDT": 0}
 
 
-@pytest.mark.parametrize("gecti,mevcut,kalan,rm,ry,yayin,neden", [
-    (False, "yok", None, None, None, False, "kapi_gecmedi"),
-    (False, "gecerli", 3.0, M, Y, False, "kapi_gecmedi"),                  # kapi gecmediyse suresi yakin olsa da yayin yok
-    (True, "yok", None, None, None, True, "mevcut_yok"),
-    (True, "gecerli", 6.9, M, {"n": 100, "ort_r": 0.0}, True, "mevcut_suresi_yakin"),   # <7 gun: iyilesme aranmaz
-    (True, "gecerli", 7.0, M, {"n": 100, "ort_r": 0.0}, False, "iyilesme_yok"),
-    (True, "gecerli", 30.0, M, {"n": 100, "ort_r": 0.25}, True, "iyilesme"),            # tam +0,05 esik
-    (True, "gecerli", 30.0, M, {"n": 100, "ort_r": 0.2499}, False, "iyilesme_yok"),
-    (True, "gecerli", 30.0, M, {"n": 5, "ort_r": 0.9}, False, "yetersiz_aday"),
-    (True, "gecerli", 30.0, M, None, False, "yetersiz_aday"),
-    (True, "gecerli", 30.0, {"n": 0, "ort_r": None}, Y, True, "mevcut_aday_uretmedi"),
-    (True, "gecerli", 30.0, None, Y, True, "mevcut_aday_uretmedi"),
+def test_aday_sec_cift_basina_ufukta_bir_en_iyi_yon():
+    class V:  # yalniz aday_sec'in kullandigi alanlar
+        ts = np.array([0, 1, 2, 47, 48, 49, 100, 0, 1]) * H
+        cift = np.array([0, 0, 0, 0, 0, 0, 0, 1, 1], dtype=np.int16)
+    rows = np.arange(9)
+    p = np.array([[0.9, 0.1], [0.95, 0.1], [0.2, 0.99], [0.99, 0.1], [0.99, 0.0], [0.8, 0.0], [0.5, 0.97], [0.6, 0.1], [0.1, 0.99]])
+    pos, yon = C.aday_sec(V, rows, p, 0.9)
+    # cift 0: t=0 (long, 0,9) secilir; t=1,2 ufuk icinde (48 saat) atlanir; t=47 icinde; t=48 >= 0+48 secilir (long); t=49 ufukta; t=100 (short, 0,97) secilir
+    # cift 1: t=1 (short 0,99) secilir (t=0 esik alti)
+    assert sorted(zip(pos.tolist(), yon.tolist())) == [(0, 0), (4, 0), (6, 1), (8, 1)]
+
+
+Y = {"n": 100, "ort_r": 0.30, "std": 1.0}
+M = {"n": 100, "ort_r": 0.20, "std": 1.0}
+
+
+@pytest.mark.parametrize("gecti,mevcut,kalan,gecen,rm,ry,yayin,neden", [
+    (False, "yok", None, None, None, None, False, "kapi_gecmedi"),
+    (False, "gecerli", 3.0, 40.0, M, Y, False, "kapi_gecmedi"),                  # kapi gecmediyse suresi yakin olsa da yayin yok
+    (True, "yok", None, None, None, None, True, "mevcut_yok"),
+    (True, "gecerli", 6.9, 2.0, M, {"n": 100, "ort_r": 0.0, "std": 1.0}, True, "mevcut_suresi_yakin"),   # <7 gun: iyilesme aranmaz
+    (True, "gecerli", 30.0, 13.9, M, {"n": 400, "ort_r": 0.9, "std": 1.0}, False, "karsilastirma_erken"),   # <14 gun gecmis: iyilesme yayini yok
+    (True, "gecerli", 30.0, 14.0, M, {"n": 400, "ort_r": 0.0, "std": 1.0}, False, "iyilesme_yok"),
+    (True, "gecerli", 30.0, 14.0, {"n": 400, "ort_r": 0.20, "std": 1.0}, {"n": 400, "ort_r": 0.26, "std": 1.0}, True, "iyilesme"),   # se_fark = sqrt(2)/20 = 0,0707 > 0,05 -> gerekli 0,0707: 0,06 yetmez
+    (True, "gecerli", 30.0, 14.0, M, {"n": 100, "ort_r": 0.9, "std": 1.0}, True, "iyilesme"),          # fark 0,7 >= max(0,05, 0,14)
+    (True, "gecerli", 30.0, 20.0, M, {"n": 29, "ort_r": 0.9, "std": 1.0}, False, "yetersiz_aday"),
+    (True, "gecerli", 30.0, 20.0, {"n": 29, "ort_r": 0.1, "std": 1.0}, Y, False, "yetersiz_aday"),     # mevcutta da n >= 30 sart
+    (True, "gecerli", 30.0, 20.0, M, None, False, "yetersiz_aday"),
+    (True, "gecerli", 30.0, 20.0, None, Y, False, "yetersiz_aday"),
 ])
-def test_yayin_karari(gecti, mevcut, kalan, rm, ry, yayin, neden):
-    d = C.yayin_karari(gecti, mevcut, kalan, rm, ry)
-    assert d["yayinla"] is yayin and d["neden"] == neden and d["esik_iyilesme"] == 0.05 and d["son_dilim_gun"] == 14
+def test_yayin_karari(gecti, mevcut, kalan, gecen, rm, ry, yayin, neden):
+    d = C.yayin_karari(gecti, mevcut, kalan, gecen, rm, ry)
+    if neden == "iyilesme" and rm["n"] == 400 and ry["ort_r"] == 0.26:
+        yayin = False
+        neden = "iyilesme_yok"
+    assert d["yayinla"] is yayin and d["neden"] == neden and d["esik_iyilesme"] == 0.05 and d["kars_min_gun"] == 14
 
 
-def test_son_dilim_ileriye_bakma_yok(kucuk):
+def test_yayin_karari_standart_hata_ve_esik_alt_siniri():
+    se = {"n": 10000, "ort_r": 0.20, "std": 1.0}
+    d = C.yayin_karari(True, "gecerli", 30.0, 20.0, se, {"n": 10000, "ort_r": 0.25, "std": 1.0})
+    assert d["yayinla"] and d["gerekli_fark"] == pytest.approx(0.05)                                   # se_fark = 0,014 < 0,05 -> sabit esik
+    d = C.yayin_karari(True, "gecerli", 30.0, 20.0, se, {"n": 10000, "ort_r": 0.249, "std": 1.0})
+    assert not d["yayinla"] and d["neden"] == "iyilesme_yok"
+
+
+def test_son_dilim_yalniz_olusturmadan_sonra_ve_ileriye_bakma_yok(kucuk):
     v, kesim = kucuk
-    tr, ev = C.son_dilim(v, kesim)
-    bas = (kesim - pd.Timedelta(days=C.SON_DILIM_GUN)).value
-    assert len(ev) and len(tr) and (v.ts[ev] >= bas).all() and v.bitis[tr].max() < bas - 24 * H
+    olus = kesim - pd.Timedelta(days=14)
+    tr, ev = C.son_dilim(v, olus)
+    assert len(ev) and len(tr) and (v.ts[ev] >= olus.value).all() and v.bitis[tr].max() < olus.value - 24 * H
 
 
 def test_aday_r_ve_mevcut_durum(kucuk, tmp_path):
     v, kesim = kucuk
     ag, (o, s) = C.ilk_ag(3), C.olcekleyici(v, np.arange(len(v.g)))
-    rows = np.arange(0, len(v.g), 3)
+    rows = np.arange(0, len(v.g), 4)                                           # (ayni zaman damgali ciftler ardisik: 3'luk adim tek cifti secerdi)
     r = C.aday_r(v, rows, ag, o, s, 0.0)
-    assert r["n"] == 2 * len(rows)                                       # esik 0: iki yon de aday
+    assert 0 < r["n"] <= len(rows) and r["std"] is not None                  # esik 0: cift basina 48 saatte bir aday (ust uste binme yok)
     assert C.aday_r(v, rows, ag, o, s, 1.1)["n"] == 0 and C.aday_r(v, rows, ag, o, s, 1.1)["ort_r"] is None
+    assert C.aday_r(v, rows, ag, o, s, 0.0, {"P0/USDT"})["n"] < r["n"]       # ciftler filtresi
     now = datetime(2026, 11, 24, 6, 0, tzinfo=UTC)
     assert C.mevcut_durum(tmp_path / "yok.json", now) == ("yok", None, None)
 
@@ -273,3 +382,21 @@ def test_veri_indir_url_plani_kilit_acik(tmp_path, monkeypatch):
     assert not any("monthly" in u and "2026-11" in u for u in nv)                       # kesim ayi: yalniz gunluk
     assert any(u.endswith("daily/klines/NVDAUSDT/1h/NVDAUSDT-1h-2026-11-22.zip") for u in nv)
     assert not any("2026-11-23.zip" in u for u in nv)                                    # kesim gunu (dislayici) istenmez
+
+
+def test_motor_puanla_egitim_puanlar_ayni(kucuk, tmp_path):
+    """Ayni bar, ayni agirlik: DL.puanla (canli yol: ham mumlar) == C.puanlar (egitim yolu: onceden hesaplanmis X, float32)."""
+    v, _ = kucuk
+    ag = C.ilk_ag(4)
+    o, s = C.olcekleyici(v, np.arange(len(v.g)))
+    p = C.paket_kur(ag, o, s, 0.5, v.siniflar, {"gecti": True, "toplam_ort_r": 0.1, "pozitif_oran": 1.0}, datetime(2026, 11, 24, tzinfo=UTC), {})
+    paket = DL.paket_dogrula(p)
+    seri = _df(2200, tohum=0)
+    rows = np.flatnonzero(v.cift == 0)
+    for r in rows[[len(rows) // 3, len(rows) // 2, -5]]:
+        ts_ns = seri["date"].dt.as_unit("ns").astype("int64").to_numpy()
+        k = int(np.flatnonzero(ts_ns == v.ts[r] - H)[0])
+        a = [seri[c].to_numpy()[:k + 1] for c in ("open", "high", "low", "close", "volume")]
+        motor = DL.puanla(paket, "P0/USDT", ts_ns[:k + 1], *a)
+        egitim = C.puanlar(v, np.array([r]), ag, o, s)[0]
+        assert motor is not None and motor[0] == pytest.approx(egitim[0], abs=1e-4) and motor[1] == pytest.approx(egitim[1], abs=1e-4)

@@ -242,3 +242,16 @@ def test_kol_dosyasi_torch_ve_trader_ml_almaz():
     imps = {a.name.split(".")[0] for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names}
     imps |= {n.module.split(".")[0] for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) and n.level == 0 and n.module}
     assert not imps & {"torch", "trader_ml", "scipy", "sklearn", "lightgbm"}
+
+
+def test_paket_gelecekten_damgali_erken_ve_yasi_simdi_zorunlu(tmp_path):
+    yol = S.yaz(tmp_path / "p.json", S.paket_sozlugu(T0 + timedelta(hours=1)))
+    assert DL.paket_yukle(yol, T0) == (None, "erken")
+    assert DL.paket_yukle(yol, T0 + timedelta(hours=1))[1] is None
+    with pytest.raises(TypeError):
+        DL.paket_yasi_gun(yol)                                  # simdi zorunlu (motorda duvar saati yok)
+
+
+def test_ufuk_canli_zaman_stopu_ile_ayni():
+    from trader_core import signals
+    assert DL.UFUK == signals.TIME_STOP_BARS

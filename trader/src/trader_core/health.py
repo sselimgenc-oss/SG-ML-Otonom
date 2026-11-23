@@ -906,7 +906,7 @@ DL1_YAKLASIYOR_GUN = 7       # son kullanmaya bundan az kaldiysa WARN (gunluk eg
 
 
 def _c_dl1_paket(snap, cfg):
-    """dl1_paket_age: DL1 kolunun girdisi. Yok -> INFO (Status.OK, kod `dl1_paket_info`: "DL1 paketi henuz yok"); bozuk / eski (son kullanma gecti) /
+    """dl1_paket_age: DL1 kolunun girdisi. Yok -> WARN (kod `dl1_paket_yok`: "DL1 paketi henuz yok"); bozuk / eski (son kullanma gecti) /
     son kullanmaya < 7 gun -> WARN (yalniz DL1 girisleri durur ya da duracak); aksi OK (yas satiri)."""
     name = "dl1_paket_age"
     p = snap.dl1_paket
@@ -914,7 +914,7 @@ def _c_dl1_paket(snap, cfg):
         return _res(name, Status.WARN, "dl1_paket_bozuk", "DL1 paketi okunamadi/hash tutmuyor/kapi gecmemis; DL1 girisleri durdu")
     if p.file_state != "ok" or not isinstance(p.created_at, datetime) or p.created_at.tzinfo is None \
             or not isinstance(p.expires_at, datetime) or p.expires_at.tzinfo is None:
-        return _res(name, Status.OK, "dl1_paket_info", "INFO: DL1 paketi henuz yok")
+        return _res(name, Status.WARN, "dl1_paket_yok", "DL1 paketi henuz yok; DL1 girisleri durdu")
     yas = (snap.now - p.created_at).total_seconds()
     kalan = (p.expires_at - snap.now).total_seconds()
     if kalan <= 0:

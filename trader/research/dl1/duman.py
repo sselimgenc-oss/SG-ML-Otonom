@@ -48,8 +48,16 @@ def main() -> int:
         assert C.paket_yaz(paket, yol)
         p, neden = DL.paket_yukle(yol, datetime.now(timezone.utc))
         assert p is not None, neden
-        # motor yolu (puanla) ile egitim yolu (puanlar) ayni mu: son ornek
-        i = len(v.g) - 1
+        # motor yolu (DL.puanla) ile egitim yolu (C.puanlar) ayni mi: bir ornek, ayni bardaki veriyle
+        paket_obj = DL.paket_dogrula(paket)
+        r = int(np.flatnonzero(v.cift == 0)[len(v.cift[v.cift == 0]) // 2])
+        df = seri["P0/USDT"]
+        ts_ns = df["date"].dt.as_unit("ns").astype("int64").to_numpy()
+        k = int(np.flatnonzero(ts_ns == v.ts[r] - C.H_NS)[0])
+        a = [df[c].to_numpy()[:k + 1] for c in ("open", "high", "low", "close", "volume")]
+        motor = DL.puanla(paket_obj, "P0/USDT", ts_ns[:k + 1], *a)
+        egitim = C.puanlar(v, np.array([r]), pk, ort, std)[0]
+        assert motor is not None and abs(motor[0] - egitim[0]) < 1e-4 and abs(motor[1] - egitim[1]) < 1e-4, (motor, egitim)
         print("duman TAMAM; parite", par)
     return 0
 

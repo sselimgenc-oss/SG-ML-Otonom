@@ -179,3 +179,31 @@ def test_sizinti_son_barin_ardindan_veri_yok_puan_gecmise_bagli(paket):
     r_tam = DL.puanla(a, "BTC/USDT", ts, *cols)
     r_gec = DL.puanla(a, "BTC/USDT", ts[:-1], *(x[:-1] for x in cols))
     assert r_tam is not None and r_gec is not None and r_tam[0] != r_gec[0]
+
+
+def test_core_yok_ve_bar_gecersiz_sayaclari(paket, monkeypatch):
+    paket()
+    i = _inp()
+    i2 = ArmInput(pair=i.pair, tf=i.tf, D=i.D, trig=i.trig, h4=i.h4, params=None, core_fn=lambda: None)
+    assert not DL1.compute(i2)["signal"].any() and DL1.COUNTERS["core_yok"] == 1
+    gercek = DL1.P.prepare
+
+    def gecersiz(inp, core):
+        p = gercek(inp, core)
+        return type(p)(**{**p.__dict__, "ok": np.zeros_like(p.ok)})
+    monkeypatch.setattr(DL1.P, "prepare", gecersiz)
+    assert not _son(DL1.compute(_inp()))["signal"] and DL1.COUNTERS["bar_gecersiz"] == 1
+
+
+def test_sayac_logu_saatte_en_fazla_bir_bar_zamani_ile(paket, caplog):
+    import logging
+    paket(bl=-5.0, bs=-5.0)
+    DL1._LOG["saat"] = None
+    with caplog.at_level(logging.INFO, logger="trader.dl1"):
+        for dk in (0, 15, 30, 45):
+            DL1.compute(_inp(D_=D + timedelta(minutes=dk), trig=S.seri(D + timedelta(minutes=dk))))
+        assert not [r for r in caplog.records if "sayaclar" in r.message]        # ayni saat: log yok
+        DL1.compute(_inp(D_=D + timedelta(hours=1), trig=S.seri(D + timedelta(hours=1))))
+        assert len([r for r in caplog.records if "sayaclar" in r.message]) == 1  # saat degisti: bir kez
+        DL1.compute(_inp(D_=D + timedelta(hours=1, minutes=30), trig=S.seri(D + timedelta(hours=1, minutes=30))))
+        assert len([r for r in caplog.records if "sayaclar" in r.message]) == 1

@@ -1,6 +1,6 @@
 """DL1 cikarimi (ust lig derin ogrenme kolu; tasarim fikirler/pazartesi-23-11/ust-lig-tasarim.md bolum 2 ve 6).
 
-Saf numpy + stdlib. Motor torch'u ve trader_ml'i ICE AKTARMAZ (bagimlilik yonu): egitim haftada bir GitHub Actions'ta
+Saf numpy + stdlib. Motor torch'u ve trader_ml'i ICE AKTARMAZ (bagimlilik yonu): egitim her gun GitHub Actions'ta
 (`research/dl1/egit.py`, PyTorch) yapilir; sunucuya yalniz `models/dl1/DL1@1h.json` paketi gelir. Egitim tarafi da kanal
 hesabini ve paket ozetini BURADAN alir (egitim ve canli ayni kod; sizinti/uyumsuzluk riski yok).
 
@@ -39,7 +39,7 @@ ATR_UZUN = 14
 HACIM_PENCERE = 96
 MIN_BAR = PENCERE + HACIM_PENCERE      # canli: bu kadar ardisik kapanmis bar yoksa puan yok (192)
 KIRP = 8.0                             # olceklenmis girdi |x| <= 8
-UFUK = 24                              # etiket ufku (mum)
+UFUK = 48                              # etiket ufku (mum) = canli zaman stopu (signals.TIME_STOP_BARS; testle esitligi sinanir)
 STOP_ATR = 1.5
 HEDEF_ATR = 3.0
 SON_KULLANMA_GUN = 45
@@ -271,7 +271,7 @@ _ONBELLEK: dict = {"key": None, "paket": None, "neden": None}
 
 
 def paket_yukle(yol: Path | str | None = None, simdi: datetime | None = None) -> tuple[Paket | None, str | None]:
-    """(Paket, None) ya da (None, neden). Neden: yok | buyuk | bozuk | sema | hash | kapi | kanal | eski.
+    """(Paket, None) ya da (None, neden). Neden: yok | buyuk | bozuk | sema | hash | kapi | kanal | erken (simdi < olusturma) | eski.
     Dosya okuma/dogrulama mtime+boyut onbellegindedir; son kullanma her cagrida denetlenir."""
     yol = Path(yol or PAKET_YOLU)
     try:
@@ -293,14 +293,15 @@ def paket_yukle(yol: Path | str | None = None, simdi: datetime | None = None) ->
         paket, neden = _ONBELLEK["paket"], _ONBELLEK["neden"]
     if paket is None:
         return None, neden
+    if simdi is not None and simdi < paket.olusturma:
+        return None, "erken"             # saat geri / gelecekten damgali paket: kullanilmaz
     if simdi is not None and paket.eski(simdi):
         return None, "eski"
     return paket, None
 
 
-def paket_yasi_gun(yol: Path | str | None = None, simdi: datetime | None = None) -> tuple[str, float | None, float | None]:
+def paket_yasi_gun(yol: Path | str | None, simdi: datetime) -> tuple[str, float | None, float | None]:
     """Saglik icin: (durum, yas_gun, kalan_gun). durum: yok | bozuk | ok | eski. Hash tutmayan/bozuk -> bozuk."""
-    simdi = simdi or datetime.now(timezone.utc)
     paket, neden = paket_yukle(yol)
     if paket is None:
         return ("yok" if neden == "yok" else "bozuk"), None, None
