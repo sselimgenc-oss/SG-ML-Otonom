@@ -714,7 +714,9 @@ def _cmd_capital(a) -> int:
         if rows:
             print("gunluk dolu: ikinci `capital init` yok (duzeltme icin `capital adjust`)", file=sys.stderr)
             return EXIT_FAZ_B
-        row, rc = _write_row(log, "initial", a, now, amount=a.amount)
+        # 23.11 kullanici karari: canli = kagit; canli gunluk %1 (K2) basamagindan baslar (testnet K0)
+        extra = {"start_step": RL.LIVE_START_STEP} if cfg.mode == "live" else {}
+        row, rc = _write_row(log, "initial", a, now, amount=a.amount, **extra)
     elif op == "deposit":
         row, rc = _write_row(log, "deposit", a, now, amount=a.amount)
     elif op == "adjust":

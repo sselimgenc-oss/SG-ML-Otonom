@@ -177,16 +177,16 @@ def saatlik_ozet(acilan: int, kapanan: int, net: float) -> str:
 
 # ----------------------------------------------------------------------------- gunluk zarar
 def limit_orani(config_dir: str | Path | None, mode: Any = "paper") -> float:
-    """Gunluk zarar orani: canlida kilitli (LOCKED_CFG), kagitta engine.base/learner/paper ayarindaki risk.daily_max_loss
-    (risk.paper_config ile dogrulanir). Okunamazsa LOCKED_CFG. trader_engine ice aktarilmaz."""
+    """Gunluk zarar orani: kagitta engine.base/learner/paper, canlida (23.11 kullanici karari: canli = kagit) engine.base/learner/live
+    ayarindaki risk.daily_max_loss (risk.paper_config / risk.live_config ile dogrulanir). Okunamazsa LOCKED_CFG.
+    trader_engine ice aktarilmaz."""
     from . import risk as R  # noqa: PLC0415
-    if str(mode) == "live":
-        return R.LOCKED_CFG.daily_max_loss
+    canli = str(mode) == "live"
     if not config_dir:
         config_dir = (os.environ.get("ENGINE_CONFIG_DIR") or "").strip() or str(Path(__file__).resolve().parent.parent.parent / "config")
     try:
         cfg: dict = {}
-        for ad in ("engine.base.json", "engine.learner.json", "engine.paper.json"):
+        for ad in ("engine.base.json", "engine.learner.json", "engine.live.json" if canli else "engine.paper.json"):
             p = Path(config_dir) / ad
             if p.exists():
                 d = json.loads(p.read_text(encoding="utf-8"))
@@ -195,7 +195,7 @@ def limit_orani(config_dir: str | Path | None, mode: Any = "paper") -> float:
         v = (cfg.get("risk") or {}).get("daily_max_loss")
         if v is None:
             return R.LOCKED_CFG.daily_max_loss
-        return R.paper_config(daily_max_loss=float(v)).daily_max_loss
+        return (R.live_config if canli else R.paper_config)(daily_max_loss=float(v)).daily_max_loss
     except (OSError, ValueError, TypeError):
         return R.LOCKED_CFG.daily_max_loss
 
