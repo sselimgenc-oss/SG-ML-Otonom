@@ -132,7 +132,8 @@ def test_config_kagit_active_canli_testnet_eskisi_gibi():
             c = load_cli_config(ROOT / "config", "learner", env)
         except Exception:  # noqa: BLE001 - canli yapilandirma bu ortamda eksik anahtar isteyebilir; ml_mode degismedi
             continue
-        assert c.ml_mode == "off"
+        # 23.11 kullanici karari: canli = kagit (canlida ML filtresi AKTIF; testnet degismedi)
+        assert c.ml_mode == ("active" if env == "live" else "off")
 
 
 # ------------------------------------------------------------------ FiltreDeposu (gercek paket)

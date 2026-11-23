@@ -294,7 +294,9 @@ class TestG5Configs:
     @pytest.mark.parametrize("env", ["testnet", "live"])
     def test_learner_testnet_live_stay_ml_free(self, env):
         cfg = load_engine_config(CFG / "engine.base.json", CFG / "engine.learner.json", overlay_path=CFG / f"engine.{env}.json")
-        assert cfg.mode == env and cfg.ml_mode == "off" and cfg.ml_experimental is False and cfg.ml_model_path is None
+        # 23.11 kullanici karari: canli = kagit (canlida ML aktif; deneysel paket/model yolu yine yok)
+        assert cfg.mode == env and cfg.ml_mode == ("active" if env == "live" else "off")
+        assert cfg.ml_experimental is False and cfg.ml_model_path is None
         with pytest.raises(ConfigError, match="ml_experimental"):       # paper katmani testnet/live ustune bindirilemez
             _stack(env)
 

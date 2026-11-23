@@ -127,12 +127,20 @@ def test_ml_filtre_sirasi_korunur_ve_testnet_live_kapisi_yok(mk):
     assert _go(e, regime="trend_down").code == "ml_filter"                # ML once
 
 
-def test_canli_testnet_etiket_kurali_calismaz(mk):
+def test_testnet_etiket_kurali_calismaz(mk):
     e = mk()
-    e.g.cfg = dataclasses.replace(CFG, mode="live")
-    e.g._etiket_karari = lambda *a, **k: (_ for _ in ()).throw(AssertionError("canlida etiket kurali cagrilmamali"))
+    e.g.cfg = dataclasses.replace(CFG, mode="testnet")
+    e.g._etiket_karari = lambda *a, **k: (_ for _ in ()).throw(AssertionError("testnetde etiket kurali cagrilmamali"))
     o = _go(e, regime="trend_down")
     assert o.code != "etiket_rejim"
+
+
+def test_canli_etiket_kurali_kagit_gibi_calisir(mk):
+    # 23.11 kullanici karari: canli = kagit (rejim etiketi kurali canlida da girisi atlatir)
+    e = mk()
+    e.g.cfg = dataclasses.replace(CFG, mode="live")
+    o = _go(e, regime="trend_down", side="long")
+    assert o.action == "skip" and o.code == "etiket_rejim"
 
 
 def test_ct_baglantisi_yok_ve_kalabalik_kurali_yok(mk):
