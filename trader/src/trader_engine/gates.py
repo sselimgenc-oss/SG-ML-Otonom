@@ -119,6 +119,10 @@ def _features(row: SignalRow) -> dict:
         put(key, carrier)
     for k in ("rh_touches", "rl_touches"):
         put(k, k)
+    for k in ("vol_tahmin", "vol_asim"):                     # fikir 10: yalniz gece suzgecinin ek girdisi (f_vol_*); eksikse yazilmaz
+        v = getattr(row, k, None)
+        if _fin(v):
+            out[k] = float(v)
     if row.setup == "HB1":                                   # olay kimligi METIN: ML sayisal ozellik cikarimi (f_*) metni atlar
         oid = hb1_olay_of(row)
         if oid is not None:

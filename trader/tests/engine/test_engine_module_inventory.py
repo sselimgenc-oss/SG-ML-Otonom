@@ -9,7 +9,7 @@ PHASE = "B"
 ENGINE = "src/trader_engine"
 ALLOWED_MODULES_A = {
     "__init__.py", "__main__.py", "errors.py", "types.py", "numeric.py", "clock.py", "bars.py", "config.py", "fileio.py", "holdout.py",
-    "state.py", "order_manager.py", "position_manager.py", "funding.py", "strategy_runner.py", "gates.py", "engine.py", "ogrenme_filtre.py",
+    "state.py", "order_manager.py", "position_manager.py", "funding.py", "strategy_runner.py", "gates.py", "engine.py", "ogrenme_filtre.py", "vol_tahmin.py",
     "reconcile.py", "killswitch.py", "status.py", "backtest.py", "precomputed.py", "metrics.py", "cli.py",
     "marketdata/__init__.py", "marketdata/rest_public.py", "marketdata/store.py", "marketdata/feed.py", "marketdata/sources.py",
     "strategies/__init__.py", "strategies/base.py", "strategies/registry.py", "strategies/price_action_v1.py", "strategies/price_action_v1_ml.py", "strategies/price_action_v1_4h.py",
