@@ -8,7 +8,7 @@ import re
 from collections import Counter
 from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Literal, Protocol
 
 from trader_core import etiket_kurallari as EK
@@ -126,13 +126,23 @@ def _features(row: SignalRow) -> dict:
     return out
 
 
-_HB1_OLAY_RE = re.compile(r"(?:^|[,:])hb1_olay=(\d+)(?:,|$)")
+_HB1_OLAY_RE = re.compile(r"(?:^|[,:])hb1_olay=(\d+(?:\+\d+)*)(?:,|$)")
+HB1_OLAY_PENCERE = timedelta(hours=6.0)      # = arms/hb1.HS_PENCERE_SAAT: bir olay en cok 6 sa canli (kol sabitiyle esitlik testle sinanir)
+
+
+def _olay_kume(text) -> frozenset[int]:
+    """'1,2,3' ya da '1+2+3' -> {1,2,3}; bozuk/bos -> bos kume (0 = olay yok sayilir)."""
+    try:
+        return frozenset(int(x) for x in str(text).replace("+", ",").split(",") if x.strip() and int(x) > 0)
+    except ValueError:
+        return frozenset()
 
 
 def hb1_olay_of(row: SignalRow) -> str | None:
-    """HB1 adayinin olay kimligi (reasons etiketinden; metin). Yok / 0 (olay yok) -> None."""
+    """HB1 adayinin tum canli ayni yonlu olay kimlikleri (reasons etiketinden): kucukten buyuge virgullu metin. Yok / 0 -> None."""
     m = _HB1_OLAY_RE.search(row.reasons or "")
-    return m.group(1) if m and int(m.group(1)) > 0 else None
+    k = _olay_kume(m.group(1)) if m else frozenset()
+    return ",".join(str(i) for i in sorted(k)) if k else None
 
 
 def _tf_of(row: SignalRow) -> str:
@@ -316,33 +326,45 @@ class EntryGate:
         self.counters["ml_filtre_kapali_blok"] += 1
         return self._skip(row, tf, "ml_filter", skip_reason="ml_filter", veto_reason="gate:ml_filter_unavailable", **tk)
 
-    def _hb1_olay_karari(self, row: SignalRow, tf: str, tk: dict) -> EntryOutcome | None:
-        """HB1: ayni cift + ayni yonde defterdeki EN SON kapanmis HB1 isleminin karari ayni haber olayini (features["hb1_olay"]) tasiyorsa
-        giris `hb1_ayni_olay` ile reddedilir (stop sonrasi ayni haberle yeniden giris yok). Yeni olay / ters yon / onceki islem yok serbest.
-        Defter okuma hatasi => fail-closed (yalniz HB1). Diger kollara dokunmaz."""
+    def _hb1_olay_karari(self, row: SignalRow, tf: str, D: datetime, tk: dict) -> EntryOutcome | None:
+        """HB1: adayin olay kumesi (features["hb1_olay"]) son 6 saatte AYNI cift+yonde kapanmis TUM HB1 islemlerinin olay kumelerinin
+        birlesiminin alt kumesiyse giris `hb1_ayni_olay` ile reddedilir (ayni haberle yeniden giris yok); kumede en az bir YENI kimlik varsa serbest.
+        Canli yaris korumasi: bu cift icin HB1 pozisyonuna ait henuz defterde olmayan (outbox'ta bekleyen) cikis varsa giris reddedilir
+        (`hb1_olay_bekleyen_cikis`; kagit ve canli ayni kod). Defter/durum okuma hatasi => fail-closed (yalniz HB1). Diger kollara dokunmaz."""
         if row.setup != "HB1":
             return None
         aid = row.arm_id or AG.arm_id_of(row.setup, tf)
         try:
+            for ob in self.state.outbox_pending():
+                if ob.kind != "exit":
+                    continue
+                p = self.state.get_position(ob.trade_id)
+                if p is not None and p.pair == row.pair and getattr(p, "setup", None) == "HB1":
+                    self.counters["hb1_olay_bekleyen_cikis"] += 1
+                    return self._skip(row, tf, "hb1_olay_bekleyen_cikis", skip_reason="risk_denied", veto_status="not_evaluated",
+                                      veto_reason="gate:hb1_olay_bekleyen_cikis", risk_allowed=False,
+                                      risk_reason="HB1 çıkışı henüz defterde değil: olay kontrolü için bekleniyor", **tk)
             oid = hb1_olay_of(row)
             if oid is None:
+                self.counters["hb1_olay_yok"] += 1
                 return None
-            fn = getattr(self.ledger, "last_closed_decision_features", None)
+            fn = getattr(self.ledger, "closed_decision_features_since", None)
             if fn is None:
-                raise RuntimeError("defter last_closed_decision_features yok")
-            prev = fn(aid, row.pair, row.side)
+                raise RuntimeError("defter closed_decision_features_since yok")
+            prev = fn(aid, row.pair, row.side, D - HB1_OLAY_PENCERE)
         except Exception as e:  # noqa: BLE001
             self.counters["hb1_olay_okunamadi"] += 1
             log.warning("HB1 olay kontrolu defter hatasi, giris yok: %s: %s", type(e).__name__, e)
             return self._skip(row, tf, "hb1_olay_okunamadi", skip_reason="risk_denied", veto_status="not_evaluated",
                               veto_reason="gate:hb1_olay_okunamadi", risk_allowed=False,
                               risk_reason="HB1 olay kimliği defterden okunamadı: giriş yok", **tk)
-        if prev is None or str(prev.get("hb1_olay")) != oid:
+        eski: frozenset[int] = frozenset().union(*(_olay_kume(f.get("hb1_olay")) for f in prev)) if prev else frozenset()
+        if not (_olay_kume(oid) <= eski):
             return None
         self.counters["hb1_ayni_olay"] += 1
         return self._skip(row, tf, "hb1_ayni_olay", skip_reason="risk_denied", veto_status="not_evaluated",
                           veto_reason="gate:hb1_ayni_olay", risk_allowed=False,
-                          risk_reason=f"aynı haber olayı ({oid}) ile son kapanan HB1 işlemi var: yeniden giriş yok", **tk)
+                          risk_reason=f"aynı haber olayları ({oid}) son 6 saatte kapanan HB1 işlemlerinde var: yeniden giriş yok", **tk)
 
     def _kol_karari(self, aid: str, D: datetime | None = None) -> KK.KolKarar | None:
         """Kademeli kucultme (kagit): kolun son kapanan islemlerinin net R'sinden carpan. Okunamazsa None (carpan yok = yapilandirma boyutu;
@@ -507,7 +529,7 @@ class EntryGate:
             if AG.session_closed_by_lesson(self._session_off(), cls, pair, tk["session_tag"]):
                 return self._skip(row, tf, "session_closed", skip_reason="session_closed",
                                   veto_reason="gate:session_closed", **tk)
-            ho = self._hb1_olay_karari(row, tf, tk)                                      # HB1: ayni haberle yeniden giris yok
+            ho = self._hb1_olay_karari(row, tf, D, tk)                                      # HB1: ayni haberle yeniden giris yok
             if ho is not None:
                 return ho
             held = [p.pair for p in self.state.open_positions()]

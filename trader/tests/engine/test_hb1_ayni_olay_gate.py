@@ -49,6 +49,7 @@ def e(tmp_path):
 
 
 def _hb1(olay, side="long", **kw):
+    olay = "+".join(map(str, olay)) if isinstance(olay, (list, tuple)) else olay
     stop = 98.0 if side == "long" else 102.0
     d = dict(setup="HB1", side=side, arm_id="HB1@1h", tf="1h", planned_stop=stop, regime="trend_up",
              reasons=f"HB1_{side}:hb1,puan=+0.80,k=2,s=3,hb1_olay={olay}")
@@ -75,6 +76,7 @@ def test_ayni_olay_stop_sonrasi_reddedilir(e):
     o = _go(e, _hb1(4242))
     assert o.action == "skip" and o.code == "hb1_ayni_olay" and o.event.skip_reason == "risk_denied"
     assert o.event.veto_reason == "gate:hb1_ayni_olay" and o.size is None
+    assert e.led.record_decision(dataclasses.replace(o.event, bar_close_ts=T0 - timedelta(hours=3))) > 0                           # skip olayi defter tarafindan kabul edilir
     assert e.g.counters["hb1_ayni_olay"] == 1
 
 
@@ -107,7 +109,7 @@ def test_baska_kol_etkilenmez(e):
 def test_defter_hatasi_yalniz_hb1_reddeder(e):
     def boom(*a, **k):
         raise L.LedgerError("okunamadi") if hasattr(L, "LedgerError") else RuntimeError("okunamadi")
-    e.led.last_closed_decision_features = boom                            # type: ignore[method-assign]
+    e.led.closed_decision_features_since = boom                            # type: ignore[method-assign]
     o = _go(e, _hb1(4242))
     assert o.action == "skip" and o.code == "hb1_olay_okunamadi" and o.event.veto_reason == "gate:hb1_olay_okunamadi"
     assert e.g.counters["hb1_olay_okunamadi"] == 1
@@ -131,8 +133,10 @@ def test_olay_kimligi_ml_ozelliklerine_girmez(e):
 
 def test_defterde_olay_kimligi_karar_ozelligi_olarak_yazilir(e):
     _kapat(e, _hb1(777), 1)
-    assert e.led.last_closed_decision_features("HB1@1h", "BTC/USDT", "long")["hb1_olay"] == "777"
-    assert e.led.last_closed_decision_features("HB1@1h", "BTC/USDT", "short") is None
+    since = T0 - timedelta(hours=6)
+    assert [f["hb1_olay"] for f in e.led.closed_decision_features_since("HB1@1h", "BTC/USDT", "long", since)] == ["777"]
+    assert e.led.closed_decision_features_since("HB1@1h", "BTC/USDT", "short", since) == []
+    assert e.led.closed_decision_features_since("HB1@1h", "BTC/USDT", "long", T0 + timedelta(hours=2)) == []
 
 
 def test_canli_kagit_parite(e):
@@ -144,3 +148,52 @@ def test_canli_kagit_parite(e):
     assert (paper.action, paper.code, paper.event.veto_reason) == (live.action, live.code, live.event.veto_reason)
     assert live.code == "hb1_ayni_olay"
     assert _go(e, _hb1(4243)).action == "enter"
+
+
+def test_olay_kumesi_alt_kume_reddi_ve_yeni_kimlik_serbest(e):
+    _kapat(e, _hb1([10, 20]), 1)                                        # A+B ile girildi, stop
+    assert _go(e, _hb1([20])).code == "hb1_ayni_olay"                   # alt kume
+    assert _go(e, _hb1([10, 20])).code == "hb1_ayni_olay"               # ayni kume
+    assert _go(e, _hb1([10, 20, 30])).action == "enter"                 # C yeni kimlik: serbest
+    assert _go(e, _hb1([30])).action == "enter"
+    f = _features(_hb1([20, 10]))
+    assert f["hb1_olay"] == "10,20"                                     # siralanmis, virgullu metin
+    assert f["hb1_olay"] not in (None, 0)
+
+
+def test_son_6_saat_penceresi_tum_islemler(e):
+    _kapat(e, _hb1([10]), 1)                                            # en son kapanan (exit T0+1s saat): olay 10
+    o = _go(e, _hb1([11]))
+    assert o.action == "enter"
+    ev = dataclasses.replace(o.event, bar_close_ts=T0 - timedelta(hours=2))   # daha eski kapanan ikinci islem: olay 11
+    did = e.led.record_decision(ev)
+    e.led.record_trade_entry(L.TradeEntry(2, did, T0 - timedelta(hours=2) + timedelta(seconds=3), 100.0, 0.3, 3, 0.03))
+    e.led.record_trade_exit(L.TradeExit(2, T0 - timedelta(hours=1), 98.0, "stop", 98.0, 0.3, 0.1))
+    assert _go(e, _hb1([11])).code == "hb1_ayni_olay"                   # LIMIT 1 olsaydi (yalniz olay 10) serbest kalirdi
+    assert _go(e, _hb1([10, 11])).code == "hb1_ayni_olay"
+    assert _go(e, _hb1([12])).action == "enter"
+
+
+def test_olay_yok_sayaci_giris_serbest(e):
+    assert _go(e, _hb1(0)).action == "enter"
+    assert e.g.counters["hb1_olay_yok"] == 1
+
+
+def test_bekleyen_cikis_outbox_fail_closed_paper_ve_canli(e):
+    pos = SimpleNamespace(pair="BTC/USDT", setup="HB1")
+    e.state.outbox_pending = lambda: [SimpleNamespace(kind="exit", trade_id=9)]   # type: ignore[method-assign]
+    e.state.get_position = lambda tid: pos                                        # type: ignore[method-assign]
+    paper = _go(e, _hb1(4242))
+    assert paper.code == "hb1_olay_bekleyen_cikis" and paper.event.veto_reason == "gate:hb1_olay_bekleyen_cikis"
+    e.g.cfg = dataclasses.replace(CFG, mode="live")
+    e.g.ml_filtre = type("F", (), {"karar": lambda self, arm, oz, simdi: OF.Karar(True, 0.9, "ok")})()
+    assert _go(e, _hb1(4243)).code == "hb1_olay_bekleyen_cikis"                   # canli = kagit
+    assert _go(e, _row()).action == "enter"                                       # T1 etkilenmez
+    e.state.outbox_pending = lambda: []                                           # type: ignore[method-assign]
+    assert _go(e, _hb1(4243)).action == "enter"
+
+
+def test_pencere_sabiti_kolla_esit():
+    from trader_engine.gates import HB1_OLAY_PENCERE
+    from trader_engine.strategies.arms import hb1
+    assert HB1_OLAY_PENCERE == timedelta(hours=hb1.HS_PENCERE_SAAT)
