@@ -84,3 +84,6 @@ kâğıt bot 44 enstrümanla çalışıyor (health.py:690 _c_open_price).
 ## 1. TUR UYGULAMA SIRASI
 - Aşama A (botu değiştirmez, ölçer): basit rakip kıyası, gecikme/masraf/mum kaydırma, sıra karıştırma + en iyi N çıkar, canlı şartları, filtrede yön denetimi, kayıp kümeleri raporu.
 - Aşama B (botu değiştirir; eşikler testten ÖNCE kilitlenir, kullanıcı onaylar): yön sınırı, v2 özellik paketi, korelasyon sınırı, kayıp freni, toplam tavan. Holdout okunmaz.
+
+## ÇALIŞMA KURALI (23.11 akşam, kullanıcı)
+- Yeni işe başlanabilir ama HER İŞ için önce kullanıcıdan onay alınır. Tek tek, ne yapılacağı sade anlatılarak.
