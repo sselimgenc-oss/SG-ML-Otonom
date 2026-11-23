@@ -55,11 +55,15 @@ PINNED_SHA = {
     "engine.base.json": "ba218ea0404803c9e5af7ffbd276fad79b6d0af714c94150172f7d56e674c328",   # WP-06a: yalniz veto_config yolu
     "engine.learner.json": "30ca2842c40cacafbf6cdd90c9e6f1f54fc62b9a9ec913476d1399ac5352cb12",
     "engine.testnet.json": "54247bbd4d0fcea5eda5add465809938178ec4a1decf7f61cb9aa838daa4e952",
-    "engine.live.json": "d9b47a6c5f9df12440cebb423afeaf5d3f2ea41cc3b6bc5ccf6f6e51a03bf24f",
+    "engine.live.json": "1189c2cd58c8b2835dddd223fb40bd157305804b159e5ead9b2c920f176b81e7",   # 23.11 kullanici karari: canli = kagit (paper sistem anahtarlari eklendi)
 }
+# 23.11 kullanici karari: canli = kagit. engine.live.json'a eklenen kagit sistem anahtarlari (+ pairs yerine kagit evreni).
+LIVE_PAPER_SYSTEM_KEYS = {"veto_mode", "pairs", "optional_pairs", "strategy", "arms", "arm_max_positions", "ml_mode", "shadow_blocks",
+                          "exit_modes", "max_positions", "target_trade_risk", "risk", "clusters", "etiket_kurallari",
+                          "flat_bar_guard", "contract_types", "cost_overrides"}
 UNIT_SHA = {
     "trader-engine-testnet.service": "c753d965c4b8e4a239f6ca44fa83a17e3824ed501583aadc8c7a21c27c5ac07d",
-    "trader-engine-live.service": "56e17d0466b0e32223ee8fa58a0d8f8c82f62356e1b6f21a2abc651865ae0fa9",
+    "trader-engine-live.service": "c847990df3760c790df8418b771679f59a4256d0c902b9d6d990a23a55474549",   # 23.11 kullanici karari: canli = kagit (MemoryMax 750M, MemoryHigh 600M)
 }
 
 
@@ -147,6 +151,8 @@ def test_dt1_katmansiz_yukleme_onceki_engineconfig_ile_esit(baseline, envname):
     cur = _cur_dump(envname)
     old = baseline["cfg"][str(envname)]
     for k, v in old["cfg"].items():
+        if envname == "live" and k in LIVE_PAPER_SYSTEM_KEYS:   # 23.11 kullanici karari: canli = kagit (parite testi: test_canli_kagit_parite.py)
+            continue
         if envname == "testnet" and k == "veto_mode":      # tek beklenen fark: testnet veto kaldirildi (off)
             assert v == "required" and cur["cfg"][k] == "off"
             continue
@@ -160,6 +166,10 @@ def test_dt1_katmansiz_yukleme_onceki_engineconfig_ile_esit(baseline, envname):
             assert v["expected_wallet_max"] == 1500.0 and cur["cfg"][k] == {**v, "expected_wallet_max": 2000.0}
             continue
         assert cur["cfg"][k] == v, f"{envname}: alan {k} degisti"
+    if envname == "live":      # 23.11 kullanici karari: canli = kagit (LIVE_LIMITS 0.24/0.16/0.08, hedef %1)
+        assert (cur["risk"]["max_open_risk"], cur["risk"]["max_same_dir_risk"], cur["risk"]["daily_max_loss"],
+                cur["risk"]["target_trade_risk"]) == (0.24, 0.16, 0.08, 0.01)
+        return
     assert cur["risk"] == old["risk"]
 
 
@@ -185,6 +195,13 @@ def test_dt1_dt13_config_dosyalari_degismedi(name):
         head = head.replace(b'  "kill_file"', ENV_PAIRS_LINE[env] + b'  "kill_file"', 1)
     if name == "engine.live.json":      # 23.11 kullanici karari (d): canli kasa tavani 1500 -> 2000
         head = head.replace(b'"expected_wallet_max": 1500.0', b'"expected_wallet_max": 2000.0', 1)
+        # 23.11 kullanici karari: canli = kagit. Dosya artik kagit sistem anahtarlarini da tasir; yalniz canliya ozgu anahtarlar
+        # (kip, var_dir, kill/pause, live blogu) HEAD ile ayni kalir. Sistem anahtarlari parite testiyle (kagitla esit) korunur.
+        cur, old = json.loads(p.read_bytes()), json.loads(head)
+        for k in ("mode", "var_dir", "kill_file", "pause_file", "live"):
+            assert cur[k] == old[k], k
+        assert set(cur) - set(old) <= LIVE_PAPER_SYSTEM_KEYS
+        return
     assert p.read_bytes() == head
 
 
@@ -311,6 +328,10 @@ def test_dt2_paper_katmani_yalniz_env_paper_ile_uygulanir():
     assert plain.exit_modes == {} and paper.exit_modes != {}
     for env in ("testnet", "live"):
         c = load_cli_config(CONFIG, "learner", env)
+        if env == "live":       # 23.11 kullanici karari: canli = kagit (paper'in 43 cifti, ML aktif, kumeler/tavanlar)
+            assert c.mode == "live" and list(c.pairs) == list(paper.pairs) and len(c.pairs) == 43 and c.ml_mode == "active"
+            assert c.max_positions == paper.max_positions
+            continue
         assert c.mode == env and list(c.pairs) == ENV_PAIRS[env] and c.ml_mode == "off"
         assert getattr(c, "max_positions", None) in (None, 0, 1)   # yeni alan varsayilan (kapali) kalir
 
@@ -386,7 +407,7 @@ NEW_KEYS = {
 }
 
 
-@pytest.mark.parametrize("env", ["testnet", "live", "backtest"])
+@pytest.mark.parametrize("env", ["testnet", "backtest"])        # 23.11 kullanici karari: canli = kagit (canli bu anahtarlari kabul eder)
 @pytest.mark.parametrize("key", sorted(NEW_KEYS))
 def test_dt2_dt30_yeni_anahtarlar_testnet_canli_geri_testte_configerror(tmp_path, env, key):
     if env == "backtest":
@@ -398,7 +419,7 @@ def test_dt2_dt30_yeni_anahtarlar_testnet_canli_geri_testte_configerror(tmp_path
         _load_overlay(_write(tmp_path, "bad.json", {**layer, key: NEW_KEYS[key]}))
 
 
-@pytest.mark.parametrize("env", ["testnet", "live", "backtest"])
+@pytest.mark.parametrize("env", ["testnet", "backtest"])        # 23.11 kullanici karari: canli = kagit
 def test_dt30_risk_anahtarlari_tek_tek_testnet_canli_geri_testte_configerror(tmp_path, env):
     layer = ({"mode": "backtest", "veto_mode": "off"} if env == "backtest"
              else json.loads((CONFIG / f"engine.{env}.json").read_text()))
@@ -454,7 +475,7 @@ def test_dt13_risk_varsayilan_sabitleri_bit_bit_ayni(baseline):
     assert d["max_trade_risk"] == 0.02 and d["target_trade_risk"] == 0.014
 
 
-@pytest.mark.parametrize("env", ["testnet", "live"])
+@pytest.mark.parametrize("env", ["testnet"])      # 23.11 kullanici karari: canli = kagit (canli limitleri: test_canli_kagit_parite.py)
 def test_dt13_testnet_canli_risk_limitleri_degismedi(env):
     rc = load_cli_config(CONFIG, "learner", env).risk_config
     assert (rc.max_open_risk, rc.max_same_dir_risk, rc.daily_max_loss) == (0.06, 0.04, 0.05)
@@ -472,5 +493,5 @@ def test_dt13_paper_layer_diger_ortamlari_kirletmez():
     _paper()
     assert len(load_cli_config(CONFIG, "learner", None).pairs) == 10
     assert load_cli_config(CONFIG, "learner", "testnet").risk_config.max_open_risk == 0.06
-    assert load_cli_config(CONFIG, "learner", "live").risk_config.max_open_risk == 0.06
+    assert load_cli_config(CONFIG, "learner", "live").risk_config.max_open_risk == 0.24   # 23.11 kullanici karari: canli = kagit
     assert LOCKED_CFG.max_open_risk == 0.06

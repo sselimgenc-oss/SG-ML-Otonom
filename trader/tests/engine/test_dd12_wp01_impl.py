@@ -85,7 +85,7 @@ def test_locked_defaults_bit_identical():
         K.paper_config(max_trade_risk=0.03)            # yalniz PAPER_KEYS
 
 
-@pytest.mark.parametrize("mode", ["testnet", "live", "backtest"])
+@pytest.mark.parametrize("mode", ["testnet", "backtest"])      # 23.11 kullanici karari: canli = kagit (canli bu anahtarlari kabul eder)
 @pytest.mark.parametrize("key,val", [
     ("risk", {"max_open_risk": 0.12}), ("max_positions", 16), ("flat_bar_guard", True),
     ("contract_types", ["TRADIFI_PERPETUAL"]), ("optional_pairs", ["BTC/USDT"]), ("ml_pairs", ["BTC/USDT"]),
@@ -113,10 +113,16 @@ def test_paper_validation_errors(tmp_path, key, val):
 
 
 def test_testnet_live_risk_unchanged(tmp_path):
-    for mode in ("testnet", "live"):
+    for mode in ("testnet",):        # 23.11 kullanici karari: canli = kagit (canli: LiveRiskConfig, test_canli_kagit_parite.py)
         r = _load(tmp_path, _raw(mode)).risk_config
         assert r == K.tightened(K.LOCKED_CFG, target_trade_risk=0.005) and type(r) is K.RiskConfig
         assert (r.max_open_risk, r.max_same_dir_risk, r.daily_max_loss) == (0.06, 0.04, 0.05)
+    # canli: acik `risk` blogu yoksa hala kilitli sinirlar (kagit sinirlari yalniz `risk` blogu ile gelir; ayrinti: test_canli_kagit_parite.py)
+    raw = _raw("live")
+    raw.pop("risk", None)
+    raw["target_trade_risk"] = 0.005
+    r = _load(tmp_path, raw).risk_config
+    assert r == K.tightened(K.LOCKED_CFG, target_trade_risk=0.005) and type(r) is K.RiskConfig
 
 
 def test_paper_without_new_keys_is_old_behaviour(tmp_path):

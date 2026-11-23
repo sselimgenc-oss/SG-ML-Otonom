@@ -341,7 +341,7 @@ def test_paper_config_loads_and_arms_parse():
 
 
 def test_new_keys_rejected_outside_paper(tmp_path):
-    for mode in ("testnet", "live"):
+    for mode in ("testnet",):        # 23.11 kullanici karari: canli = kagit (canli arms/arm_max_positions kabul eder)
         for key, val in (("arms", ["T1@1h"]), ("arm_max_positions", 4)):
             (tmp_path / mode).mkdir(exist_ok=True)
             with pytest.raises(ConfigError):

@@ -282,7 +282,10 @@ def test_limit_orani_ayardan_okunur(tmp_path, monkeypatch):
     cd.mkdir()
     (cd / "engine.paper.json").write_text(json.dumps({"risk": {"daily_max_loss": 0.04}}))
     assert TS.limit_orani(cd, "paper") == 0.04
-    assert TS.limit_orani(cd, "live") == R.LOCKED_CFG.daily_max_loss          # canlida kilitli
+    # 23.11 kullanici karari: canli = kagit (canli engine.live.json'daki risk.daily_max_loss'u okur; dosya yoksa kilitli)
+    assert TS.limit_orani(cd, "live") == R.LOCKED_CFG.daily_max_loss
+    (cd / "engine.live.json").write_text(json.dumps({"risk": {"daily_max_loss": 0.08}}))
+    assert TS.limit_orani(cd, "live") == 0.08
     assert TS.limit_orani(tmp_path / "yok", "paper") == R.LOCKED_CFG.daily_max_loss
     (cd / "engine.paper.json").write_text(json.dumps({"risk": {"daily_max_loss": R.PAPER_LIMITS["daily_max_loss"]}}))
     assert TS.limit_orani(cd, "paper") == R.PAPER_LIMITS["daily_max_loss"]       # paper ust siniri gecerli

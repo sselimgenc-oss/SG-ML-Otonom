@@ -504,9 +504,10 @@ def test_flat_bar_precedes_cluster_cap(mk):
 
 def test_flat_bar_guard_off_in_non_paper_unchanged(mk, tmp_path):
     """Tarafsizlik: flat_bar_guard yalniz paper anahtari; taban/testnet yapilandirmasinda False -> koruma yok (davranis ayni)."""
-    for name in ("engine.testnet.json", "engine.live.json"):
+    for name in ("engine.testnet.json",):        # 23.11 kullanici karari: canli = kagit (engine.live.json artik bu anahtarlari tasir)
         raw = json.loads((CONFIG / name).read_text())
         assert "flat_bar_guard" not in raw and "clusters" not in raw and "max_positions" not in raw
+    assert json.loads((CONFIG / "engine.live.json").read_text())["flat_bar_guard"] is True
 
 
 # ------------------------------------------------------------------------------------------------ D-T7 dersin kapattigi seans
@@ -592,7 +593,10 @@ def test_neutrality_testnet_live_configs_unchanged_and_veto_required():
             c = lc(CONFIG, "learner", env)
         except Exception as ex:  # noqa: BLE001 - canli onay/anahtar gibi nedenlerle yuklenemeyebilir
             pytest.skip(f"{env} yuklenemedi: {ex}")
-        assert c.veto_mode == ("off" if env == "testnet" else "required")   # DD-12 QC: LLM veto kaldirildi, testnet veto'suz; canli degismez
+        if env == "live":                  # 23.11 kullanici karari: canli = kagit (veto yok; kume/tavan/tatil bari korumasi acik)
+            assert c.veto_mode == "off" and c.clusters and c.max_positions == 24 and c.flat_bar_guard is True
+            continue
+        assert c.veto_mode == "off"          # DD-12 QC: LLM veto kaldirildi, testnet veto'suz
         assert not c.clusters and c.max_positions is None and c.flat_bar_guard is False
 
 
