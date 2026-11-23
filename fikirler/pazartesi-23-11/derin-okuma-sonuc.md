@@ -133,3 +133,4 @@ Not: 13 ve 14, yukarıdaki 11 eksik sayısına dahil değildir; küçük iyileş
 ## KULLANICI KARARI (23.11)
 - Gölge yok: fikir 7 ve 10 dahil her şey kâğıtta açık ve işlem etkili olacak.
 - Derin öğrenme (DL1) ve haber kolu (HB1) 300 işlemi BEKLEMEZ. Kod hazır olunca hemen kâğıtta açılır. 300 işlem eşiği yalnız canlı şartıdır. 60/100 işlemlik tut/kaldır eşikleri (üst lig tasarımı) yalnız değerlendirme içindir, açılış şartı değildir.
+- Karar 1 (3 yanlış düzeltilsin): EVET. Karar 2 (rapor eksikleri + yeni fikir 1-6): EVET. Karar 3 (gece süzgeci): (c) önce sınansın, geçemeyen aile için süzgeç kapalı. Karar 4 (reddedilenlerden öğrensin): EVET. Karar 5 (aynı yön): risk %6 kalsın (adet tavanı eklenmez). Karar 7 (fikir 7 ve 8, gölgesiz): EVET. Karar 6 (fren gece yarısı): kullanıcıya soruldu, bekliyor.
