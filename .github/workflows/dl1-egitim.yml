@@ -51,7 +51,7 @@ jobs:
           pip install --require-hashes -r requirements.lock
           pip install "torch==2.8.0" --index-url https://download.pytorch.org/whl/cpu
 
-      - name: Duman (sentetik: egitim + numpy-PyTorch parite + paket turu)
+      - name: "Duman (sentetik: egitim + numpy-PyTorch parite + paket turu)"
         working-directory: trader
         run: python research/dl1/duman.py
 
