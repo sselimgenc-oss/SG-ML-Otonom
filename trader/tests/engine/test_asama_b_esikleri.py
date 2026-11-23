@@ -257,7 +257,7 @@ def test_korelasyon_yedek_kumeyle_engel_ve_hata_serbest(mk):
 # ------------------------------------------------------------------------------------------------ 3) kayip freni
 def _kapat(led, kazanc_dizisi, gun=None, baslangic=None):
     """Eskiden yeniye: True = kazanc. Defterde kapanmis islemler (gercek yol: karar + giris + cikis)."""
-    t0 = baslangic or (T0 - timedelta(hours=40))
+    t0 = baslangic or (T0 - timedelta(hours=8))   # ayni UTC gun (seri yalniz bugunku kapanislari sayar)
     n0 = len(led.list_closed_trades(limit=1000)) + len(led.list_open_trades())
     for i, w in enumerate(kazanc_dizisi, start=n0 + 1):
         bar = t0 + timedelta(minutes=30 * i)
@@ -313,6 +313,17 @@ def test_fren_ardisik_tetik_kalkis_ve_yeniden_baslatma(tmp_path, cfg):
         assert _risk(_go(e, "BNB/USDT")) == pytest.approx(temel, rel=1e-6)
     finally:
         e.state.close(); e.led.close()
+
+
+def test_fren_ardisik_seri_yeni_utc_gununde_kalkar(mk):
+    kw = {**BOS, "kayip_freni": {"ardisik": 5, "gunluk_oran": 0.04, "carpan": 0.5}}
+    e = mk(PAPER, **kw)
+    temel = _risk(_go(e))
+    _kapat(e.led, [False] * 5, baslangic=T0 - timedelta(hours=40))   # T0-40h .. dunden once: bugun degil
+    D2 = T0 + timedelta(days=1)
+    with e.state.tx():
+        e.state.kv_set(f"day_start:{D2:%Y-%m-%d}", 1000.0)
+    assert _risk(_go(e, "ETH/USDT", D=D2)) == pytest.approx(temel, rel=1e-6)     # yeni gun: fren yok
 
 
 def test_fren_gunluk_yuzde4_ve_ertesi_gun_kalkar(mk):

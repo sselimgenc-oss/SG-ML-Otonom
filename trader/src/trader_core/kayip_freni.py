@@ -3,7 +3,7 @@ state'teki gun basi kasaya bakilarak her seferinde TURETILIR; yeniden baslatmada
 
 Tetik (biri yeter):
   - ardisik: son `ardisik` kapanan islemin hepsi zararda (realized_pnl < 0; elle kapanis `manual` sayilmaz).
-    Ilk kazancli (ya da basa-bas) kapanista kendiliginden kalkar (seri bozulur).
+    Ilk kazancli (ya da basa-bas) kapanista kalkar (seri bozulur) VE yeni UTC gununde kalkar (yalniz bugun kapananlar sayilir).
   - gunluk: bugunku zarar (gun basi kasa - kasa) / gun basi kasa >= gunluk_oran. UTC gun basinda (yeni gun_basi kasasi) kalkar.
 Etki: islem basi hedef risk `carpan` ile carpilir (0.01 -> 0.005). YALNIZ KUCULTUR: etkin hedef = min(kademe/kol hedefi, taban hedef x carpan).
 """
@@ -44,10 +44,13 @@ def ardisik_kayip(kapananlar_yeniden_eskiye: Sequence, ust: int) -> int:
     return n
 
 
-def karar(cfg: Mapping | None, kapananlar_yeniden_eskiye: Sequence, equity: float, gun_basi_kasa: float) -> FrenKarari:
+def karar(cfg: Mapping | None, kapananlar_yeniden_eskiye: Sequence, equity: float, gun_basi_kasa: float, gun_basi=None) -> FrenKarari:
     """cfg = {ardisik, gunluk_oran, carpan} (bos/None = kapali). Hata durumunda cagiran fren uygulamaz (kucultme zaten sigorta)."""
     if not cfg:
         return YOK
+    if gun_basi is not None:        # seri gece yarisini asmaz: yalniz bugunku (UTC) kapanislar
+        kapananlar_yeniden_eskiye = [t for t in kapananlar_yeniden_eskiye
+                                     if getattr(t, "exit_ts", None) is not None and t.exit_ts >= gun_basi]
     n = ardisik_kayip(kapananlar_yeniden_eskiye, int(cfg["ardisik"]))
     carpan = float(cfg["carpan"])
     if n >= int(cfg["ardisik"]):

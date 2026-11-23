@@ -332,14 +332,14 @@ class EntryGate:
             log.warning("korelasyon grubu hatasi, giris serbest: %s: %s", type(e).__name__, e)
             return None
 
-    def _fren_karari(self, acct: K.AccountState) -> KF.FrenKarari:
+    def _fren_karari(self, acct: K.AccountState, D: datetime) -> KF.FrenKarari:
         """Kayip freni: defterden (son kapananlar) + state gun basi kasadan TURETILIR (dosya yok). Hata => fren yok (yalniz kucultme)."""
         fc = getattr(self.cfg, "kayip_freni", None)
         if not fc:
             return KF.YOK
         try:
             son = self.ledger.list_closed_trades(limit=max(50, int(fc["ardisik"]) * 10))
-            return KF.karar(fc, son, acct.equity, acct.day_start_equity)
+            return KF.karar(fc, son, acct.equity, acct.day_start_equity, D.replace(hour=0, minute=0, second=0, microsecond=0))
         except Exception as e:  # noqa: BLE001
             self.counters["kayip_freni_hata"] += 1
             log.warning("kayip freni hesaplanamadi, fren yok: %s: %s", type(e).__name__, e)
@@ -479,7 +479,7 @@ class EntryGate:
             if kk is not None:
                 tk["features"] = {**(tk.get("features") or _features(row)), **KK.ozellikler(kk)}
                 kol_mult = float(kk.carpan)
-            fren = self._fren_karari(acct)                                              # 23.11 asama B: kayip freni (yalniz kucultur)
+            fren = self._fren_karari(acct, D)                                              # 23.11 asama B: kayip freni (yalniz kucultur)
             fren_mult = KF.goreli_carpan(fren, self.cfg.risk_config.target_trade_risk, src.risk_config.target_trade_risk)
             mult = min(kol_mult, fren_mult)                                             # asgari; kademe/mandal zaten src.risk_config icinde
             if fren.aktif:
