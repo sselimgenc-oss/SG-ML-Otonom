@@ -225,8 +225,23 @@ def durum_oku(yol: Path) -> dict:
 
 
 def _yaz(yol: Path, belge: dict) -> None:
-    from trader_engine.fileio import atomic_write_json  # noqa: PLC0415  (yalniz atomik yazim yardimcisi)
-    atomic_write_json(yol, belge)
+    """Atomik yazim (tmp + fsync + replace). trader_core, trader_engine'i ice aktarmaz (bagimlilik yonu)."""
+    import os  # noqa: PLC0415
+    yol = Path(yol)
+    yol.parent.mkdir(parents=True, exist_ok=True)
+    tmp = yol.with_name(f".{yol.name}.tmp-{os.getpid()}")
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(belge, f, ensure_ascii=False, indent=1)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, yol)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 
 # ------------------------------------------------------------------ API istemcisi (eszamanli)
