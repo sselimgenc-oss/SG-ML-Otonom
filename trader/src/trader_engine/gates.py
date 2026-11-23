@@ -127,6 +127,9 @@ def _features(row: SignalRow) -> dict:
 
 
 _HB1_OLAY_RE = re.compile(r"(?:^|[,:])hb1_olay=(\d+(?:\+\d+)*)(?:,|$)")
+# Emtia hafta sonu penceresi TEK KAYNAK: trader_core.arm_time.session_tag (emtia: Cum 21:00 UTC -> Paz 23:00 UTC = "weekend").
+# Kapida ayri saat sabiti yok; karar zamani D bu etiketle olculur (datetime.now yok). Sinif bilinmiyorsa asset_class kripto verir -> engellemez.
+EMTIA_HAFTA_SONU_TAG = "weekend"
 HB1_OLAY_PENCERE = timedelta(hours=6.0)      # = arms/hb1.HS_PENCERE_SAAT: bir olay en cok 6 sa canli (kol sabitiyle esitlik testle sinanir)
 
 
@@ -529,6 +532,10 @@ class EntryGate:
             if AG.session_closed_by_lesson(self._session_off(), cls, pair, tk["session_tag"]):
                 return self._skip(row, tf, "session_closed", skip_reason="session_closed",
                                   veto_reason="gate:session_closed", **tk)
+            if cls == AG.CLASS_COMMODITY and tk["session_tag"] == EMTIA_HAFTA_SONU_TAG:       # 23.11 kullanici karari (b): hafta sonu emtiada YENI giris yok
+                self.counters["emtia_hafta_sonu"] += 1                                       # acik emtia pozisyonu etkilenmez (3. adim zaten ignore eder; cikislar bu yoldan gecmez)
+                return self._skip(row, tf, "emtia_hafta_sonu", skip_reason="session_closed",
+                                  veto_reason="gate:emtia_hafta_sonu", **tk)
             ho = self._hb1_olay_karari(row, tf, D, tk)                                      # HB1: ayni haberle yeniden giris yok
             if ho is not None:
                 return ho
