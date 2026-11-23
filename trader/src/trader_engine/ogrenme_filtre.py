@@ -35,6 +35,10 @@ from trader_core.ml_live_v2 import setup_feature_dict
 
 from .holdout import HOLDOUT, KILIT_ACIK
 
+VOL_ON = "f_vol_"                 # fikir 10 ozellikleri
+KAPSAMA_MIN, KAPSAMA_ORAN = 30, 0.5
+Z_SINIR = 5.0
+
 log = logging.getLogger("engine.ogrenme_filtre")
 
 MIN_ISLEM = 10             # kurulum basina asgari kapanmis islem (1L3A ile ayni, 2026-11-19)
@@ -196,7 +200,7 @@ class FiltreDeposu:
             if p is None:
                 return Karar(True, None, self._yok_nedeni(arm))
             oz = {**oz, **tf_ozellikleri(tf_of(arm))}                # aile modeli: kolun zaman dilimi ozellik olarak eklenir
-            puan = float(self._mod[0].puan(p, oz))
+            puan = float(self._mod[0].puan(p, z_kirp(p, oz)))
             if not math.isfinite(puan) or not 0.0 <= puan <= 1.0:
                 return Karar(True, None, "hata")
             return Karar(puan >= float(p["esik"]), puan, "ok" if puan >= float(p["esik"]) else "esik_alti")
@@ -373,7 +377,41 @@ def aile_adaylari(adaylar) -> dict[str, list]:
         by.setdefault(aile, []).append(dataclasses.replace(a, kurulum=aile_kimligi(aile),
                                                            ozellikler={**a.ozellikler, **tf_ozellikleri(tf)},
                                                            cikis={**a.cikis, "kol": a.kurulum}))
-    return by
+    return {k: _seyrek_at(v) for k, v in by.items()}
+
+
+def _seyrek_at(adaylar: list) -> list:
+    """Kapsama kurali (yayilim): `f_vol_*` ozelligi ailenin egitim satirlarinin >= KAPSAMA_MIN adedinde VE >= KAPSAMA_ORAN'inda sayisal
+    degilse butun satirlardan atilir (yoksa eksikler ortalamayla dolar, std ~0 olur, model doyar). Paketin kendi ozellik listesi bundan
+    sonra o ozelligi icermez => puanlamada da yok sayilir (egitim ve puanlama tutarli)."""
+    n = len(adaylar)
+    adet: dict[str, int] = {}
+    for a in adaylar:
+        for k, v in a.ozellikler.items():
+            if k.startswith(VOL_ON) and isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v):
+                adet[k] = adet.get(k, 0) + 1
+    at = {k for k in {k for a in adaylar for k in a.ozellikler if k.startswith(VOL_ON)}
+          if adet.get(k, 0) < KAPSAMA_MIN or adet.get(k, 0) < KAPSAMA_ORAN * n}
+    if not at:
+        return adaylar
+    import dataclasses
+    return [dataclasses.replace(a, ozellikler={k: v for k, v in a.ozellikler.items() if k not in at}) for a in adaylar]
+
+
+def z_kirp(paket, oz: Mapping[str, float]) -> dict[str, float]:
+    """Puanlamadan once her ozelligi paketin ortalama +- Z_SINIR*std araligina kirpar (= ozellik basina z in [-5, 5]); paket modeli degismez."""
+    try:
+        adlar = paket["meta"]["ozellikler"]
+        mean, std = paket["model"]["mean"], paket["model"]["std"]
+    except (KeyError, TypeError):
+        return dict(oz)
+    out = dict(oz)
+    for i, ad in enumerate(adlar):
+        v = out.get(ad)
+        if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v):
+            w = Z_SINIR * abs(float(std[i]))
+            out[ad] = min(max(float(v), float(mean[i]) - w), float(mean[i]) + w)
+    return out
 
 
 def _kapanis(a) -> datetime:
@@ -419,7 +457,7 @@ def aile_sinama(filtre, kimlik: str, adaylar, simdi: datetime) -> dict:
         rap["neden"] = "egitilemedi"
         return rap
     rs = [float(a.r) for a in sinama]
-    kabul = [float(a.r) for a in sinama if filtre.puan(paket, a.ozellikler) >= float(paket["esik"])]
+    kabul = [float(a.r) for a in sinama if filtre.puan(paket, z_kirp(paket, a.ozellikler)) >= float(paket["esik"])]
     rap["n_kabul"] = len(kabul)
     rap["ort_r_hepsi"] = sum(rs) / len(rs)
     rap["ort_r_kabul"] = (sum(kabul) / len(kabul)) if kabul else None

@@ -27,6 +27,7 @@ from .position_manager import ExitContext
 from .strategies.arms import priority_of
 from .strategies.base import Strategy, StrategyContext, StrategyError, validate_row, validate_table
 from .types import Position
+from .vol_tahmin import vol_ozellikleri
 
 log = logging.getLogger("engine.runner")
 _OHLC = ["open", "high", "low", "close"]
@@ -65,6 +66,8 @@ class SignalRow:
     ml_score: float | None = None          # ML-0a: reasons'taki `ml:p=` etiketinden; ML'siz stratejide None
     arm_id: str | None = None              # DD-12 WP-11: bilesik strateji satiri `<kurulum>@<tf>`; tekli stratejide None
     tf: str | None = None                  # DD-12 WP-11: satirin tetik zaman dilimi; tekli stratejide None (bar suresinden bulunur)
+    vol_tahmin: float | None = None        # fikir 10: GJR oynaklik tahmini / ATR oynakligi (yalniz gece suzgecinin ek ozelligi)
+    vol_asim: float | None = None          # fikir 10: oynaklik asimetrisi (kaldirac bileseni), [-1, 1]
 
 
 @dataclass(frozen=True)
@@ -101,8 +104,19 @@ def _text(x, default: str | None = None) -> str | None:
     return x if isinstance(x, str) else default
 
 
-def _to_row(pair: str, open_ts: datetime, close_ts: datetime, r: pd.Series, version_id: int) -> SignalRow:
+def _vol(setup, side, trig, atr, tf) -> dict:
+    """Yalniz aday satirlar icin (ucuz): karar mumuna kadar KAPANMIS mumlardan oynaklik ozellikleri; hata/eksik => bos."""
+    if not (setup and side) or trig is None or "close" not in trig.columns:
+        return {}
+    try:
+        return vol_ozellikleri(trig["close"].to_numpy(dtype=float), atr, tf)
+    except Exception:  # noqa: BLE001 - ek ozellik asla motoru durdurmaz
+        return {}
+
+
+def _to_row(pair: str, open_ts: datetime, close_ts: datetime, r: pd.Series, version_id: int, trig=None, tf=None) -> SignalRow:
     pe, ps = _opt(r["planned_entry"]), _opt(r["planned_stop"])
+    vf = _vol(_text(r["setup"]), _text(r["side"]), trig, _opt(r["atr_tf"]), tf)
     return SignalRow(
         pair=pair, bar_open_ts=open_ts, bar_close_ts=close_ts, signal=bool(r["signal"]),
         setup=_text(r["setup"]), side=_text(r["side"]), skip_reason=_text(r["skip_reason"]),
@@ -113,7 +127,8 @@ def _to_row(pair: str, open_ts: datetime, close_ts: datetime, r: pd.Series, vers
         rh_touches=_int0(r["rh_touches"]), rl_touches=_int0(r["rl_touches"]), ema_value=_opt(r["ema_value"]),
         body_ratio=_opt(r["body_ratio"]), wick_ratio=_opt(r["wick_ratio"]), edge_dist_atr=_opt(r["edge_dist_atr"]),
         pullback_ema=_int0(r["pullback_ema"]), reasons=_text(r["reasons"], "") or "", param_version_id=int(version_id),
-        ml_score=ml_score_from_reasons(_text(r["reasons"], "")))
+        ml_score=ml_score_from_reasons(_text(r["reasons"], "")),
+        vol_tahmin=vf.get("vol_tahmin"), vol_asim=vf.get("vol_asim"))
 
 
 def _params_map(params) -> Mapping[str, object]:
@@ -263,7 +278,7 @@ class WindowedSignalSource:
             for c in ("signal", "skip_reason", "reasons"):
                 table.iloc[-1, table.columns.get_loc(c)] = last_row[c]
             open_ts = trig.index[-1].to_pydatetime()
-            row = _to_row(pair, open_ts, D, table.iloc[-1], version_id)
+            row = _to_row(pair, open_ts, D, table.iloc[-1], version_id, trig, tf)
             tb = None
             if "volume" in trig.columns:
                 lt = trig.iloc[-1]
@@ -470,7 +485,7 @@ class MultiArmSignalSource(WindowedSignalSource):
                 for c in ("signal", "skip_reason", "reasons"):
                     lr[c] = last_row[c]
                 open_ts = trig.index[-1].to_pydatetime()
-                row = _to_row(pair, open_ts, D, lr, version_id)
+                row = _to_row(pair, open_ts, D, lr, version_id, trig, tf)
                 if row.setup:
                     row = dataclasses.replace(row, arm_id=f"{row.setup}@{tf}", tf=tf)
                 else:
