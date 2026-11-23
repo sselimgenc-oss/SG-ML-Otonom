@@ -140,14 +140,14 @@ def test_config_kagit_active_canli_testnet_eskisi_gibi():
 def _adaylar(arm, n, *, t0=datetime(2026, 11, 2, tzinfo=timezone.utc), saat=1):
     out = []
     for i in range(n):
-        x = 5.0 if i % 2 == 0 else -5.0
+        x = -5.0 if i % 3 == 2 else 5.0       # 2/3 kazanan, x etiketi tam ayirir: yayin oncesi sinama (>=3 kabul) gecer
         out.append(Aday(id=f"{arm}{i}", proje="ML", kurulum=arm, enstruman="BTC/USDT", varlik_sinifi="kripto", yon="long",
                         ts=t0 + timedelta(hours=saat * i), alindi=True, r=1.0 if x > 0 else -1.0, ozellikler={"x": x}))
     return out
 
 
 def test_paket_egitim_esik_alti_atlar_ustu_gecirir(tmp_path):
-    OF.egit_hepsi(_adaylar("T1@1h", 12), tmp_path, NOW)
+    OF.egit_hepsi(_adaylar("T1@1h", 20), tmp_path, NOW)
     d = OF.FiltreDeposu(tmp_path)
     assert d.karar("T1@1h", {"x": -5.0}, NOW).izin is False
     k = d.karar("T1@1h", {"x": 5.0}, NOW)
@@ -167,7 +167,7 @@ def test_10dan_az_islem_filtre_yok(tmp_path):
 
 
 def test_bozuk_ve_suresi_gecmis_paket_serbest(tmp_path):
-    OF.egit_hepsi(_adaylar("T1@1h", 12), tmp_path, NOW)
+    OF.egit_hepsi(_adaylar("T1@1h", 20), tmp_path, NOW)
     assert OF.FiltreDeposu(tmp_path).karar("T1@1h", {"x": -5.0}, NOW + timedelta(days=30)).izin is True   # suresi gecmis
     yol = tmp_path / "aile_T1.json"
     yol.write_text(yol.read_text().replace('"esik": ', '"esik": 0.99, "x_": '), encoding="utf-8")         # hash bozuldu
@@ -178,7 +178,7 @@ def test_bozuk_ve_suresi_gecmis_paket_serbest(tmp_path):
 
 
 def test_puan_istisnasi_serbest(tmp_path, monkeypatch):
-    OF.egit_hepsi(_adaylar("T1@1h", 12), tmp_path, NOW)
+    OF.egit_hepsi(_adaylar("T1@1h", 20), tmp_path, NOW)
     d = OF.FiltreDeposu(tmp_path)
     monkeypatch.setattr(d._mod[0], "puan", lambda *a, **k: 1 / 0)
     k = d.karar("T1@1h", {"x": -5.0}, NOW)
@@ -186,29 +186,29 @@ def test_puan_istisnasi_serbest(tmp_path, monkeypatch):
 
 
 def test_env_kapali_filtre_yok(tmp_path, monkeypatch):
-    OF.egit_hepsi(_adaylar("T1@1h", 12), tmp_path, NOW)
+    OF.egit_hepsi(_adaylar("T1@1h", 20), tmp_path, NOW)
     monkeypatch.setenv(OF.ENV_KAPALI, "1")
     assert OF.FiltreDeposu(tmp_path).karar("T1@1h", {"x": -5.0}, NOW).izin is True
 
 
 def test_egitim_holdout_satiri_almaz(tmp_path):
     ic = _adaylar("T1@1h", 5, t0=datetime(2026, 6, 1, tzinfo=timezone.utc))            # holdout icinde
-    dis = _adaylar("T1@1h", 12, t0=datetime(2026, 11, 3, tzinfo=timezone.utc))
+    dis = _adaylar("T1@1h", 20, t0=datetime(2026, 11, 3, tzinfo=timezone.utc))
     OF.egit_hepsi(ic + [dataclasses.replace(a, id="k" + a.id) for a in dis], tmp_path, NOW)
     meta = json.loads((tmp_path / "aile_T1.json").read_text())["meta"]
-    assert meta["n_egitim"] == 12 and meta["kilit_dusen"] == 5
+    assert meta["n_egitim"] == 20 and meta["kilit_dusen"] == 5
     assert OF._kilit_kesisir(datetime(2026, 10, 31, 23, tzinfo=timezone.utc), datetime(2026, 11, 2, tzinfo=timezone.utc))
     assert not OF._kilit_kesisir(datetime(2026, 11, 1, tzinfo=timezone.utc), datetime(2026, 11, 2, tzinfo=timezone.utc))
 
 
 def test_yeniden_egitim_kurali_10_yeni_islem(tmp_path):
-    OF.egit_hepsi(_adaylar("T1@1h", 12), tmp_path, NOW)
+    OF.egit_hepsi(_adaylar("T1@1h", 20), tmp_path, NOW)
     h0 = json.loads((tmp_path / "aile_T1.json").read_text())["meta"]["model_hash"]
-    r = OF.egit_hepsi(_adaylar("T1@1h", 15), tmp_path, NOW + timedelta(days=1))
+    r = OF.egit_hepsi(_adaylar("T1@1h", 24), tmp_path, NOW + timedelta(days=1))
     assert r["aileler"]["T1"]["durum"] == "guncel"
-    r = OF.egit_hepsi(_adaylar("T1@1h", 22), tmp_path, NOW + timedelta(days=2))
+    r = OF.egit_hepsi(_adaylar("T1@1h", 31), tmp_path, NOW + timedelta(days=2))
     assert r["aileler"]["T1"]["durum"] == "ok"
-    assert json.loads((tmp_path / "aile_T1.json").read_text())["meta"]["n_egitim"] == 22
+    assert json.loads((tmp_path / "aile_T1.json").read_text())["meta"]["n_egitim"] == 31
     assert (tmp_path / "aile_T1.prev.json").exists() and h0
 
 
@@ -217,7 +217,9 @@ def _aile_adaylar(kollar: dict[str, int]):
     out = []
     for arm, n in kollar.items():
         out += _adaylar(arm, n, t0=datetime(2026, 11, 2, tzinfo=timezone.utc) + timedelta(minutes=len(out)))
-    return out
+    out.sort(key=lambda a: a.ts)
+    # etiket deseni havuz sirasina gore (her aile diliminde iki sinif + yayin oncesi sinama gecer)
+    return [dataclasses.replace(a, r=-1.0 if i % 3 == 2 else 1.0, ozellikler={"x": -5.0 if i % 3 == 2 else 5.0}) for i, a in enumerate(out)]
 
 
 def test_aile_of_ve_tf_ozellikleri():
@@ -228,12 +230,12 @@ def test_aile_of_ve_tf_ozellikleri():
 
 
 def test_aile_toplam_10_olunca_aktif_her_kola_uygulanir(tmp_path):
-    # hicbir kolun tek basina 10 islemi yok: 4+3+2+2 = 11 >= 10
-    r = OF.egit_hepsi(_aile_adaylar({"M1@15m": 4, "M1@1h": 3, "M1@4h": 2, "M1@1d": 2}), tmp_path, NOW)
-    assert r["aileler"]["M1"]["durum"] == "ok" and r["aileler"]["M1"]["n"] == 11
-    assert r["aileler"]["M1"]["kollar"] == {"M1@15m": 4, "M1@1h": 3, "M1@4h": 2, "M1@1d": 2}
+    # hicbir kolun tek basina 10 islemi yok: 8+6+4+4 = 22 >= 10
+    r = OF.egit_hepsi(_aile_adaylar({"M1@15m": 8, "M1@1h": 6, "M1@4h": 4, "M1@1d": 4}), tmp_path, NOW)
+    assert r["aileler"]["M1"]["durum"] == "ok" and r["aileler"]["M1"]["n"] == 22
+    assert r["aileler"]["M1"]["kollar"] == {"M1@15m": 8, "M1@1h": 6, "M1@4h": 4, "M1@1d": 4}
     meta = json.loads((tmp_path / "aile_M1.json").read_text())["meta"]
-    assert meta["kurulum"] == "aile:M1" and meta["n_egitim"] == 11 and "tf_log2_dk" in meta["ozellikler"]
+    assert meta["kurulum"] == "aile:M1" and meta["n_egitim"] == 22 and "tf_log2_dk" in meta["ozellikler"]
     d = OF.FiltreDeposu(tmp_path)
     assert d.aktif_aileler(NOW) == ["M1"] and d.aktif_kol_sayisi(NOW) == 4
     for arm in ("M1@15m", "M1@1h", "M1@4h", "M1@1d"):
@@ -278,22 +280,22 @@ def test_gece_birimi_paper_models_csv_aile_satiri(tmp_path, monkeypatch):
     import ml_retrain_run as R
     lp = tmp_path / "ledger.sqlite"
     L.open_ledger(lp, "learner", create=True, migrate=True).close()
-    monkeypatch.setattr(OF, "adaylar_defterden", lambda led: _aile_adaylar({"M1@15m": 4, "M1@1h": 3, "M1@4h": 2, "M1@1d": 2, "T1@1h": 3}))
+    monkeypatch.setattr(OF, "adaylar_defterden", lambda led, *a, **k: _aile_adaylar({"M1@15m": 8, "M1@1h": 6, "M1@4h": 4, "M1@1d": 4, "T1@1h": 3}))
     rc = R.main(["--once", "--ledger", str(lp), "--models-dir", str(tmp_path / "m"), "--no-m1",
                  "--paper-models-csv", str(tmp_path / "pm.csv")], now_fn=lambda: NOW, env={})
     assert rc == 0
     satirlar = {s.split(",")[0]: s for s in (tmp_path / "pm.csv").read_text().splitlines()}
     m1 = satirlar["ortak_filtre_aile_M1_2026-12-01"]
-    assert "durum=ok" in m1 and "n=11" in m1 and "M1@15m=4" in m1 and "aile=M1" in m1
+    assert "durum=ok" in m1 and "n=22" in m1 and "M1@15m=8" in m1 and "aile=M1" in m1
     assert "durum=az_islem" in satirlar["ortak_filtre_aile_T1_2026-12-01"]
     assert (tmp_path / "models" / "ortak_filtre" / "aile_M1.json").exists()
 
 
 def test_kaldirilan_kol_icin_aile_paketi_uretilmez(tmp_path):
-    adaylar = _adaylar("C1@1h", 12) + _adaylar("T1@1h", 12)
+    adaylar = _adaylar("C1@1h", 20) + _adaylar("T1@1h", 20)
     r = OF.egit_hepsi(adaylar, tmp_path, NOW, kollar=["T1@1h", "T1@4h"])
     assert list(r["aileler"]) == ["T1"]
-    assert sorted(p.name for p in tmp_path.glob("*.json") if p.name.startswith("aile_")) == ["aile_T1.json"]
+    assert sorted(p.name for p in tmp_path.glob("aile_*.json") if not p.name.endswith(".sinama.json")) == ["aile_T1.json"]
     assert "C1" not in json.dumps(r)
     r2 = OF.egit_hepsi(adaylar, tmp_path / "b", NOW)                     # kollar verilmezse eski davranis
     assert sorted(r2["aileler"]) == ["C1", "T1"]

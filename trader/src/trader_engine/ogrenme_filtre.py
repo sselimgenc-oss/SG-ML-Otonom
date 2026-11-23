@@ -2,8 +2,8 @@
 
 Sinir (kod duzeyinde): filtre yalniz bir YENI girisi atlatabilir (`ml_filter`). Boyut, kaldirac, risk, limit, stop/hedef ve
 kapi zincirine dokunamaz; yeni islem actiramaz (kapi: gates.EntryGate.decide, risk kontrolunden ONCE yalniz "hayir" der).
-Hata/eksik/bozuk/suresi gecmis paket ya da kurulumun kapanmis islemi < MIN_ISLEM => o kurulum icin filtre YOK, giris serbest
-(fail-open; `ml_no_model` YAZILMAZ). `TRADER_OGRENME_FILTRE_KAPALI=1` filtreyi tamamen kapatir. Yalniz kagit; testnet/canli yolu
+KAGITTA hata/eksik/bozuk/suresi gecmis paket ya da kurulumun kapanmis islemi < MIN_ISLEM => o kurulum icin filtre YOK, giris serbest
+(fail-open; `ml_no_model` YAZILMAZ). CANLIDA (ml_mode=active) ayni durumlar fail-closed (gates; `canlida_engelle`), tek istisna sinama_gecmedi. `TRADER_OGRENME_FILTRE_KAPALI=1` filtreyi tamamen kapatir. Yalniz kagit; testnet/canli yolu
 degismez (orada ML kapisi/gecis kapisi eskisi gibi).
 
 AILE (kurulum ailesi, 20.11): model kol (arm_id = `<kurulum>@<tf>`) basina DEGIL, AILE basina: ayni kurulumun tum zaman dilimleri
@@ -15,7 +15,10 @@ egitiminde `eski_kol/` alt dizinine tasinir (geri alinabilir, taranmaz). Durum d
 
 Egitim (gece birimi `scripts/ml_retrain_run.py`, 03:10 UTC): kagit defterinden aile basina, >= MIN_ISLEM kapanmis islemle (kollar toplami);
 her YENIDEN_ISLEM yeni kapanan (havuz) islemde ya da paket YENIDEN_GUN gunu astiginda yeniden. Kilitli donem (HOLDOUT) satirlari
-egitimden dusurulur. Paketler `<defter dizini>/models/ortak_filtre/aile_<kurulum>.json`.
+egitimden dusurulur. YAYIN ONCESI SINAMA (23.11): egitim sonrasi paket, zaman olarak sonraki %30'luk (en az 5 ornek) dilimde sinanir
+(SINAMA_*; `aile_sinama`): suzgecin kabul ettikleri hepsinden iyi ve >= 3 kabul degilse paket YAYINLANMAZ, eski paket de geri cekilir =>
+o aile icin suzgec KAPALI (`<aile>.sinama.json` isareti; kagit VE canli: giris serbest, `canlida_engelle`). COUNTERFACTUAL: reddedilen sinyallerin
+'alinsaydi' R'si ('plan' yontemi) yalniz EGITIM ornegi; sinama ve MIN/YENIDEN sayilari yalniz gercek islem (bkz `adaylar_defterden`). Paketler `<defter dizini>/models/ortak_filtre/aile_<kurulum>.json`.
 """
 from __future__ import annotations
 
@@ -37,6 +40,14 @@ log = logging.getLogger("engine.ogrenme_filtre")
 MIN_ISLEM = 10             # kurulum basina asgari kapanmis islem (1L3A ile ayni, 2026-11-19)
 YENIDEN_ISLEM = 10         # her 10 yeni kapanan islemde yeniden egit
 YENIDEN_GUN = 20           # paket omru 21 gun: bir gun erken yenile (bosluk kalmasin)
+# Yayin oncesi ileri sinama (23.11 kullanici karari 3 (c)): aile paketi, gorulmemis (zaman olarak SONRAKI) veride sinanmadan yayina girmez.
+SINAMA_ORAN = 0.30         # ornekler kapanis zamanina gore siralanir; son %30'u sinama dilimi
+SINAMA_MIN_ORNEK = 5       # sinama dilimi en az 5 ornek
+SINAMA_MIN_KABUL = 3       # sinama diliminde suzgecin KABUL ettigi en az 3 ornek
+SINAMA_MIN_EGITIM = 8      # purge sonrasi egitim (gercek + counterfactual) en az 8 ornek; altinda `sinanamadi` (paket yayinlanmaz)
+SINAMA_GECMEDI_CANLI_ENGEL = False   # 23.11 kullanici karari (a): sinamayi gecemeyen aile canlida da SERBEST (suzgec o aile icin yok sayilir)
+ISARET_SONEK = ".sinama.json"        # `<aile>.sinama.json`: son gece sinamasi sonucu (paket dizininde)
+CF_ETIKET = "counterfactual"
 ENV_KAPALI = "TRADER_OGRENME_FILTRE_KAPALI"
 MODEL_ALT = ("models", "ortak_filtre")
 DURUM_DOSYASI = "ogrenme_filtre_durum.json"
@@ -89,7 +100,7 @@ def model_dizini(ledger_path: str | os.PathLike) -> Path:
 
 def model_dizini_cfg(cfg) -> Path:
     """Giris kapisinin model dizini. Kagit: kendi defterinin yani. Canli (23.11 kullanici karari: canli = kagit): modeli HICBIR sey
-    `var-live` altina yazmaz; kagidin dizini (`<var_dir ust dizini>/var/<bot>/models/ortak_filtre`) YALNIZ OKUNUR. Eksik paket => fail-open."""
+    `var-live` altina yazmaz; kagidin dizini (`<var_dir ust dizini>/var/<bot>/models/ortak_filtre`) YALNIZ OKUNUR. Eksik/bozuk paket: kagitta giris serbest; CANLIDA (ml_mode=active) giris YOK (fail-closed), tek istisna: son gece sinamasi gecmedi (`sinama_gecmedi`) => canlida da serbest (`canlida_engelle`)."""
     if getattr(cfg, "mode", None) == "live":
         return Path(cfg.var_dir).parent.joinpath("var", cfg.bot, *MODEL_ALT)
     return model_dizini(cfg.ledger_path)
@@ -116,7 +127,7 @@ def _utc(dt: datetime) -> datetime:
 class Karar:
     izin: bool
     puan: float | None
-    neden: str          # ok | esik_alti | filtre_yok | hata
+    neden: str          # ok | esik_alti | filtre_yok | sinama_gecmedi | hata
 
 
 class FiltreDeposu:
@@ -183,7 +194,7 @@ class FiltreDeposu:
         try:
             p = self.paket(arm, simdi)
             if p is None:
-                return Karar(True, None, "filtre_yok")
+                return Karar(True, None, self._yok_nedeni(arm))
             oz = {**oz, **tf_ozellikleri(tf_of(arm))}                # aile modeli: kolun zaman dilimi ozellik olarak eklenir
             puan = float(self._mod[0].puan(p, oz))
             if not math.isfinite(puan) or not 0.0 <= puan <= 1.0:
@@ -192,6 +203,21 @@ class FiltreDeposu:
         except Exception as e:  # noqa: BLE001 - filtre hatasi asla motoru durdurmaz, girisi engellemez
             log.warning("ML filtre hatasi (%s), giris serbest: %s: %s", arm, type(e).__name__, e)
             return Karar(True, None, "hata")
+
+    def _yok_nedeni(self, arm: str) -> str:
+        """Paket yokken neden: son gece sinamasi gecmediyse (`<aile>.sinama.json` karar kaldi/sinanamadi) `sinama_gecmedi`; isaret yok
+        => `filtre_yok`; isaret var ama okunamiyor/bozuk/`hata` => `hata` (canli fail-closed). Bozuk/bayat PAKET bu yola girmez (filtre_yok)."""
+        aile = aile_of(arm)
+        if self._yol(aile_kimligi(aile)).exists():
+            return "filtre_yok"                                  # paket dosyasi VAR ama gecersiz/bayat/bozuk: isaret bakilmaz (canli engel)
+        yol = isaret_yolu(self.klasor, aile, self._mod[0])
+        if not yol.exists():
+            return "filtre_yok"
+        try:
+            karar = json.loads(yol.read_text(encoding="utf-8"))["karar"]
+        except Exception:  # noqa: BLE001
+            return "hata"
+        return "sinama_gecmedi" if karar in ("kaldi", "sinanamadi") else ("filtre_yok" if karar == "gecti" else "hata")
 
     def saglik(self, simdi: datetime, aileler) -> tuple[str, str | None, datetime | None]:
         """Canli saglik (status.json ml -> health): (durum, hata, en erken son_kullanma). durum: ok | no_model | expired.
@@ -225,7 +251,7 @@ class FiltreDeposu:
             return []
         out = []
         for p in sorted(self.klasor.glob("*.json")):
-            if p.name.endswith(".prev.json") or p.name.startswith("."):
+            if p.name.endswith(".prev.json") or p.name.endswith(ISARET_SONEK) or p.name.startswith("."):
                 continue
             try:
                 arm = json.loads(p.read_text(encoding="utf-8"))["meta"]["kurulum"]
@@ -252,27 +278,69 @@ def _kilit_kesisir(ts: datetime, bitis: datetime | None) -> bool:
     return ts < e and son >= b
 
 
-def adaylar_defterden(led) -> list:
-    """Kapanmis kagit islemleri -> ortak_ogrenme Aday listesi (alindi=True, r = net R). Kilitle kesisen islem dusurulur.
-    ts = karar mumunun kapanisi; ozellikler = karar anindaki ozellikler (girisle AYNI islev)."""
+def _oz_karar(d) -> dict[str, float]:
+    return ozellikler(side=d.side, regime=d.regime, atr_ratio=d.atr_ratio, session_tag=d.session_tag, pair=d.pair,
+                      planned_entry=d.planned_entry, planned_stop=d.planned_stop, planned_target=d.planned_target,
+                      rh_touches=d.rh_touches, rl_touches=d.rl_touches, features=d.features)
+
+
+def adaylar_defterden(led, cf_satirlari=None, simdi: datetime | None = None) -> list:
+    """Kapanmis kagit islemleri (+ varsa counterfactual) -> ortak_ogrenme Aday listesi (alindi=True, r = net R). Kilitle kesisen dusurulur.
+    ts = karar mumunun kapanisi; ozellikler = karar anindaki ozellikler (girisle AYNI islev); cikis.kapanis = sonucun kesinlestigi an.
+
+    COUNTERFACTUAL (23.11 kullanici karari 4): `cf_satirlari` (counterfactual.sqlite `cf_outcomes` 'plan' satirlari: {decision_id, hyp_r_net, window_end_ts: datetime}; okuma
+    `scripts/ml_retrain_run.cf_satirlari_oku`, motor core.counterfactual'e bagimli olmasin diye) verilirse suzgecin/kapilarin REDDETTIGI sinyallerin
+    'alinsaydi' net R'si (method=plan, `hyp_r_net`: planlanan stop/hedef, 48 mum = gercek islemin stop/hedefine en yakin olcek; 'barrier' sabit +2R/-1R/72 mum, gercek
+    islemle ayni olcekte degil) de EGITIM ornegi olur (sinamaya katilmaz).
+    Sizinti onlemi: yalniz karar anindan SONRA kesinlesmis (window_end > karar) ve kesim `simdi`den ONCE kapanmis (window_end <= simdi)
+    sonuclar; kilit donemiyle kesisenler dusurulur. Ayni karar iki kez sayilmaz: kapanmis islemi olan karar icin counterfactual atlanir.
+    Counterfactual ornekler egitim icin `alindi=True` isaretlenir (paket yalniz alindi orneklerle egitir), `etiketler=(CF_ETIKET,)`."""
     mod = paket_modulleri()
     if mod is None:
         return []
     Aday = mod[1].Aday
+    kesim = _utc(simdi or datetime.now(timezone.utc))
     dec = {d.id: d for d in led.list_decisions()}
     out = []
+    trade_karar: set[int] = set()
     for t in led.list_closed_trades(limit=led.LIST_CLOSED_MAX):
+        trade_karar.add(t.decision_id)
         d = dec.get(t.decision_id)
         if d is None or t.r_multiple is None or not d.arm_id or not math.isfinite(float(t.r_multiple)):
             continue
         ts = _utc(d.bar_close_ts)
-        if _kilit_kesisir(ts, None if t.exit_ts is None else _utc(t.exit_ts)):
+        bitis = None if t.exit_ts is None else _utc(t.exit_ts)
+        if _kilit_kesisir(ts, bitis):
             continue
-        oz = ozellikler(side=d.side, regime=d.regime, atr_ratio=d.atr_ratio, session_tag=d.session_tag, pair=d.pair,
-                        planned_entry=d.planned_entry, planned_stop=d.planned_stop, planned_target=d.planned_target,
-                        rh_touches=d.rh_touches, rl_touches=d.rl_touches, features=d.features)
         out.append(Aday(id=str(t.trade_id), proje="ML", kurulum=d.arm_id, enstruman=d.pair, varlik_sinifi="kripto",
-                        yon=d.side, ts=ts, alindi=True, r=float(t.r_multiple), rejim=d.regime, ozellikler=oz))
+                        yon=d.side, ts=ts, alindi=True, r=float(t.r_multiple), rejim=d.regime, ozellikler=_oz_karar(d),
+                        cikis={"kaynak": "islem", "kapanis": (bitis or ts).isoformat()}))
+    if cf_satirlari:
+        out.extend(_cf_adaylari(dec, trade_karar, cf_satirlari, kesim, Aday))
+    return out
+
+
+def _cf_adaylari(dec, trade_karar: set, satirlar, kesim: datetime, Aday) -> list:
+    out = []
+    for r in satirlar:
+        did = int(r["decision_id"])
+        d = dec.get(did)
+        if d is None or did in trade_karar or not d.arm_id:        # alinmis karar: counterfactual SAYILMAZ (cift sayim yok)
+            continue
+        try:
+            r_net = float(r["hyp_r_net"])
+            bitis = r["window_end_ts"]
+            ts = _utc(d.bar_close_ts)
+            bitis = None if bitis is None else _utc(bitis)
+        except (TypeError, ValueError, AttributeError):
+            continue
+        if bitis is None or not math.isfinite(r_net):
+            continue
+        if bitis <= ts or bitis > kesim or _kilit_kesisir(ts, bitis):   # karardan sonra kesinlesmeli, kesimden once kapanmali, kilit disi
+            continue
+        out.append(Aday(id=f"cf{did}", proje="ML", kurulum=d.arm_id, enstruman=d.pair, varlik_sinifi="kripto", yon=d.side, ts=ts,
+                        alindi=True, r=r_net, rejim=d.regime, ozellikler=_oz_karar(d), etiketler=(CF_ETIKET,),
+                        cikis={"kaynak": "counterfactual", "kapanis": bitis.isoformat(), "karar_id": did}))
     return out
 
 
@@ -306,11 +374,91 @@ def aile_adaylari(adaylar) -> dict[str, list]:
     return by
 
 
+def _kapanis(a) -> datetime:
+    try:
+        return _utc(datetime.fromisoformat(str(a.cikis["kapanis"])))
+    except (KeyError, ValueError, TypeError):
+        return _utc(a.ts)
+
+
+def _gercek(a) -> bool:
+    """Gercek kapanmis islem mi (counterfactual degil)? MIN_ISLEM, YENIDEN_ISLEM ve SINAMA yalniz bunlarla yapilir."""
+    return CF_ETIKET not in a.etiketler
+
+
+def aile_sinama(filtre, kimlik: str, adaylar, simdi: datetime) -> dict:
+    """Yayin oncesi zaman-siralı ileri sinama (deterministik).
+    Sinama dilimi = KARAR zamanina gore son max(SINAMA_MIN_ORNEK, ceil(SINAMA_ORAN * n_gercek)) GERCEK islem (counterfactual sinamaya
+    KATILMAZ: etiket olcegi gercek islemle ayni degil). Egitim = dilim disindaki gercek + counterfactual orneklerden, KAPANISI sinamanin ilk
+    kararindan once olanlar (purge; sonucu o anda bilinmeyen ornek atilir). Egitim < SINAMA_MIN_EGITIM ise `sinanamadi`.
+    Egitim diliminde egitilir; sinamada suzgecin KABUL ettiklerinin ort. R'si >= hepsinin ort. R'si (her seyi kabul eden suzgec zararsiz,
+    gecer) VE kabul >= SINAMA_MIN_KABUL ise `gecti`. Donus: {karar, n_egitim, n_egitim_cf, n_purge, n_sinama, n_kabul, ort_r_hepsi, ort_r_kabul, neden}."""
+    kilit = [HOLDOUT]
+    ornek = [a for a in adaylar if a.kurulum == kimlik and a.alindi and a.r is not None and not filtre._kilitte(_utc(a.ts), kilit)]
+    gercek = sorted((a for a in ornek if _gercek(a)), key=lambda a: (_utc(a.ts), _kapanis(a), str(a.id)))
+    rap = {"karar": "sinanamadi", "n_egitim": 0, "n_egitim_cf": 0, "n_purge": 0, "n_sinama": 0, "n_kabul": 0,
+           "ort_r_hepsi": None, "ort_r_kabul": None, "neden": None}
+    k = max(SINAMA_MIN_ORNEK, math.ceil(SINAMA_ORAN * len(gercek)))
+    if k >= len(gercek):
+        rap["neden"] = "ornek_az"
+        return rap
+    sinama = gercek[-k:]
+    sinama_idler = {id(a) for a in sinama}
+    ilk = min(_utc(a.ts) for a in sinama)
+    adaylar_egitim = [a for a in ornek if id(a) not in sinama_idler]
+    egitim = [a for a in adaylar_egitim if _kapanis(a) < ilk]
+    rap["n_purge"] = len(adaylar_egitim) - len(egitim)
+    rap["n_egitim"], rap["n_egitim_cf"], rap["n_sinama"] = len(egitim), sum(1 for a in egitim if not _gercek(a)), len(sinama)
+    if len(egitim) < SINAMA_MIN_EGITIM:
+        rap["neden"] = "egitim_az"
+        return rap
+    paket = filtre.egit(kimlik, egitim, olusturma=simdi, kilit=kilit)
+    if paket is None:
+        rap["neden"] = "egitilemedi"
+        return rap
+    rs = [float(a.r) for a in sinama]
+    kabul = [float(a.r) for a in sinama if filtre.puan(paket, a.ozellikler) >= float(paket["esik"])]
+    rap["n_kabul"] = len(kabul)
+    rap["ort_r_hepsi"] = sum(rs) / len(rs)
+    rap["ort_r_kabul"] = (sum(kabul) / len(kabul)) if kabul else None
+    ok = len(kabul) >= SINAMA_MIN_KABUL and rap["ort_r_kabul"] >= rap["ort_r_hepsi"]
+    rap["karar"] = "gecti" if ok else "kaldi"
+    return rap
+
+
+def _atomik_yaz(yol: Path, metin: str) -> None:
+    yol.parent.mkdir(parents=True, exist_ok=True)
+    tmp = yol.with_name(f".{yol.name}.tmp")
+    tmp.write_text(metin, encoding="utf-8")
+    os.replace(tmp, yol)
+
+
+def isaret_yolu(klasor: str | os.PathLike, aile: str, filtre=None) -> Path:
+    ad = (filtre or paket_modulleri()[0])._guvenli_ad(aile_kimligi(aile))
+    return Path(klasor) / f"{ad}{ISARET_SONEK}"
+
+
+def isaret_yaz(klasor, aile: str, filtre, sin: dict, simdi: datetime) -> None:
+    """Sinama sonucu isaret dosyasi `<aile>.sinama.json` (atomik): karar gecti|kaldi|sinanamadi|hata + sayilar."""
+    _atomik_yaz(isaret_yolu(klasor, aile, filtre), json.dumps({"karar": sin["karar"], "tarih": simdi.isoformat(), **{
+        k: v for k, v in sin.items() if k != "karar"}}, sort_keys=True))
+
+
+def canlida_engelle(neden: str) -> bool:
+    """TEK KARAR NOKTASI (gates._ml_filtre_karari): canlida (ml_mode=active) izinli (izin=True) bir karar girisi ENGELLER mi?
+    Yalniz `ok` serbest; bozuk/bayat/yok/hata fail-closed. ISTISNA (23.11 kullanici karari a): `sinama_gecmedi` = o aile icin suzgec KAPALI,
+    canlida da kagit gibi giris serbest (SINAMA_GECMEDI_CANLI_ENGEL)."""
+    if neden == "sinama_gecmedi":
+        return SINAMA_GECMEDI_CANLI_ENGEL
+    return neden != "ok"
+
+
 def egit_hepsi(adaylar, klasor: str | os.PathLike, simdi: datetime, *, durum_yolu: str | os.PathLike | None = None,
                kollar=None) -> dict:
-    """AILE basina (kollar toplami >= MIN_ISLEM kapanmis islem) yeniden egitim kurali: son egitimden bu yana >= YENIDEN_ISLEM yeni
-    islem ya da >= YENIDEN_GUN gun. Holdout satirlari `adaylar_defterden`de dusuruldu; `egit` kilit aralikla ayrica dusurur.
-    Donus: {"durum", "aileler": {aile: {n, kollar:{arm:n}, durum, model_hash?}}, "eski_tasinan"}."""
+    """AILE basina (kollar toplami >= MIN_ISLEM GERCEK kapanmis islem; counterfactual sayilmaz) yeniden egitim kurali: son egitimden bu yana
+    >= YENIDEN_ISLEM yeni GERCEK islem ya da >= YENIDEN_GUN gun ya da sinama kaydi yok (sinanmamis paket bu gece sinanir).
+    Holdout satirlari `adaylar_defterden`de dusuruldu; `egit` kilit aralikla ayrica dusurur. Durum aile basina HEMEN atomik yazilir.
+    Donus: {"durum", "aileler": {aile: {n (gercek), n_cf, kollar:{arm:n}, durum, sinama?, model_hash?}}, "eski_tasinan"}."""
     mod = paket_modulleri()
     if mod is None:
         return {"durum": "paket_yok"}
@@ -330,46 +478,72 @@ def egit_hepsi(adaylar, klasor: str | os.PathLike, simdi: datetime, *, durum_yol
         izinli = set(kollar)
         adaylar = [a for a in adaylar if a.kurulum in izinli]
     by = aile_adaylari(adaylar)
+
+    def durum_yaz() -> None:
+        try:
+            _atomik_yaz(dy, json.dumps(durum, sort_keys=True))
+        except OSError as e:
+            log.warning("ML filtre durumu yazilamadi: %s", e)
+
     rapor: dict[str, dict] = {}
     for aile in sorted(by):
         kimlik = aile_kimligi(aile)
-        kollar: dict[str, int] = {}
+        kollar_n: dict[str, int] = {}
+        n_cf = 0
         for a in by[aile]:
-            if a.r is not None:
+            if a.r is None:
+                continue
+            if _gercek(a):
                 kol = a.cikis.get("kol", "?")
-                kollar[kol] = kollar.get(kol, 0) + 1
-        n = sum(kollar.values())
+                kollar_n[kol] = kollar_n.get(kol, 0) + 1
+            else:
+                n_cf += 1
+        n = sum(kollar_n.values())                            # MIN_ISLEM ve YENIDEN_ISLEM yalniz GERCEK islemleri sayar
         son = durum.get(kimlik) if isinstance(durum.get(kimlik), dict) else None
         if n < MIN_ISLEM:
-            rapor[aile] = {"n": n, "kollar": kollar, "durum": "az_islem"}
+            rapor[aile] = {"n": n, "n_cf": n_cf, "kollar": kollar_n, "durum": "az_islem"}
             continue
-        if son is not None:
+        if son is not None and son.get("sinama") is not None:   # sinama kaydi olmayan (eski) paket sinanmamis sayilir => bu gece sinanir
             try:
                 gun = (simdi - _utc(datetime.fromisoformat(son["zaman"]))).days
             except Exception:  # noqa: BLE001
                 gun = YENIDEN_GUN
             if n - int(son.get("n", 0)) < YENIDEN_ISLEM and gun < YENIDEN_GUN:
-                rapor[aile] = {"n": n, "kollar": kollar, "durum": "guncel"}
+                rapor[aile] = {"n": n, "n_cf": n_cf, "kollar": kollar_n, "durum": "guncel"}
                 continue
+        yol = Path(klasor) / f"{filtre._guvenli_ad(kimlik)}.json"
         try:
-            paket = filtre.egit(kimlik, by[aile], olusturma=simdi, kilit=kilit)
-            yol = Path(klasor) / f"{filtre._guvenli_ad(kimlik)}.json"
+            sin = aile_sinama(filtre, kimlik, by[aile], simdi)
+            log.info("ML filtre sinamasi aile=%s %s", aile, sin)
+            paket = None
+            if sin["karar"] == "gecti":
+                paket = filtre.egit(kimlik, by[aile], olusturma=simdi, kilit=kilit)   # gecti: TUM veriyle yeniden egit
             if paket is not None:
                 filtre.kaydet(paket, klasor)
             elif yol.exists():
-                yol.unlink()                                  # tek sinif: eski model de gecersiz => filtre YOK
-            durum[kimlik] = {"zaman": simdi.isoformat(), "n": n, "model": paket is not None}
-            rapor[aile] = {"n": n, "kollar": kollar, "durum": "ok" if paket is not None else "tek_sinif"}
+                yol.unlink()                                  # gecemedi/sinanamadi/tek sinif: eski/bayat paket de geri cekilir
+            if sin["karar"] == "gecti" and paket is None:
+                sin = {**sin, "karar": "sinanamadi", "neden": "tek_sinif"}
+            isaret_yaz(klasor, aile, filtre, sin, simdi)
+            durum[kimlik] = {"zaman": simdi.isoformat(), "n": n, "n_cf": n_cf, "model": paket is not None, "sinama": sin}
+            rapor[aile] = {"n": n, "n_cf": n_cf, "kollar": kollar_n, "sinama": sin,
+                           "durum": "ok" if paket is not None else "sinama_" + sin["karar"]}
             if paket is not None:
                 rapor[aile]["model_hash"] = paket["meta"]["model_hash"]
         except Exception as e:  # noqa: BLE001 - bir ailenin hatasi digerini ve gece birimini durdurmaz
-            log.warning("ML filtre egitimi basarisiz (%s): %s: %s", aile, type(e).__name__, e)
-            rapor[aile] = {"n": n, "kollar": kollar, "durum": "hata"}
-    try:
-        Path(klasor).mkdir(parents=True, exist_ok=True)
-        tmp = dy.with_name(f".{dy.name}.tmp")
-        tmp.write_text(json.dumps(durum, sort_keys=True), encoding="utf-8")
-        os.replace(tmp, dy)
-    except OSError as e:
-        log.warning("ML filtre durumu yazilamadi: %s", e)
+            log.warning("ML filtre egitimi/sinamasi basarisiz (%s): %s: %s", aile, type(e).__name__, e)
+            sin = {"karar": "hata", "neden": f"{type(e).__name__}"}
+            try:
+                if yol.exists():
+                    yol.unlink()                              # sinanmamis paket "hayir" demesin
+            except OSError as e2:
+                log.warning("ML filtre paketi geri cekilemedi (%s): %s", aile, e2)
+            try:
+                isaret_yaz(klasor, aile, filtre, sin, simdi)
+            except Exception as e2:  # noqa: BLE001
+                log.warning("ML filtre sinama isareti yazilamadi (%s): %s", aile, e2)
+            durum[kimlik] = {"zaman": simdi.isoformat(), "n": n, "n_cf": n_cf, "model": False, "sinama": sin}
+            rapor[aile] = {"n": n, "n_cf": n_cf, "kollar": kollar_n, "durum": "hata", "sinama": sin}
+        durum_yaz()
+    durum_yaz()
     return {"durum": "ok", "aileler": rapor, "eski_tasinan": eski}

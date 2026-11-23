@@ -37,6 +37,23 @@ from trader_ml.pa_proposer import train as TR  # noqa: E402
 from trader_ml.setup_filter.train import LOCK_START  # noqa: E402
 
 
+def cf_satirlari_oku(cf_yolu) -> list[dict]:
+    """counterfactual.sqlite `cf_outcomes` ('plan' yontemi, version>=2, learner) -> [{decision_id, hyp_r_net, window_end_ts: datetime}]
+    (salt okunur). 'plan' = planlanan stop/hedef (gercek islemin olcegine en yakin; 'barrier' sabit +2R/-1R/72 mum). Depo yok ya da HERHANGI
+    bir okuma hatasi (sqlite3.Error dahil) => [] (yalniz gercek islemlerle egit; gece birimi hata sayilmaz)."""
+    if not cf_yolu or not os.path.exists(cf_yolu):
+        return []
+    try:
+        from trader_core import counterfactual as CF
+        with CF.CounterfactualStore(cf_yolu, read_only=True) as st:
+            return [{"decision_id": int(r["decision_id"]), "hyp_r_net": float(r["hyp_r_net"]), "window_end_ts": L._parse_ts(r["window_end_ts"])}
+                    for r in st._db.execute("SELECT decision_id, hyp_r_net, window_end_ts FROM cf_outcomes WHERE bot=? AND method='plan' "
+                                            "AND version>=2 AND hyp_r_net IS NOT NULL ORDER BY decision_id", ("learner",))]
+    except Exception as e:  # noqa: BLE001 - counterfactual okunamadi: yalniz islemlerle devam
+        print(f"counterfactual okunamadi, yalniz islemlerle egitilir: {type(e).__name__}: {e}", file=sys.stderr)
+        return []
+
+
 def _resolve(p: str) -> str:
     q = Path(p)
     return str(q if q.is_absolute() else _HERE.parent / q)
@@ -200,15 +217,19 @@ def main(argv=None, *, now_fn=None, env=None) -> int:
         ortak: dict = {}
         try:   # 19.11: kagit ML filtresi (ortak_ogrenme) - kurulum basina >=10 kapanmis islem; hata digerlerini geri almaz
             from trader_engine import ogrenme_filtre as OF
-            ortak = OF.egit_hepsi(OF.adaylar_defterden(led), OF.model_dizini(lp), now, kollar=arms)
+            ortak = OF.egit_hepsi(OF.adaylar_defterden(led, cf_satirlari_oku(cf), now), OF.model_dizini(lp), now, kollar=arms)
         except Exception as e:  # noqa: BLE001
             ortak = {"durum": f"hata:{type(e).__name__}"}
             print(f"ortak filtre egitim hatasi: {type(e).__name__}: {e}", file=sys.stderr)
         for aile, r in sorted((ortak.get("aileler") or {}).items()):   # aile durumu paper_models.csv'de gorunur (model yoksa nedeni)
             kollar = ",".join(f"{k}={v}" for k, v in sorted(r.get("kollar", {}).items()))
+            sn = r.get("sinama")
+            sn_s = "" if not sn else (f";sinama={sn['karar']};n_egitim={sn.get('n_egitim')};n_sinama={sn.get('n_sinama')};n_kabul={sn.get('n_kabul')}"
+                                      f";ort_r_hepsi={sn.get('ort_r_hepsi')};ort_r_kabul={sn.get('ort_r_kabul')};neden={sn.get('neden')}")
+            print(f"ortak filtre sinamasi aile={aile} durum={r.get('durum')}{sn_s}", file=sys.stderr)
             csv_rows.append([f"ortak_filtre_aile_{aile}_{now.date().isoformat()}", "nightly",
                              "ridge_logistic;aile=" + aile + ";tf_ozellik=log2+onehot",
-                             f"n={r.get('n', 0)};min=10;durum={r.get('durum')};kollar={kollar}", "", r.get("model_hash", ""), now.isoformat()])
+                             f"n={r.get('n', 0)};n_cf={r.get('n_cf', 0)};min=10;durum={r.get('durum')};kollar={kollar}{sn_s}", "", r.get("model_hash", ""), now.isoformat()])
         if not args.no_m1:
             tfs = [t.strip() for t in args.m1_tfs.split(",") if t.strip()]
             if any(t not in PB_TFS for t in tfs):

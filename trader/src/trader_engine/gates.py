@@ -271,7 +271,7 @@ class EntryGate:
         if flt is None:
             return self._ml_kapali(row, tf, tk) if live_closed else None
         try:
-            from .ogrenme_filtre import ozellikler
+            from .ogrenme_filtre import canlida_engelle, ozellikler
             aid = row.arm_id or AG.arm_id_of(row.setup, tf)
             feats = tk.get("features") or _features(row)
             oz = ozellikler(side=row.side, regime=row.regime, atr_ratio=row.atr_ratio, session_tag=tk.get("session_tag"),
@@ -282,7 +282,7 @@ class EntryGate:
             if k.neden == "ok":
                 self.counters["ml_filtre_gecti"] += 1
             if k.izin:
-                if live_closed and k.neden != "ok":
+                if live_closed and canlida_engelle(k.neden):
                     return self._ml_kapali(row, tf, tk)
                 return None
             self.counters["ml_filtre_atladi"] += 1
