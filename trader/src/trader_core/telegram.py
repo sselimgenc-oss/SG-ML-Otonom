@@ -1464,6 +1464,7 @@ ATLAMA_TR = {
     "veto_missing": "veto hazır değildi", "veto_stale": "veto eskimişti", "veto_blocked": "veto izin vermedi",
     "stop_width": "stop çok genişti", "rr_below_min": "kazanç/risk oranı yetersizdi",
     "korelasyon_grubu": "aynı yöndeki korelasyon grubu doluydu", "toplam_buyukluk": "toplam büyüklük tavanı aşılacaktı",
+    "fren_okunamadi": "kayıp freni okunamadı", "buyukluk_okunamadi": "toplam büyüklük okunamadı",
     "risk_denied": "risk kuralı izin vermedi", "entry_gate_closed": "yeni işlemler kapalıydı",
     "order_failed": "emir gönderilemedi", "ml_filter": "yapay zekâ filtresi eledi",
     "etiket_rejim": "rejim etiketi ters yöndeydi", "etiket_duygu": "piyasa duygusu uçtaydı ve ters yöndeydi",

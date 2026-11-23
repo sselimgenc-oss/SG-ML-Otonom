@@ -332,8 +332,8 @@ class EntryGate:
             log.warning("korelasyon grubu hatasi, giris serbest: %s: %s", type(e).__name__, e)
             return None
 
-    def _fren_karari(self, acct: K.AccountState, D: datetime) -> KF.FrenKarari:
-        """Kayip freni: defterden (son kapananlar) + state gun basi kasadan TURETILIR (dosya yok). Hata => fren yok (yalniz kucultme)."""
+    def _fren_karari(self, acct: K.AccountState, D: datetime) -> KF.FrenKarari | None:
+        """Kayip freni: defterden (son kapananlar) + state gun basi kasadan TURETILIR (dosya yok). Hata => None (cagiran girisi atlar: fail-closed)."""
         fc = getattr(self.cfg, "kayip_freni", None)
         if not fc:
             return KF.YOK
@@ -342,8 +342,8 @@ class EntryGate:
             return KF.karar(fc, son, acct.equity, acct.day_start_equity, D.replace(hour=0, minute=0, second=0, microsecond=0))
         except Exception as e:  # noqa: BLE001
             self.counters["kayip_freni_hata"] += 1
-            log.warning("kayip freni hesaplanamadi, fren yok: %s: %s", type(e).__name__, e)
-            return KF.YOK
+            log.error("kayip freni okunamadi, GIRIS YOK (fail-closed): %s: %s", type(e).__name__, e)
+            return None
 
     def _toplam_buyukluk_karari(self, row: SignalRow, tf: str, acct: K.AccountState, size: K.SizeResult, vs: str,
                                 veto_reason: str | None, tk: dict) -> EntryOutcome | None:
@@ -353,8 +353,13 @@ class EntryGate:
             return None
         try:
             acik = 0.0
+            marks: dict = {}
+            try:                                                                        # mark fiyat varsa o, yoksa giris fiyati
+                marks = {bp.pair: float(bp.mark_price) for bp in self.broker.positions() if _fin(getattr(bp, "mark_price", None))}
+            except Exception:  # noqa: BLE001
+                marks = {}
             for p in self.state.open_positions():
-                q, px = getattr(p, "qty", None), getattr(p, "entry_price", None)
+                q, px = getattr(p, "qty", None), marks.get(p.pair, getattr(p, "entry_price", None))
                 acik += float(q) * float(px) if _fin(q) and _fin(px) else float(p.margin) * float(p.leverage)
             tavan = float(kat) * float(acct.equity)
             if acik + float(size.notional) <= tavan:
@@ -365,8 +370,9 @@ class EntryGate:
                               risk_reason=f"toplam büyüklük tavanı: açık {acik:.2f} + aday {float(size.notional):.2f} > {kat:g} x kasa {tavan:.2f}", **tk)
         except Exception as e:  # noqa: BLE001
             self.counters["toplam_buyukluk_hata"] += 1
-            log.warning("toplam buyukluk tavani hatasi, giris serbest: %s: %s", type(e).__name__, e)
-            return None
+            log.error("toplam buyukluk tavani okunamadi, GIRIS YOK (fail-closed): %s: %s", type(e).__name__, e)
+            return self._skip(row, tf, "buyukluk_okunamadi", skip_reason="risk_denied", veto_status=vs, veto_reason="gate:buyukluk_okunamadi",
+                              risk_allowed=False, risk_reason="toplam büyüklük okunamadı: giriş yok", **tk)
 
     def _arms_off(self) -> Collection[str]:
         ao = self.arms_off
@@ -480,6 +486,9 @@ class EntryGate:
                 tk["features"] = {**(tk.get("features") or _features(row)), **KK.ozellikler(kk)}
                 kol_mult = float(kk.carpan)
             fren = self._fren_karari(acct, D)                                              # 23.11 asama B: kayip freni (yalniz kucultur)
+            if fren is None:                                                               # okunamadi: fail-closed
+                return self._skip(row, tf, "fren_okunamadi", skip_reason="risk_denied", veto_status=vs, veto_reason="gate:fren_okunamadi",
+                                  risk_allowed=False, risk_reason="kayıp freni okunamadı: giriş yok", **tk)
             fren_mult = KF.goreli_carpan(fren, self.cfg.risk_config.target_trade_risk, src.risk_config.target_trade_risk)
             mult = min(kol_mult, fren_mult)                                             # asgari; kademe/mandal zaten src.risk_config icinde
             if fren.aktif:

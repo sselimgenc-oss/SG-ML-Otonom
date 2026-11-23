@@ -244,7 +244,8 @@ RISK_LIMIT = (("toplam açık risk", "max_open_risk"), ("aynı yön", "max_same_
               ("günlük sınır aşıldı", "daily_limit"), ("toplam teminat", "margin_total"), ("likidasyon çok yakın", "liquidation"),
               ("boyutlandırma reddedildi", "sizing"), ("zaten açık pozisyon", "pair_already_open"), ("kaldıraç aralık", "leverage_range"),
               ("stop yanlış tarafta", "stop_side"), ("geçersiz girdi", "invalid_input"),
-              ("korelasyon grubu sınırı", "korelasyon_grubu"), ("toplam büyüklük tavanı", "toplam_buyukluk"))
+              ("korelasyon grubu sınırı", "korelasyon_grubu"), ("toplam büyüklük tavanı", "toplam_buyukluk"),
+              ("kayıp freni okunamadı", "fren_okunamadi"), ("toplam büyüklük okunamadı", "buyukluk_okunamadi"))
 PENCERE_SAAT = 12
 
 

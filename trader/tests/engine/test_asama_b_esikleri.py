@@ -400,13 +400,15 @@ def test_toplam_buyukluk_sinir_3_kat_kasa(mk, cfg):
     assert _go(e, "XRP/USDT").action == "enter"
 
 
-def test_toplam_buyukluk_kapali_ya_da_hatada_engellemez(mk):
+def test_toplam_buyukluk_kapali_serbest_hatada_kapali(mk):
     e = mk(PAPER, **{**BOS, "toplam_buyukluk_kat": None})
     e.held.append(SimpleNamespace(pair="ETH/USDT", side="long", risk_amount=0.01, margin=0.1, qty=1e9, entry_price=100.0, leverage=3))
     assert _go(e).action == "enter"
     e2 = mk(PAPER, **{**BOS, "toplam_buyukluk_kat": 3.0})
     e2.held.append(SimpleNamespace(pair="ETH/USDT", side="long", risk_amount=0.01, margin=0.1))   # bozuk satir (qty/leverage yok): istisna yutulur, giris serbest
-    assert _go(e2).action == "enter" and e2.g.counters["toplam_buyukluk_hata"] == 1
+    o = _go(e2)                                                                       # 23.11 inceleme: fail-CLOSED
+    assert o.action == "skip" and o.code == "buyukluk_okunamadi" and e2.g.counters["toplam_buyukluk_hata"] == 1
+    assert e2.g.counters["skip:buyukluk_okunamadi"] == 1 and e2.led.record_decision(o.event)
 
 
 # ------------------------------------------------------------------------------------------------ yalniz paper/live
@@ -441,3 +443,67 @@ def test_turkce_neden_metinleri():
         assert k in TG.ATLAMA_TR and k in PP.NEDEN_KISA
     assert SV.risk_limiti("korelasyon grubu sınırı: x") == "korelasyon_grubu"
     assert SV.risk_limiti("toplam büyüklük tavanı: x") == "toplam_buyukluk"
+
+
+# ------------------------------------------------------------------------------------------------ inceleme duzeltmeleri
+def test_fren_okunamazsa_giris_yok_fail_closed(mk):
+    e = mk(PAPER, **{**BOS, "kayip_freni": {"ardisik": 5, "gunluk_oran": 0.04, "carpan": 0.5}})
+    e.led.list_closed_trades = lambda **k: (_ for _ in ()).throw(RuntimeError("db"))   # type: ignore[method-assign]
+    o = _go(e)
+    assert o.action == "skip" and o.code == "fren_okunamadi" and o.event.skip_reason == "risk_denied"
+    assert e.g.counters["kayip_freni_hata"] == 1 and e.g.counters["skip:fren_okunamadi"] == 1
+
+
+def test_fren_gunluk_ilk_kazancli_kapanista_kalkar_ve_basa_bas_notr():
+    t = lambda pnl, r="stop": SimpleNamespace(realized_pnl=pnl, exit_reason=r, exit_ts=T0)   # noqa: E731
+    cfg = {"ardisik": 5, "gunluk_oran": 0.04, "carpan": 0.5}
+    assert KF.karar(cfg, [t(-1)], 950.0, 1000.0, T0).neden == "gunluk"
+    assert KF.karar(cfg, [t(+1), t(-1)], 950.0, 1000.0, T0).aktif is False        # en yeni kapanis kazanc: kalkar
+    assert KF.karar(cfg, [t(0), t(+1), t(-1)], 950.0, 1000.0, T0).aktif is False  # basa-bas notr: kazanc hala en yeni
+    assert KF.karar(cfg, [t(0), t(-1)], 950.0, 1000.0, T0).neden == "gunluk"      # basa-bas kaldirmaz
+    # basa-bas seriyi ne keser ne sayar: 3 kayip, 0, 2 kayip = 5 ardisik
+    assert KF.karar(cfg, [t(-1), t(-1), t(0), t(-1), t(-1), t(-1)], 1000.0, 1000.0, T0).neden == "ardisik"
+    assert KF.ardisik_kayip([t(-1), t(0), t(+1), t(-1)], 5) == 1
+
+
+def test_korelasyon_pencere_zamana_dayali_ve_yeniden_deneme_5dk():
+    g = _sentetik()
+    seen = {}
+
+    def bars(p, tf, until, n):
+        d = _bars(np.tile(g[p], 3)[:1500], 1500)                    # 62 gunluk veri; pencere zamanla 30 gune kirpilir
+        seen["n"] = len(d)
+        return d
+    kg = KorelasyonGruplari(bars, list(g), {}, 0.7, 30)
+    kg.korelasyon("BTC/USDT", "ETH/USDT", T0)
+    assert kg.korelasyon("BTC/USDT", "ETH/USDT", T0) > 0.9
+    df = kg._pencere(_bars(np.tile(g["BTC/USDT"], 3)[:1500], 1500), T0 - timedelta(days=30))
+    assert df.index.min() >= T0 - timedelta(days=30) and len(df) <= 30 * 24 + 1
+    # basarisiz hesap: 5 dk sonra tekrar, saat beklemez
+    kg2 = KorelasyonGruplari(lambda *a: (_ for _ in ()).throw(RuntimeError("x")), list(g), {}, 0.7, 30)
+    kg2.korelasyon("BTC/USDT", "ETH/USDT", T0)
+    kg2.korelasyon("BTC/USDT", "ETH/USDT", T0 + timedelta(minutes=4))
+    assert kg2.yenileme == 1
+    kg2.korelasyon("BTC/USDT", "ETH/USDT", T0 + timedelta(minutes=6))
+    assert kg2.yenileme == 2
+
+
+def test_korelasyon_yetersiz_cift_icin_tek_log_satiri(caplog):
+    import logging
+    g = _sentetik()
+    kisa = {**{k: v for k, v in g.items() if k in ("BTC/USDT", "ETH/USDT")}}
+    kg = KorelasyonGruplari(lambda p, tf, u, n: _bars(g[p], 720) if p in kisa else pd.DataFrame(),
+                            ["BTC/USDT", "ETH/USDT", "NVDA/USDT", "AAPL/USDT", "MSFT/USDT"] if False else list(g), {}, 0.7, 30)
+    with caplog.at_level(logging.INFO, logger="engine.korelasyon"):
+        kg.korelasyon("BTC/USDT", "ETH/USDT", T0)
+    msgs = [r for r in caplog.records if "yetersiz" in r.getMessage()]
+    assert len(msgs) == 1
+
+
+def test_toplam_buyukluk_mark_fiyat_varsa_mark_kullanilir(mk):
+    e = mk(PAPER, **{**BOS, "toplam_buyukluk_kat": 3.0})
+    n = _go(e).size.notional
+    e.held.append(SimpleNamespace(pair="ETH/USDT", side="long", risk_amount=0.01, margin=0.1, qty=1.0, entry_price=100.0, leverage=3))
+    assert _go(e, "SOL/USDT").action == "enter"                                    # giris fiyati 100: kucuk
+    e.g.broker.positions = lambda: [SimpleNamespace(pair="ETH/USDT", mark_price=3000.0 - n + 0.01)]   # type: ignore[attr-defined]
+    assert _go(e, "SOL/USDT").code == "toplam_buyukluk"                            # mark 3000: tavani asar

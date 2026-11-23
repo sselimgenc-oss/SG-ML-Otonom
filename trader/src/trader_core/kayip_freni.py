@@ -30,18 +30,31 @@ def _fin(x) -> bool:
 
 
 def ardisik_kayip(kapananlar_yeniden_eskiye: Sequence, ust: int) -> int:
-    """Sondan baslayarak ust uste zararli kapanis sayisi (en cok `ust`). Elle kapanis atlanir; ilk zararsiz kapanis seriyi keser."""
+    """Sondan baslayarak ust uste zararli kapanis sayisi (en cok `ust`). Elle kapanis atlanir; ilk KAZANCLI kapanis seriyi keser; basa-bas (pnl == 0) notr."""
     n = 0
     for t in kapananlar_yeniden_eskiye:
         if getattr(t, "exit_reason", None) == "manual":
             continue
         pnl = getattr(t, "realized_pnl", None)
-        if not _fin(pnl) or float(pnl) >= 0.0:
+        if _fin(pnl) and float(pnl) == 0.0:      # basa-bas: notr (ne seriyi keser ne sayilir)
+            continue
+        if not _fin(pnl) or float(pnl) > 0.0:
             break
         n += 1
         if n >= ust:
             break
     return n
+
+
+def _son_kazanc(kapananlar_yeniden_eskiye: Sequence) -> bool:
+    """En yeni anlamli (elle olmayan, pnl != 0) kapanis kazancli mi? (gunluk freni kaldirir; basa-bas notr)"""
+    for t in kapananlar_yeniden_eskiye:
+        if getattr(t, "exit_reason", None) == "manual":
+            continue
+        pnl = getattr(t, "realized_pnl", None)
+        if _fin(pnl) and float(pnl) != 0.0:
+            return float(pnl) > 0.0
+    return False
 
 
 def karar(cfg: Mapping | None, kapananlar_yeniden_eskiye: Sequence, equity: float, gun_basi_kasa: float, gun_basi=None) -> FrenKarari:
@@ -55,6 +68,8 @@ def karar(cfg: Mapping | None, kapananlar_yeniden_eskiye: Sequence, equity: floa
     carpan = float(cfg["carpan"])
     if n >= int(cfg["ardisik"]):
         return FrenKarari(True, "ardisik", carpan, n)
+    if _son_kazanc(kapananlar_yeniden_eskiye):          # gunluk fren de ilk kazancli kapanista kalkar
+        return FrenKarari(False, None, 1.0, n)
     if _fin(equity) and _fin(gun_basi_kasa) and float(gun_basi_kasa) > 0:
         zarar = (float(gun_basi_kasa) - float(equity)) / float(gun_basi_kasa)
         if zarar >= float(cfg["gunluk_oran"]):

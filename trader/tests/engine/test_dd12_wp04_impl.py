@@ -25,7 +25,7 @@ ROOT = Path(__file__).resolve().parents[2]
 UTC = timezone.utc
 # 23.11 kullanici karari: asama B esikleri. Bu dosya sabit kume tavanlarini (cluster_cap) olcer; korelasyon grubu (ayri kural,
 # test_asama_b_esikleri.py) burada kapali tutulur.
-CFG = dataclasses.replace(load_cli_config(ROOT / "config", "learner", "paper"), korelasyon={})
+CFG = dataclasses.replace(load_cli_config(ROOT / "config", "learner", "paper"), korelasyon={}, toplam_buyukluk_kat=None)   # sahte pozisyonlarda nominal yok
 
 
 def u(*a):

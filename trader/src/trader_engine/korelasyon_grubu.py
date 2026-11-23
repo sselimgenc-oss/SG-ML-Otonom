@@ -15,6 +15,7 @@ log = logging.getLogger("engine.korelasyon")
 
 MIN_ORTAK_GETIRI = 200          # bu sayidan az ortak saatlik getiri => yetersiz veri => sabit kume yedegi
 YENILE_S = 3600.0
+YENIDEN_DENE_S = 300.0
 
 
 def getiriler(df):
@@ -42,14 +43,18 @@ class KorelasyonGruplari:
         self.yenile_s = float(yenile_s)
         self._corr: dict[str, dict[str, float]] = {}
         self._son: datetime | None = None
+        self._basarili = False
+        self.yeniden_dene_s = YENIDEN_DENE_S
         self.yenileme = 0                            # kac kez hesaplandi (test/izleme)
         self.hesaplanan_cift = 0
 
     # ------------------------------------------------------------------ matris
     def _yenile(self, now: datetime) -> None:
-        if self._son is not None and (now - self._son).total_seconds() < self.yenile_s:
+        bekle = self.yenile_s if self._basarili else self.yeniden_dene_s     # basarisiz/bos matris: 5 dk sonra tekrar dene
+        if self._son is not None and (now - self._son).total_seconds() < bekle:
             return
-        self._son = now                               # hata olsa da saatte bir denenir
+        self._son = now
+        self._basarili = False
         self.yenileme += 1
         corr: dict[str, dict[str, float]] = {}
         try:
@@ -58,10 +63,11 @@ class KorelasyonGruplari:
                 return
             import pandas as pd
             seri = {}
-            n = self.pencere_gun * 24 + 1
+            n = self.pencere_gun * 24 + 1                # ust sinir; asil pencere zamana gore (now - pencere_gun)
+            bas = now - timedelta(days=self.pencere_gun)
             for p in self.pairs:
                 try:
-                    r = getiriler(self.bars_fn(p, "1h", now, n))
+                    r = getiriler(self._pencere(self.bars_fn(p, "1h", now, n), bas))
                 except Exception as e:  # noqa: BLE001 - tek cift hatasi yalniz o cifti yedege dusurur
                     log.warning("korelasyon: %s barlari okunamadi: %s: %s", p, type(e).__name__, e)
                     r = None
@@ -77,10 +83,22 @@ class KorelasyonGruplari:
                             row[b] = float(v)
                     corr[a] = row
             self._corr = corr
+            self._basarili = any(corr.values())
+            yetersiz = [p for p in self.pairs if not corr.get(p)]
+            if yetersiz:                                  # yenileme basina TEK log satiri
+                log.info("korelasyon: %d cift yetersiz ortak getiri (< %d) ya da veri yok, sabit kume yedegi: %s",
+                         len(yetersiz), self.min_ortak, ",".join(yetersiz))
             self.hesaplanan_cift = sum(len(v) for v in corr.values()) // 2
         except Exception as e:  # noqa: BLE001
             log.warning("korelasyon matrisi hesaplanamadi, sabit kume yedegi: %s: %s", type(e).__name__, e)
             self._corr = {}
+
+    @staticmethod
+    def _pencere(df, bas):
+        """Zamana dayali pencere: yalniz index >= bas (now - pencere_gun)."""
+        if df is None or len(df) == 0:
+            return df
+        return df[df.index >= bas]
 
     def korelasyon(self, a: str, b: str, now: datetime) -> float | None:
         self._yenile(now)
