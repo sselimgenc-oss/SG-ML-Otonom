@@ -28,7 +28,7 @@ __all__ = [
     "LogNotifier", "NullNotifier", "plan_alerts", "revert_failed_alerts", "empty_state",
     "PauseProbe", "quiet_http_loggers", "IMMEDIATE_CODES", "HeartbeatSender", "HttpsHeartbeat", "parse_env_text",
     "parse_maintenance", "heartbeat_message", "should_send_ok", "REQUIRED_CHECKS", "MarketProbe",
-    "MlProbe", "DriftProbe", "BanProbe", "HaberSinyalProbe",
+    "MlProbe", "DriftProbe", "BanProbe", "HaberSinyalProbe", "Dl1PaketProbe",
 ]
 
 log = logging.getLogger("trader.health")
@@ -210,6 +210,14 @@ class HaberSinyalProbe:
 
 
 @dataclass(frozen=True)
+class Dl1PaketProbe:
+    """DL1 paketi (models/dl1/DL1@1h.json) olcumu (ust lig DL1 kolu girdisi). Saglik yalniz yasa/son kullanmaya bakar."""
+    file_state: str = "missing"             # "ok" | "missing" | "unreadable" (bozuk / hash tutmuyor / kapi gecmemis / sema disi)
+    created_at: datetime | None = None
+    expires_at: datetime | None = None      # min(son_kullanma, olusturma + 45 gun)
+
+
+@dataclass(frozen=True)
 class HealthSnapshot:
     now: datetime
     timeframe_s: int | None = None
@@ -247,6 +255,8 @@ class HealthSnapshot:
     live_path_issues: tuple[str, ...] | None = None
     # Ust lig: haber sinyali dosyasi; None = yoklanmadi (haber_sinyal_age denetimi uretilmez).
     haber_sinyal: HaberSinyalProbe | None = None
+    # Ust lig: DL1 paketi; None = yoklanmadi (dl1_paket_age denetimi uretilmez).
+    dl1_paket: Dl1PaketProbe | None = None
 
     def __post_init__(self):
         if not isinstance(self.now, datetime) or self.now.tzinfo is None or self.now.utcoffset() is None:
@@ -885,6 +895,29 @@ def _c_haber_sinyal(snap, cfg):
     return _res(name, Status.OK, "ok", f"haber sinyali yasi {age:.0f} sn", age, gecerlilik)
 
 
+DL1_YAKLASIYOR_GUN = 7       # son kullanmaya bundan az kaldiysa WARN (gunluk egitim bu surede yenilemeliydi)
+
+
+def _c_dl1_paket(snap, cfg):
+    """dl1_paket_age: DL1 kolunun girdisi. Yok -> INFO (Status.OK, kod `dl1_paket_info`: "DL1 paketi henuz yok"); bozuk / eski (son kullanma gecti) /
+    son kullanmaya < 7 gun -> WARN (yalniz DL1 girisleri durur ya da duracak); aksi OK (yas satiri)."""
+    name = "dl1_paket_age"
+    p = snap.dl1_paket
+    if p.file_state == "unreadable":
+        return _res(name, Status.WARN, "dl1_paket_bozuk", "DL1 paketi okunamadi/hash tutmuyor/kapi gecmemis; DL1 girisleri durdu")
+    if p.file_state != "ok" or not isinstance(p.created_at, datetime) or p.created_at.tzinfo is None \
+            or not isinstance(p.expires_at, datetime) or p.expires_at.tzinfo is None:
+        return _res(name, Status.OK, "dl1_paket_info", "INFO: DL1 paketi henuz yok")
+    yas = (snap.now - p.created_at).total_seconds()
+    kalan = (p.expires_at - snap.now).total_seconds()
+    if kalan <= 0:
+        return _res(name, Status.WARN, "dl1_paket_eski", f"DL1 paketi yasi {yas / 86400:.1f} gun, son kullanma gecti; DL1 girisleri durdu", yas, kalan)
+    if kalan < DL1_YAKLASIYOR_GUN * 86400:
+        return _res(name, Status.WARN, "dl1_paket_yaklasiyor",
+                    f"DL1 paketi yasi {yas / 86400:.1f} gun, son kullanmaya {kalan / 86400:.1f} gun kaldi; yenilenmezse DL1 girisleri duracak", yas, kalan)
+    return _res(name, Status.OK, "ok", f"DL1 paketi yasi {yas / 86400:.1f} gun, son kullanmaya {kalan / 86400:.1f} gun", yas, kalan)
+
+
 def _c_drift(snap, bot, cfg):
     """drift_monitor:<bot> (Bolum 16.6). Bilincli istisna: hicbir kosulda CRIT/UNKNOWN uretmez."""
     name = f"drift_monitor:{bot}"
@@ -1222,6 +1255,8 @@ def evaluate(snap: HealthSnapshot, cfg: HealthConfig = DEFAULT_CFG) -> HealthRep
 
     if snap.haber_sinyal is not None:
         results.append(_safe("haber_sinyal_age", _c_haber_sinyal, snap, cfg))
+    if snap.dl1_paket is not None:
+        results.append(_safe("dl1_paket_age", _c_dl1_paket, snap, cfg))
     if snap.ml is not None:
         for bot in snap.ml:
             results.append(_safe(f"ml_package:{bot}", _c_ml, snap, bot, cfg))
@@ -1418,6 +1453,8 @@ _HEALTH_TR: dict[str, tuple[str, str, str]] = {
                    "Modelin durumu için günlük rapora bak."),
     "haber_sinyal_age": ("Haber sinyali güncel değil", "Haber sinyali yeniden güncel",
                          "Haber kolunun (HB1) yeni girişleri durur; diğer kollar ve açık pozisyonlar etkilenmez."),
+    "dl1_paket_age": ("DL1 modeli güncel değil", "DL1 modeli yeniden güncel",
+                      "Derin öğrenme kolunun (DL1) yeni girişleri durur ya da duracak; diğer kollar ve açık pozisyonlar etkilenmez."),
     "drift_monitor": ("Bot beklenenden farklı davranıyor", "Bot yeniden beklendiği gibi davranıyor",
                       "Bot durdurulmadı; ayrıntı günlük raporda. İnceleme gerekir."),
 }

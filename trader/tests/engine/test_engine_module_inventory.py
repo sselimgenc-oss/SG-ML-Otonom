@@ -32,7 +32,8 @@ ALLOWED_MODULES_B = ALLOWED_MODULES_A | {"exchange/binance_rest.py", "pause.py",
                                          "strategies/arms/f1.py", "strategies/arms/s1.py",   # DD-12 WP-12b: yeni kurulumlar
                                          "strategies/arms/h2.py",
                                          "strategies/arms/m1.py",   # DD-12 WP-14: M1 (ML'in kendi adayi)
-                                         "strategies/arms/hb1.py"}   # 23.11 ust lig: haber kolu HB1
+                                         "strategies/arms/hb1.py",   # 23.11 ust lig: haber kolu HB1
+                                         "dl1_cikarim.py", "strategies/arms/dl1.py"}   # 23.11 ust lig: derin ogrenme kolu DL1 (saf numpy cikarim)
 PHASE_B_FILES = ["brokers/binance_futures.py", "exchange/binance_rest.py", "marketdata/ws.py", "reconcile_live.py"]
 FORBIDDEN_TEXT_B = ["listen" + "Key", "web" + "sockets"]   # Faz B: algo metni serbest, kullanıcı veri akışı ertelendi (11 §2)
 FORBIDDEN_TEXT = ["listen" + "Key", "userData" + "Stream", "algo" + "Order", "web" + "sockets"]

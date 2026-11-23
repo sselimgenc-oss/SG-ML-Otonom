@@ -904,6 +904,19 @@ def probe_haber_sinyal(var_dir: str) -> H.HaberSinyalProbe:
         return H.HaberSinyalProbe("unreadable", job_installed=True)
 
 
+def probe_dl1_paket(env: dict) -> H.Dl1PaketProbe:
+    """models/dl1/DL1@1h.json (veri kokunden; sha256 + kapi + sema dogrulamali) -> Dl1PaketProbe. Yok -> missing; gecersiz -> unreadable."""
+    from trader_engine import dl1_cikarim as DL
+    yol = data_root(env) / "models" / "dl1" / "DL1@1h.json"
+    try:
+        p, neden = DL.paket_yukle(yol)           # son kullanma burada denetlenmez (saglik kendisi hesaplar)
+    except Exception:  # noqa: BLE001  (saglik turu paket okumasi yuzunden dusmez)
+        return H.Dl1PaketProbe("unreadable")
+    if p is None:
+        return H.Dl1PaketProbe("missing" if neden == "yok" else "unreadable")
+    return H.Dl1PaketProbe("ok", p.olusturma, p.son_kullanma)
+
+
 def collect(env: dict, state: dict, now: datetime, *, deadline: float = 0.0) -> H.HealthSnapshot:
     var_dir = env["ENGINE_VAR_DIR"]
     api, ledger, containers = {}, {}, {}
@@ -984,7 +997,7 @@ def collect(env: dict, state: dict, now: datetime, *, deadline: float = 0.0) -> 
             prev_am[b] = (v[0], v[1])
     return H.HealthSnapshot(
         prev_account_mode=prev_am, live_path_issues=live_path_issues,
-        drift=collect_drift(env, var_dir), ml=ml, haber_sinyal=probe_haber_sinyal(var_dir), prev_ml_score_errors={b: v for b, v in prev_scores.items() if _int_or_none(v) is not None},
+        drift=collect_drift(env, var_dir), ml=ml, haber_sinyal=probe_haber_sinyal(var_dir), dl1_paket=probe_dl1_paket(env), prev_ml_score_errors={b: v for b, v in prev_scores.items() if _int_or_none(v) is not None},
         market=market, bans=collect_bans(env, var_dir), prev_rules_missing=dict(state.get("rules_missing", {})),
         now=now, timeframe_s=tf_s, api=api, ledger=ledger, disk_free_bytes=free, mem_available_bytes=mem,
         swap_total_bytes=swap_t, swap_used_bytes=swap_u, containers=containers,
