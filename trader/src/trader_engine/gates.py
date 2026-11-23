@@ -492,6 +492,31 @@ class EntryGate:
             return self._skip(row, tf, "buyukluk_okunamadi", skip_reason="risk_denied", veto_status=vs, veto_reason="gate:buyukluk_okunamadi",
                               risk_allowed=False, risk_reason="toplam büyüklük okunamadı: giriş yok", **tk)
 
+    def _tasfiye_mesafesi_karari(self, row: SignalRow, tf: str, cand: K.Candidate, lev: int, vs: str,
+                                 veto_reason: str | None, tk: dict) -> EntryOutcome | None:
+        """Izole tasfiye fiyati, girisle stop arasindaki mesafenin liq_safety_factor (1,5) katindan YAKINSA giris yok
+        (`gate:tasfiye_mesafesi`). Izole teminatta tasfiye fiyati buyukluge bagli degildir ve kaldirac hesap ayaridir
+        (motor degistirmez) => kucultme cozum degildir; atla. MMR: sinif sabiti (risk.MMR_SINIF) ile cfg'nin buyugu.
+        Guvenliyse etkisi yok (None). Hata => atla (fail-closed)."""
+        try:
+            rc = self.cfg.risk_config
+            sinif = AG.asset_class(cand.pair, self.cfg.clusters)
+            mmr = K.sinif_mmr(sinif, rc.maint_margin_rate)
+            t = K.tasfiye_mesafesi(cand.entry, cand.stop, cand.side, lev, mmr, rc.liq_safety_factor)
+            if t["guvenli"]:
+                return None
+            self.counters["tasfiye_mesafesi"] += 1
+            return self._skip(row, tf, "tasfiye_mesafesi", skip_reason="risk_denied", veto_status=vs, veto_reason="gate:tasfiye_mesafesi",
+                              risk_allowed=False,
+                              risk_reason=(f"tasfiye mesafesi yetersiz: liq {t['liq_fiyat']:.6g} (mesafe {t['liq_mesafe']:.6g}) < "
+                                           f"{t['guvenlik']:g} x stop mesafesi {t['stop_mesafe']:.6g}; kaldirac {lev}, mmr {mmr:g}, "
+                                           f"izin verilen en yuksek kaldirac {t['max_kaldirac']}"), **tk)
+        except Exception as e:  # noqa: BLE001
+            self.counters["tasfiye_mesafesi_hata"] += 1
+            log.error("tasfiye mesafesi hesaplanamadi, GIRIS YOK (fail-closed): %s: %s", type(e).__name__, e)
+            return self._skip(row, tf, "tasfiye_okunamadi", skip_reason="risk_denied", veto_status=vs, veto_reason="gate:tasfiye_mesafesi",
+                              risk_allowed=False, risk_reason="tasfiye mesafesi hesaplanamadi: giris yok", **tk)
+
     def _arms_off(self) -> Collection[str]:
         ao = self.arms_off
         return (ao() if callable(ao) else ao) or ()
@@ -637,6 +662,9 @@ class EntryGate:
         if not dec.allowed:
             return self._skip(row, tf, "risk_denied", skip_reason="risk_denied", veto_status=vs,
                               veto_reason=lk.reason, risk_allowed=False, risk_reason=dec.reason, **tk)
+        td = self._tasfiye_mesafesi_karari(row, tf, cand, lev, vs, lk.reason, tk)        # 23.11: kagit = canli, ayni kod
+        if td is not None:
+            return td
         if paper:                                                                       # 23.11 asama B: toplam buyukluk tavani (boyut belli olduktan sonra)
             tb = self._toplam_buyukluk_karari(row, tf, acct, dec.size, vs, lk.reason, tk)
             if tb is not None:

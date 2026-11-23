@@ -1,11 +1,14 @@
 """status.json (05 §8.2): atomik yazim, kalp atisi. Yazma hatasi dongu bozmaz."""
 from __future__ import annotations
 
+import json
 import logging
 import math
 import os
+from collections.abc import Mapping, Sequence
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 from trader_core import giris_izi as GI
 
@@ -15,6 +18,151 @@ from .fileio import atomic_write_json, fmt_ts, heartbeat_read, heartbeat_write, 
 
 log = logging.getLogger("engine.status")
 SCHEMA = "engine-status/1"
+
+
+# ------------------------------------------------------------------ toplu sok (bilgi raporu; ayri modul degil: modul envanteri kilitli)
+# Toplu sok (joint shock) raporu: canli oncesi guvenlik hesabi. YALNIZ BILGI: karar/emir/boyut yoluna GIRMEZ.
+#
+# Girdi: acik pozisyonlar (status.json `open_positions`: pair, side, qty, entry_price, mark, stop, asset_class) + kasa (equity)
+# + maliyet varsayimlari (taker komisyon, stop kaymasi bps) + gunluk zarar siniri (oran). Kagit ve canli ayni kodu kullanir.
+#
+# Hesaplar (hepsi $ ve kasa yuzdesi):
+# - ortak sok X% (X = 2, 5, 10, 20): TUM pozisyonlar ayni anda KENDI aleyhine X% hareket eder: zarar = X/100 x notional(mark).
+# - iliskili sok: kripto -X%, hisse ve emtia -X/2 (her pozisyonun aleyhine yonde).
+# - stop dolumu: her stop dolarsa kayip = mevcut fiyattan stop dolum fiyatina (stop, kayma kadar aleyhe) + cikis komisyonu.
+#   Taban: yapilandirmadaki slip_stop_bps; stres: 2 x slip_stop_bps. Stop kardaysa (iz suren stop) kayip negatif olabilir (kazanc kilidi).
+# Izole teminatta pozisyon zarari teminati asamaz; kaldirac 3-5 ve sok <= %20 iken notional x X < teminat oldugundan tavan uygulanmaz
+# (tavan: zarar <= notional/kaldirac; kaldirac bilinmiyorsa uygulanmaz).
+SEMA = "ml.toplu_sok.v1"
+SOKLAR = (2, 5, 10, 20)
+KRIPTO = "kripto"
+UYARI_SOK = 10                      # gunluk limitle karsilastirilan ortak sok (%)
+DOSYA = "toplu_sok_{mod}_v1.json"   # var/durum/ altinda
+KAYMA_STRES = 2.0
+
+
+def _f(x: Any) -> float | None:
+    if isinstance(x, bool) or not isinstance(x, (int, float)):
+        return None
+    x = float(x)
+    return x if math.isfinite(x) else None
+
+
+def _sgn(side: Any) -> float:
+    return 1.0 if str(side).lower() == "long" else -1.0
+
+
+def _norm(pozisyonlar: Sequence[Mapping]) -> list[dict]:
+    """Gecerli pozisyonlar: qty > 0, fiyat (mark yoksa giris) > 0, yon long/short. Gecersiz atlanir ve sayilir (cagiran `atlanan`)."""
+    out = []
+    for p in pozisyonlar or ():
+        qty, ep = _f(p.get("qty")), _f(p.get("entry_price"))
+        mark = _f(p.get("mark")) or ep
+        side = str(p.get("side", "")).lower()
+        if not qty or qty <= 0 or not mark or mark <= 0 or side not in ("long", "short"):
+            continue
+        out.append({"pair": str(p.get("pair")), "side": side, "qty": qty, "fiyat": mark, "stop": _f(p.get("stop")),
+                    "sinif": str(p.get("asset_class") or KRIPTO), "kaldirac": _f(p.get("leverage"))})
+    return out
+
+
+def _ozet(zarar: float, equity: float) -> dict:
+    return {"usd": round(zarar, 2), "kasa_yuzde": round(zarar / equity * 100.0, 4) if equity > 0 else None}
+
+
+def _zarar_sok(pos: Sequence[dict], x_kripto: float, x_diger: float) -> float:
+    """Yon-bagimsiz: her pozisyon KENDI aleyhine hareket eder; zarar = oran x notional (izole teminat tavani varsa uygulanir)."""
+    toplam = 0.0
+    for p in pos:
+        oran = (x_kripto if p["sinif"] == KRIPTO else x_diger) / 100.0
+        z = oran * p["qty"] * p["fiyat"]
+        if p["kaldirac"]:
+            z = min(z, p["qty"] * p["fiyat"] / p["kaldirac"])
+        toplam += z
+    return toplam
+
+
+def _zarar_stop(pos: Sequence[dict], taker_fee: float, kayma_bps: Mapping[str, float], carpan: float) -> tuple[float, int]:
+    """Her stop dolarsa: sgn x (mark - dolum) x qty + cikis komisyonu; dolum = stop, aleyhe `carpan x slip_stop_bps`."""
+    toplam, stopsuz = 0.0, 0
+    for p in pos:
+        if p["stop"] is None or p["stop"] <= 0:
+            stopsuz += 1
+            continue
+        sg = _sgn(p["side"])
+        dolum = p["stop"] * (1.0 - sg * carpan * float(kayma_bps.get(p["pair"], kayma_bps.get("*", 5.0))) / 10000.0)
+        toplam += sg * (p["fiyat"] - dolum) * p["qty"] + taker_fee * p["qty"] * dolum
+    return toplam, stopsuz
+
+def hesapla(pozisyonlar: Sequence[Mapping], equity: Any, *, gunluk_limit: Any = None, taker_fee: float = 0.0005,
+            kayma_bps: Mapping[str, float] | None = None) -> dict[str, Any]:
+    """-> {"sema", "equity", "pozisyon_sayisi", "notional", "ortak": {"2": {usd, kasa_yuzde}, ...}, "iliskili": {...},
+    "stop_dolumu": {"taban": .., "stres_2x": .., "stopsuz": n}, "gunluk_limit": {...}, "uyari": bool, ...}. Hic alan atlanmaz."""
+    eq = _f(equity)
+    pos = _norm(pozisyonlar)
+    kb = dict(kayma_bps or {})
+    n_gelen = len(pozisyonlar or ())
+    notional = sum(p["qty"] * p["fiyat"] for p in pos)
+    out: dict[str, Any] = {"sema": SEMA, "pozisyon_sayisi": len(pos), "atlanan": n_gelen - len(pos),
+                           "equity": None if eq is None else round(eq, 2), "notional": round(notional, 2),
+                           "notional_kasa_kat": round(notional / eq, 4) if eq and eq > 0 else None,
+                           "formul": {"ortak": "zarar = X/100 x notional (tum pozisyonlar kendi aleyhine)",
+                                      "iliskili": "kripto -X, hisse+emtia -X/2 (kendi aleyhine)",
+                                      "stop_dolumu": "sgn x (mark - stop x (1 -/+ k x slip_stop_bps/1e4)) x qty + taker x qty x dolum; k = 1 (taban), 2 (stres)"},
+                           "varsayim": {"taker_fee": taker_fee, "slip_stop_bps": kb, "stres_carpan": KAYMA_STRES, "soklar": list(SOKLAR)}}
+    if eq is None or eq <= 0:
+        return {**out, "ortak": None, "iliskili": None, "stop_dolumu": None, "gunluk_limit": None, "uyari": None, "neden": "equity_yok"}
+    out["ortak"] = {str(x): _ozet(_zarar_sok(pos, x, x), eq) for x in SOKLAR}
+    out["iliskili"] = {str(x): _ozet(_zarar_sok(pos, x, x / 2.0), eq) for x in SOKLAR}
+    t, sz = _zarar_stop(pos, taker_fee, kb, 1.0)
+    s, _ = _zarar_stop(pos, taker_fee, kb, KAYMA_STRES)
+    out["stop_dolumu"] = {"taban": _ozet(t, eq), "stres_2x": _ozet(s, eq), "stopsuz": sz}
+    lim = _f(gunluk_limit)
+    sok10 = out["ortak"][str(UYARI_SOK)]["kasa_yuzde"]
+    if lim is None or lim <= 0:
+        out["gunluk_limit"], out["uyari"] = None, None
+    else:
+        out["gunluk_limit"] = {"oran": lim, "kasa_yuzde": round(lim * 100.0, 4), "usd": round(lim * eq, 2)}
+        out["uyari"] = bool(sok10 > lim * 100.0)       # %10 ortak sok gunluk zarar sinirini asar
+    return out
+
+
+def kayma_haritasi(pairs: Sequence[str], taban_bps: float, overrides: Mapping[str, Mapping[str, Mapping[str, float]]] | None) -> dict[str, float]:
+    """cift -> slip_stop_bps: cift icin seans bazli degerlerin EN BUYUGU (muhafazakar), yoksa taban; "*" = taban."""
+    out = {"*": float(taban_bps)}
+    for p in pairs:
+        ov = (overrides or {}).get(p)
+        if ov:
+            vals = [float(v["slip_stop_bps"]) for v in ov.values() if isinstance(v, Mapping) and "slip_stop_bps" in v]
+            if vals:
+                out[p] = max(max(vals), float(taban_bps))
+    return out
+
+
+def durum_yolu(status_yolu: str | os.PathLike, mod: str) -> Path:
+    """var/<bot>/status.json -> var/durum/toplu_sok_<mod>_v1.json"""
+    return Path(status_yolu).resolve().parent.parent / "durum" / DOSYA.format(mod=mod)
+
+
+def oku(yol: str | os.PathLike) -> dict | None:
+    """Yazilmis rapor; yok/bozuk/yanlis sema -> None."""
+    try:
+        d = json.loads(Path(yol).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return d if isinstance(d, dict) and d.get("sema") == SEMA else None
+
+
+def saglik_ozeti(doc: Mapping | None) -> dict | None:
+    """Saglik denetimi girdisi: {"sok10": kasa %, "limit": kasa %, "usd": ..}; hesap yoksa None."""
+    try:
+        if not doc or doc.get("uyari") is None:
+            return None
+        return {"sok10": float(doc["ortak"][str(UYARI_SOK)]["kasa_yuzde"]), "limit": float(doc["gunluk_limit"]["kasa_yuzde"]),
+                "sok10_usd": float(doc["ortak"][str(UYARI_SOK)]["usd"])}
+    except (KeyError, TypeError, ValueError):
+        return None
+
 
 
 def _z(t: datetime | None) -> str | None:
@@ -97,6 +245,7 @@ class StatusWriter:
         self._last_write: datetime | None = None
         self._hb_prev: str | None = None
         self._hb_read = False
+        self._sok_yazildi: datetime | None = None
 
     def _ayar_sha(self) -> str | None:
         """6c: etkin yapilandirmanin tam sha256'si (bir kez); hata durumu bozmaz."""
@@ -107,6 +256,26 @@ class StatusWriter:
                 log.warning("ayar_surumu hesaplanamadi: %s", e)
                 self._ayar = None
         return self._ayar
+
+    def _toplu_sok(self, engine, pos: list, equity) -> dict | None:
+        """23.11 toplu sok raporu (yalniz bilgi; kagit = canli): status.json `toplu_sok` + var/durum/toplu_sok_<mod>_v1.json.
+        Hata durumu bozmaz (None). JSON dakikada en cok bir kez yazilir."""
+        try:
+            lev = float(self.cfg.leverage)
+            girdi = [{**r, "leverage": lev} for r in pos]
+            kb = kayma_haritasi([r["pair"] for r in pos], self.cfg.cost.slip_stop_bps, self.cfg.cost_overrides)
+            doc = hesapla(girdi, equity, gunluk_limit=self.cfg.risk_config.daily_max_loss,
+                              taker_fee=self.cfg.cost.taker_fee, kayma_bps=kb)
+            doc = {**doc, "ts": _z(self.clock.now()), "mod": self.cfg.mode, "bot": self.cfg.bot}
+            now = self.clock.now()
+            if self._sok_yazildi is None or (now - self._sok_yazildi).total_seconds() >= 60:
+                atomic_write_json(str(durum_yolu(self.path, self.cfg.mode)), doc)
+                self._sok_yazildi = now
+            return {"uyari": doc["uyari"], "ortak": doc["ortak"], "iliskili": doc["iliskili"], "stop_dolumu": doc["stop_dolumu"],
+                    "gunluk_limit": doc["gunluk_limit"], "ts": doc["ts"]}
+        except Exception as e:  # noqa: BLE001 - bilgi raporu dongu/durum yazimini bozmaz
+            log.warning("toplu sok hesaplanamadi: %s: %s", type(e).__name__, e)
+            return None
 
     def build(self, engine) -> dict:
         now = self.clock.now()
@@ -127,6 +296,7 @@ class StatusWriter:
         ml_blocked = bool(ml and ml.get("entries_blocked"))          # active + model yok/suresi dolmus: giris yok (fail-closed)
         if ml_blocked and gate_code == "ok":
             gate_code = "ml_" + str(ml["state"])
+        sok = self._toplu_sok(engine, pos, f["equity"]) if f["equity"] is not None else None
         return {
             "schema": SCHEMA, "bot": self.cfg.bot, "mode": self.cfg.mode, "pid": os.getpid(),
             "started_at": _z(self.started_at), "loop_at": _z(now), "last_minute_ts": _z(f["last_minute_ts"]),
@@ -146,6 +316,7 @@ class StatusWriter:
             **({"etiket_kurallari": f["etiket_kurallari"]} if f.get("etiket_kurallari") is not None else {}),   # 20 Kasim: etiket kurallari
             **({"pause": f["pause"]} if f.get("pause") is not None else {}),
             **({"risk_ladder": f["risk_ladder"]} if f.get("risk_ladder") is not None else {}),   # 12 §10
+            **({"toplu_sok": sok} if sok is not None else {}),   # 23.11: bilgi raporu (ortak/iliskili sok, stop dolumu)
             **({"exchange": xb} if (xb := _exchange_block(engine, f, self.cfg.mode)) is not None else {}),
         }
 
