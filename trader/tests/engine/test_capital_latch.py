@@ -171,3 +171,68 @@ def test_open_position_survives_latch_tick(tmp_path):
         assert e.pos() is not None                         # acik pozisyon dokunulmadi
     finally:
         e.close()
+
+
+def test_rearm_is_durable_across_restart(tmp_path):
+    e = _paper(tmp_path)
+    e.tick(840.0)
+    e.tick(840.0)
+    e.pause.remove(LATCH, "telegram:1")
+    e.tick(840.0)                                          # hala esikte: silahsiz
+    e.tick(860.0)                                          # yukari cikti: yeniden silahlandi (denetime yazilir)
+    assert last_audit_op(e.pause.audit_path, LATCH) == "rearm"
+    rl2 = e.mk()                                           # yeniden baslatma
+    for _ in range(2):
+        e.clock.advance(60)
+        rl2.tick(e.clock.now(), 840.0, 840.0)
+    assert e.reasons() == [LATCH]
+
+
+def test_rearm_when_lifted_above_threshold_then_restart(tmp_path):
+    e = _paper(tmp_path)
+    e.tick(840.0)
+    e.tick(840.0)
+    e.pause.remove(LATCH, "telegram:1")
+    e.tick(870.0)                                          # kaldirma sonrasi ilk olcum zaten esigin ustunde
+    assert last_audit_op(e.pause.audit_path, LATCH) == "rearm"
+    rl2 = e.mk()
+    for _ in range(2):
+        e.clock.advance(60)
+        rl2.tick(e.clock.now(), 840.0, 840.0)
+    assert e.reasons() == [LATCH]
+
+
+def test_restart_above_after_remove_writes_rearm(tmp_path):
+    e = _paper(tmp_path)
+    e.tick(840.0)
+    e.tick(840.0)
+    e.pause.remove(LATCH, "telegram:1")
+    rl2 = e.mk()                                           # kaldirildi, yeniden baslatma, kasa esigin ustunde
+    e.clock.advance(60)
+    rl2.tick(e.clock.now(), 900.0, 900.0)
+    assert last_audit_op(e.pause.audit_path, LATCH) == "rearm"
+
+
+def test_failed_latch_add_then_recovery_clears_ladder_invalid(tmp_path):
+    e = S.Env(tmp_path, mode="testnet", enforce=True)
+    real = e.pause.add
+
+    def boom(*a, **k):
+        raise OSError("disk")
+    e.pause.add = boom
+    e.tick(840.0)
+    e.tick(840.0)
+    assert e.rl.gate_code() == "ladder_invalid"
+    e.pause.add = real
+    e.tick(900.0)                                          # toparlandi: bekleyen mandal birakilir
+    assert e.rl.gate_code() is None and e.reasons() == []
+
+
+def test_confirmation_requires_consecutive_readings(tmp_path):
+    e = _paper(tmp_path)
+    e.tick(840.0)
+    e.tick(0.0)                                            # okunamayan ozsermaye: atlanan tick sayaci sifirlar
+    e.tick(840.0)
+    assert e.reasons() == []
+    e.tick(840.0)
+    assert e.reasons() == [LATCH]

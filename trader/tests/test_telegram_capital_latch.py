@@ -11,7 +11,8 @@ def test_devam_lifts_capital_latch_with_code(rig):  # noqa: F811
     status(d)
     for p in d.r.pauses.values():
         p.add("capital_latch", "engine:rk1", "dep_net=1000.00 equity=849.00")
-    assert "0427" in say(d, "/devam", 1)
+    out = say(d, "/devam", 1)
+    assert "0427" in out and "Ana para kilidi" in out         # kod isteminde kaldirilacak tutuslar listelenir
     assert all(p.active() for p in d.r.pauses.values())          # kod gelmeden kalkmaz
     say(d, "0427", 2)
     for p in d.r.pauses.values():

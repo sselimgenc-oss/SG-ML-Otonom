@@ -212,3 +212,26 @@ def test_isinmada_kurulum_eksigi_alarm_degil_sonra_yine_crit():
 def test_isinmada_gercek_kademe_olayi_yine_bildirilir():
     r = _check_warm(api(block(state="floor", equity=500.0)), timedelta(minutes=3))
     assert (r.status, r.code) == (Status.CRIT, "capital_floor")
+
+
+# --------------------------------------------------------------------------------------- capital_latch uyarisi
+def test_capital_latch_hold_emits_warn_and_telegram_alert():
+    b = block(pause_holds=[{"reason": "capital_latch", "at": z(NOW)}])
+    r = expect(api(b), Status.WARN, "capital_latch")
+    assert "capital_latch" in r.detail
+    cfg = H.HealthConfig(require_bots=("learner",), multiple_threshold=50)
+    snap = H.HealthSnapshot(now=NOW, timeframe_s=3600, api={"learner": api(b)}, ledger={}, disk_free_bytes=50 * H.GIB,
+                            mem_available_bytes=900 * H.MIB, swap_total_bytes=0, swap_used_bytes=0,
+                            last_backup_at=NOW - timedelta(hours=1))
+    rep = H.evaluate(snap, cfg)
+    a0, st0 = H.plan_alerts(rep, H.empty_state(), NOW, cfg)
+    alerts = list(a0)
+    for i in range(1, 4):
+        a, st0 = H.plan_alerts(rep, st0, NOW + timedelta(minutes=5 * i), cfg)
+        alerts += list(a)
+    assert any(a.code == "capital_latch" for a in alerts)
+
+
+def test_no_capital_latch_alert_without_hold():
+    r, _ = check(api(block(pause_holds=[{"reason": "user_cmd", "at": z(NOW)}])))
+    assert r.code != "capital_latch"

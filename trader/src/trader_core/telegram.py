@@ -1189,7 +1189,9 @@ class TelegramDaemon:
             self._reply(f"KILL kaldirilacak ve girisler yeniden acilabilir. {CODE_TTL_S} sn icinde yalniz su 4 haneli "
                         f"kodu yanitla: {code}.{extra}")
         else:
-            self._reply(f"/durdur ile konan duraklatma ya da ana para kilidi kaldirilacak. {CODE_TTL_S} sn icinde yalniz su 4 haneli "
+            held = {h.reason for hs in self._pause_state().values() for h in hs}
+            what = " + ".join(t for r, t in ((PAUSE_USER, "Elle durdurma"), (PAUSE_LATCH, "Ana para kilidi")) if r in held)
+            self._reply(f"Girisleri durduran duraklatma kaldirilacak ({what}). {CODE_TTL_S} sn icinde yalniz su 4 haneli "
                         f"kodu yanitla: {code}")
         return "code_sent"
 

@@ -1085,6 +1085,11 @@ def _c_ladder_inner(snap, bot, cfg):
     ld = _z(b.get("last_down_at"))
     if state == "ok" and ld is not None and 0 <= (now - ld).total_seconds() <= LADDER_STEP_DOWN_WINDOW_S:
         add(Status.WARN, "ladder_step_down", f"{bot} basamak indi: {b.get('step_name')}")
+    if isinstance(b.get("pause_holds"), (list, tuple)) and any(
+            isinstance(h, Mapping) and h.get("reason") == "capital_latch" for h in b["pause_holds"]):
+        add(Status.WARN, "capital_latch",
+            f"{bot} ana para kilidi (capital_latch): ozsermaye {_num_s(b.get('equity'))} <= yatirilanin %85'i "
+            f"({_num_s(b.get('dep_net'))}); yeni girisler kapali; acmak icin Telegram /devam")
     if state == "ok":
         for h in b.get("pause_holds") or ():
             if isinstance(h, Mapping) and h.get("reason") == "drawdown_review":

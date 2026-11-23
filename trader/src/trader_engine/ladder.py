@@ -75,7 +75,9 @@ class RiskLadder:
         self._follow_state: dict | None = None
         self._follow_cfg: RiskConfig | None = None
         self._latch_init = False                       # capital_latch yeniden silahlanma durumu (yeniden baslatmada denetim gunlugunden)
-        self._latch_armed = True
+        self._latch_off = False                        # kullanici kaldirdi, kasa henuz esigin ustune cikmadi
+        self._latch_evaluated = False                  # onceki tick mandal denetimine ulasti mi (ardisik olcum kurali)
+        self._latch_add_failed = False
         self._latch_seen = False                       # tutus bu surecte goruldu (kullanici kaldirdi mi ayrimi)
         self._latch_n = 0
 
@@ -183,6 +185,9 @@ class RiskLadder:
         if self._last_eval is not None and (now - self._last_eval).total_seconds() < RL.EVAL_EVERY_S:
             return                                                                            # 1: kisma
         self._last_eval = now
+        if not self._latch_evaluated:                                                         # ardisik olmayan olcum sayilmaz
+            self._latch_n = 0
+        self._latch_evaluated = False
         if self.follow is not None:
             self._refresh_follow()
         rows = self._load()                                                                   # 2: gunluk
@@ -351,10 +356,11 @@ class RiskLadder:
     # -- 7b ----------------------------------------------------------------
     def _capital_latch(self, now: datetime, st: RL.LadderState, eq: float) -> None:
         """equity <= 0.85 x dep_net -> `capital_latch` tutusu (enforce'tan bagimsiz). Kullanici kaldirdiysa esigin ustune
-        cikilmadan yeniden kurulmaz; yeniden baslatmada denetim gunlugunun son capital_latch satiri `remove` ise ve hala esikte
-        isek silahsiz baslar. Gunluk satiri yazilmaz (kademe zinciri etkilenmez)."""
+        cikilmadan yeniden kurulmaz (`_latch_off`); yeniden silahlanma denetim gunlugune `rearm` olarak yazilir, boylece
+        yeniden baslatma kararli kalir (son satir `remove` ve hala esikte ise silahsiz baslar). Kademe gunlugune satir yazilmaz."""
         if self.pause is None:
             return
+        self._latch_evaluated = True
         below = eq <= RL.CAPITAL_LATCH_RATIO * st.dep_net
         try:
             present = any(h.reason == "capital_latch" for h in self.pause.holds())
@@ -364,26 +370,34 @@ class RiskLadder:
         if not self._latch_init:
             self._latch_init = True
             last = getattr(self.pause, "last_op", lambda r: None)("capital_latch")
-            if below and not present and last == "remove":
-                self._latch_armed = False
-        if not below:
-            self._latch_armed, self._latch_seen, self._latch_n = True, False, 0
-            return
+            self._latch_off = last == "remove" and not present
         if present:
             self._latch_seen, self._latch_n = True, 0
             return
-        if self._latch_seen:                          # kullanici kaldirdi, hala esikte: yeniden kurma
-            self._latch_armed, self._latch_seen, self._latch_n = False, False, 0
+        if self._latch_seen:                          # kullanici kaldirdi
+            self._latch_off, self._latch_seen = True, False
+        if not below:
+            self._latch_n = 0
+            if self._latch_add_failed:                # kurulamayan mandal bekliyordu; kasa toparlandi -> ladder_invalid kalkar
+                self._latch_add_failed, self._hold_latch = False, False
+            if self._latch_off:
+                try:
+                    self.pause.mark_rearm("capital_latch", BY)
+                except Exception as e:  # noqa: BLE001
+                    log.error("capital_latch rearm yazilamadi: %r", e)
+                self._latch_off = False
             return
-        if not self._latch_armed:
+        if self._latch_off:
             return
         self._latch_n += 1
         if self._latch_n < RL.CONFIRM_N:
             return
         if self._add_hold("capital_latch", f"dep_net={st.dep_net:.2f} equity={eq:.2f}"):
-            self._latch_seen, self._latch_n = True, 0
+            self._latch_seen, self._latch_n, self._latch_add_failed = True, 0, False
             log.critical("sermaye mandali: ozsermaye %.2f <= yatirilan %.2f x %.2f; yeni giris kapali", eq, st.dep_net,
                          RL.CAPITAL_LATCH_RATIO)
+        else:
+            self._latch_add_failed = True
 
     # -- 8 -----------------------------------------------------------------
     def _trigger(self, now: datetime, st: RL.LadderState, eq: float) -> None:

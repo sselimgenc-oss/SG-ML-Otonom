@@ -28,7 +28,7 @@ AUDIT_NAME = "pause_audit.jsonl"
 
 
 def last_audit_op(audit_path: str, reason: str) -> str | None:
-    """Denetim gunlugunda `reason` icin SON satirin islemi ("add" | "remove"); yok/okunamaz -> None (yeniden baslatma kararlari)."""
+    """Denetim gunlugunda `reason` icin SON satirin islemi ("add" | "remove" | "rearm" = mandal yeniden silahlandi); yok/okunamaz -> None (yeniden baslatma kararlari)."""
     last = None
     try:
         with open(audit_path, encoding="utf-8") as f:
@@ -37,7 +37,7 @@ def last_audit_op(audit_path: str, reason: str) -> str | None:
                     d = json.loads(line)
                 except ValueError:
                     continue
-                if isinstance(d, dict) and d.get("reason") == reason and d.get("op") in ("add", "remove"):
+                if isinstance(d, dict) and d.get("reason") == reason and d.get("op") in ("add", "remove", "rearm"):
                     last = d["op"]
     except OSError:
         return None
@@ -106,6 +106,12 @@ class EntryPause:
 
     def last_op(self, reason: str) -> str | None:
         return last_audit_op(self.audit_path, reason)
+
+    def mark_rearm(self, reason: str, by: str) -> None:
+        """Mandalin yeniden silahlandigini denetim gunlugune yazar (op "rearm"); tutus dosyasina dokunmaz. Hata yukseltmez."""
+        self._check(reason)
+        with self._locked():
+            self._safe_audit("rearm", reason, by, "")
 
     def code(self) -> str | None:
         if not self.active():
