@@ -111,3 +111,4 @@ Hazırlanacak sorular (veriyle cevaplanacak; her cevapta n ve "yetersiz örnek" 
 9. Kol kapatma/küçültme kuralı ne olmalı (önceden yazılı eşik; tek kötü hafta yüzünden kapatmamak)?
 10. Yeni kollar (HB1 haber, DL1 derin öğrenme) gelince toplam kol sayısı ve kalabalık riski.
 Kaynak: tur1_olcum raporu (kayıp kümeleri, yön denetimi), kâğıt defteri, mutabakat; analiz Fable, sunum sade tablo.
+- KULLANICI KURALI (23.11): "Riskleri biliyorum, bana bir şey önerme, dediğimi yap." Canlı/para konusunda istenmeyen tavsiye ve uyarı verme; sorulana cevap ver, isteneni yap.
