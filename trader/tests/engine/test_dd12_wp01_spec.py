@@ -55,12 +55,13 @@ PINNED_SHA = {
     "engine.base.json": "ba218ea0404803c9e5af7ffbd276fad79b6d0af714c94150172f7d56e674c328",   # WP-06a: yalniz veto_config yolu
     "engine.learner.json": "30ca2842c40cacafbf6cdd90c9e6f1f54fc62b9a9ec913476d1399ac5352cb12",
     "engine.testnet.json": "54247bbd4d0fcea5eda5add465809938178ec4a1decf7f61cb9aa838daa4e952",
-    "engine.live.json": "1189c2cd58c8b2835dddd223fb40bd157305804b159e5ead9b2c920f176b81e7",   # 23.11 kullanici karari: canli = kagit (paper sistem anahtarlari eklendi)
+    "engine.live.json": "47ca5d092009a9708ac2497b3654f744b044c7e4ca1ae208ff0b72e886c87368",   # 23.11 kullanici karari: asama B esikleri (canli = kagit; paper sistem anahtarlari + same_dir 0.06 + korelasyon/kayip_freni/toplam_buyukluk_kat)
 }
 # 23.11 kullanici karari: canli = kagit. engine.live.json'a eklenen kagit sistem anahtarlari (+ pairs yerine kagit evreni).
 LIVE_PAPER_SYSTEM_KEYS = {"veto_mode", "pairs", "optional_pairs", "strategy", "arms", "arm_max_positions", "ml_mode", "shadow_blocks",
                           "exit_modes", "max_positions", "target_trade_risk", "risk", "clusters", "etiket_kurallari",
-                          "flat_bar_guard", "contract_types", "cost_overrides"}
+                          "flat_bar_guard", "contract_types", "cost_overrides",
+                          "korelasyon", "kayip_freni", "toplam_buyukluk_kat"}   # 23.11 kullanici karari: asama B esikleri
 UNIT_SHA = {
     "trader-engine-testnet.service": "c753d965c4b8e4a239f6ca44fa83a17e3824ed501583aadc8c7a21c27c5ac07d",
     "trader-engine-live.service": "c847990df3760c790df8418b771679f59a4256d0c902b9d6d990a23a55474549",   # 23.11 kullanici karari: canli = kagit (MemoryMax 750M, MemoryHigh 600M)
@@ -168,7 +169,10 @@ def test_dt1_katmansiz_yukleme_onceki_engineconfig_ile_esit(baseline, envname):
         assert cur["cfg"][k] == v, f"{envname}: alan {k} degisti"
     if envname == "live":      # 23.11 kullanici karari: canli = kagit (LIVE_LIMITS 0.24/0.16/0.08, hedef %1)
         assert (cur["risk"]["max_open_risk"], cur["risk"]["max_same_dir_risk"], cur["risk"]["daily_max_loss"],
-                cur["risk"]["target_trade_risk"]) == (0.24, 0.16, 0.08, 0.01)
+                cur["risk"]["target_trade_risk"]) == (0.24, 0.06, 0.08, 0.01)   # 23.11 kullanici karari: asama B esikleri
+        return
+    if envname == "paper":     # 23.11 kullanici karari: asama B esikleri (max_same_dir_risk 0.16 -> 0.06)
+        assert cur["risk"] == {**old["risk"], "max_same_dir_risk": 0.06}
         return
     assert cur["risk"] == old["risk"]
 
@@ -434,7 +438,7 @@ def test_dt30_paper_risk_yuzdeleri():
     rc = cfg.risk_config
     assert rc.target_trade_risk == pytest.approx(0.01)
     assert rc.max_open_risk == pytest.approx(0.24)
-    assert rc.max_same_dir_risk == pytest.approx(0.16)
+    assert rc.max_same_dir_risk == pytest.approx(0.06)   # 23.11 kullanici karari: asama B esikleri
     assert rc.daily_max_loss == pytest.approx(0.08)
     assert rc.max_trade_risk >= rc.target_trade_risk
 
@@ -455,10 +459,11 @@ def test_dt30_paper_davranis_toplam_ve_ayni_yon_ve_gunluk():
     st = _state(opens=[pos("BTC/USDT:USDT", "long", 30.0), pos("SOL/USDT:USDT", "short", 30.0)])
     assert check_entry(st, _cand(), rc).allowed
     assert not check_entry(st, _cand(), LOCKED_CFG).allowed
-    # ayni yon (Karar A, 21.11): gunluk butce artik acik riski saymaz; long 75 + ~10 izinli, long 155 + ~10 > %16 (160) -> ret
-    st2 = _state(opens=[pos("BTC/USDT:USDT", "long", 75.0)])
+    # ayni yon (Karar A, 21.11): gunluk butce artik acik riski saymaz; long 45 + ~10 izinli, long 55 + ~10 > %6 (60) -> ret
+    # 23.11 kullanici karari: asama B esikleri (max_same_dir_risk 0.16 -> 0.06)
+    st2 = _state(opens=[pos("BTC/USDT:USDT", "long", 45.0)])
     assert check_entry(st2, _cand(), rc).allowed
-    assert not check_entry(_state(opens=[pos("BTC/USDT:USDT", "long", 155.0)]), _cand(), rc).allowed
+    assert not check_entry(_state(opens=[pos("BTC/USDT:USDT", "long", 55.0)]), _cand(), rc).allowed
     # gunluk zarar %6: paper'da kural 4 tetiklenmez (limit %8); 60+10... yalniz gunluk butce: 60 + 0 + 10 <= 80 izinli
     st3 = _state(equity=940.0, day_start=1000.0)
     assert check_entry(st3, _cand(), rc).allowed

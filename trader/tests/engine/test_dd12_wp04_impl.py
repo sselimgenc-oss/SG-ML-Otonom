@@ -1,6 +1,7 @@
 """DD-12 WP-04 uygulayici duman testleri (arm_guard + paper kapilari)."""
 from __future__ import annotations
 
+import dataclasses
 import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -22,7 +23,9 @@ from test_engine_05_impl_smoke import H, T0, _params, _row  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 UTC = timezone.utc
-CFG = load_cli_config(ROOT / "config", "learner", "paper")
+# 23.11 kullanici karari: asama B esikleri. Bu dosya sabit kume tavanlarini (cluster_cap) olcer; korelasyon grubu (ayri kural,
+# test_asama_b_esikleri.py) burada kapali tutulur.
+CFG = dataclasses.replace(load_cli_config(ROOT / "config", "learner", "paper"), korelasyon={}, toplam_buyukluk_kat=None)   # sahte pozisyonlarda nominal yok
 
 
 def u(*a):

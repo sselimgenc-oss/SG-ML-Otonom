@@ -34,6 +34,7 @@ NEDEN_KISA = {
     "clock_skew": "saat kayması", "order_unknown": "belirsiz emir", "exit_unknown": "belirsiz kapanış",
     "reconcile": "borsayla kayıtlar uyuşmuyor", "degraded": "kayıt sorunu", "equity_unreadable": "bakiye okunamadı",
     "ml_expired": "model süresi doldu", "ml_no_model": "model yok", "daily_loss": "günlük zarar limiti doldu",
+    "korelasyon_grubu": "aynı yön grubu dolu", "toplam_buyukluk": "toplam büyüklük tavanı", "fren_okunamadi": "kayıp freni okunamadı", "buyukluk_okunamadi": "toplam büyüklük okunamadı", "kayip_freni": "kayıp freni (yarım risk)",
 }
 GENEL_NEDEN = "güvenlik kuralı devrede"
 SAGLIK_TR = {"OK": "Sağlam", "WARN": "Dikkat", "CRIT": "Sorun var", "UNKNOWN": "Bilinmiyor", "SKIPPED": "Atlandı"}

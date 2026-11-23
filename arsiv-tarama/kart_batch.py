@@ -28,8 +28,8 @@ DURUM = Path("batch_durum.json")
 SISTEM = """Sen bir algoritmik trading arastirmacisisin. Sana bir kitabin icindekiler bolumu ve ilk sayfalari verilecek.
 Bizim bot: Binance USDT-M vadeli; 19 kripto (7/24) + 21 ABD hissesi + 4 emtia (seansli). 8 kural tabanli price-action stratejisi
 (trend kirilimi, iki bacakli geri cekilme, sikisma kirilimi, kirilim yeniden testi, sahte kirilim donusu, trend geri cekilmesi,
-range kenari, ML adayi) x 4 zaman dilimi (15m/1h/4h/1d). Aday sinyaller gradient-boosting siniflandiriciyla filtrelenir
-(ozellikler: ATR orani, rejim, stop/ATR, R:R, range kenar mesafeleri, 1h/4h/1d EMA egimi ve volatilite, saat/gun, son getiriler).
+range kenari, ML adayi) x 4 zaman dilimi (15m/1h/4h/1d). Aday sinyaller (canli gece suzgeci) ridge lojistik regresyonla filtrelenir
+(etiket: gerceklesen islemin R > 0 olmasi; gradient boosting/uclu bariyer yalniz arastirma tarafinda; ozellikler: ATR orani, rejim, stop/ATR, R:R, range kenar mesafeleri, yon, seans, varlik sinifi).
 Risk: islem basina %1, gunluk %8, basa bas stop + kismi kapama. Maliyet (komisyon+kayma+fonlama) dahil walk-forward test.
 Bilinen zayiflik: yon yogunlasmasi (cogu short), meta-label / pozisyon boyutlama / portfoy-korelasyon farkindaligi yok.
 

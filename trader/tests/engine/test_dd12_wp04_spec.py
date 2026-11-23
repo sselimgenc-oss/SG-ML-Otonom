@@ -86,7 +86,10 @@ _CFG = []
 
 def _paper_cfg():
     if not _CFG:
-        _CFG.append(load_cli_config(CONFIG, "learner", "paper"))
+        import dataclasses
+        # 23.11 kullanici karari: asama B esikleri. Bu dosya sabit kume tavanlarini (cluster_cap) olcer; korelasyon grubu
+        # (ayri kural, test_asama_b_esikleri.py) burada kapali tutulur ki kume tavani kendi basina denensin.
+        _CFG.append(dataclasses.replace(load_cli_config(CONFIG, "learner", "paper"), korelasyon={}))
     return _CFG[0]
 
 
@@ -150,7 +153,7 @@ def _pos(tid, pair, D, side="long"):
 class Env:
     def __init__(self, tmp, D, mode_cfg=None):
         self.D = D
-        self.cfg = mode_cfg or load_cli_config(CONFIG, "learner", "paper")
+        self.cfg = mode_cfg or _paper_cfg()   # 23.11 kullanici karari: asama B esikleri (korelasyon kapali; bkz. _paper_cfg)
         if mode_cfg is None and getattr(self.cfg, "arm_max_positions", None):     # WP-11 kurulum tavani bu dosyanin konusu degil
             import dataclasses as _dc
             self.cfg = _dc.replace(self.cfg, arm_max_positions=None)

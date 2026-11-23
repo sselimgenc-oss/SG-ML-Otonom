@@ -48,7 +48,7 @@ def test_paper_config_shape():
     assert c.flat_bar_guard is True and "TRADIFI_PERPETUAL" in c.contract_types
     assert set(c.cost_overrides) == set(c.optional_pairs)   # 23.11 kullanici karari: TON cikarildi (SETTLING)
     r = c.risk_config
-    assert (r.target_trade_risk, r.max_open_risk, r.max_same_dir_risk, r.daily_max_loss) == (0.01, 0.24, 0.16, 0.08)
+    assert (r.target_trade_risk, r.max_open_risk, r.max_same_dir_risk, r.daily_max_loss) == (0.01, 0.24, 0.06, 0.08)   # 23.11 kullanici karari: asama B esikleri
 
 
 def test_removed_layers():
