@@ -880,6 +880,30 @@ def collect_drift(env: dict, var_dir: str):
     return out
 
 
+def probe_haber_sinyal(var_dir: str) -> H.HaberSinyalProbe:
+    """<var>/learner/sinyal/haber_sinyal.json -> HaberSinyalProbe (yalniz okur; HB1 girdisi). Yok -> missing; bozuk/sema -> unreadable."""
+    d = os.path.join(var_dir, "learner", "sinyal")
+    kurulu = os.path.exists(os.path.join(d, "haber_sinyal_durum.json"))
+    try:
+        with open(os.path.join(d, "haber_sinyal.json"), "rb") as f:
+            raw = f.read(2_000_001)
+    except FileNotFoundError:
+        return H.HaberSinyalProbe("missing", job_installed=kurulu)
+    except OSError:
+        return H.HaberSinyalProbe("unreadable", job_installed=True)
+    try:
+        doc = json.loads(raw)
+        up, gs = doc["uretim_ms"], doc["gecerlilik_sonu_ms"]
+        if doc.get("schema") != "haber_sinyal/1" or isinstance(up, bool) or isinstance(gs, bool) \
+                or not isinstance(up, int) or not isinstance(gs, int) or len(raw) > 2_000_000:
+            raise ValueError("sema")
+        gs = min(gs, up + 3 * 3600 * 1000)
+        return H.HaberSinyalProbe("ok", datetime.fromtimestamp(up / 1000, tz=timezone.utc),
+                                  datetime.fromtimestamp(gs / 1000, tz=timezone.utc), True)
+    except (ValueError, KeyError, TypeError, OverflowError, OSError):
+        return H.HaberSinyalProbe("unreadable", job_installed=True)
+
+
 def collect(env: dict, state: dict, now: datetime, *, deadline: float = 0.0) -> H.HealthSnapshot:
     var_dir = env["ENGINE_VAR_DIR"]
     api, ledger, containers = {}, {}, {}
@@ -960,7 +984,7 @@ def collect(env: dict, state: dict, now: datetime, *, deadline: float = 0.0) -> 
             prev_am[b] = (v[0], v[1])
     return H.HealthSnapshot(
         prev_account_mode=prev_am, live_path_issues=live_path_issues,
-        drift=collect_drift(env, var_dir), ml=ml, prev_ml_score_errors={b: v for b, v in prev_scores.items() if _int_or_none(v) is not None},
+        drift=collect_drift(env, var_dir), ml=ml, haber_sinyal=probe_haber_sinyal(var_dir), prev_ml_score_errors={b: v for b, v in prev_scores.items() if _int_or_none(v) is not None},
         market=market, bans=collect_bans(env, var_dir), prev_rules_missing=dict(state.get("rules_missing", {})),
         now=now, timeframe_s=tf_s, api=api, ledger=ledger, disk_free_bytes=free, mem_available_bytes=mem,
         swap_total_bytes=swap_t, swap_used_bytes=swap_u, containers=containers,

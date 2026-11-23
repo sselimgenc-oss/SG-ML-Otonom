@@ -28,7 +28,7 @@ __all__ = [
     "LogNotifier", "NullNotifier", "plan_alerts", "revert_failed_alerts", "empty_state",
     "PauseProbe", "quiet_http_loggers", "IMMEDIATE_CODES", "HeartbeatSender", "HttpsHeartbeat", "parse_env_text",
     "parse_maintenance", "heartbeat_message", "should_send_ok", "REQUIRED_CHECKS", "MarketProbe",
-    "MlProbe", "DriftProbe", "BanProbe",
+    "MlProbe", "DriftProbe", "BanProbe", "HaberSinyalProbe",
 ]
 
 log = logging.getLogger("trader.health")
@@ -201,6 +201,15 @@ class DriftProbe:
 
 
 @dataclass(frozen=True)
+class HaberSinyalProbe:
+    """Haber sinyali dosyasi (var/learner/sinyal/haber_sinyal.json) olcumu (ust lig HB1 girdisi). Saglik yalniz yasa bakar."""
+    file_state: str = "missing"             # "ok" | "missing" | "unreadable"
+    produced_at: datetime | None = None     # dosyadaki `uretim`
+    valid_until: datetime | None = None     # uretim + gecerlilik (uretim + 3 sa tavanli)
+    job_installed: bool = False             # sinyal isi kurulu: durum dosyasi (haber_sinyal_durum.json) var
+
+
+@dataclass(frozen=True)
 class HealthSnapshot:
     now: datetime
     timeframe_s: int | None = None
@@ -236,6 +245,8 @@ class HealthSnapshot:
     prev_account_mode: Mapping[str, tuple[int, int]] | None = None
     # DD-9 §8.3: canli yol tutarliligi; None = LIVE_BOTS bos (denetim uretilmez), () = tutarli, aksi uyusmazlik kodlari.
     live_path_issues: tuple[str, ...] | None = None
+    # Ust lig: haber sinyali dosyasi; None = yoklanmadi (haber_sinyal_age denetimi uretilmez).
+    haber_sinyal: HaberSinyalProbe | None = None
 
     def __post_init__(self):
         if not isinstance(self.now, datetime) or self.now.tzinfo is None or self.now.utcoffset() is None:
@@ -847,6 +858,33 @@ def _c_ml(snap, bot, cfg):
     return _res(name, worst[0], worst[1], detail, value)
 
 
+HABER_SINYAL_ILK_SAAT_S = 6 * 3600     # kurulumdan sonra bu sure dosya yoksa bile yalniz bilgi (INFO)
+
+
+def _c_haber_sinyal(snap, cfg):
+    """haber_sinyal_age: HB1 kolunun girdisi. Taze -> OK; bayat (gecerlilik doldu) / bozuk -> WARN (yalniz HB1 girisleri durur);
+    dosya yok: isi kurulu degil ya da kurulumdan sonraki ilk saatlerdeyse INFO (Status.OK, kod `haber_sinyal_info`), aksi WARN."""
+    name = "haber_sinyal_age"
+    p = snap.haber_sinyal
+    if p.file_state == "unreadable":
+        return _res(name, Status.WARN, "haber_sinyal_bozuk", "haber sinyali dosyasi okunamadi/sema disi; HB1 girisleri durdu")
+    if p.file_state != "ok" or not isinstance(p.produced_at, datetime) or p.produced_at.tzinfo is None:
+        ilk = snap.installed_at is not None and (snap.now - snap.installed_at).total_seconds() < HABER_SINYAL_ILK_SAAT_S
+        if not p.job_installed or ilk:
+            return _res(name, Status.OK, "haber_sinyal_info", "INFO: haber sinyali dosyasi yok (sinyal isi kurulu degil ya da ilk saatler)")
+        return _res(name, Status.WARN, "haber_sinyal_yok", "haber sinyali dosyasi yok; HB1 girisleri durdu")
+    try:
+        age = _age_s(snap.now, p.produced_at, cfg)
+    except _Skew:
+        return _unknown(name, "clock_skew", "haber sinyali zamani gelecekte; saat uyumsuz")
+    lim = p.valid_until
+    gecerlilik = (lim - p.produced_at).total_seconds() if isinstance(lim, datetime) and lim.tzinfo is not None else 3 * 3600
+    if age > gecerlilik:
+        return _res(name, Status.WARN, "haber_sinyal_bayat",
+                    f"haber sinyali yasi {age:.0f} sn, gecerlilik {gecerlilik:.0f} sn; HB1 girisleri durdu", age, gecerlilik)
+    return _res(name, Status.OK, "ok", f"haber sinyali yasi {age:.0f} sn", age, gecerlilik)
+
+
 def _c_drift(snap, bot, cfg):
     """drift_monitor:<bot> (Bolum 16.6). Bilincli istisna: hicbir kosulda CRIT/UNKNOWN uretmez."""
     name = f"drift_monitor:{bot}"
@@ -1182,6 +1220,8 @@ def evaluate(snap: HealthSnapshot, cfg: HealthConfig = DEFAULT_CFG) -> HealthRep
         for bot in cfg.require_bots:
             results.append(_safe(f"rules_missing:{bot}", _c_rules_missing, snap, bot, cfg))
 
+    if snap.haber_sinyal is not None:
+        results.append(_safe("haber_sinyal_age", _c_haber_sinyal, snap, cfg))
     if snap.ml is not None:
         for bot in snap.ml:
             results.append(_safe(f"ml_package:{bot}", _c_ml, snap, bot, cfg))
@@ -1376,6 +1416,8 @@ _HEALTH_TR: dict[str, tuple[str, str, str]] = {
                     "Sermaye koruma kuralları devrede; yeni işlemler kısıtlanabilir."),
     "ml_package": ("Yapay zekâ modeli sorunlu", "Yapay zekâ modeli yeniden normal",
                    "Modelin durumu için günlük rapora bak."),
+    "haber_sinyal_age": ("Haber sinyali güncel değil", "Haber sinyali yeniden güncel",
+                         "Haber kolunun (HB1) yeni girişleri durur; diğer kollar ve açık pozisyonlar etkilenmez."),
     "drift_monitor": ("Bot beklenenden farklı davranıyor", "Bot yeniden beklendiği gibi davranıyor",
                       "Bot durdurulmadı; ayrıntı günlük raporda. İnceleme gerekir."),
 }
