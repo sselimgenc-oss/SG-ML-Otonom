@@ -114,7 +114,7 @@ def topla(cf: list[Mapping], atlanan: list[Mapping], alinan: list[Mapping], simd
 
     def kilit(d):
         t = _utc(d.get("ts"))
-        return t is not None and CF.HOLDOUT_START <= t < CF.HOLDOUT_END
+        return (not CF.KILIT_ACIK) and t is not None and CF.HOLDOUT_START <= t < CF.HOLDOUT_END
 
     atl = [d for d in atlanan if not kilit(d)]
     res = {}

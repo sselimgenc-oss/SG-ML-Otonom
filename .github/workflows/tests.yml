@@ -95,10 +95,6 @@ jobs:
             echo "Yalniz kosucuya ozgu eksik yol/kullanici iletileri; tolere edildi."
           fi
 
-      - name: Kilitli donem korumalari
-        working-directory: trader
-        run: python -m pytest -q tests/engine/test_no_holdout_in_tests.py tests/engine/test_engine_holdout_lock.py
-
       - name: pytest (tam; var/history yoksa gercek-veri testleri atlanir)
         working-directory: trader
         run: python -m pytest -q   # python -m: trader/ sys.path basinda (tests.engine iceaktarimlari)

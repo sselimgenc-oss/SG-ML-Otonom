@@ -34,6 +34,8 @@ PLAN_HORIZON_BARS = 48                # `plan` yontemi: planlanan stop/hedef ici
 TARGET_R = 2.0
 FEE_RATE = 0.0005                     # taraf basina
 SLIPPAGE_RATE = 0.0005                # taraf basina
+# 23.11.2026 kullanici karari: kilit ACIK (trader_engine.holdout.KILIT_ACIK'in kopyasi; esitlik testle denetlenir)
+KILIT_ACIK = True
 HOLDOUT_START = datetime(2026, 5, 1, tzinfo=timezone.utc)
 HOLDOUT_END = datetime(2026, 11, 1, tzinfo=timezone.utc)
 GAP_GRACE = timedelta(hours=24)       # ufuk dolduktan sonra bu kadar bekleyip hala eksik mum varsa 'data_gap' yazilir
@@ -401,7 +403,7 @@ def run_once(*, bot: str, decisions: Sequence, market_path, store: Counterfactua
             start_ms = _ceil_ms(bar_close, tf_ms)
             start = datetime.fromtimestamp(start_ms / 1000, tz=timezone.utc)
             end = start + timedelta(milliseconds=horizon * tf_ms)
-            if start < HOLDOUT_END and end > HOLDOUT_START:           # kilitli donem: asla okunmaz
+            if not KILIT_ACIK and start < HOLDOUT_END and end > HOLDOUT_START:           # kilitli donem (kilit kapaliyken): okunmaz
                 res.holdout_skipped += 1
                 continue
             if now < end:                                              # ufuk dolmadi: sizinti yok, bekle
@@ -533,7 +535,7 @@ def run_shadow(*, bot: str, shadows: Sequence, market_path, store: Counterfactua
             start_ms = _ceil_hour_ms(_utc(d.bar_close_ts))
             start = datetime.fromtimestamp(start_ms / 1000, tz=timezone.utc)
             end = start + timedelta(milliseconds=horizon * BAR_MS)
-            if start < HOLDOUT_END and end > HOLDOUT_START:
+            if not KILIT_ACIK and start < HOLDOUT_END and end > HOLDOUT_START:
                 res.shadow_holdout_skipped += 1
                 continue
             if now < end:

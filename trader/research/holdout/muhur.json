@@ -568,5 +568,11 @@
     }
   ],
   "birlesik_sha256": "499d54b12cde62683a3becf51561b1e3ebafb9fa475a418908dfe6a5fae9a45e",
-  "acildi": false
+  "acildi": true,
+  "acilis": {
+    "zaman": "2026-11-23T18:09:47Z",
+    "aday_kumesi": "tum kume (23.11 kilit kaldirma)",
+    "gerekce": "23.11 kullanici karari: kilit kaldirildi",
+    "birlesik_sha256": "499d54b12cde62683a3becf51561b1e3ebafb9fa475a418908dfe6a5fae9a45e"
+  }
 }

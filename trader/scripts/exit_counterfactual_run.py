@@ -28,7 +28,9 @@ sys.path.insert(0, str(_HERE.parent / "src"))
 
 from trader_core import exit_counterfactual as EC  # noqa: E402
 from trader_core import ledger as L  # noqa: E402
-from trader_engine.holdout import HOLDOUT, BacktestArgError, check_holdout  # noqa: E402
+from trader_engine.holdout import HOLDOUT as _HOLDOUT, KILIT_ACIK, BacktestArgError, check_holdout  # noqa: E402
+
+HOLDOUT = None if KILIT_ACIK else _HOLDOUT        # 23.11.2026 kullanici karari: kilit acik -> pencere yok (EC varsayilani de bos)
 
 EXIT_OK, EXIT_CONFIG, EXIT_DEGRADED = 0, 1, 3
 log = logging.getLogger("trader.exit_cf.run")

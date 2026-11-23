@@ -18,6 +18,7 @@ from . import tg_sade as TS
 
 TR = timezone(timedelta(hours=3))     # Europe/Istanbul (DST yok)
 # trader_engine.holdout.HOLDOUT ile AYNI (katman geregi kopya; testte esitligi denetlenir)
+KILIT_ACIK = True      # trader_engine.holdout.KILIT_ACIK kopyasi (23.11.2026 kullanici karari; parite testi)
 KILIT = (datetime(2026, 5, 1, tzinfo=timezone.utc), datetime(2026, 11, 1, tzinfo=timezone.utc))
 BASLIK = "Strateji verisi (beyin fırtınası için)"
 DOSYA_ADI = "strateji-veri-ml.md"
@@ -49,9 +50,9 @@ def utc(dt: datetime | None) -> datetime | None:
 
 
 def kilit_disi(ts: datetime | None) -> bool:
-    """True: zaman kilitli donemin (2026-05-01 <= t < 2026-11-01) DISINDA. Zamani olmayan kayit okunmaz sayilir (False)."""
+    """True: zaman kilitli donemin (2026-05-01 <= t < 2026-11-01) DISINDA (kilit acikken zamani olan her kayit; KILIT_ACIK). Zamani olmayan kayit okunmaz sayilir (False)."""
     t = utc(ts)
-    return t is not None and not (KILIT[0] <= t < KILIT[1])
+    return t is not None and (KILIT_ACIK or not (KILIT[0] <= t < KILIT[1]))
 
 
 def tsi(dt: datetime | None) -> str:

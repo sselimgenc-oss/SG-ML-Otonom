@@ -32,7 +32,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from trader_engine.holdout import BacktestArgError, check_holdout  # noqa: E402
 from trader_ml import corpus_v2  # noqa: E402
-from trader_ml.config import HOLDOUT_START  # noqa: E402
+from trader_ml.config import HOLDOUT_START, KILIT_ACIK  # noqa: E402
 from trader_ml.guards import HoldoutViolation, assert_pre_holdout  # noqa: E402
 from trader_ml.recipes import _WF_V2  # noqa: E402
 from trader_ml.walkforward import make_folds  # noqa: E402
@@ -75,7 +75,7 @@ def check_period(period: str) -> tuple[pd.Timestamp, pd.Timestamp]:
         s, e = (pd.Timestamp(x, tz="UTC") for x in period.split("-"))
     except Exception as ex:
         raise SystemExit(f"--period 'YYYYMMDD-YYYYMMDD' olmali: {period!r} ({ex})")
-    if e > HOLDOUT_START:
+    if not KILIT_ACIK and e > HOLDOUT_START:
         raise HoldoutViolation(f"bitis {e} kilitli donem sinirini ({HOLDOUT_START}) asiyor; katman uretilmez")
     try:
         check_holdout(s.to_pydatetime(), e.to_pydatetime())            # motor tarafi kilidi (ikinci, bagimsiz kontrol)

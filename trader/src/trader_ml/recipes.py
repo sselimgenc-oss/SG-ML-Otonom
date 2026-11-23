@@ -40,7 +40,7 @@ def _r01() -> Recipe:
         id=config.RECIPE_ID, features=(), label_col="label", label_end_col="label_end_ts",
         weight_scheme=config.WEIGHT_SCHEME, platt_nonneg=config.PLATT_NONNEG_SLOPE,
         lgbm_params=dict(config.LGBM_PARAMS), logit_params=dict(config.LOGIT_PARAMS),
-        wf={"start": config.DATA_START, "end": config.HOLDOUT_START, "train_bars": config.TRAIN_BARS,
+        wf={"start": config.DATA_START, "end": config.EGITIM_KESIMI, "train_bars": config.TRAIN_BARS,
             "test_bars": config.TEST_BARS, "step_bars": config.STEP_BARS, "min_test_bars": config.MIN_TEST_BARS},
         source_map={})
 

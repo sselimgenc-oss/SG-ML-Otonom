@@ -10,7 +10,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from .config import BAR, DATA_START, HOLDOUT_START
+from .config import BAR, DATA_START, EGITIM_KESIMI
 from trader_core.ml_features import INCLUDE_ENGINE_CONTEXT_FEATURES
 
 from .features import BTC, ETH, add_bars_since_exit, candidate_rows, feature_frame
@@ -20,7 +20,7 @@ from .schema import validate_candidates
 DEFAULT_PAIRS = (BTC, ETH, "SOL/USDT:USDT", "BNB/USDT:USDT", "XRP/USDT:USDT", "DOGE/USDT:USDT")
 
 
-def synthetic_candles(pairs=DEFAULT_PAIRS, start=DATA_START, end=HOLDOUT_START, seed: int = 11) -> dict[str, pd.DataFrame]:
+def synthetic_candles(pairs=DEFAULT_PAIRS, start=DATA_START, end=EGITIM_KESIMI, seed: int = 11) -> dict[str, pd.DataFrame]:
     """Rejim degistiren drift + ortak piyasa faktoru. end DISLAYICI (kilitli doneme girilmez)."""
     idx = pd.date_range(start, end - BAR, freq="1h", tz="UTC") if start.tzinfo else \
         pd.date_range(start, end - BAR, freq="1h")

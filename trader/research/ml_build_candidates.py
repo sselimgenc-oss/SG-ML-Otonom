@@ -36,7 +36,7 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
-from trader_ml.config import BAR, DATA_START, HOLDOUT_START  # noqa: E402
+from trader_ml.config import BAR, DATA_START, HOLDOUT_START, KILIT_ACIK  # noqa: E402
 from trader_ml.features import feature_frame  # noqa: E402
 from trader_ml.guards import assert_pre_holdout  # noqa: E402
 from trader_ml.labels import cost_in_r, label_candidates  # noqa: E402
@@ -195,7 +195,7 @@ def build(run_dir: Path, out_name: str) -> tuple[pd.DataFrame, dict]:
     if meta["fill_model"] != "native":
         raise SystemExit("yalniz native kip")
     end = pd.Timestamp(meta["period"][1])
-    if end > HOLDOUT_START:
+    if not KILIT_ACIK and end > HOLDOUT_START:
         raise SystemExit(f"kosu kilitli doneme giriyor: {end}")
     dec, tr = read_ledger(run_dir)
     dec["ts"] = pd.to_datetime(dec["bar_close_ts"], utc=True)

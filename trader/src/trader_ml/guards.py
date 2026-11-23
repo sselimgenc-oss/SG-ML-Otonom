@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from .config import HOLDOUT_START
+from .config import HOLDOUT_START, KILIT_ACIK
 
 
 class HoldoutViolation(RuntimeError):
@@ -19,6 +19,8 @@ def _utc(ts) -> pd.Series | pd.DatetimeIndex:
 
 def assert_pre_holdout(ts, what: str = "veri") -> None:
     """ts (Series/Index/liste) icinde HOLDOUT_START ve sonrasi varsa HoldoutViolation."""
+    if KILIT_ACIK:                       # 23.11.2026 kullanici karari: kilit acik
+        return
     t = _utc(ts)
     if len(t) == 0:
         return
@@ -30,5 +32,7 @@ def assert_pre_holdout(ts, what: str = "veri") -> None:
 def clip_to_train_window(df: pd.DataFrame, ts_col: str | None = None) -> pd.DataFrame:
     """Yalniz kaynak katmani (19b disa aktarimi) icin: kilitli satirlari atar. Egitim yollari
     bunu KULLANMAZ; onlar assert_pre_holdout ile hata verir."""
+    if KILIT_ACIK:
+        return df
     t = _utc(df.index if ts_col is None else df[ts_col])
     return df[(t < HOLDOUT_START).to_numpy()]

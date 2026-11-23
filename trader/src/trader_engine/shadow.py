@@ -18,7 +18,8 @@ from trader_core import regime as R
 from trader_core import signals as S
 
 from .bars import tf_delta
-from .holdout import HOLDOUT
+from .holdout import HOLDOUT, KILIT_ACIK
+from .holdout import in_holdout as _in_holdout
 
 _OHLC = ["open", "high", "low", "close"]
 N15, N4H = 5000, 1500                     # tf_15m penceresi (WindowedSignalSource ile ayni)
@@ -50,7 +51,7 @@ class ShadowCand:
 
 def in_holdout(ts: datetime) -> bool:
     """Kilitli donem `[2026-05-01, 2026-11-01)`: bu bar_close_ts'li satir yazilmaz (spec 0.4)."""
-    return HOLDOUT[0] <= ts < HOLDOUT[1]
+    return _in_holdout(ts)
 
 
 def _fin(x) -> bool:
@@ -209,7 +210,7 @@ def tf15_candidates(view, pair: str, D: datetime, params, *, counters: MutableMa
     """15 dk tetikle son saatte (D - 1 sa, D] kapanan `signal=True` mumlar (spec 5.3-4).
     Pencerenin ilk mumu kilitli donemin bitisinden (2026-11-01T00:00Z) onceyse hesap YAPILMAZ ve piyasa verisi
     OKUNMAZ (`tf15_holdout_wait`)."""
-    if tf15_window_start(D) < HOLDOUT[1]:
+    if not KILIT_ACIK and tf15_window_start(D) < HOLDOUT[1]:
         if counters is not None:
             counters["tf15_holdout_wait"] = counters.get("tf15_holdout_wait", 0) + 1
         return []
@@ -220,7 +221,7 @@ def tf15_candidates(view, pair: str, D: datetime, params, *, counters: MutableMa
         return []
     if b15.index[-1].to_pydatetime() != D - d15:
         return []
-    if b15.index[0].to_pydatetime() < HOLDOUT[1]:
+    if not KILIT_ACIK and b15.index[0].to_pydatetime() < HOLDOUT[1]:
         if counters is not None:
             counters["tf15_holdout_wait"] = counters.get("tf15_holdout_wait", 0) + 1
         return []
