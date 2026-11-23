@@ -67,3 +67,10 @@ Ortak kurallar:
 - KARAR-7: Kaldırma eşikleri. Öneri: aynen onay.
 - KARAR-8: Haber verisi sinyal dosyası üzerinden karar girdisi olabilsin. Öneri: evet.
 - KARAR-9: Kodda olmayan `L1` LLM aday kolu. Öneri: açılmasın, yerini HB1 alsın.
+
+## 6. KULLANICI KARARLARI (23.11, verildi)
+- KARAR-1: aylık LLM tavanı **20 $**.
+- KARAR-2: haber kolu **kripto + hisse + emtia**; hisse/emtia için haber kaynakları eklenecek (ek iş).
+- KARAR-3: haber modeli **Haiku 5.5**.
+- KARAR-4: DL eğitimi **haftada bir, GitHub Actions** (repo gizli olursa dakika maliyeti yeniden değerlendirilir).
+- KARAR-5…9: Fable önerileri aynen kabul (yön + oynaklık; süzgeç özelliği 100 işlemden sonra; kaldırma eşikleri aynen; haber sinyal dosyası karar girdisi olabilir; L1 açılmaz, yerini HB1 alır).
