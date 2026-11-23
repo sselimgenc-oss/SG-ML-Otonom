@@ -232,12 +232,13 @@ class PriceActionLab:
 
         if (force_core or any(getattr(m, "CORE", False) for m in arms)) and (CORE_KEY not in skip or force_core):
             run(CORE_KEY, lambda: self.compute(ctx))
+        setups = [m for m in arms if not getattr(m, "CORE", False) and m.SETUP not in skip]
+        if not setups:                                           # kurulum yoksa barlara dokunma (eski davranis)
+            return out
         full = ctx.bars[ctx.tf]
         keep = AG.active_mask(full)                              # None: olu mum yok (kripto) -> eski yol, kurulum girdisi/ciktisi degismez
         trig_a = full if keep is None else full[keep]
-        for m in arms:
-            if getattr(m, "CORE", False) or m.SETUP in skip:
-                continue
+        for m in setups:
             inp = ArmInput(pair=ctx.pair, tf=ctx.tf, D=ctx.D, trig=trig_a, h4=ctx.bars["4h"],
                            params=S.SignalParams.from_mapping(ctx.params), core_fn=lambda c=ctx: self._core_compact(c))
             if keep is None:
