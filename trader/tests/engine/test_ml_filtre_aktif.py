@@ -140,7 +140,7 @@ def test_config_kagit_active_canli_testnet_eskisi_gibi():
 def _adaylar(arm, n, *, t0=datetime(2026, 11, 2, tzinfo=timezone.utc), saat=1):
     out = []
     for i in range(n):
-        x = 5.0 if i % 2 == 0 else -5.0
+        x = -5.0 if i % 3 == 2 else 5.0       # 2/3 kazanan, x etiketi tam ayirir: yayin oncesi sinama (>=3 kabul) gecer
         out.append(Aday(id=f"{arm}{i}", proje="ML", kurulum=arm, enstruman="BTC/USDT", varlik_sinifi="kripto", yon="long",
                         ts=t0 + timedelta(hours=saat * i), alindi=True, r=1.0 if x > 0 else -1.0, ozellikler={"x": x}))
     return out
@@ -217,7 +217,9 @@ def _aile_adaylar(kollar: dict[str, int]):
     out = []
     for arm, n in kollar.items():
         out += _adaylar(arm, n, t0=datetime(2026, 11, 2, tzinfo=timezone.utc) + timedelta(minutes=len(out)))
-    return out
+    out.sort(key=lambda a: a.ts)
+    # etiket deseni havuz sirasina gore (her aile diliminde iki sinif + yayin oncesi sinama gecer)
+    return [dataclasses.replace(a, r=-1.0 if i % 3 == 2 else 1.0, ozellikler={"x": -5.0 if i % 3 == 2 else 5.0}) for i, a in enumerate(out)]
 
 
 def test_aile_of_ve_tf_ozellikleri():
@@ -228,12 +230,12 @@ def test_aile_of_ve_tf_ozellikleri():
 
 
 def test_aile_toplam_10_olunca_aktif_her_kola_uygulanir(tmp_path):
-    # hicbir kolun tek basina 10 islemi yok: 4+3+2+2 = 11 >= 10
-    r = OF.egit_hepsi(_aile_adaylar({"M1@15m": 4, "M1@1h": 3, "M1@4h": 2, "M1@1d": 2}), tmp_path, NOW)
-    assert r["aileler"]["M1"]["durum"] == "ok" and r["aileler"]["M1"]["n"] == 11
-    assert r["aileler"]["M1"]["kollar"] == {"M1@15m": 4, "M1@1h": 3, "M1@4h": 2, "M1@1d": 2}
+    # hicbir kolun tek basina 10 islemi yok: 8+6+4+4 = 22 >= 10
+    r = OF.egit_hepsi(_aile_adaylar({"M1@15m": 8, "M1@1h": 6, "M1@4h": 4, "M1@1d": 4}), tmp_path, NOW)
+    assert r["aileler"]["M1"]["durum"] == "ok" and r["aileler"]["M1"]["n"] == 22
+    assert r["aileler"]["M1"]["kollar"] == {"M1@15m": 8, "M1@1h": 6, "M1@4h": 4, "M1@1d": 4}
     meta = json.loads((tmp_path / "aile_M1.json").read_text())["meta"]
-    assert meta["kurulum"] == "aile:M1" and meta["n_egitim"] == 11 and "tf_log2_dk" in meta["ozellikler"]
+    assert meta["kurulum"] == "aile:M1" and meta["n_egitim"] == 22 and "tf_log2_dk" in meta["ozellikler"]
     d = OF.FiltreDeposu(tmp_path)
     assert d.aktif_aileler(NOW) == ["M1"] and d.aktif_kol_sayisi(NOW) == 4
     for arm in ("M1@15m", "M1@1h", "M1@4h", "M1@1d"):
@@ -278,13 +280,13 @@ def test_gece_birimi_paper_models_csv_aile_satiri(tmp_path, monkeypatch):
     import ml_retrain_run as R
     lp = tmp_path / "ledger.sqlite"
     L.open_ledger(lp, "learner", create=True, migrate=True).close()
-    monkeypatch.setattr(OF, "adaylar_defterden", lambda led: _aile_adaylar({"M1@15m": 4, "M1@1h": 3, "M1@4h": 2, "M1@1d": 2, "T1@1h": 3}))
+    monkeypatch.setattr(OF, "adaylar_defterden", lambda led, *a, **k: _aile_adaylar({"M1@15m": 8, "M1@1h": 6, "M1@4h": 4, "M1@1d": 4, "T1@1h": 3}))
     rc = R.main(["--once", "--ledger", str(lp), "--models-dir", str(tmp_path / "m"), "--no-m1",
                  "--paper-models-csv", str(tmp_path / "pm.csv")], now_fn=lambda: NOW, env={})
     assert rc == 0
     satirlar = {s.split(",")[0]: s for s in (tmp_path / "pm.csv").read_text().splitlines()}
     m1 = satirlar["ortak_filtre_aile_M1_2026-12-01"]
-    assert "durum=ok" in m1 and "n=11" in m1 and "M1@15m=4" in m1 and "aile=M1" in m1
+    assert "durum=ok" in m1 and "n=22" in m1 and "M1@15m=8" in m1 and "aile=M1" in m1
     assert "durum=az_islem" in satirlar["ortak_filtre_aile_T1_2026-12-01"]
     assert (tmp_path / "models" / "ortak_filtre" / "aile_M1.json").exists()
 

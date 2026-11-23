@@ -200,15 +200,19 @@ def main(argv=None, *, now_fn=None, env=None) -> int:
         ortak: dict = {}
         try:   # 19.11: kagit ML filtresi (ortak_ogrenme) - kurulum basina >=10 kapanmis islem; hata digerlerini geri almaz
             from trader_engine import ogrenme_filtre as OF
-            ortak = OF.egit_hepsi(OF.adaylar_defterden(led), OF.model_dizini(lp), now, kollar=arms)
+            ortak = OF.egit_hepsi(OF.adaylar_defterden(led, cf if os.path.exists(cf) else None, now), OF.model_dizini(lp), now, kollar=arms)
         except Exception as e:  # noqa: BLE001
             ortak = {"durum": f"hata:{type(e).__name__}"}
             print(f"ortak filtre egitim hatasi: {type(e).__name__}: {e}", file=sys.stderr)
         for aile, r in sorted((ortak.get("aileler") or {}).items()):   # aile durumu paper_models.csv'de gorunur (model yoksa nedeni)
             kollar = ",".join(f"{k}={v}" for k, v in sorted(r.get("kollar", {}).items()))
+            sn = r.get("sinama")
+            sn_s = "" if not sn else (f";sinama={sn['karar']};n_egitim={sn['n_egitim']};n_sinama={sn['n_sinama']};n_kabul={sn['n_kabul']}"
+                                      f";ort_r_hepsi={sn['ort_r_hepsi']};ort_r_kabul={sn['ort_r_kabul']}")
+            print(f"ortak filtre sinamasi aile={aile} durum={r.get('durum')}{sn_s}", file=sys.stderr)
             csv_rows.append([f"ortak_filtre_aile_{aile}_{now.date().isoformat()}", "nightly",
                              "ridge_logistic;aile=" + aile + ";tf_ozellik=log2+onehot",
-                             f"n={r.get('n', 0)};min=10;durum={r.get('durum')};kollar={kollar}", "", r.get("model_hash", ""), now.isoformat()])
+                             f"n={r.get('n', 0)};min=10;durum={r.get('durum')};kollar={kollar}{sn_s}", "", r.get("model_hash", ""), now.isoformat()])
         if not args.no_m1:
             tfs = [t.strip() for t in args.m1_tfs.split(",") if t.strip()]
             if any(t not in PB_TFS for t in tfs):
