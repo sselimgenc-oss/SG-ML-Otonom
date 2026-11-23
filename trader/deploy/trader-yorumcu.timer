@@ -1,0 +1,10 @@
+[Unit]
+Description=Trader YZ yorumcu zamanlayicisi (her gun 05:40 UTC; olcum raporundan 30 dk sonra)
+
+[Timer]
+OnCalendar=*-*-* 05:40:00 UTC
+Persistent=true
+RandomizedDelaySec=60
+
+[Install]
+WantedBy=timers.target

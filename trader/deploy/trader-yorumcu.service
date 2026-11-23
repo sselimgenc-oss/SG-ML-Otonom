@@ -1,0 +1,29 @@
+[Unit]
+Description=Trader YZ yorumcu (gunluk sade Turkce rapor; YETKISI YOK, yalniz var/durum/yorumcu yazar; yorumcu butce payi)
+Documentation=file:///opt/trader/docs/ml/tur1-olcum.md
+After=network-online.target
+Wants=network-online.target
+OnFailure=trader-health-fail@%n.service
+
+[Service]
+Slice=trader.slice
+Type=oneshot
+User=trader
+Group=trader
+WorkingDirectory=/opt/trader
+# ANTHROPIC_API_KEY_YORUMCU (yoksa "bugun rapor yok" dosyasi yazilir, cikis 0). Defter ve olcum dosyalari SALT OKUNUR.
+EnvironmentFile=/etc/trader-lesson.env
+Environment=TELEGRAM_VAR_DIR=/opt/trader/var/telegram
+ExecStart=/usr/bin/python3 -I /opt/trader/scripts/yorumcu_run.py --once
+TimeoutStartSec=3300
+MemoryMax=256M
+CPUQuota=30%
+Nice=15
+IOSchedulingClass=idle
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+# Rapor YALNIZ var/durum/yorumcu'ya yazilir. Ek (zorunlu): user_data = butce deposu (budget.authorize/record, SQLite yan dosyalari dizinde);
+# var/telegram = Telegram outbox (kisa ozet; yoksa '-' ile atlanir).
+ReadWritePaths=/opt/trader/var/durum/yorumcu /opt/trader/user_data -/opt/trader/var/telegram

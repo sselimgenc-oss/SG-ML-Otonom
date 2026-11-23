@@ -40,6 +40,9 @@ PYTHONPATH="$trader_dir/src" "$py" -m trader_panel --config "$trader_dir/config/
 for f in mutabakat_v1.json mutabakat.md strateji-veri-ml.md tutarlilik_v1.json c1_goc_raporu.json tur1_olcum_v1.json tur1_olcum.md; do
   if [ -s "$trader_dir/var/durum/$f" ]; then cp "$trader_dir/var/durum/$f" "$cikti/$f"; fi
 done
+# YZ yorumcu: en son gunluk rapor (yalniz kendi dizininden; yorumcu_son.md). Yalniz metin; anahtar/sir kalibi son kapida taranir
+yorumcu_son="$(ls -1 "$trader_dir"/var/durum/yorumcu/????-??-??.md 2>/dev/null | sort | tail -n 1 || true)"
+if [ -n "$yorumcu_son" ] && [ -s "$yorumcu_son" ]; then cp "$yorumcu_son" "$cikti/yorumcu_son.md"; fi
 if [ -s "$trader_dir/var/learner/status.json" ]; then cp "$trader_dir/var/learner/status.json" "$cikti/durum.json"; fi
 # Model paketleri (yalniz ad/boyut/zaman; icerik yok) ve gece egitimi ozet satirlari: M1/filtre paketi var mi, ne zaman uretildi
 if [ -d "$trader_dir/var/learner/models" ]; then
