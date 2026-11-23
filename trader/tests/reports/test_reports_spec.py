@@ -594,17 +594,15 @@ def test_g7_determinism_and_dry_run(tmp_path):
 
 
 # ================================================================================================ H: kilitli donem
-def test_h1_run_level_lock(tmp_path):
+def test_h1_run_level_lock_acik_kilitte_kosu_okunur(tmp_path):
+    """23.11.2026: kilit acik -> kilitli donemle kesisen kosu 'holdout_locked' ile REDDEDILMEZ (kosu dizini okunur)."""
     run = tmp_path / "bt_locked"
     run.mkdir()
     (run / "meta.json").write_text(json.dumps({"period": [T("2026-04-01"), T("2026-06-01")], "pairs": ["BTC/USDT"], "trigger_tf": "1h"}))
     (run / "ledger.sqlite").write_bytes(b"BU BIR SQLITE DEGIL - okunursa hata verir")
-    # trades.csv yok: okunursa kod 2 olurdu
     r = go_bt(tmp_path, run)
-    assert r.rc == 3, r.text
-    assert json.loads((r.out_dir / "rapor.json").read_text()) == {"status": "holdout_locked"}
-    assert len((r.out_dir / "rapor.md").read_text().strip().splitlines()) == 1
-    assert (run / "ledger.sqlite").read_bytes().startswith(b"BU BIR")
+    assert r.rc != 3, r.text                       # kilit reddi (holdout_locked, kod 3) yok; bozuk defter artik okunmaya calisilir
+    assert "holdout_locked" not in r.text
 
 
 def _holdout_trades():
@@ -618,17 +616,15 @@ def _holdout_trades():
 
 
 def test_h2_h4_row_level_filter_and_counter(tmp_path):
+    """Kilit acik (23.11.2026): kilitli donemle kesisen islemler de okunur; atlanan sayaci 0, kilit metni yok."""
     sc = scenario(tmp_path, [], _holdout_trades())
     r = go(sc, now="2026-11-17T00:00:00Z")
     assert r.rc == 0, r.text
     rows = r.csv_rows()
-    assert set(rows) == {"B", "D"}
-    assert r.summary["holdout_skipped"] == 3
-    assert r.js["counters"]["holdout_skipped"] == 3
-    for f in ("rapor.md", "rapor.json", "cikis_islemler.csv", "ozet.txt"):
-        txt = (r.out_dir / f).read_text(encoding="utf-8")
-        assert "LEAK" not in txt, f
-    assert "Kilitli dönem 2026-05-01..2026-11-01 okunmadı; atlanan satır: 3." in r.md
+    assert set(rows) == {"A", "B", "C", "D", "E"}
+    assert r.summary["holdout_skipped"] == 0
+    assert r.js["counters"]["holdout_skipped"] == 0
+    assert "Kilitli dönem" not in r.md and "atlanan satır" not in r.md
 
 
 def test_h2_decision_rows_filtered(tmp_path):
@@ -640,9 +636,8 @@ def test_h2_decision_rows_filtered(tmp_path):
     sc = scenario(tmp_path, dec, [], cf=cf)
     r = go(sc, now="2026-11-17T00:00:00Z")
     assert r.rc == 0, r.text
-    assert r.summary["n_decisions"] == 2
-    assert r.summary["holdout_skipped"] >= 2
-    assert "LEAK" not in r.md + json.dumps(r.js)
+    assert r.summary["n_decisions"] == 4                 # kilit acik: kilitli donem kararlari da okunur
+    assert r.summary["holdout_skipped"] == 0
 
 
 def test_h3_market_holdout_bars_never_influence_results(tmp_path):
@@ -702,8 +697,8 @@ def test_h5_header_line_and_2026_partial(tmp_path):
     sc = scenario(tmp_path, [], tr)
     r = go(sc, now="2026-11-17T00:00:00Z")
     assert r.rc == 0, r.text
-    assert re.search(r"Kilitli dönem 2026-05-01\.\.2026-11-01 okunmadı; atlanan satır: 0\.", r.md)
-    assert "kısmi (kilitli dönem hariç)" in r.md
+    assert "Kilitli dönem" not in r.md and "okunmadı" not in r.md      # kilit acik: kilit metni uretilmez
+    assert "kısmi (yıl devam ediyor)" in r.md
 
 
 # ================================================================================================ I: istatistik
@@ -1422,7 +1417,8 @@ def test_c1_json_and_md_warnings(tmp_path):
     keys = list(js)
     assert keys == sorted(keys)
     md = r.md
-    order = ["Kilitli dönem 2026-05-01..2026-11-01 okunmadı; atlanan satır:", "Bu rapor ayar değiştirmez; geçmişe bakarak 'keşke' okuması içerir.",
+    assert "Kilitli dönem" not in md                           # kilit acik (23.11.2026): kilit uyarisi uretilmez
+    order = ["Bu rapor ayar değiştirmez; geçmişe bakarak 'keşke' okuması içerir.",
              "Alınmayan sinyallerin sonucu (karşı-olgu) üst sınırdır: emir gerçekleşmesi, sonraki kapılar ve gerçek çıkış kuralı hesaba katılmaz (varsayım).",
              "Çıkış sonrası yol ve 'trend ödedi' etiketi geleceği kullanır; yalnız değerlendirmedir."]
     pos = [md.find(s) for s in order]

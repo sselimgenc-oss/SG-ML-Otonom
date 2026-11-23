@@ -11,6 +11,7 @@ import numpy as np
 from . import features as F
 from .package import build_package, data_hash_of
 
+KILIT_ACIK = True                                           # trader_engine.holdout.KILIT_ACIK kopyasi (23.11.2026 kullanici karari; parite testi)
 LOCK_START = datetime(2026, 5, 1, tzinfo=timezone.utc)      # trader_engine.holdout.HOLDOUT'un kopyasi (parite testi)
 LOCK_END = datetime(2026, 11, 1, tzinfo=timezone.utc)
 MAX_ROWS = 50_000
@@ -26,6 +27,8 @@ def in_lock(ts: datetime, ts_end: datetime | None = None) -> bool:
     """[ts, ts_end] aralagi kilitle kesisiyorsa True (sonuc penceresi kilide uzanan karar da kilitlidir)."""
     if ts.tzinfo is None or (ts_end is not None and ts_end.tzinfo is None):
         raise LockWindowError("tz-bilincli olmayan zaman reddedildi")
+    if KILIT_ACIK:
+        return False
     end = ts if ts_end is None or ts_end < ts else ts_end
     return ts < LOCK_END and end >= LOCK_START
 

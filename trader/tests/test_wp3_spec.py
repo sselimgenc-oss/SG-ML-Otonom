@@ -1345,7 +1345,7 @@ def _stub_view(first_open, n15=5000, n4=1500):
 
 
 @pytest.mark.parametrize("first_offset_min,computes", [(-15, False), (0, True)])
-def test_S8_tf15_holdout_wait_boundary(monkeypatch, first_offset_min, computes):
+def test_S8_tf15_holdout_wait_boundary(monkeypatch, first_offset_min, computes, kilitli_motor):      # 23.11.2026: kilit acik; mekanizma kapali bayrakla sinanir
     sh = shadow_mod()
     first = HOLDOUT_END + timedelta(minutes=first_offset_min)       # 23:45 of the last locked day / 00:00 of the first free day
     view, D = _stub_view(first)
@@ -1874,11 +1874,13 @@ def test_T1_frozen_corpus_reader_is_blind_to_new_data(tmp_path):
     assert da.equals(db) and ta.equals(tb) and len(da) > 0 and len(ta) > 0
 
 
-FROZEN = ["scripts/build_corpus_v2.py", "research/ml_build_candidates.py", "src/trader_ml/features.py",
-          "src/trader_ml/features_v2.py", "src/trader_ml/labels.py", "src/trader_ml/guards.py",
-          "src/trader_ml/config.py", "src/trader_core/ml_features.py", "src/trader_core/ml_features_v2.py",
-          "src/trader_core/signals.py", "src/trader_core/regime.py", "src/trader_core/indicators.py",
-          "src/trader_engine/holdout.py"]
+# 23.11.2026 kullanici karari (kilit acildi): scripts/build_corpus_v2.py, research/ml_build_candidates.py, trader_ml/guards.py,
+# trader_ml/config.py ve trader_engine/holdout.py KILIT_ACIK icin bilerek degistirildi; A1 blob esitligi artik bunlar icin aranmaz
+# (bunlarin sha'lari corpus_v2.manifest.json code_sha256'da yenilendi). Digerleri donuk kalir.
+FROZEN = ["src/trader_ml/features.py",
+          "src/trader_ml/features_v2.py", "src/trader_ml/labels.py",
+          "src/trader_core/ml_features.py", "src/trader_core/ml_features_v2.py",
+          "src/trader_core/signals.py", "src/trader_core/regime.py", "src/trader_core/indicators.py"]
 
 
 def test_T1_frozen_files_blob_hashes_unchanged():

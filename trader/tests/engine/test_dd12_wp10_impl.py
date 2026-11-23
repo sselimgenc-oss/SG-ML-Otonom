@@ -16,6 +16,10 @@ from trader_ml.setup_filter import features as F
 from trader_ml.setup_filter import package as P
 from trader_ml.setup_filter import train as T
 
+# 23.11.2026 kullanici karari: kilit ACIK. Bu dosya kilit mekanizmasini sinar -> kilit KAPALI bayragiyla (conftest.egitim_kilitli); acik davranis tests/ml/test_kilit_acik_egitim.py.
+pytestmark = pytest.mark.usefixtures("egitim_kilitli")
+
+
 UTC = timezone.utc
 T0 = datetime(2026, 11, 2, tzinfo=UTC)
 NOW = datetime(2026, 11, 20, tzinfo=UTC)

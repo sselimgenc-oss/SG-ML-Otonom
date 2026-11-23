@@ -45,7 +45,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
 from trader_engine.holdout import BacktestArgError, check_holdout  # noqa: E402
-from trader_ml.config import BAR, HORIZON_BARS, HOLDOUT_START  # noqa: E402
+from trader_ml.config import BAR, HORIZON_BARS, HOLDOUT_START, KILIT_ACIK  # noqa: E402
 from trader_ml.features import candidate_rows, feature_frame  # noqa: E402
 from trader_ml.features_v2 import R02_FEATURE_NAMES, R03_FEATURE_NAMES  # noqa: E402
 from trader_ml.features_v2 import feature_frame_v2 as guarded_v2  # noqa: E402
@@ -93,7 +93,7 @@ def stem(pair: str) -> str:
 
 def check_period(start: pd.Timestamp, end: pd.Timestamp) -> None:
     """Sert red: bitis kilitli doneme (>= 2026-05-01) giriyorsa. start < end zorunlu."""
-    if end > HOLDOUT_START:
+    if not KILIT_ACIK and end > HOLDOUT_START:
         raise HoldoutViolation(f"bitis {end} kilitli donem sinirini ({HOLDOUT_START}) asiyor; derlem uretilmez")
     if not start < end:
         raise SystemExit(f"--start ({start}) --end ({end}) oncesinde olmali")

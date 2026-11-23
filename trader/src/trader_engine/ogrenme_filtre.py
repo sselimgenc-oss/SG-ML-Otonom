@@ -33,7 +33,7 @@ from pathlib import Path
 
 from trader_core.ml_live_v2 import setup_feature_dict
 
-from .holdout import HOLDOUT
+from .holdout import HOLDOUT, KILIT_ACIK
 
 log = logging.getLogger("engine.ogrenme_filtre")
 
@@ -273,6 +273,8 @@ class FiltreDeposu:
 
 # ---------------------------------------------------------------------------------------------- egitim (gece birimi)
 def _kilit_kesisir(ts: datetime, bitis: datetime | None) -> bool:
+    if KILIT_ACIK:
+        return False
     b, e = HOLDOUT
     son = ts if bitis is None or bitis < ts else bitis
     return ts < e and son >= b
@@ -393,7 +395,7 @@ def aile_sinama(filtre, kimlik: str, adaylar, simdi: datetime) -> dict:
     kararindan once olanlar (purge; sonucu o anda bilinmeyen ornek atilir). Egitim < SINAMA_MIN_EGITIM ise `sinanamadi`.
     Egitim diliminde egitilir; sinamada suzgecin KABUL ettiklerinin ort. R'si >= hepsinin ort. R'si (her seyi kabul eden suzgec zararsiz,
     gecer) VE kabul >= SINAMA_MIN_KABUL ise `gecti`. Donus: {karar, n_egitim, n_egitim_cf, n_purge, n_sinama, n_kabul, ort_r_hepsi, ort_r_kabul, neden}."""
-    kilit = [HOLDOUT]
+    kilit = [] if KILIT_ACIK else [HOLDOUT]
     ornek = [a for a in adaylar if a.kurulum == kimlik and a.alindi and a.r is not None and not filtre._kilitte(_utc(a.ts), kilit)]
     gercek = sorted((a for a in ornek if _gercek(a)), key=lambda a: (_utc(a.ts), _kapanis(a), str(a.id)))
     rap = {"karar": "sinanamadi", "n_egitim": 0, "n_egitim_cf": 0, "n_purge": 0, "n_sinama": 0, "n_kabul": 0,
@@ -473,7 +475,7 @@ def egit_hepsi(adaylar, klasor: str | os.PathLike, simdi: datetime, *, durum_yol
         durum = {}
     durum = {k: v for k, v in durum.items() if str(k).startswith(AILE_ON_EK)}   # eski kol anahtarlari atilir
     eski = _eski_kol_paketlerini_ayir(Path(klasor))
-    kilit = [HOLDOUT]
+    kilit = [] if KILIT_ACIK else [HOLDOUT]
     if kollar is not None:                                    # yapilandirmadaki kollar disindaki (kaldirilmis) kol aile/paket uretmez
         izinli = set(kollar)
         adaylar = [a for a in adaylar if a.kurulum in izinli]

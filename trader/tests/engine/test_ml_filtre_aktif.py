@@ -191,7 +191,19 @@ def test_env_kapali_filtre_yok(tmp_path, monkeypatch):
     assert OF.FiltreDeposu(tmp_path).karar("T1@1h", {"x": -5.0}, NOW).izin is True
 
 
-def test_egitim_holdout_satiri_almaz(tmp_path):
+def test_egitim_acik_kilitte_holdout_satiri_da_alir(tmp_path):
+    """23.11.2026 kullanici karari: kilit ACIK -> kilitli donem satirlari egitime girer, kilit_dusen 0."""
+    assert OF.KILIT_ACIK is True
+    ic = _adaylar("T1@1h", 5, t0=datetime(2026, 6, 1, tzinfo=timezone.utc))
+    dis = _adaylar("T1@1h", 20, t0=datetime(2026, 11, 3, tzinfo=timezone.utc))
+    OF.egit_hepsi(ic + [dataclasses.replace(a, id="k" + a.id) for a in dis], tmp_path, NOW)
+    meta = json.loads((tmp_path / "aile_T1.json").read_text())["meta"]
+    assert meta["n_egitim"] == 25 and meta["kilit_dusen"] == 0
+    assert not OF._kilit_kesisir(datetime(2026, 10, 31, 23, tzinfo=timezone.utc), datetime(2026, 11, 2, tzinfo=timezone.utc))
+
+
+def test_egitim_holdout_satiri_almaz(tmp_path, monkeypatch):
+    monkeypatch.setattr(OF, "KILIT_ACIK", False)          # kilit mekanizmasi kapali bayrakla sinanir
     ic = _adaylar("T1@1h", 5, t0=datetime(2026, 6, 1, tzinfo=timezone.utc))            # holdout icinde
     dis = _adaylar("T1@1h", 20, t0=datetime(2026, 11, 3, tzinfo=timezone.utc))
     OF.egit_hepsi(ic + [dataclasses.replace(a, id="k" + a.id) for a in dis], tmp_path, NOW)

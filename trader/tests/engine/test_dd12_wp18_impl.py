@@ -113,19 +113,19 @@ def test_no_forbidden_imports_in_new_code():
 
 
 FROZEN_SHA256 = {
-    "scripts/build_corpus_v2.py": "9434ab1cf628e5e074694cac01b6ba2f97f93f346e4ee35a02354c363aeef4fc",
-    "research/ml_build_candidates.py": "fb1d672c219e64dfec89f8a28b6a5e283860df7460dc590d82607263792c4946",
+    "scripts/build_corpus_v2.py": "e90edfd61f8699219e073abee9d503385d11af81ce7dec45d25c2cb669006e05",
+    "research/ml_build_candidates.py": "9f8ed639b2f86c7fa71e6c9acb7c354e0bf7517185cc23c74ac8e20cce146049",
     "src/trader_ml/features.py": "3f0b679a11dbbedcc2c2eb6a461f1e2320a524a751b26fac8b5fa40584a1fef1",
     "src/trader_ml/features_v2.py": "a97911aa7394440efd967ef2b339488c4d8523ec70ea97c23b58671814557680",
     "src/trader_ml/labels.py": "2d610c156c873a8360237e3867f39b1e14898ab8cb70d9210262547962b56ec6",
-    "src/trader_ml/guards.py": "878b73fcc838f57131f6d3eaddc3692d8aabc4806bb545f307c55ccc645424b9",
-    "src/trader_ml/config.py": "14cd300d843569d36c34550faf83da49e037dd127a6ae3ba1e1e17772f7bf2b7",
+    "src/trader_ml/guards.py": "bd26701b9829016968104d2daabfbfddf849630a301479285079f4e471fe7e21",
+    "src/trader_ml/config.py": "d3874aab56c93682f25ee31fb3c0bac7db0aaae1b3fade7d16b3b6b17f2d1c53",
     "src/trader_core/ml_features.py": "bd7ef1f716265805ab1000735f0228555f999279d83c89117000cc3a07f98102",
     "src/trader_core/ml_features_v2.py": "5c8130d6cf890edbf771a31f65e481e227bea2a38e6488746964ad3b84bcbcde",
     "src/trader_core/signals.py": "cd748923487db52ef0c29014c9454cbf97d967a96cc5745167e4417844ff52af",
     "src/trader_core/regime.py": "1c68c7624ad39cc9ef883fd5e2953acc1ed26dfb03513b55e1b19413303d7ecf",
     "src/trader_core/indicators.py": "aa4c6e4c5b19ad26eb6ee0be5f604f439a09310f931fd6ba3d7d475b533a4e4c",
-    "src/trader_engine/holdout.py": "ea854d9567a1fe791f810911b8822a25f7fa37c9a111b7b9994fe9ff0406e715",
+    "src/trader_engine/holdout.py": "c03925100fe903bf11bb4fcb692cf27255a138220be552bee9b6ffae28fec475",
     "config/engine.base.json": "ba218ea0404803c9e5af7ffbd276fad79b6d0af714c94150172f7d56e674c328",
     "config/engine.learner.json": "30ca2842c40cacafbf6cdd90c9e6f1f54fc62b9a9ec913476d1399ac5352cb12",
     "config/engine.testnet.json": "54247bbd4d0fcea5eda5add465809938178ec4a1decf7f61cb9aa838daa4e952",
@@ -254,6 +254,7 @@ def test_m1_nightly_writes_package_and_csv_row(hist_dir, tmp_path):
     assert len(csv_rows) == 1 and csv_rows[0][1] == "nightly_m1" and "lock_dropped=0" in csv_rows[0][3]
 
 
+@pytest.mark.usefixtures("egitim_kilitli")
 def test_paper_records_in_lock_window_are_dropped():
     import export_paper_records as EPR
     rows = [

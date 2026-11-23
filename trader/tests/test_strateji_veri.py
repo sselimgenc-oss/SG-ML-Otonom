@@ -307,12 +307,16 @@ def test_telegram_send_document_multipart_default_post(monkeypatch):
 
 
 # ------------------------------------------------------------------------------------------------ kilitli donem
-def test_lock_constant_matches_engine_holdout_and_filters():
-    from trader_engine.holdout import HOLDOUT
-    assert SV.KILIT == HOLDOUT
-    assert not SV.kilit_disi(datetime(2026, 5, 1, tzinfo=UTC)) and not SV.kilit_disi(datetime(2026, 10, 31, 23, 45, tzinfo=UTC))
+def test_lock_constant_matches_engine_holdout_and_filters(monkeypatch):
+    from trader_engine.holdout import HOLDOUT, KILIT_ACIK
+    assert SV.KILIT == HOLDOUT and SV.KILIT_ACIK == KILIT_ACIK is True
+    # 23.11.2026: kilit acik -> zamani olan her kayit "kilit disi" (okunur); zamansiz kayit yine okunmaz
+    assert SV.kilit_disi(datetime(2026, 5, 1, tzinfo=UTC)) and SV.kilit_disi(datetime(2026, 10, 31, 23, 45, tzinfo=UTC))
     assert SV.kilit_disi(datetime(2026, 11, 1, tzinfo=UTC)) and SV.kilit_disi(datetime(2026, 4, 30, 23, 45, tzinfo=UTC))
     assert not SV.kilit_disi(None)
+    monkeypatch.setattr(SV, "KILIT_ACIK", False)                 # kapali kilit: eski davranis
+    assert not SV.kilit_disi(datetime(2026, 5, 1, tzinfo=UTC)) and not SV.kilit_disi(datetime(2026, 10, 31, 23, 45, tzinfo=UTC))
+    assert SV.kilit_disi(datetime(2026, 11, 1, tzinfo=UTC)) and SV.kilit_disi(datetime(2026, 4, 30, 23, 45, tzinfo=UTC))
 
 
 def test_holdout_guard_queries_after_lock_and_drops_lock_rows(root, monkeypatch):

@@ -47,6 +47,8 @@ WARMUP_DAYS = 50                     # EXIT_CF_WARMUP_DAYS: motorun baslangic pe
 MAX_TRADES_PER_RUN = 2000            # EXIT_CF_MAX_TRADES_PER_RUN
 GRID_MIN = 15                        # stop vurusu 15 dk mumlarla oynatilir
 GAP_GRACE = timedelta(hours=24)
+# 23.11.2026 kullanici karari: kilit ACIK (trader_engine.holdout.KILIT_ACIK'in kopyasi; esitlik testle denetlenir)
+KILIT_ACIK = True
 HOLDOUT_START = datetime(2026, 5, 1, tzinfo=timezone.utc)      # trader_engine.holdout.HOLDOUT'un kopyasi (esitlik testi)
 HOLDOUT_END = datetime(2026, 11, 1, tzinfo=timezone.utc)
 MARKET_SCHEMA_VERSION = 1            # trader_engine.marketdata.store.SCHEMA_VERSION kopyasi
@@ -130,6 +132,8 @@ def funding_payment(side: str, qty: float, mark: float, rate: float) -> float:
 
 def holdout_hit(start_ms: int, end_ms: int, holdout: tuple[datetime, datetime] | None = None) -> bool:
     """[start, end] pencere kilitli donemle kesisir mi (yari acik [HOLDOUT_START, HOLDOUT_END))."""
+    if holdout is None and KILIT_ACIK:       # acik kilitte varsayilan pencere yok (acik `holdout` verilirse yine uygulanir)
+        return False
     hs, he = holdout or (HOLDOUT_START, HOLDOUT_END)
     return start_ms < to_ms(he) and end_ms >= to_ms(hs)
 
@@ -546,6 +550,8 @@ class ExitCfStore:
 def _split_ranges(a: int, b: int, holdout: tuple[datetime, datetime] | None = None) -> list[tuple[int, int]]:
     """[a, b) araligini kilitli donemin DISINDA kalan en fazla iki parcaya boler: ust sinir <= HOLDOUT_START ya da alt sinir >=
     HOLDOUT_END. Hicbir sorgu kilitli aralik icinde bir deger sormaz (spec 4)."""
+    if holdout is None and KILIT_ACIK:
+        return [(a, b)] if a < b else []
     hs, he = (to_ms(holdout[0]), to_ms(holdout[1])) if holdout else (to_ms(HOLDOUT_START), to_ms(HOLDOUT_END))
     out = []
     if a < min(b, hs):

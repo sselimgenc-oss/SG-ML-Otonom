@@ -313,7 +313,7 @@ def _table_md(b: dict) -> list[str]:
 
 
 def render_md(target, meta, counters, secs, blocks, out, k_rapor, zk, warnings) -> str:
-    L = [f"# Rapor: {target}", "", W_LOCK.format(n=counters["holdout_skipped"]), "", W_WISH, ""]
+    L = [f"# Rapor: {target}", ""] + ([] if guard.KILIT_ACIK else [W_LOCK.format(n=counters["holdout_skipped"]), ""]) + [W_WISH, ""]
     if "gates" in secs:
         L += [W_CF, ""]
     if "exits" in secs or "regimes" in secs:
@@ -323,7 +323,8 @@ def render_md(target, meta, counters, secs, blocks, out, k_rapor, zk, warnings) 
     L += [src, "", f"K_rapor: {k_rapor} · z_K: {_cell(zk)}", ""]
     if warnings:
         L += ["Uyarı: " + ", ".join(warnings), ""]
-    L += [f"Sayaçlar: bekleyen {counters['pending']}, veri boşluğu {counters['data_gap']}, atlanan satır {counters['holdout_skipped']}.", ""]
+    L += [f"Sayaçlar: bekleyen {counters['pending']}, veri boşluğu {counters['data_gap']}"
+          + ("." if guard.KILIT_ACIK else f", atlanan satır {counters['holdout_skipped']}."), ""]
     for key in ("exits", "gates", "regimes", "dokum", "sizing"):
         if key not in blocks:
             continue

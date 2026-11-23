@@ -191,7 +191,7 @@ def test_env_flag_uses_paper_signal_class_and_paper_overlay():
     assert cfg.var_dir == "/nonexistent-out" and cfg.target_trade_risk == 0.01 and cfg.mtm_marks is False
 
 
-def test_env_flag_holdout_and_bad_args_rejected(tmp_path):
+def test_env_flag_holdout_and_bad_args_rejected(tmp_path, kilitli_motor):      # 23.11.2026: kilit acik; mekanizma kapali bayrakla sinanir
     runner = BT.BacktestRunner(BT.BacktestSpec(id="h", start=datetime(2026, 10, 25, tzinfo=UTC), end=datetime(2026, 11, 3, tzinfo=UTC),
                                                env="paper", config_dir=str(ROOT / "config"), out_root=str(tmp_path)))
     with pytest.raises(BacktestArgError) as e:

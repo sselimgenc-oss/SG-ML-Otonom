@@ -895,7 +895,10 @@ def test_t_07_client_without_last_used_weight_attribute_is_unaffected(tmp_path):
     run_pytest("tests/test_oi_collector.py")
 
 
-def test_t_08_holdout_windows_and_requests_unchanged(tmp_path):
+def test_t_08_holdout_windows_and_requests_unchanged(tmp_path, monkeypatch):
+    # 23.11.2026 kullanici karari: kilit ACIK; mekanizma bayrak kapatilarak (eski davranis) sinanir, acik davranis asagida
+    assert C.KILIT_ACIK is True and C.clip_windows(1, 99) == [(1, 99)] and not C.in_holdout(C.HOLDOUT_START_MS)
+    monkeypatch.setattr(C, "KILIT_ACIK", False)
     H0, H1 = C.HOLDOUT_START_MS, C.HOLDOUT_END_MS
     assert (H0, H1) == (1777593600000, 1793491200000) or H0 < H1
     P = C.PERIOD_MS

@@ -138,7 +138,7 @@ def test_impl06_flat_optimisation_equivalent(ws):
                                   pd.read_csv(ws / "var/backtests/f2/trades.csv"))
 
 
-def test_impl06_holdout_refused_and_no_output(ws):
+def test_impl06_holdout_refused_and_no_output(ws, kilitli_motor):      # 23.11.2026: kilit acik; mekanizma kapali bayrakla sinanir
     for per in ("20260501-20260601", "20260401-20260601", "20260101-20261231"):
         assert _bt("--id", "h", "--period", per, "--strategy", "fake_clean") == 2
     assert not (ws / "var/backtests/h").exists()

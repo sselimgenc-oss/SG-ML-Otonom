@@ -243,6 +243,7 @@ def _trade_set():
 
 
 @pytest.mark.parametrize("ver", [2, 3])
+@pytest.mark.usefixtures("kilitli_donem")
 def test_cli_holdout_rows_and_readonly(tmp_path, capsys, ver):
     led = tmp_path / "ledger.sqlite"
     make_ledger(led, ver, trades=_trade_set())
@@ -290,6 +291,7 @@ def test_cli_errors_and_empty(tmp_path, capsys):
     assert rc == 2
 
 
+@pytest.mark.usefixtures("kilitli_donem")
 def test_cli_holdout_run_locked(tmp_path, capsys):
     run = tmp_path / "run"
     run.mkdir()
@@ -344,6 +346,7 @@ def test_meta_period_fail_closed(tmp_path, capsys, period):
     assert rc == 2 and j["code"] == "meta_period"
 
 
+@pytest.mark.usefixtures("kilitli_donem")
 def test_compare_backtest_holdout_skipped(tmp_path, capsys):
     led = tmp_path / "l.sqlite"
     make_ledger(led, 3, trades=[{"entry": "2025-01-01T00:00:00.000Z", "exit": "2025-01-02T00:00:00.000Z"}])

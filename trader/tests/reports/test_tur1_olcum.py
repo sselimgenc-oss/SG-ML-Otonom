@@ -207,6 +207,7 @@ def test_kayip_kumeleri():
 
 
 # ---------------------------------------------------------------- kilitli donem
+@pytest.mark.usefixtures("kilitli_donem")
 def test_kilitli_donem_islemleri_atilir_ve_mum_okunmaz(tmp_path):
     kilitli = mk(1, entry_ms=int(datetime(2026, 7, 1, tzinfo=timezone.utc).timestamp() * 1000))
     sonra = mk(2)

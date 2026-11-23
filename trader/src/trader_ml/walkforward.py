@@ -12,14 +12,14 @@ import pandas as pd
 
 from trader_core.stats import walk_forward_splits
 
-from .config import (BAR, DATA_START, EMBARGO_BARS, HOLDOUT_START, HORIZON_BARS, MIN_TEST_BARS, STEP_BARS,
+from .config import (BAR, DATA_START, EMBARGO_BARS, EGITIM_KESIMI, HORIZON_BARS, MIN_TEST_BARS, STEP_BARS,
                      TEST_BARS, TRAIN_BARS)
 from .guards import assert_pre_holdout
 
 
 def make_folds(table: pd.DataFrame, *, train_bars: int = TRAIN_BARS, test_bars: int = TEST_BARS,
                step_bars: int = STEP_BARS, min_test_bars: int = MIN_TEST_BARS, start=DATA_START,
-               end=HOLDOUT_START) -> list[dict]:
+               end=EGITIM_KESIMI) -> list[dict]:
     """[{fold, train_rows, test_rows, test_start, test_end}] (satir = table'in konumsal indeksi)."""
     assert_pre_holdout(table["ts"], "aday tablosu")
     n = int((end - start) / BAR)

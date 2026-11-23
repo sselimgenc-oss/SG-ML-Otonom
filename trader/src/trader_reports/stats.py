@@ -4,6 +4,8 @@ from __future__ import annotations
 import math
 from statistics import NormalDist
 
+from trader_engine.holdout import KILIT_ACIK
+
 Z90 = 1.645
 MIN_N = 30
 MIN_G = 8
@@ -202,7 +204,7 @@ def year_rows(items) -> dict:
                "toplam": math.fsum(xs),
                "etiket": label_basic(cm["n"], cm["G"])}
         if y == "2026":
-            row["not"] = "kısmi (kilitli dönem hariç)"
+            row["not"] = "kısmi (yıl devam ediyor)" if KILIT_ACIK else "kısmi (kilitli dönem hariç)"
         rows.append(row)
     ok = [r for r in rows if r["etiket"] != "yetersiz"]
     pos = None if not ok else sum(1 for r in ok if r["ort"] > 0) / len(ok)

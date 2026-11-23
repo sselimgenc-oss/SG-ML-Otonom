@@ -108,7 +108,7 @@ def _led(kararlar, trade_karar):
     return SimpleNamespace(LIST_CLOSED_MAX=1000, list_decisions=lambda: kararlar, list_closed_trades=lambda limit=None: trades)
 
 
-def test_c_counterfactual_egitime_girer_cift_sayim_kesim_ve_holdout(tmp_path):
+def test_c_counterfactual_egitime_girer_cift_sayim_kesim_ve_holdout(tmp_path, monkeypatch):
     kararlar = [_dec(i) for i in range(1, 7)]
     kararlar.append(SimpleNamespace(**{**_dec(7).__dict__, "bar_close_ts": datetime(2026, 6, 1, tzinfo=timezone.utc)}))   # holdout icinde
     cf = tmp_path / "cf.sqlite"
@@ -120,6 +120,9 @@ def test_c_counterfactual_egitime_girer_cift_sayim_kesim_ve_holdout(tmp_path):
         (5, 1.0, T0 + timedelta(hours=5) - timedelta(hours=10)),  # karardan ONCE 'kesinlesmis' -> disarida
         (7, 1.0, datetime(2026, 6, 2, tzinfo=timezone.utc)),      # holdout -> disarida
     ])
+    acik = sorted(a.id for a in OF.adaylar_defterden(_led(kararlar, [3]), R.cf_satirlari_oku(cf), NOW))
+    assert acik == ["103", "cf1", "cf2", "cf7"]                   # 23.11.2026 kilit ACIK: holdout satiri (7) artik disarida degil
+    monkeypatch.setattr(OF, "KILIT_ACIK", False)                  # kilit mekanizmasi kapali bayrakla sinanir
     adaylar = OF.adaylar_defterden(_led(kararlar, [3]), R.cf_satirlari_oku(cf), NOW)
     ids = sorted(a.id for a in adaylar)
     assert ids == ["103", "cf1", "cf2"]                           # 3: yalniz islem olarak; 4,5,7 yok

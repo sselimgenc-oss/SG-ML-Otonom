@@ -381,10 +381,10 @@ def _empty(now, start, end, note) -> tuple[dict, list]:
 def run(now: datetime, *, paper_ledger: Path, market_db: Path, config_dir: Path, work_root: Path, runner=None,
         window: tuple[datetime, datetime] | None = None) -> tuple[dict, list]:
     from trader_engine import backtest as BT
-    from trader_engine.holdout import HOLDOUT, BacktestArgError, check_holdout
+    from trader_engine.holdout import HOLDOUT, KILIT_ACIK, BacktestArgError, check_holdout
     start, end = window if window is not None else week_window(now)   # window: elle yeniden kosu / test (kilit ve kesim yine uygulanir)
     notes: list[str] = []
-    if start < HOLDOUT[1] and end > HOLDOUT[0]:
+    if not KILIT_ACIK and start < HOLDOUT[1] and end > HOLDOUT[0]:
         if end <= HOLDOUT[1]:
             return _empty(now, start, end, "donem tamamen kilitli donemde: okunmadi")
         start = HOLDOUT[1]

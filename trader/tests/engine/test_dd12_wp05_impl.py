@@ -305,7 +305,8 @@ def test_end_to_end_paper(tmp_path, hist):
     assert eng.signals.pairs == ["BTC/USDT", "ETH/USDT"] and s.ml_universe == frozenset(["BTC/USDT", "ETH/USDT"])
     ml = eng._ml_status(END)
     assert ml["mode"] == "active" and ml["state"] == "ok" and ml["entries_blocked"] is False
-    assert eng._rec["shadow"]["rows"] == 0                      # kagitta golge satir yok
+    # 23.11.2026 kilit acik: 15 dk golge adaylari artik kilit bitisini beklemez -> kagit kosusunda golge satir yazilabilir (eskiden 0); hata olmamali
+    assert eng._rec["shadow"]["rows"] >= 0 and eng._rec["shadow"]["errors"] == 0 and eng._rec["shadow"]["tf15_holdout_wait"] == 0
     # defter: session_tag her karar satirinda gecerli; kripto 'open'
     import sqlite3
     con = sqlite3.connect(eng.cfg.ledger_path)

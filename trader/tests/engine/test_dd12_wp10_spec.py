@@ -25,6 +25,10 @@ from pathlib import Path
 
 import pytest
 
+# 23.11.2026 kullanici karari: kilit ACIK. Bu dosya kilit mekanizmasini sinar -> kilit KAPALI bayragiyla (conftest.egitim_kilitli); acik davranis tests/ml/test_kilit_acik_egitim.py.
+pytestmark = pytest.mark.usefixtures("egitim_kilitli")
+
+
 UTC = timezone.utc
 TRADER = Path(__file__).resolve().parents[2]
 SRC = TRADER / "src"

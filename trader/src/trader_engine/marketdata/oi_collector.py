@@ -32,7 +32,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from trader_core.ban_store import BanGuard
-from trader_engine.holdout import HOLDOUT
+from trader_engine.holdout import HOLDOUT, KILIT_ACIK
 from trader_engine.types import pair_symbol
 
 log = logging.getLogger("trader.oi")
@@ -90,7 +90,7 @@ class GeoBlockError(CollectorError):
 
 # ------------------------------------------------------------------ holdout
 def in_holdout(ts_ms: int) -> bool:
-    return HOLDOUT_START_MS <= ts_ms < HOLDOUT_END_MS
+    return (not KILIT_ACIK) and HOLDOUT_START_MS <= ts_ms < HOLDOUT_END_MS
 
 
 def clip_windows(start_ms: int, end_ms: int) -> list[tuple[int, int]]:
@@ -98,6 +98,8 @@ def clip_windows(start_ms: int, end_ms: int) -> list[tuple[int, int]]:
     out: list[tuple[int, int]] = []
     if start_ms > end_ms:
         return out
+    if KILIT_ACIK:                   # 23.11.2026 kullanici karari: kilit acik, pencere bolunmez
+        return [(start_ms, end_ms)]
     if start_ms < HOLDOUT_START_MS:
         out.append((start_ms, min(end_ms, HOLDOUT_START_MS - 1)))
     if end_ms >= HOLDOUT_END_MS:

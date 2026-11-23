@@ -213,7 +213,7 @@ def test_missing_id_is_usage_error(ws):
 
 @pytest.mark.parametrize("period", ["20260501-20260601", "20260401-20260601", "20261001-20261201",
                                     "20260601-20260701", "20260501-20261101"])
-def test_holdout_periods_refused_with_exit_2_and_no_output(ws, period):
+def test_holdout_periods_refused_with_exit_2_and_no_output(ws, period, kilitli_motor):      # 23.11.2026: kilit acik; mekanizma kapali bayrakla sinanir
     rc = run_bt(["--id", "h", "--period", period, "--tf", "1h", "--veto", "none"])
     assert rc == 2
     assert not ws.out("h").exists(), "reddedilen holdout kosusu cikti dizini yaratmamali"
@@ -273,7 +273,7 @@ def test_cli_module_entry_exit_code_holdout(ws):
     env = dict(os.environ, PYTHONPATH=str(REPO / "src"))
     p = subprocess.run([sys.executable, "-m", "trader_engine", "backtest", "--id", "sub", "--period",
                         "20260501-20260601"], cwd=ws.root, env=env, capture_output=True, text=True, timeout=120)
-    assert p.returncode == 2, p.stderr[-500:]
+    assert "holdout_locked" not in (p.stdout + p.stderr), p.stderr[-500:]      # 23.11.2026: kilit acik -> kilit reddi yok (veri yoksa baska kod)
 
 
 # ===================================================================== 2. strateji secimi (kayit defteri adi)

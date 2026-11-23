@@ -1,4 +1,5 @@
-"""Yapisal HOLDOUT kilidi: backtest modunda Engine.run_range kilitli donemle kesisen araligi, bar okumadan once reddeder."""
+"""HOLDOUT kilidi ACIK (23.11.2026 kullanici karari, holdout.KILIT_ACIK): run_range kilitli donemle kesisen araligi da okur.
+Kilit kapali (KILIT_ACIK=False) davranisi bayrak monkeypatch ile ayrica sinanir."""
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -6,6 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from trader_engine import holdout as H
 from trader_engine.engine import Engine
 from trader_engine.holdout import BacktestArgError
 
@@ -34,21 +36,19 @@ def _d(y, m, d):
     return datetime(y, m, d, tzinfo=UTC)
 
 
-def test_backtest_run_range_inside_holdout_raises_before_reading():
-    with pytest.raises(BacktestArgError) as ei:
-        _engine("backtest").run_range(_d(2026, 10, 1), _d(2026, 10, 2))
-    assert ei.value.code == "holdout_locked"
+def test_kilit_acik_bayragi():
+    assert H.KILIT_ACIK is True
 
 
-def test_backtest_run_range_overlapping_edges_raises():
-    for s, e in ((_d(2026, 4, 30), _d(2026, 5, 2)), (_d(2026, 10, 31), _d(2026, 11, 2))):
-        with pytest.raises(BacktestArgError):
-            _engine("backtest").run_range(s, e)
+def test_acik_kilitte_check_holdout_gecer():
+    H.check_holdout(_d(2026, 5, 1), _d(2026, 11, 1))
+    H.check_holdout(_d(2026, 10, 1), _d(2026, 10, 2))
+    assert not H.in_holdout(_d(2026, 6, 1))
 
 
-def test_backtest_run_range_exact_boundaries_pass_the_guard():
-    # kilit gecilir -> ilk view erisimi (_Touched) gelir; holdout_locked degil
-    for s, e in ((_d(2026, 4, 1), _d(2026, 5, 1)), (_d(2026, 11, 1), _d(2026, 11, 2))):
+def test_acik_kilitte_run_range_holdout_icinde_bar_okumaya_gecer():
+    # kilit reddi yok -> ilk view erisimi (_Touched) gelir
+    for s, e in ((_d(2026, 10, 1), _d(2026, 10, 2)), (_d(2026, 4, 30), _d(2026, 5, 2)), (_d(2026, 10, 31), _d(2026, 11, 2))):
         with pytest.raises(_Touched):
             _engine("backtest").run_range(s, e)
 
@@ -56,3 +56,30 @@ def test_backtest_run_range_exact_boundaries_pass_the_guard():
 def test_paper_mode_not_guarded():
     with pytest.raises(_Touched):
         _engine("paper").run_range(_d(2026, 10, 1), _d(2026, 10, 2))
+
+
+def test_kapali_kilitte_eski_davranis(monkeypatch):
+    monkeypatch.setattr(H, "KILIT_ACIK", False)
+    assert H.in_holdout(_d(2026, 6, 1))
+    with pytest.raises(BacktestArgError) as ei:
+        _engine("backtest").run_range(_d(2026, 10, 1), _d(2026, 10, 2))
+    assert ei.value.code == "holdout_locked"
+    for s, e in ((_d(2026, 4, 30), _d(2026, 5, 2)), (_d(2026, 10, 31), _d(2026, 11, 2))):
+        with pytest.raises(BacktestArgError):
+            _engine("backtest").run_range(s, e)
+    for s, e in ((_d(2026, 4, 1), _d(2026, 5, 1)), (_d(2026, 11, 1), _d(2026, 11, 2))):
+        with pytest.raises(_Touched):
+            _engine("backtest").run_range(s, e)
+
+
+def test_kilit_bayragi_kopyalari_esit():
+    """Tek anahtar: trader_engine.holdout.KILIT_ACIK ile katman geregi kopya bayraklar (core, ml, ledger) ayni degerde."""
+    from trader_core import counterfactual, exit_counterfactual, strateji_veri
+    from trader_core.ledger import Ledger
+    from trader_ml import config
+    from trader_ml import guards as mlg
+    from trader_ml.setup_filter import train
+    v = H.KILIT_ACIK
+    assert counterfactual.KILIT_ACIK is v and exit_counterfactual.KILIT_ACIK is v and strateji_veri.KILIT_ACIK is v
+    assert Ledger.FAMILY_KILIT_ACIK is v and config.KILIT_ACIK is v and mlg.KILIT_ACIK is v and train.KILIT_ACIK is v
+    assert (config.HOLDOUT_START.to_pydatetime(), config.HOLDOUT_END.to_pydatetime()) == H.HOLDOUT == Ledger.FAMILY_HOLDOUT

@@ -3,9 +3,14 @@ from __future__ import annotations
 
 import pandas as pd
 
-# --- kilitli donem (§3.1): egitim kodu bu tarihten itibaren veriyi OKUMAZ
+# --- kilitli donem (§3.1): kilit kapaliyken egitim kodu bu tarihten itibaren veriyi OKUMAZ.
+# 23.11.2026 KULLANICI KARARI: kilit ACIK (trader_engine.holdout.KILIT_ACIK'in kopyasi; esitlik testle denetlenir). Tarih sabitleri
+# kayit/rapor icin kalir; davranis yalniz KILIT_ACIK'a baglidir.
+KILIT_ACIK = True
 HOLDOUT_START = pd.Timestamp("2026-05-01", tz="UTC")
 HOLDOUT_END = pd.Timestamp("2026-11-01", tz="UTC")          # dislayici; 2026-05 -> 2026-10
+# egitim/walk-forward kesimi (dislayici): kilit kapaliyken HOLDOUT_START, acikken veri sonu (= HOLDOUT_END, 2026-10-31 son bar)
+EGITIM_KESIMI = HOLDOUT_END if KILIT_ACIK else HOLDOUT_START
 DATA_START = pd.Timestamp("2024-12-21", tz="UTC")           # isinma sonrasi fiili baslangic (§3.3)
 
 # --- etiket (§3.1)

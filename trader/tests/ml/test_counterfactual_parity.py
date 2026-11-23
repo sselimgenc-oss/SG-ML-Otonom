@@ -14,6 +14,8 @@ def test_constants_locked_to_ml_config():
     assert (CF.HORIZON_BARS, CF.TARGET_R, CF.FEE_RATE, CF.SLIPPAGE_RATE) == (C.HORIZON_BARS, C.TARGET_R, C.FEE_RATE, C.SLIPPAGE_RATE)
     assert pd.Timedelta(milliseconds=CF.BAR_MS) == C.BAR
     assert CF.HOLDOUT_START == C.HOLDOUT_START.to_pydatetime() and CF.HOLDOUT_END == C.HOLDOUT_END.to_pydatetime()
+    from trader_engine.holdout import KILIT_ACIK
+    assert CF.KILIT_ACIK == C.KILIT_ACIK == KILIT_ACIK     # tek anahtar kopyalari esit (23.11.2026 kilit acik)
 
 
 def _candles(n, seed):

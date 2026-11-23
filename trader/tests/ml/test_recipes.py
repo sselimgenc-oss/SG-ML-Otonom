@@ -35,7 +35,7 @@ def test_r01_is_current_config():
     r = recipes.get(config.RECIPE_ID)
     assert r.weight_scheme == config.WEIGHT_SCHEME and r.platt_nonneg is config.PLATT_NONNEG_SLOPE
     assert r.lgbm_params == config.LGBM_PARAMS and r.logit_params == config.LOGIT_PARAMS and r.features == ()
-    assert r.wf == {"start": config.DATA_START, "end": config.HOLDOUT_START, "train_bars": config.TRAIN_BARS,
+    assert r.wf == {"start": config.DATA_START, "end": config.EGITIM_KESIMI, "train_bars": config.TRAIN_BARS,
                     "test_bars": config.TEST_BARS, "step_bars": config.STEP_BARS, "min_test_bars": config.MIN_TEST_BARS}
     assert r.label_col == "label" and r.label_end_col == "label_end_ts" and r.source_map == {}
 
@@ -139,7 +139,7 @@ def test_pipeline_runs_r02_r03_like(table, tmp_path, monkeypatch, rid, k):
     md = (tmp_path / "gate_report.md").read_text(encoding="utf-8")
     assert "kısıtlanan" in md and rid in md and "uniq_decay" in md
     oof = pd.read_parquet(tmp_path / "oof_predictions.parquet")
-    assert oof["fold"].nunique() == 4
+    assert oof["fold"].nunique() == 7      # kilit acik: kesim 2026-11-01 -> 7 test dilimi
 
 
 def test_calibration_clamped_writes_red_result_no_package(table, tmp_path, monkeypatch):
