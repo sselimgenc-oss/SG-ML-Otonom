@@ -272,3 +272,15 @@ def test_api_hata_durumu_yazilir_ve_ok_ile_ilk_ms_korunur(tmp_path):
     HS.kos(tmp_path, ROOT / "config", NOW_MS + H, ENV, client=Client(_cevap), budget=Butce())
     c = json.loads(yol.read_text())
     assert c["calisma"] == {"durum": "ok", "zaman_ms": NOW_MS + H, "ilk_ms": NOW_MS} and c["olaylar"]
+
+
+def test_istem_parametreleri_gercek_sdk_imzasina_uyar():
+    """Sunucuda 'API hatasi (TypeError)': SDK'nin kabul etmedigi `temperature` gonderiliyordu. Parametreler gercek imzaya baglanmali."""
+    import inspect
+
+    import anthropic
+
+    ev = [{"id": 0, "kaynaklar": ["coindesk"], "baslik": "BTC ETF inflows surge"}]
+    p = HS.istem_parametreleri(ev, ENST)
+    assert "temperature" not in p
+    inspect.signature(anthropic.resources.Messages.create).bind(None, **p)
