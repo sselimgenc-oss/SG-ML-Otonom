@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import math
+import re
 from collections import Counter
 from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass
@@ -118,7 +119,20 @@ def _features(row: SignalRow) -> dict:
         put(key, carrier)
     for k in ("rh_touches", "rl_touches"):
         put(k, k)
+    if row.setup == "HB1":                                   # olay kimligi METIN: ML sayisal ozellik cikarimi (f_*) metni atlar
+        oid = hb1_olay_of(row)
+        if oid is not None:
+            out["hb1_olay"] = oid
     return out
+
+
+_HB1_OLAY_RE = re.compile(r"(?:^|[,:])hb1_olay=(\d+)(?:,|$)")
+
+
+def hb1_olay_of(row: SignalRow) -> str | None:
+    """HB1 adayinin olay kimligi (reasons etiketinden; metin). Yok / 0 (olay yok) -> None."""
+    m = _HB1_OLAY_RE.search(row.reasons or "")
+    return m.group(1) if m and int(m.group(1)) > 0 else None
 
 
 def _tf_of(row: SignalRow) -> str:
@@ -302,6 +316,34 @@ class EntryGate:
         self.counters["ml_filtre_kapali_blok"] += 1
         return self._skip(row, tf, "ml_filter", skip_reason="ml_filter", veto_reason="gate:ml_filter_unavailable", **tk)
 
+    def _hb1_olay_karari(self, row: SignalRow, tf: str, tk: dict) -> EntryOutcome | None:
+        """HB1: ayni cift + ayni yonde defterdeki EN SON kapanmis HB1 isleminin karari ayni haber olayini (features["hb1_olay"]) tasiyorsa
+        giris `hb1_ayni_olay` ile reddedilir (stop sonrasi ayni haberle yeniden giris yok). Yeni olay / ters yon / onceki islem yok serbest.
+        Defter okuma hatasi => fail-closed (yalniz HB1). Diger kollara dokunmaz."""
+        if row.setup != "HB1":
+            return None
+        aid = row.arm_id or AG.arm_id_of(row.setup, tf)
+        try:
+            oid = hb1_olay_of(row)
+            if oid is None:
+                return None
+            fn = getattr(self.ledger, "last_closed_decision_features", None)
+            if fn is None:
+                raise RuntimeError("defter last_closed_decision_features yok")
+            prev = fn(aid, row.pair, row.side)
+        except Exception as e:  # noqa: BLE001
+            self.counters["hb1_olay_okunamadi"] += 1
+            log.warning("HB1 olay kontrolu defter hatasi, giris yok: %s: %s", type(e).__name__, e)
+            return self._skip(row, tf, "hb1_olay_okunamadi", skip_reason="risk_denied", veto_status="not_evaluated",
+                              veto_reason="gate:hb1_olay_okunamadi", risk_allowed=False,
+                              risk_reason="HB1 olay kimliği defterden okunamadı: giriş yok", **tk)
+        if prev is None or str(prev.get("hb1_olay")) != oid:
+            return None
+        self.counters["hb1_ayni_olay"] += 1
+        return self._skip(row, tf, "hb1_ayni_olay", skip_reason="risk_denied", veto_status="not_evaluated",
+                          veto_reason="gate:hb1_ayni_olay", risk_allowed=False,
+                          risk_reason=f"aynı haber olayı ({oid}) ile son kapanan HB1 işlemi var: yeniden giriş yok", **tk)
+
     def _kol_karari(self, aid: str, D: datetime | None = None) -> KK.KolKarar | None:
         """Kademeli kucultme (kagit): kolun son kapanan islemlerinin net R'sinden carpan. Okunamazsa None (carpan yok = yapilandirma boyutu;
         hata yalniz kucultmeyi atlar, hicbir seyi arttirmaz/engellemez)."""
@@ -465,6 +507,9 @@ class EntryGate:
             if AG.session_closed_by_lesson(self._session_off(), cls, pair, tk["session_tag"]):
                 return self._skip(row, tf, "session_closed", skip_reason="session_closed",
                                   veto_reason="gate:session_closed", **tk)
+            ho = self._hb1_olay_karari(row, tf, tk)                                      # HB1: ayni haberle yeniden giris yok
+            if ho is not None:
+                return ho
             held = [p.pair for p in self.state.open_positions()]
             cname = AG.full_cluster(pair, held, self.cfg.clusters)
             if cname is not None:
