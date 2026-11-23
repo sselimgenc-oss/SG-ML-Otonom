@@ -210,7 +210,7 @@ def test_llm_harcama_satiri_10_usd_ile_karsilastirilir(tmp_path):
     try:
         rep = _report(_telegram_cfg(e))
         lines = [ln for ln in rep.splitlines() if re.search(r"LLM|harcama", ln, re.IGNORECASE)]
-        assert any(re.search(r"10(\.0+)?\s*(\$|USD)", ln) for ln in lines), lines
+        assert any(re.search(r"20(\.0+)?\s*(\$|USD)", ln) for ln in lines), lines   # 23.11: tavan 20 $
     finally:
         e.close()
 

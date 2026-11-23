@@ -880,28 +880,59 @@ def collect_drift(env: dict, var_dir: str):
     return out
 
 
-def probe_haber_sinyal(var_dir: str) -> H.HaberSinyalProbe:
-    """<var>/learner/sinyal/haber_sinyal.json -> HaberSinyalProbe (yalniz okur; HB1 girdisi). Yok -> missing; bozuk/sema -> unreadable."""
+HABER_SINYAL_UNIT = "/etc/systemd/system/trader-haber-sinyal.timer"    # kurulu isin unit dosyasi (test: yol parametresi)
+
+
+def probe_haber_sinyal(var_dir: str, unit_path: str = HABER_SINYAL_UNIT) -> H.HaberSinyalProbe:
+    """<var>/learner/sinyal/haber_sinyal.json -> HaberSinyalProbe (yalniz okur; HB1 girdisi). Yok -> missing; bozuk/sema -> unreadable.
+    Is kurulu = unit dosyasi var YA DA durum dosyasi var; job_since = durum calisma.ilk_ms, yoksa unit mtime; job_status = calisma.durum."""
     d = os.path.join(var_dir, "learner", "sinyal")
-    kurulu = os.path.exists(os.path.join(d, "haber_sinyal_durum.json"))
+    durum_yol = os.path.join(d, "haber_sinyal_durum.json")
+    status, since = None, None
+    kurulu = False
+    try:
+        unit_mtime = os.stat(unit_path).st_mtime
+        kurulu = True
+        since = datetime.fromtimestamp(unit_mtime, tz=timezone.utc)
+    except (OSError, OverflowError, ValueError):
+        pass
+    if os.path.exists(durum_yol):
+        kurulu = True
+        try:
+            with open(durum_yol, "rb") as f:
+                cal = json.loads(f.read(4_000_001)).get("calisma")
+            if isinstance(cal, dict):
+                if isinstance(cal.get("durum"), str):
+                    status = cal["durum"]
+                ilk = cal.get("ilk_ms")
+                if isinstance(ilk, int) and not isinstance(ilk, bool):
+                    since = datetime.fromtimestamp(ilk / 1000, tz=timezone.utc)
+        except (OSError, ValueError, AttributeError, OverflowError):
+            pass
+        if since is None:
+            try:
+                since = datetime.fromtimestamp(os.stat(durum_yol).st_mtime, tz=timezone.utc)
+            except (OSError, OverflowError, ValueError):
+                pass
+    ek = dict(job_status=status, job_since=since)
     try:
         with open(os.path.join(d, "haber_sinyal.json"), "rb") as f:
             raw = f.read(2_000_001)
     except FileNotFoundError:
-        return H.HaberSinyalProbe("missing", job_installed=kurulu)
+        return H.HaberSinyalProbe("missing", job_installed=kurulu, **ek)
     except OSError:
-        return H.HaberSinyalProbe("unreadable", job_installed=True)
+        return H.HaberSinyalProbe("unreadable", job_installed=True, **ek)
     try:
         doc = json.loads(raw)
         up, gs = doc["uretim_ms"], doc["gecerlilik_sonu_ms"]
-        if doc.get("schema") != "haber_sinyal/1" or isinstance(up, bool) or isinstance(gs, bool) \
+        if doc.get("schema") != "haber_sinyal/2" or isinstance(up, bool) or isinstance(gs, bool) \
                 or not isinstance(up, int) or not isinstance(gs, int) or len(raw) > 2_000_000:
             raise ValueError("sema")
         gs = min(gs, up + 3 * 3600 * 1000)
         return H.HaberSinyalProbe("ok", datetime.fromtimestamp(up / 1000, tz=timezone.utc),
-                                  datetime.fromtimestamp(gs / 1000, tz=timezone.utc), True)
+                                  datetime.fromtimestamp(gs / 1000, tz=timezone.utc), True, **ek)
     except (ValueError, KeyError, TypeError, OverflowError, OSError):
-        return H.HaberSinyalProbe("unreadable", job_installed=True)
+        return H.HaberSinyalProbe("unreadable", job_installed=True, **ek)
 
 
 def probe_dl1_paket(env: dict) -> H.Dl1PaketProbe:

@@ -351,7 +351,7 @@ def _guard(tmp_path, now=None):
 
 def test_budget_config_monthly_cap_10_and_haftalik_share():
     cfg = json.loads((TRADER / "config" / "budget.json").read_text(encoding="utf-8"))
-    assert cfg["monthly_cap_usd"] == 10.0
+    assert cfg["monthly_cap_usd"] == 20.0   # 23.11 kullanici karari: 10 -> 20 $
     assert "haftalik_ozet" in cfg["daily_cap_usd"]
     assert "veto" not in cfg["daily_cap_usd"] and "veto" not in cfg.get("api_key_env", {})
     assert "proposer" not in cfg["daily_cap_usd"], "L1 cancelled (appendix)"

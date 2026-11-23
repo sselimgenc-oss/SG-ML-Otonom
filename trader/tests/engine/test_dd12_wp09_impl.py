@@ -80,11 +80,14 @@ def test_notes_run_cli(tmp_path, capsys):
     assert len((tmp_path / "ml.jsonl").read_text().splitlines()) == 4
 
 
-def _budget(tmp_path, cap=10.0):
+def _budget(tmp_path, cap=20.0):   # 23.11: aylik tavan 20 $ (paylar toplami 17 $)
     cfg = json.loads((ROOT / "config" / "budget.json").read_text())
     cfg["db_path"] = str(tmp_path / "budget.sqlite")
     cfg["monthly_cap_usd"] = cap
     cfg["monthly_warn_usd"] = cap / 2
+    pay = cfg.get("monthly_share_usd") or {}
+    if pay and sum(pay.values()) > cap:                    # cok kucuk tavan denemesi: paylar tavana orantili kucultulur
+        cfg["monthly_share_usd"] = {k: v * cap * 0.99 / sum(pay.values()) for k, v in pay.items()}   # yuvarlama payi
     cfg["prepaid_credit_usd"] = 10.0
     p = tmp_path / "budget.json"
     p.write_text(json.dumps(cfg))

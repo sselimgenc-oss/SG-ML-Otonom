@@ -112,3 +112,7 @@ Hazırlanacak sorular (veriyle cevaplanacak; her cevapta n ve "yetersiz örnek" 
 10. Yeni kollar (HB1 haber, DL1 derin öğrenme) gelince toplam kol sayısı ve kalabalık riski.
 Kaynak: tur1_olcum raporu (kayıp kümeleri, yön denetimi), kâğıt defteri, mutabakat; analiz Fable, sunum sade tablo.
 - KULLANICI KURALI (23.11): "Riskleri biliyorum, bana bir şey önerme, dediğimi yap." Canlı/para konusunda istenmeyen tavsiye ve uyarı verme; sorulana cevap ver, isteneni yap.
+
+## KULLANICI KARARI (23.11 akşam): Mühürlü dönem açılıyor
+- Kullanıcı: "aç". 2026-05-01 → 2026-11-01 kilitli dönemi artık eğitim ve analizde kullanılabilir. Bağımsız "görülmemiş veri" sınavı hakkından bilerek vazgeçildi.
+- Uygulama ayrı iş: önce tüm kilit noktaları (kod, test, CI adımı, mühür kontrolü) haritalanır, sonra kullanıcı onayıyla kaldırılır.

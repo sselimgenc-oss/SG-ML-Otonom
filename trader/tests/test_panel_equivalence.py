@@ -55,7 +55,7 @@ def test_ledger_numbers_equal_section_ledger(env, tcfg):
 def test_budget_equals_section_budget(tcfg):
     text = T.section_budget(tcfg)
     b = P.budget_view(tcfg.budget_config)
-    names = {"haftalik_ozet": "haftalık özet", "lesson": "ders"}
+    names = {"haftalik_ozet": "haftalık özet", "lesson": "ders", "haber_kolu": "haber kolu", "yorumcu": "yorumcu"}
     parts = [f"{names.get(k, k)} {v['used_usd']:.2f}$/{v['cap_usd']:.2f}$ ({v['state']})" for k, v in b["services"].items()]
     want = f"ay {b['month_used_usd']:.2f}$/{b['monthly_cap_usd']:.2f}$ ({b['month_state']}); bugün: " + ", ".join(parts)
     if not b["prices_verified"]:
