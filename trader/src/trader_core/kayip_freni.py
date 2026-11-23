@@ -2,8 +2,9 @@
 state'teki gun basi kasaya bakilarak her seferinde TURETILIR; yeniden baslatmada kendiliginden ayni sonuc.
 
 Tetik (biri yeter):
-  - ardisik: son `ardisik` kapanan islemin hepsi zararda (realized_pnl < 0; elle kapanis `manual` sayilmaz).
-    Ilk kazancli (ya da basa-bas) kapanista kalkar (seri bozulur) VE yeni UTC gununde kalkar (yalniz bugun kapananlar sayilir).
+  - ardisik: son `ardisik` kapanan islemin hepsi zararda (realized_pnl < 0; elle kapanis `manual` sayilmaz; basa-bas notr).
+    Seri GECE YARISINI ASAR (23.11 kullanici karari b: gun sinirina bakilmaz). Kalkis: ilk kazancli kapanista (seri bozulur)
+    VEYA tetiklendigi gunden sonraki ilk UTC gun basinda; o anda sayac sifirlanir, yeniden tetik icin `ardisik` YENI kayip gerekir.
   - gunluk: bugunku zarar (gun basi kasa - kasa) / gun basi kasa >= gunluk_oran. UTC gun basinda (yeni gun_basi kasasi) kalkar.
 Etki: islem basi hedef risk `carpan` ile carpilir (0.01 -> 0.005). YALNIZ KUCULTUR: etkin hedef = min(kademe/kol hedefi, taban hedef x carpan).
 """
@@ -12,6 +13,7 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import timezone
 
 
 @dataclass(frozen=True)
@@ -57,16 +59,45 @@ def _son_kazanc(kapananlar_yeniden_eskiye: Sequence) -> bool:
     return False
 
 
+def _gun(ts):
+    return (ts.astimezone(timezone.utc) if ts.tzinfo else ts).date()
+
+
+def ardisik_seri(kapananlar_yeniden_eskiye: Sequence, ust: int, bugun) -> tuple[int, bool]:
+    """Son kazanctan beri zararli kapanislar eskiden yeniye yurunur. Sayac `ust`e ulasinca o gun tetiklenir; tetik gununden sonraki
+    ilk kayipta sayac sifirdan baslar (fren o gun basinda kalkti). Donus: (sayac, bugun aktif mi). `bugun` None => gun bilgisi yok."""
+    seri = []
+    for t in kapananlar_yeniden_eskiye:
+        if getattr(t, "exit_reason", None) == "manual":
+            continue
+        pnl = getattr(t, "realized_pnl", None)
+        if _fin(pnl) and float(pnl) == 0.0:      # basa-bas: notr
+            continue
+        if not _fin(pnl) or float(pnl) > 0.0:
+            break
+        seri.append(t)
+    n, tetiklendi, tetik = 0, False, None
+    for t in reversed(seri):
+        ts = getattr(t, "exit_ts", None)
+        g = _gun(ts) if ts is not None else bugun
+        if tetiklendi and tetik is not None and g is not None and g > tetik:
+            n, tetiklendi, tetik = 0, False, None
+        n += 1
+        if n >= ust and not tetiklendi:
+            tetiklendi, tetik = True, g
+    if not tetiklendi:
+        return n, False
+    return n, (bugun is None or tetik is None or tetik == bugun)
+
+
 def karar(cfg: Mapping | None, kapananlar_yeniden_eskiye: Sequence, equity: float, gun_basi_kasa: float, gun_basi=None) -> FrenKarari:
     """cfg = {ardisik, gunluk_oran, carpan} (bos/None = kapali). Hata durumunda cagiran fren uygulamaz (kucultme zaten sigorta)."""
     if not cfg:
         return YOK
-    if gun_basi is not None:        # seri gece yarisini asmaz: yalniz bugunku (UTC) kapanislar
-        kapananlar_yeniden_eskiye = [t for t in kapananlar_yeniden_eskiye
-                                     if getattr(t, "exit_ts", None) is not None and t.exit_ts >= gun_basi]
-    n = ardisik_kayip(kapananlar_yeniden_eskiye, int(cfg["ardisik"]))
+    ust = int(cfg["ardisik"])
+    n, aktif = ardisik_seri(kapananlar_yeniden_eskiye, ust, _gun(gun_basi) if gun_basi is not None else None)
     carpan = float(cfg["carpan"])
-    if n >= int(cfg["ardisik"]):
+    if aktif:
         return FrenKarari(True, "ardisik", carpan, n)
     if _son_kazanc(kapananlar_yeniden_eskiye):          # gunluk fren de ilk kazancli kapanista kalkar
         return FrenKarari(False, None, 1.0, n)
