@@ -243,7 +243,8 @@ def ortak7(kap: Sequence[Mapping], tum: Sequence[Mapping], baslangic: datetime |
 RISK_LIMIT = (("toplam açık risk", "max_open_risk"), ("aynı yön", "max_same_dir_risk"), ("günlük zarar bütçesi", "daily_max_loss"),
               ("günlük sınır aşıldı", "daily_limit"), ("toplam teminat", "margin_total"), ("likidasyon çok yakın", "liquidation"),
               ("boyutlandırma reddedildi", "sizing"), ("zaten açık pozisyon", "pair_already_open"), ("kaldıraç aralık", "leverage_range"),
-              ("stop yanlış tarafta", "stop_side"), ("geçersiz girdi", "invalid_input"))
+              ("stop yanlış tarafta", "stop_side"), ("geçersiz girdi", "invalid_input"),
+              ("korelasyon grubu sınırı", "korelasyon_grubu"), ("toplam büyüklük tavanı", "toplam_buyukluk"))
 PENCERE_SAAT = 12
 
 

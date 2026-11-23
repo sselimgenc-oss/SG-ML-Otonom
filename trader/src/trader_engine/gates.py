@@ -11,6 +11,7 @@ from datetime import datetime
 from typing import Literal, Protocol
 
 from trader_core import etiket_kurallari as EK
+from trader_core import kayip_freni as KF
 from trader_core import kol_kucultme as KK
 from trader_core import ledger as L
 from trader_core import risk as K
@@ -23,6 +24,7 @@ from .clock import Clock
 from .config import EngineConfig
 from .errors import DataError
 from .killswitch import Killswitch
+from .korelasyon_grubu import KorelasyonGruplari
 from .pause import EntryPause
 from .state import StateStore, parse_iso_z
 from .strategies import arms as AR
@@ -168,6 +170,12 @@ class EntryGate:
         # etiket_cfg = dogrulanmis cfg.etiket_kurallari ({} = kapali).
         self.etiket_cfg: Mapping | None = None
         self.arms_off: Collection[str] | Callable[[], Collection[str]] | None = None  # DD-12 WP-13: ders kapattigi kurulumlar (arm_id); yok = hepsi acik
+        # 23.11 kullanici karari: asama B esikleri (yalniz paper/live; ENTRY-only). Korelasyon grubu: matris kaynagini engine baglar
+        # (yoksa sabit kume yedegi); kayip freni + toplam buyukluk tavani cfg'den okunur.
+        kc = getattr(cfg, "korelasyon", None)
+        self.korelasyon: KorelasyonGruplari | None = None
+        if kc and cfg.mode in ("paper", "live"):
+            self.korelasyon = KorelasyonGruplari(None, cfg.pairs, cfg.clusters, kc["esik"], int(kc["pencere_gun"]))
         self.memory_lock: str | None = None       # DD-8 O4: dosya tutusu yazilamadiysa bellek kilidi (kapi kodu); None = yok
 
     # ------------------------------------------------------------------ cift-bagimsiz kapilar (4-8)
@@ -303,6 +311,63 @@ class EntryGate:
             log.warning("kol kucultme okunamadi, tam boyut: %s: %s", type(e).__name__, e)
             return None
 
+    # ------------------------------------------------------------------ 23.11 kullanici karari: asama B esikleri (yalniz giris)
+    def _korelasyon_karari(self, row: SignalRow, tf: str, D: datetime, tk: dict) -> EntryOutcome | None:
+        """Adayin korelasyon grubunda (30 gun 1s getiri korelasyonu >= esik; veri yoksa sabit kume) AYNI yonde acik pozisyon sayisi
+        `yon_basina_max`e ulasmissa giris `korelasyon_grubu` ile atlanir. Hata => engellemez (sayilir); cikislara dokunmaz."""
+        kg, kc = self.korelasyon, getattr(self.cfg, "korelasyon", None)
+        if kg is None or not kc:
+            return None
+        try:
+            n = kg.grup_sayisi(row.pair, row.side, self.state.open_positions(), self.clock.now())
+            mx = int(kc["yon_basina_max"])
+            if n < mx:
+                return None
+            self.counters["korelasyon_grubu_blok"] += 1
+            return self._skip(row, tf, "korelasyon_grubu", skip_reason="risk_denied", veto_status="not_evaluated",
+                              veto_reason="gate:korelasyon_grubu", risk_allowed=False,
+                              risk_reason=f"korelasyon grubu sınırı: aynı yönde ({row.side}) {n} açık pozisyon var, en fazla {mx}", **tk)
+        except Exception as e:  # noqa: BLE001
+            self.counters["korelasyon_grubu_hata"] += 1
+            log.warning("korelasyon grubu hatasi, giris serbest: %s: %s", type(e).__name__, e)
+            return None
+
+    def _fren_karari(self, acct: K.AccountState) -> KF.FrenKarari:
+        """Kayip freni: defterden (son kapananlar) + state gun basi kasadan TURETILIR (dosya yok). Hata => fren yok (yalniz kucultme)."""
+        fc = getattr(self.cfg, "kayip_freni", None)
+        if not fc:
+            return KF.YOK
+        try:
+            son = self.ledger.list_closed_trades(limit=max(50, int(fc["ardisik"]) * 10))
+            return KF.karar(fc, son, acct.equity, acct.day_start_equity)
+        except Exception as e:  # noqa: BLE001
+            self.counters["kayip_freni_hata"] += 1
+            log.warning("kayip freni hesaplanamadi, fren yok: %s: %s", type(e).__name__, e)
+            return KF.YOK
+
+    def _toplam_buyukluk_karari(self, row: SignalRow, tf: str, acct: K.AccountState, size: K.SizeResult, vs: str,
+                                veto_reason: str | None, tk: dict) -> EntryOutcome | None:
+        """Acik pozisyonlarin nominali + aday <= toplam_buyukluk_kat x kasa; degilse `toplam_buyukluk`. Hata => engellemez."""
+        kat = getattr(self.cfg, "toplam_buyukluk_kat", None)
+        if not kat:
+            return None
+        try:
+            acik = 0.0
+            for p in self.state.open_positions():
+                q, px = getattr(p, "qty", None), getattr(p, "entry_price", None)
+                acik += float(q) * float(px) if _fin(q) and _fin(px) else float(p.margin) * float(p.leverage)
+            tavan = float(kat) * float(acct.equity)
+            if acik + float(size.notional) <= tavan:
+                return None
+            self.counters["toplam_buyukluk_blok"] += 1
+            return self._skip(row, tf, "toplam_buyukluk", skip_reason="risk_denied", veto_status=vs, veto_reason=veto_reason,
+                              risk_allowed=False,
+                              risk_reason=f"toplam büyüklük tavanı: açık {acik:.2f} + aday {float(size.notional):.2f} > {kat:g} x kasa {tavan:.2f}", **tk)
+        except Exception as e:  # noqa: BLE001
+            self.counters["toplam_buyukluk_hata"] += 1
+            log.warning("toplam buyukluk tavani hatasi, giris serbest: %s: %s", type(e).__name__, e)
+            return None
+
     def _arms_off(self) -> Collection[str]:
         ao = self.arms_off
         return (ao() if callable(ao) else ao) or ()
@@ -382,6 +447,9 @@ class EntryGate:
             if AG.account_full(len(held), self.cfg.max_positions):
                 return self._skip(row, tf, "max_positions", skip_reason="max_positions",
                                   veto_reason="gate:max_positions", **tk)
+            kg = self._korelasyon_karari(row, tf, D, tk)                                 # 23.11 asama B: korelasyon grubu yon tavani
+            if kg is not None:
+                return kg
             ml_skip = self._ml_filtre_karari(row, tf, D, tk)
             if ml_skip is not None:
                 return ml_skip
@@ -407,20 +475,36 @@ class EntryGate:
         dec = None
         if paper:                                                                       # 20 Kasim: kademeli kucultme (yalniz kagit, yalniz kucultur)
             kk = self._kol_karari(aid)
+            kol_mult = 1.0
             if kk is not None:
                 tk["features"] = {**(tk.get("features") or _features(row)), **KK.ozellikler(kk)}
-                if kk.carpan < 1.0:
-                    dec = K.check_entry_scaled(acct, cand, src.risk_config, kk.carpan)
-                    if dec.allowed:
+                kol_mult = float(kk.carpan)
+            fren = self._fren_karari(acct)                                              # 23.11 asama B: kayip freni (yalniz kucultur)
+            fren_mult = KF.goreli_carpan(fren, self.cfg.risk_config.target_trade_risk, src.risk_config.target_trade_risk)
+            mult = min(kol_mult, fren_mult)                                             # asgari; kademe/mandal zaten src.risk_config icinde
+            if fren.aktif:
+                tk["features"] = {**(tk.get("features") or _features(row)), "kayip_freni": fren.neden, "kayip_freni_carpani": float(fren_mult)}
+            if mult < 1.0:
+                dec = K.check_entry_scaled(acct, cand, src.risk_config, mult)
+                if dec.allowed:
+                    if kol_mult < 1.0 and kol_mult <= fren_mult:
                         self.counters[f"kol_kucultme:{aid}"] += 1
-                    else:                                                               # asgari boyut bile emir alt sinirinin altinda: kol kapanmaz, tam boyut denenir
-                        dec = None
-                        tk["features"] = {**tk["features"], "kol_boyut_carpani": 1.0, "kol_boyut_geri": 1}
+                    if fren_mult < 1.0:
+                        self.counters["kayip_freni_yarim:" + str(fren.neden)] += 1
+                elif fren_mult < 1.0:                                                   # fren aktif: tam boyuta GERI DONULMEZ (asla artirmaz)
+                    self.counters["kayip_freni_boyut_reddi"] += 1
+                else:                                                                   # asgari boyut bile emir alt sinirinin altinda: kol kapanmaz, tam boyut denenir
+                    dec = None
+                    tk["features"] = {**tk["features"], "kol_boyut_carpani": 1.0, "kol_boyut_geri": 1}
         if dec is None:
             dec = K.check_entry(acct, cand, src.risk_config)
         if not dec.allowed:
             return self._skip(row, tf, "risk_denied", skip_reason="risk_denied", veto_status=vs,
                               veto_reason=lk.reason, risk_allowed=False, risk_reason=dec.reason, **tk)
+        if paper:                                                                       # 23.11 asama B: toplam buyukluk tavani (boyut belli olduktan sonra)
+            tb = self._toplam_buyukluk_karari(row, tf, acct, dec.size, vs, lk.reason, tk)
+            if tb is not None:
+                return tb
         size = dec.size                                                                 # 12
         self.counters["enter"] += 1
         ev = build_decision_event(

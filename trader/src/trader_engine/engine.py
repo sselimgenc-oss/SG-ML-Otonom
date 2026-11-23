@@ -154,6 +154,8 @@ class Engine:
         if cfg.mode in PAPER_SYSTEM_MODES:       # DD-12 WP-13: ders kapattigi kurulumlar (salt okunur dosya; yoksa hepsi acik); 23.11 kullanici karari: canli = kagit
             _arms_path = Path(cfg.ledger_path).parent / "arms_off.json"
             self.gate.arms_off = lambda: load_arms_off(_arms_path)
+            if self.gate.korelasyon is not None:                        # 23.11 asama B: korelasyon matrisi market.sqlite barlarindan (saatte bir)
+                self.gate.korelasyon.bars_fn = lambda p, tf, until, n: self.view.bars(p, tf, until, n)
             if cfg.etiket_kurallari:                                    # rejim etiketi kurali (sabit; girisi yalniz atlatabilir; docs/etiket-kurallari-spec.md)
                 self.gate.etiket_cfg = cfg.etiket_kurallari
             if cfg.ml_mode == "active":                                 # 19.11 kullanici karari: kagitta ML filtresi AKTIF (girisi atlatabilir)
