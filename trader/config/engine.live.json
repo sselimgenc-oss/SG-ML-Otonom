@@ -6,7 +6,7 @@
   "pause_file": "shared/live/PAUSE",
   "live": {
     "account_tag": "canli-alt1",
-    "expected_wallet_max": 1500.0,
+    "expected_wallet_max": 2000.0,
     "conditional_mode": "algo",
     "recv_window_ms": 5000,
     "poll_open_s": 5.0,

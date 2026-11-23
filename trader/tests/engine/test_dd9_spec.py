@@ -195,7 +195,7 @@ def test_k_01_live_layer_loads_with_fixed_contract_values():
     assert cfg.kill_file == f"{r}/shared/live/KILL"
     assert cfg.pause_file == f"{r}/shared/live/PAUSE"
     assert cfg.live.account_tag == "canli-alt1"
-    assert cfg.live.expected_wallet_max == 1500.0
+    assert cfg.live.expected_wallet_max == 2000.0   # 23.11 kullanici karari (d): 1500 -> 2000
     assert cfg.live.max_attempts == 1
     assert cfg.leverage == LOCKED_CFG.min_leverage
     assert cfg.veto_mode == "required"

@@ -44,7 +44,7 @@ Bu belge davranışı tanımlar. Test yazan ajan uygulamayı görmeden yalnız b
   "pause_file": "shared/live/PAUSE",
   "live": {
     "account_tag": "canli-alt1",
-    "expected_wallet_max": 1500.0,
+    "expected_wallet_max": 2000.0,
     "conditional_mode": "algo",
     "recv_window_ms": 5000,
     "poll_open_s": 5.0,
@@ -64,7 +64,7 @@ Bu belge davranışı tanımlar. Test yazan ajan uygulamayı görmeden yalnız b
 **Dosyalar.** `config/engine.live.json` (yeni).
 
 **Kabul testleri.**
-- **K-1** `load_cli_config("<kök>/config", "learner", env="live")` istisnasız; `mode == "live"`, `var_dir == "<kök>/var-live"`, `kill_file == "<kök>/shared/live/KILL"`, `pause_file == "<kök>/shared/live/PAUSE"`, `live.account_tag == "canli-alt1"`, `live.expected_wallet_max == 1500.0`, `live.max_attempts == 1`, `leverage == LOCKED_CFG.min_leverage`, `veto_mode == "required"`, `cost.trigger_source == "mark"`.
+- **K-1** `load_cli_config("<kök>/config", "learner", env="live")` istisnasız; `mode == "live"`, `var_dir == "<kök>/var-live"`, `kill_file == "<kök>/shared/live/KILL"`, `pause_file == "<kök>/shared/live/PAUSE"`, `live.account_tag == "canli-alt1"`, `live.expected_wallet_max == 2000.0` (23.11 kullanıcı kararı; önce 1500.0), `live.max_attempts == 1`, `leverage == LOCKED_CFG.min_leverage`, `veto_mode == "required"`, `cost.trigger_source == "mark"`.
 - **K-2** Dosyanın üst düzey anahtar kümesi tam `{"mode","var_dir","kill_file","pause_file","live"}`; `live` anahtar kümesi `engine.testnet.json` ile aynı.
 - **K-3** `engine.live.json["live"]` ile `engine.testnet.json["live"]` yalnız `account_tag` ve `expected_wallet_max` alanlarında farklıdır.
 - **K-4** `load_cli_config(..., "twin", env="live")` → `ConfigError`.

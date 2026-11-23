@@ -55,7 +55,7 @@ PINNED_SHA = {
     "engine.base.json": "ba218ea0404803c9e5af7ffbd276fad79b6d0af714c94150172f7d56e674c328",   # WP-06a: yalniz veto_config yolu
     "engine.learner.json": "30ca2842c40cacafbf6cdd90c9e6f1f54fc62b9a9ec913476d1399ac5352cb12",
     "engine.testnet.json": "54247bbd4d0fcea5eda5add465809938178ec4a1decf7f61cb9aa838daa4e952",
-    "engine.live.json": "764d1558d3918094de480e942cc0255b53528b759a3cd2e44cb436fd21a39573",
+    "engine.live.json": "d9b47a6c5f9df12440cebb423afeaf5d3f2ea41cc3b6bc5ccf6f6e51a03bf24f",
 }
 UNIT_SHA = {
     "trader-engine-testnet.service": "c753d965c4b8e4a239f6ca44fa83a17e3824ed501583aadc8c7a21c27c5ac07d",
@@ -156,6 +156,9 @@ def test_dt1_katmansiz_yukleme_onceki_engineconfig_ile_esit(baseline, envname):
         if k == "pairs" and envname in ENV_PAIRS:           # 22.11: tek beklenen fark: kendi pairs listesi (kripto)
             assert len(v) == 10 and cur["cfg"][k] == ENV_PAIRS[envname]
             continue
+        if k == "live" and envname == "live":               # 23.11 kullanici karari (d): canli kasa tavani 1500 -> 2000; baska fark yok
+            assert v["expected_wallet_max"] == 1500.0 and cur["cfg"][k] == {**v, "expected_wallet_max": 2000.0}
+            continue
         assert cur["cfg"][k] == v, f"{envname}: alan {k} degisti"
     assert cur["risk"] == old["risk"]
 
@@ -180,6 +183,8 @@ def test_dt1_dt13_config_dosyalari_degismedi(name):
     if name in ("engine.testnet.json", "engine.live.json"):   # 22.11: kendi "pairs" satiri (kill_file'dan once); baska fark yok
         env = name.split(".")[1]
         head = head.replace(b'  "kill_file"', ENV_PAIRS_LINE[env] + b'  "kill_file"', 1)
+    if name == "engine.live.json":      # 23.11 kullanici karari (d): canli kasa tavani 1500 -> 2000
+        head = head.replace(b'"expected_wallet_max": 1500.0', b'"expected_wallet_max": 2000.0', 1)
     assert p.read_bytes() == head
 
 
