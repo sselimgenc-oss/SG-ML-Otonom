@@ -8,6 +8,7 @@ Kullanim:
   python kart_batch.py gonder  --limit 50 --onay   # pilot: ilk 50 kitap (ML/Algo klasorleri once)
   python kart_batch.py durum                        # batch bitti mi (cogu 1 saat icinde)
   python kart_batch.py al                           # sonuclar -> kartlar.jsonl + GERCEK maliyet
+  python kart_batch.py iptal                        # bitmemis batchi durdur + kaydi temizle (yeniden gondermek icin)
   python kart_batch.py gonder --onay                # pilot iyiyse: kalanlarin hepsi (daha once gonderilenler atlanir)
 
 Ciktiyi (kartlar.jsonl) Claude oturumuna yukle; kitap metni degil, yalniz kendi sozlerimizle kartlar.
@@ -75,7 +76,7 @@ def durum_oku() -> dict:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("komut", choices=["tahmin", "gonder", "durum", "al"])
+    ap.add_argument("komut", choices=["tahmin", "gonder", "durum", "al", "iptal"])
     ap.add_argument("--girdi", type=Path, default=Path("kitap_on.jsonl"))
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--onay", action="store_true", help="gonder icin zorunlu (para harcar)")
@@ -111,6 +112,17 @@ def main() -> int:
 
     import anthropic
     client = anthropic.Anthropic()
+    if a.komut == "iptal":   # bitmemis batchleri durdurur, kaydi temizler (yeniden gonderim icin). Bitmis istekler zaten ucretlenmistir.
+        for bid in d["batchler"]:
+            b = client.messages.batches.retrieve(bid)
+            if b.processing_status == "in_progress":
+                client.messages.batches.cancel(bid)
+                print(f"{bid}: iptal istendi")
+            else:
+                print(f"{bid}: {b.processing_status} (iptal gerekmedi)")
+        DURUM.write_text(json.dumps({"batchler": [], "gonderilen": [], "eski": d["batchler"]}, indent=1), encoding="utf-8")
+        print("Kayit temizlendi; simdi 'gonder --genis --onay' ile yeniden gonderebilirsin.")
+        return 0
     if a.komut == "durum":
         for bid in d["batchler"]:
             b = client.messages.batches.retrieve(bid)
