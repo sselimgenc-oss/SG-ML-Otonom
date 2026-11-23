@@ -78,3 +78,9 @@ kâğıt bot 44 enstrümanla çalışıyor (health.py:690 _c_open_price).
   3) Derin öğrenme fiyat verisinden (milyonlarca mum): yön/oynaklık tahmini → filtreye özellik, gölgede ölç.
   4) YZ ajanı yorumcu: günlük işlem incelemesi/rapor, işlem yetkisi yok.
 - Not: LLM veto 19-20.11'de kullanıcı kararıyla kaldırılmıştı ("veto nedir, kaldır"), kanıt nedeniyle değil. LLM zaten sistemde: işlem notu + ders + M1 "yapay zekâ adayı" kolu (aylık LLM bütçesi config/budget.json).
+
+## MADDE 3 KARARI (23.11)
+- Seçilen (madde3_strateji_tablo.md): 2 korelasyon/tek bahis, 3 kayıp serisi freni, 4 toplam büyüklük tavanı, 12 kayıp kümeleri raporu. 14 göreceli güç bir sonraki tura.
+## 1. TUR UYGULAMA SIRASI
+- Aşama A (botu değiştirmez, ölçer): basit rakip kıyası, gecikme/masraf/mum kaydırma, sıra karıştırma + en iyi N çıkar, canlı şartları, filtrede yön denetimi, kayıp kümeleri raporu.
+- Aşama B (botu değiştirir; eşikler testten ÖNCE kilitlenir, kullanıcı onaylar): yön sınırı, v2 özellik paketi, korelasyon sınırı, kayıp freni, toplam tavan. Holdout okunmaz.
