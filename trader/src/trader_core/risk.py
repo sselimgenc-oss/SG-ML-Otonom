@@ -225,6 +225,35 @@ def liquidation_price(entry: float, side: str, leverage: float, mmr: float) -> f
     return entry * (1 + 1 / leverage - mmr)
 
 
+# 23 Kasim: giris oncesi tasfiye mesafesi kapisi (kagit = canli, ayni kod: gates.decide). Binance'in kademeli MMR tablosu kodda YOK;
+# muhafazakar sabitler (kripto 0,5%; hisse/emtia (TRADIFI) 2%) ve cfg.maint_margin_rate'in BUYUGU kullanilir. Gercek MMR
+# pozisyon buyuklugune gore kademelidir; bu yaklasiktir ve rapor edilir (docs: toplu-sok-tasfiye).
+MMR_SINIF = {"kripto": 0.005, "hisse": 0.02, "emtia": 0.02}
+MMR_VARSAYILAN = 0.02            # bilinmeyen sinif: en muhafazakar
+
+
+def sinif_mmr(sinif: str | None, cfg_mmr: float = 0.0) -> float:
+    """Varlik sinifi (kripto|hisse|emtia) icin muhafazakar MMR; cfg.maint_margin_rate'in altina inmez."""
+    return max(float(cfg_mmr), MMR_SINIF.get(sinif or "", MMR_VARSAYILAN))
+
+
+def tasfiye_mesafesi(entry: float, stop: float, side: str, leverage: float, mmr: float,
+                     guvenlik: float = 1.5) -> dict:
+    """Izole teminat: tasfiye fiyati, giris-tasfiye ve giris-stop mesafesi, oran ve guvenli mi (mesafe >= guvenlik x stop mesafesi).
+    Izole teminatta tasfiye fiyati POZISYON BUYUKLUGUNDEN bagimsizdir (teminat = notional/kaldirac): buyuklugu kucultmek mesafeyi
+    degistirmez; yalniz kaldirac degisir. `max_kaldirac`: kosulu saglayan en buyuk tam sayi kaldirac (yoksa 0)."""
+    liq = liquidation_price(entry, side, leverage, mmr)
+    d_liq, d_stop = abs(entry - liq), abs(entry - stop)
+    max_lev = 0
+    for lv in range(int(max(1, leverage)), 0, -1):
+        if abs(entry - liquidation_price(entry, side, lv, mmr)) >= guvenlik * d_stop:
+            max_lev = lv
+            break
+    return {"liq_fiyat": liq, "liq_mesafe": d_liq, "stop_mesafe": d_stop,
+            "oran": (d_liq / d_stop) if d_stop > 0 else math.inf, "guvenlik": guvenlik, "mmr": mmr,
+            "guvenli": d_liq >= guvenlik * d_stop, "max_kaldirac": max_lev}
+
+
 def loss_at_stop(qty: float, entry: float, stop: float, cfg: RiskConfig) -> float:
     """Stop'ta gerçekleşen kayıp, her iki taraf komisyon+kayma dahil."""
     cost = cfg.fee_rate + cfg.slippage_rate

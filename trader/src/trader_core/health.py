@@ -112,6 +112,8 @@ class ApiProbe:
     expect_exchange: bool = False
     # Acik pozisyonlarin (cift, varlik sinifi kripto|hisse|emtia); None = okunamadi / sinif bilinmiyor (denetim uretilmez).
     open_pairs: tuple[tuple[str, str], ...] | None = None
+    # 23.11 toplu sok: status.json `toplu_sok` ozeti {sok10, limit, sok10_usd} (kasa %); None = blok yok (denetim uretilmez).
+    toplu_sok: Mapping | None = None
 
 
 @dataclass(frozen=True)
@@ -1109,6 +1111,18 @@ def _num_s(x, nd=2) -> str:
 _LADDER_WARMUP_OK = frozenset({"ladder_missing", "capital_missing", "ladder_invalid", "equity_unreadable"})
 
 
+def _c_toplu_sok(snap, bot, cfg):
+    """%10 ortak sok kaybi (tum pozisyonlar ayni anda kendi aleyhine) gunluk zarar siniri (risk ayari) asiyor mu? Asiyorsa WARN
+    (bilgi; giris engellenmez). Hesap bilinmiyorsa denetim hic uretilmez."""
+    name = f"toplu_sok:{bot}"
+    t = snap.api[bot].toplu_sok
+    s10, lim = float(t["sok10"]), float(t["limit"])
+    if s10 > lim:
+        return _res(name, Status.WARN, "toplu_sok_limit_asimi",
+                    f"{bot} %10 toplu sok kaybi {s10:.1f}% kasa (${float(t.get('sok10_usd', 0)):.0f}) > gunluk zarar siniri {lim:.1f}%", s10, lim)
+    return _res(name, Status.OK, "ok", f"{bot} %10 toplu sok kaybi {s10:.1f}% kasa <= gunluk zarar siniri {lim:.1f}%", s10, lim)
+
+
 def _c_ladder(snap, bot, cfg):
     """19 Kasim: motor yeni basladiysa (isinma, cfg.warmup_s) kademe blogu henuz yazilmamis/ilklenmemis olabilir; bu
     gecici durum alarm degildir (guncelleme sirasinda yanlis 'Risk kademesi sorunlu' CRIT'i). Isinma bitince aynen denetlenir.
@@ -1222,6 +1236,8 @@ def evaluate(snap: HealthSnapshot, cfg: HealthConfig = DEFAULT_CFG) -> HealthRep
                 results.append(_safe(f"exchange_reachable:{bot}", _c_exchange, snap, bot, cfg))
             if _live_mode(snap.api[bot]):
                 results.append(_safe(f"account_mode:{bot}", _c_account_mode, snap, bot, cfg))
+            if snap.api[bot].toplu_sok is not None:
+                results.append(_safe(f"toplu_sok:{bot}", _c_toplu_sok, snap, bot, cfg))
             if snap.api[bot].ladder is not None or snap.api[bot].mode in ("live", "testnet"):
                 results.append(_safe(f"risk_ladder:{bot}", _c_ladder, snap, bot, cfg))
         if bot in snap.pause:
@@ -1454,6 +1470,9 @@ _HEALTH_TR: dict[str, tuple[str, str, str]] = {
                      "Bot engel bitene kadar emir göndermez; engel kendiliğinden kalkar."),
     "pause_audit": ("Duraklatma kaydı tutarsız", "Duraklatma kaydı yeniden tutarlı",
                     "Yeni işlemler güvenlik için kapalı tutulur; kayıtlar incelenmeli."),
+    "toplu_sok": ("Toplu şok riski günlük zarar sınırını aşıyor", "Toplu şok riski yeniden sınırın altında",
+                  "Tüm pozisyonlar aynı anda %10 aleyhe giderse kayıp günlük zarar sınırından büyük olur; yeni işlemler engellenmez, "
+                  "açık risk gözden geçirilmeli."),
     "risk_ladder": ("Risk kademesi sorunlu", "Risk kademesi yeniden normal",
                     "Sermaye koruma kuralları devrede; yeni işlemler kısıtlanabilir."),
     "ml_package": ("Yapay zekâ modeli sorunlu", "Yapay zekâ modeli yeniden normal",

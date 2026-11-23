@@ -23,6 +23,7 @@ sys.path.insert(0, str(_HERE))
 
 from trader_core import health as H  # noqa: E402
 from trader_core import live_paths as LP  # noqa: E402
+from trader_engine import status as TSK  # noqa: E402
 
 log = logging.getLogger("trader.health.run")
 
@@ -231,7 +232,8 @@ def probe_status(path: str, bot: str, now: datetime) -> tuple[H.ApiProbe, int | 
         acct_u = None if un is None or ub is None else max(un - ub, 0)
     probe = H.ApiProbe(ping, loop_at, _parse_dt(d.get("last_candle_open")), _ids(d.get("open_trade_ids")), dry,
                        gate_code, kill, le, unprot, mode, has_ex, reach, last_sync, naked, _ladder_block(d),
-                       acct_drift=acct_d, acct_unverified=acct_u, open_pairs=open_pairs)
+                       acct_drift=acct_d, acct_unverified=acct_u, open_pairs=open_pairs,
+                       toplu_sok=TSK.saglik_ozeti(d.get("toplu_sok")))
     return probe, timeframe_to_s(d.get("trigger_tf"))
 
 
