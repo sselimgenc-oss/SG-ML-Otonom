@@ -74,7 +74,7 @@ def kos(root: Path, now: datetime, *, market: Path | None = None, runs: int = T.
     try:
         if mp.exists():
             mumlar = T.MumDeposu(mp)
-        d = T.rapor(trades, decisions, mumlar, kasa0=ws, now=now, models_dir=root / "var" / "learner" / "models", b=b, runs=runs)
+        d = T.rapor(trades, decisions, mumlar, kasa0=ws, now=now, models_dir=led_path.parent / "models", b=b, runs=runs)
     finally:
         if mumlar is not None:
             mumlar.close()

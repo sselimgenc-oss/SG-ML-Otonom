@@ -41,7 +41,9 @@ KUME_MIN_ISLEM = 3           # Bir kumede bundan az kayip varsa "az ornek" notu.
 SEED = 20261123              # Tum rastgelelik bu tohumdan turetilir.
 
 TF_MS = {"15m": 900_000, "1h": 3_600_000, "4h": 14_400_000}
-SIDE_FEATURE = "f_side_sign"
+SIDE_FEATURE = "f_side_sign"                      # araştırma paketi: meta.features içinde
+SIDE_FEATURES = ("f_side_sign", "side_long")      # canlı aile paketi: meta.ozellikler içinde "side_long"
+FEATURE_KEYS = ("features", "ozellikler")         # paket şeması: araştırma = features, canlı aile (ortak_ogrenme) = ozellikler
 YETERSIZ = "yetersiz örnek"
 
 
@@ -387,31 +389,47 @@ def _lgbm_onem(model: dict, idx: int, nf: int) -> tuple[float, float]:
 
 
 def yon_ozelligi_onemi(models_dir) -> dict:
-    """Model paketleri `f_side_sign` onemini aciga cikariyorsa raporlar: lojistik -> |katsayi| payi (standartlasmis ozellik);
-    lgbm -> bolme sayisi/kazanc payi. Paket okunamazsa ya da ozellik yoksa nedeniyle birlikte 'olculemedi'."""
+    """Model paketleri yön özelliğinin önemini açığa çıkarıyorsa raporlar. İki şema desteklenir: araştırma paketi
+    (`meta.features`, `f_side_sign`) ve canlı aile paketi (`meta.ozellikler`, `side_long`; `paket/ortak_ogrenme/filtre.py`).
+    Lojistik -> |katsayı| payı (katsayılar standartlaştırılmış özellik üzerinedir, iki şemada da öyle saklanır);
+    lgbm -> bölme sayısı/kazanç payı. Okunamayan paket atlanmaz: `okunamadi` satırı olarak yazılır. Eski kol paketleri
+    (`eski_kol/` klasörü, canlıda kullanılmaz) taranmaz."""
     p = Path(models_dir) if models_dir else None
     if p is None or not p.is_dir():
         return {"durum": "paket_dizini_yok", "paketler": []}
     rows = []
     for f in sorted(p.rglob("*.json")):
+        if "eski_kol" in f.parts:
+            continue
         try:
             pkg = json.loads(f.read_text(encoding="utf-8"))
-            feats, m = list(pkg["meta"]["features"]), pkg["model"]
-        except (OSError, ValueError, KeyError, TypeError):
+            meta, m = pkg["meta"], pkg["model"]
+            sema = next(k for k in FEATURE_KEYS if isinstance(meta.get(k), list))
+            feats = list(meta[sema])
+        except (OSError, ValueError, KeyError, TypeError, StopIteration, AttributeError):
             continue
-        if SIDE_FEATURE not in feats:
-            rows.append({"paket": f.name, "durum": "ozellik_listede_yok"})
+        ad = next((a for a in SIDE_FEATURES if a in feats), None)
+        if ad is None:
+            rows.append({"paket": f.name, "durum": "ozellik_listede_yok", "sema": sema})
             continue
-        i = feats.index(SIDE_FEATURE)
+        i = feats.index(ad)
         if m.get("kind") == "logistic":
-            c = np.abs(np.asarray(m["coef"], float))
-            rows.append({"paket": f.name, "tur": "logistic", "onem_payi": float(c[i] / c.sum()) if c.sum() else 0.0,
+            try:
+                c = np.abs(np.asarray(m["coef"], float))
+                if len(c) != len(feats):
+                    raise ValueError
+            except (KeyError, TypeError, ValueError):
+                rows.append({"paket": f.name, "durum": "katsayi_bozuk", "sema": sema})
+                continue
+            rows.append({"paket": f.name, "tur": "logistic", "sema": sema, "ozellik": ad,
+                         "onem_payi": float(c[i] / c.sum()) if c.sum() else 0.0,
                          "katsayi": float(m["coef"][i]), "sira": int(1 + (c > c[i]).sum()), "ozellik_sayisi": len(feats)})
         elif m.get("kind") == "lgbm":
             sc, kz = _lgbm_onem(m, i, len(feats))
-            rows.append({"paket": f.name, "tur": "lgbm", "bolme_payi": sc, "kazanc_payi": kz, "ozellik_sayisi": len(feats)})
+            rows.append({"paket": f.name, "tur": "lgbm", "sema": sema, "ozellik": ad, "bolme_payi": sc, "kazanc_payi": kz,
+                         "ozellik_sayisi": len(feats)})
         else:
-            rows.append({"paket": f.name, "durum": "bilinmeyen_tur"})
+            rows.append({"paket": f.name, "durum": "bilinmeyen_tur", "sema": sema})
     return {"durum": "ok" if rows else "paket_yok", "paketler": rows}
 
 
@@ -540,7 +558,7 @@ def render_md(d: dict) -> str:
     for s, v in yd["ml_filtre"].items():
         L.append(f"- ML filtre {s}: ret {v['ml_reddi']} / girildi {v['girildi']}, ret oranı {_r(v['red_orani'], 2)}")
     yo = yd["yon_ozelligi"]
-    L.append(f"- f_side_sign önemi: {yo['durum']}; " + ("; ".join(f"{p['paket']}: {p.get('onem_payi', p.get('kazanc_payi', p.get('durum')))}" for p in yo["paketler"][:5]) or "paket yok"))
+    L.append(f"- Yön özelliği (f_side_sign / side_long) önemi: {yo['durum']}; " + ("; ".join(f"{p['paket']}: {p.get('onem_payi', p.get('kazanc_payi', p.get('durum')))}" for p in yo["paketler"][:5]) or "paket yok"))
     kk = B["kayip_kumeleri"]
     L += ["", "## 6. Kayıp kümeleri" + (f" ({YETERSIZ})" if kk["etiket"] else ""), f"- {kk['n_kayip']} kayıp / {kk['n_islem']} işlem, {kk['kume_sayisi']} küme"]
     for r in kk["sayiya_gore"][:5]:
