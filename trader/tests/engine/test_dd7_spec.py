@@ -1192,7 +1192,7 @@ def test_s_08_existing_healthsnapshot_constructors_unchanged():
     names = [x.name for x in f]
     b = f[names.index("bans")]
     assert b.default is None, "bans varsayilan None"
-    assert names[names.index("bans") + 1:] == ["prev_account_mode", "live_path_issues", "haber_sinyal"], "DD-9: yalniz bu alanlar bans'tan sonra eklenir (23.11: haber_sinyal)"
+    assert names[names.index("bans") + 1:] == ["prev_account_mode", "live_path_issues", "haber_sinyal", "dl1_paket"], "DD-9: yalniz bu alanlar bans'tan sonra eklenir (23.11: haber_sinyal, dl1_paket)"
     rep = H.evaluate(hsnap())
     assert all(r.name != "exchange_ban" for r in rep.results)
     bp = H.BanProbe("h", None, None, None)
