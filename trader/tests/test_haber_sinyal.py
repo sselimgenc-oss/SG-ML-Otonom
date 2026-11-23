@@ -125,19 +125,22 @@ def test_istem_basliklari_veri_olarak_ve_sema_enum():
 
 
 # ---------------------------------------------------------------- birlestirme
-def _o(dk, yon=1, sid=3, guven=1.0, ufuk=24, kay=("a",), sem=("BTC/USDT",)):
-    return {"alim": NOW_MS - dk * 60_000, "kaynaklar": list(kay), "semboller": list(sem), "yon": yon, "siddet": sid, "guven": guven, "ufuk_saat": ufuk}
+def _o(dk, yon=1, sid=3, guven=1.0, ufuk=24, kay=("a",), sem=("BTC/USDT",), bas=""):
+    return {"baslik": bas, "alim": NOW_MS - dk * 60_000, "kaynaklar": list(kay), "semboller": list(sem), "yon": yon, "siddet": sid, "guven": guven, "ufuk_saat": ufuk}
 
 
 def test_birlestirme_sonum_ve_pencere():
     g = HS.birlestir([_o(0)], NOW_MS)["BTC/USDT"]
-    assert g == {"puan": 1.0, "kaynak_sayisi": 1, "max_siddet": 3, "oge_sayisi": 1}
+    assert {k: v for k, v in g.items() if k != "olaylar"} == {"puan": 1.0, "kaynak_sayisi": 1, "teyit_kaynak": 1, "max_siddet": 3, "oge_sayisi": 1,
+                                                          "olay_kimligi": HS.olay_kimligi(NOW_MS, "")}
+    assert g["olaylar"][0]["alim_ms"] == NOW_MS and g["olaylar"][0]["kaynaklar"] == ["a"]
     assert abs(HS.birlestir([_o(120)], NOW_MS)["BTC/USDT"]["puan"] - 0.5) < 1e-4          # 2 saat = yari omur
     assert abs(HS.birlestir([_o(240)], NOW_MS)["BTC/USDT"]["puan"] - 0.25) < 1e-4
     assert HS.birlestir([_o(7 * 60)], NOW_MS) == {}                                       # 6 saatten eski
     assert HS.birlestir([_o(180, ufuk=2)], NOW_MS) == {}                                  # kendi ufkunu astı
     r = HS.birlestir([_o(0, kay=("a", "b")), _o(0, yon=-1, sid=1, guven=0.6, kay=("b", "c")), _o(0, sem=("ETH/USDT",), sid=2)], NOW_MS)
-    assert r["BTC/USDT"] == {"puan": round(1.0 - 0.2, 4), "kaynak_sayisi": 3, "max_siddet": 3, "oge_sayisi": 2}
+    b = r["BTC/USDT"]
+    assert (b["puan"], b["kaynak_sayisi"], b["teyit_kaynak"], b["max_siddet"], b["oge_sayisi"]) == (round(1.0 - 0.2, 4), 3, 2, 3, 2)   # teyit: yalniz yukari yonlu a,b
     assert r["ETH/USDT"]["max_siddet"] == 2
     assert HS.birlestir([_o(0) for _ in range(10)], NOW_MS)["BTC/USDT"]["puan"] == 3.0     # kirpma
 
@@ -146,7 +149,8 @@ def test_gecerlilik_3_saat():
     d = HS.sinyal_belgesi([_o(0)], NOW_MS)
     assert d["uretim_ms"] == NOW_MS and d["gecerlilik_sonu_ms"] == NOW_MS + 3 * H
     assert d["uretim"] == "2026-11-23T12:08:00Z" and d["gecerlilik_sonu"] == "2026-11-23T15:08:00Z"
-    assert set(d["enstrumanlar"]["BTC/USDT"]) == {"puan", "kaynak_sayisi", "max_siddet", "oge_sayisi"}
+    assert set(d["enstrumanlar"]["BTC/USDT"]) == {"puan", "kaynak_sayisi", "teyit_kaynak", "max_siddet", "oge_sayisi", "olay_kimligi", "olaylar"}
+    assert d["schema"] == "haber_sinyal/2"
 
 
 # ---------------------------------------------------------------- calistirici
@@ -183,7 +187,8 @@ def test_butce_reddi_api_yok_dosya_degismez(tmp_path):
     c = Client(_cevap)
     o = HS.kos(tmp_path, ROOT / "config", NOW_MS, ENV, client=c, budget=Butce(red=True))
     assert o["durum"] == "atlandi" and "butce" in o["neden"] and c.cagri == [] and yol.read_bytes() == onceki
-    assert not (yol.parent / HS.DURUM_DOSYASI).exists()
+    cal = json.loads((yol.parent / HS.DURUM_DOSYASI).read_text())
+    assert cal["calisma"]["durum"] == "butce" and cal["calisma"]["zaman_ms"] == NOW_MS and cal["olaylar"] == [] and cal["son_alim"] == 0
 
 
 def test_api_hatasi_ve_bozuk_yanit_dosya_degismez_ve_yeniden_denenir(tmp_path):
@@ -206,6 +211,8 @@ def test_anahtar_yok_dosya_degismez(tmp_path):
     m = _betik()
     assert m.main(["--var-dir", str(tmp_path), "--config-dir", str(ROOT / "config")], now_fn=lambda: NOW, env={}, budget=Butce()) == 0
     assert not SINYAL(tmp_path).exists()
+    d = json.loads((SINYAL(tmp_path).parent / HS.DURUM_DOSYASI).read_text())
+    assert d["calisma"]["durum"] == "anahtar_yok" and d["calisma"]["zaman_ms"] == int(NOW.timestamp() * 1000)
 
 
 def test_betik_cikis_0_ve_ok(tmp_path, capsys):
@@ -238,4 +245,30 @@ def test_kurulum_baglantisi():
     assert "enable_now trader-haber-sinyal.timer" in inst and "trader-haber-sinyal.timer trader-piyasa-veri.timer" in inst
     assert "ANTHROPIC_API_KEY_HABER" in inst and "ANTHROPIC_API_KEY_HABER=" in (d / "trader-lesson.env.example").read_text()
     assert "/opt/trader/var/learner/sinyal" in svc and "var/veri" not in svc.split("ReadWritePaths=")[1].splitlines()[0]
-    assert "haber_sinyal" not in "".join(p.read_text() for p in (ROOT / "src" / "trader_engine").rglob("*.py"))
+    assert not re.search(r"^\s*(from|import)\s+trader_core(\.| import )\s*haber_sinyal|^\s*from trader_core import .*haber_sinyal", "".join(
+        p.read_text() for p in (ROOT / "src" / "trader_engine").rglob("*.py")), re.M)      # motor uretici modulu ice aktarmaz (HB1 yalniz dosyayi okur)
+
+
+# ---------------------------------------------------------------- teyit (yonlu kaynak) ve calisma durumu
+def test_teyit_yalniz_sinyal_yonundeki_kaynaklari_sayar():
+    """Bir olumlu + bir etkisiz (yon 0) farkli kaynak: kaynak_sayisi 2 ama teyit_kaynak 1."""
+    r = HS.birlestir([_o(0, sid=2, kay=("a",)), _o(0, yon=0, sid=0, kay=("b",))], NOW_MS)["BTC/USDT"]
+    assert r["kaynak_sayisi"] == 2 and r["teyit_kaynak"] == 1 and r["max_siddet"] == 2
+    ters = HS.birlestir([_o(0, sid=2, kay=("a",)), _o(0, yon=-1, sid=3, guven=0.2, kay=("b",))], NOW_MS)["BTC/USDT"]
+    assert ters["teyit_kaynak"] == 1 and ters["max_siddet"] == 2          # ters yonlu siddet 3 teyit/siddet sayilmaz
+
+
+def test_olay_kimligi_en_yeni_yonlu_olay():
+    r = HS.birlestir([_o(30, sid=2, kay=("a",), bas="x"), _o(5, sid=2, kay=("b",), bas="y")], NOW_MS)["BTC/USDT"]
+    assert r["olay_kimligi"] == r["olaylar"][1]["kimlik"] and r["olay_kimligi"] != r["olaylar"][0]["kimlik"]
+    assert HS.birlestir([_o(0, yon=0, sid=0)], NOW_MS)["BTC/USDT"]["olay_kimligi"] == 0
+
+
+def test_api_hata_durumu_yazilir_ve_ok_ile_ilk_ms_korunur(tmp_path):
+    _haber(tmp_path, [_satir("Bitcoin rallies hard today")])
+    HS.kos(tmp_path, ROOT / "config", NOW_MS, ENV, client=Client(hata=TimeoutError("t")), budget=Butce())
+    yol = SINYAL(tmp_path).parent / HS.DURUM_DOSYASI
+    assert json.loads(yol.read_text())["calisma"] == {"durum": "api_hata", "zaman_ms": NOW_MS, "ilk_ms": NOW_MS}
+    HS.kos(tmp_path, ROOT / "config", NOW_MS + H, ENV, client=Client(_cevap), budget=Butce())
+    c = json.loads(yol.read_text())
+    assert c["calisma"] == {"durum": "ok", "zaman_ms": NOW_MS + H, "ilk_ms": NOW_MS} and c["olaylar"]

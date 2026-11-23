@@ -6,12 +6,14 @@ Girdi: haber.jsonl satirlari; "yeni" olmak = ALIM zamani son calismadan sonra (y
 Basliklar GUVENILMEZ girdidir: kullanici mesajinda JSON VERISI olarak gider, talimat olarak asla; model ciktisi katı sema ile
 dogrulanir, gecersiz her oge atilir. Ayni haberin kaynaklar arasi tekrari tek olay sayilir.
 
-Hata ilkesi: butce reddi / anahtar yok / API hatasi / bozuk yanit => dosya YENIDEN YAZILMAZ (3 saatte kendiliginden bayatlar),
-durum ilerletilmez (basliklar bir sonraki saatte yeniden denenir), cikis 0.
+Hata ilkesi: butce reddi / anahtar yok / API hatasi / bozuk yanit => sinyal dosyasi YENIDEN YAZILMAZ (3 saatte kendiliginden bayatlar),
+olay/son_alim durumu ilerletilmez (basliklar bir sonraki saatte yeniden denenir), cikis 0. AMA durum dosyasina her turda
+`calisma` {durum: ok|anahtar_yok|api_hata|butce|hata, zaman_ms, ilk_ms} yazilir (saglik: sessiz olu kol gorunsun).
 Gozlem yolu: `kos(...)` -> {"durum": "ok"|"atlandi", "neden": ...}.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import math
@@ -24,7 +26,7 @@ log = logging.getLogger("trader.haber_sinyal")
 
 SERVIS = "haber_kolu"
 MODEL = "claude-haiku-5-5"
-SEMA = "haber_sinyal/1"
+SEMA = "haber_sinyal/2"
 PENCERE_SAAT = 6.0
 YARI_OMUR_SAAT = 2.0                       # sonum: 2 saatte yariya
 GECERLILIK_SAAT = 3.0
@@ -172,9 +174,17 @@ def dogrula(metin: Any, enstrumanlar: list[str], gecerli_idler: set[int]) -> lis
 
 
 # ------------------------------------------------------------------ birlestirme
+def olay_kimligi(alim_ms: int, baslik: str) -> int:
+    """Olayin kararli kimligi (32 bit tamsayi; float'ta tam temsil edilir): alim zamani + baslik ozeti."""
+    return int(hashlib.sha1(f"{int(alim_ms)}|{baslik}".encode("utf-8")).hexdigest()[:8], 16)
+
+
 def birlestir(olaylar: list[dict], simdi_ms: int) -> dict[str, dict]:
-    """Puanlanmis olaylar -> {sembol: {puan, kaynak_sayisi, max_siddet, oge_sayisi}}. Son 6 saat, yari omur 2 saat; olay
-    kendi ufkunu (ufuk_saat) astiysa katki vermez. puan = toplam(yon * siddet/3 * guven * sonum), [-3, 3]'e kirpilir."""
+    """Puanlanmis olaylar -> {sembol: {puan, kaynak_sayisi, teyit_kaynak, max_siddet, oge_sayisi, olay_kimligi, olaylar}}.
+    Son 6 saat, yari omur 2 saat; olay kendi ufkunu (ufuk_saat) astiysa katki vermez. puan = toplam(yon * siddet/3 * guven * sonum),
+    [-3, 3]'e kirpilir. `teyit_kaynak` ve `max_siddet` YALNIZ sinyal yonuyle (puan isareti) ayni yonlu (yon != 0) olaylardan sayilir;
+    `kaynak_sayisi` tum katkilarin kaynaklaridir (bilgi). `olay_kimligi` = sinyal yonundeki en yeni olayin kimligi (0: yok);
+    `olaylar` = ham degerler (alim_ms, yon, siddet, guven, ufuk_saat, kaynaklar): kol karar aninda yeniden sonumler."""
     acc: dict[str, dict] = {}
     for e in olaylar:
         yas = (simdi_ms - e["alim"]) / H_MS
@@ -182,13 +192,26 @@ def birlestir(olaylar: list[dict], simdi_ms: int) -> dict[str, dict]:
             continue
         agirlik = e["yon"] * (e["siddet"] / 3.0) * e["guven"] * 0.5 ** (yas / YARI_OMUR_SAAT)
         for s in e["semboller"]:
-            a = acc.setdefault(s, {"puan": 0.0, "k": set(), "sid": 0, "n": 0})
+            a = acc.setdefault(s, {"puan": 0.0, "k": set(), "ev": [], "n": 0})
             a["puan"] += agirlik
             a["k"].update(e["kaynaklar"])
-            a["sid"] = max(a["sid"], e["siddet"])
             a["n"] += 1
-    return {s: {"puan": round(max(-PUAN_SINIR, min(PUAN_SINIR, a["puan"])), 4), "kaynak_sayisi": len(a["k"]),
-                "max_siddet": a["sid"], "oge_sayisi": a["n"]} for s, a in sorted(acc.items())}
+            if e["yon"] != 0:
+                a["ev"].append(e)
+    out: dict[str, dict] = {}
+    for s, a in sorted(acc.items()):
+        puan = max(-PUAN_SINIR, min(PUAN_SINIR, a["puan"]))
+        yon = 1 if puan > 0 else -1 if puan < 0 else 0
+        ayni = [e for e in a["ev"] if e["yon"] == yon] if yon else []
+        en_yeni = max(ayni, key=lambda e: (e["alim"], e.get("baslik", "")), default=None)
+        out[s] = {"puan": round(puan, 4), "kaynak_sayisi": len(a["k"]),
+                  "teyit_kaynak": len({k for e in ayni for k in e["kaynaklar"]}),
+                  "max_siddet": max((e["siddet"] for e in ayni), default=0), "oge_sayisi": a["n"],
+                  "olay_kimligi": olay_kimligi(en_yeni["alim"], en_yeni.get("baslik", "")) if en_yeni else 0,
+                  "olaylar": [{"alim_ms": int(e["alim"]), "yon": e["yon"], "siddet": e["siddet"], "guven": e["guven"],
+                               "ufuk_saat": e["ufuk_saat"], "kaynaklar": list(e["kaynaklar"]),
+                               "kimlik": olay_kimligi(e["alim"], e.get("baslik", ""))} for e in a["ev"]]}
+    return out
 
 
 def sinyal_belgesi(olaylar: list[dict], simdi_ms: int) -> dict:
@@ -222,6 +245,21 @@ def durum_oku(yol: Path) -> dict:
     except (OSError, ValueError):
         pass
     return {"son_alim": 0, "olaylar": []}
+
+
+CALISMA_DURUMLARI = ("ok", "anahtar_yok", "api_hata", "butce", "hata")
+
+
+def calisma_yaz(durum_yol: Path, kod: str, simdi_ms: int, durum: dict | None = None) -> None:
+    """Durum dosyasina yalniz `calisma` alanini yazar (olaylar/son_alim korunur; ilk_ms ilk turun zamani). Yazim hatasi yutulur."""
+    try:
+        d = dict(durum if durum is not None else durum_oku(durum_yol))
+        onceki = d.get("calisma") if isinstance(d.get("calisma"), dict) else {}
+        ilk = onceki.get("ilk_ms")
+        d["calisma"] = {"durum": kod, "zaman_ms": int(simdi_ms), "ilk_ms": int(ilk) if _int(ilk) else int(simdi_ms)}
+        _yaz(durum_yol, d)
+    except Exception as e:  # noqa: BLE001
+        log.error("calisma durumu yazilamadi: %s", type(e).__name__)
 
 
 def _yaz(yol: Path, belge: dict) -> None:
@@ -274,8 +312,12 @@ def kos(var_dir: Path, config_dir: Path, simdi_ms: int, env: Mapping[str, str], 
     from trader_core import budget as _b  # noqa: PLC0415
     b = budget or _b
 
-    def atla(neden: str) -> dict:
+    sinyal_dir = Path(var_dir) / "learner" / "sinyal"
+    durum_yol, cikti_yol = sinyal_dir / DURUM_DOSYASI, sinyal_dir / CIKTI_DOSYASI
+
+    def atla(neden: str, kod: str = "hata") -> dict:
         log.warning("haber sinyali atlandi: %s", neden)
+        calisma_yaz(durum_yol, kod, simdi_ms)
         return {"durum": "atlandi", "neden": neden}
 
     try:
@@ -288,14 +330,12 @@ def kos(var_dir: Path, config_dir: Path, simdi_ms: int, env: Mapping[str, str], 
         except Exception as e:  # noqa: BLE001
             return atla(f"butce yapilandirmasi ({type(e).__name__})")
         if not key:
-            return atla("API anahtari yok")
+            return atla("API anahtari yok", "anahtar_yok")
         try:
             client = AnthropicSyncClient(key)
         except Exception as e:  # noqa: BLE001
             return atla(f"istemci kurulamadi ({type(e).__name__})")
 
-    sinyal_dir = Path(var_dir) / "learner" / "sinyal"
-    durum_yol, cikti_yol = sinyal_dir / DURUM_DOSYASI, sinyal_dir / CIKTI_DOSYASI
     durum = durum_oku(durum_yol)
     pencere_bas = simdi_ms - int(PENCERE_SAAT * H_MS)
     olaylar = [e for e in durum["olaylar"] if isinstance(e, dict) and e.get("alim", 0) >= pencere_bas]
@@ -313,7 +353,7 @@ def kos(var_dir: Path, config_dir: Path, simdi_ms: int, env: Mapping[str, str], 
         est = b.estimate_cost(MODEL, max(1, (len(SYSTEM) + len(params["messages"][0]["content"])) // 3 + 400), MAX_CIKTI_TOKEN)
         grant = b.authorize(SERVIS, est)
         if not hasattr(grant, "grant_id"):                      # Denial: API'ye HIC gidilmez
-            return atla(f"butce reddi ({getattr(grant, 'reason', 'denied')})")
+            return atla(f"butce reddi ({getattr(grant, 'reason', 'denied')})", "butce")
         try:
             metin, usage = client.create(params)
         except Exception as e:  # noqa: BLE001
@@ -321,7 +361,7 @@ def kos(var_dir: Path, config_dir: Path, simdi_ms: int, env: Mapping[str, str], 
                 b.release(grant)
             except Exception:  # noqa: BLE001
                 log.error("butce serbest birakilamadi")
-            return atla(f"API hatasi ({type(e).__name__})")
+            return atla(f"API hatasi ({type(e).__name__})", "api_hata")
         try:
             from trader_core import lesson as _ls  # noqa: PLC0415
             b.record(SERVIS, grant, _ls.budget_usage(usage), MODEL, False)
@@ -329,7 +369,7 @@ def kos(var_dir: Path, config_dir: Path, simdi_ms: int, env: Mapping[str, str], 
             log.error("butce kaydi yazilamadi: %s", type(e).__name__)
         sonuc = dogrula(metin, enst, {e["id"] for e in yeni})
         if sonuc is None:
-            return atla("model yaniti sema disi")
+            return atla("model yaniti sema disi", "api_hata")
         by_id = {e["id"]: e for e in yeni}
         for s in sonuc:
             e = by_id[s["id"]]
@@ -345,7 +385,10 @@ def kos(var_dir: Path, config_dir: Path, simdi_ms: int, env: Mapping[str, str], 
 
     belge = sinyal_belgesi(olaylar, simdi_ms)
     try:
-        _yaz(durum_yol, {"son_alim": yeni_son, "olaylar": olaylar})
+        onceki = durum.get("calisma") if isinstance(durum.get("calisma"), dict) else {}
+        ilk = onceki.get("ilk_ms")
+        _yaz(durum_yol, {"son_alim": yeni_son, "olaylar": olaylar,
+                         "calisma": {"durum": "ok", "zaman_ms": simdi_ms, "ilk_ms": int(ilk) if _int(ilk) else simdi_ms}})
         _yaz(cikti_yol, belge)
     except OSError as e:
         return atla(f"yazilamadi ({type(e).__name__})")

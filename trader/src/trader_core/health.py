@@ -206,7 +206,9 @@ class HaberSinyalProbe:
     file_state: str = "missing"             # "ok" | "missing" | "unreadable"
     produced_at: datetime | None = None     # dosyadaki `uretim`
     valid_until: datetime | None = None     # uretim + gecerlilik (uretim + 3 sa tavanli)
-    job_installed: bool = False             # sinyal isi kurulu: durum dosyasi (haber_sinyal_durum.json) var
+    job_installed: bool = False             # sinyal isi kurulu: unit dosyasi var YA DA durum dosyasi (haber_sinyal_durum.json) var
+    job_status: str | None = None           # durum dosyasindaki son tur sonucu: ok | anahtar_yok | api_hata | butce | hata
+    job_since: datetime | None = None       # isin ilk zamani: durum dosyasi calisma.ilk_ms, yoksa unit dosyasi mtime
 
 
 @dataclass(frozen=True)
@@ -858,18 +860,22 @@ def _c_ml(snap, bot, cfg):
     return _res(name, worst[0], worst[1], detail, value)
 
 
-HABER_SINYAL_ILK_SAAT_S = 6 * 3600     # kurulumdan sonra bu sure dosya yoksa bile yalniz bilgi (INFO)
+HABER_SINYAL_ILK_SAAT_S = 2 * 3600     # isin ilk zamanindan sonra bu sure dosya yoksa bile yalniz bilgi (INFO)
 
 
 def _c_haber_sinyal(snap, cfg):
     """haber_sinyal_age: HB1 kolunun girdisi. Taze -> OK; bayat (gecerlilik doldu) / bozuk -> WARN (yalniz HB1 girisleri durur);
-    dosya yok: isi kurulu degil ya da kurulumdan sonraki ilk saatlerdeyse INFO (Status.OK, kod `haber_sinyal_info`), aksi WARN."""
+    uretici durumu anahtar_yok -> WARN (sessiz olu kol); dosya yok: isi kurulu degil ya da isin ilk zamanindan (durum dosyasi / unit mtime)
+    sonraki ilk 2 saatteyse INFO (Status.OK, kod `haber_sinyal_info`), aksi WARN."""
     name = "haber_sinyal_age"
     p = snap.haber_sinyal
+    if p.job_installed and p.job_status == "anahtar_yok":
+        return _res(name, Status.WARN, "haber_anahtar_yok", "haber anahtari yok, haber kolu sinyal goremiyor; HB1 girisleri durdu")
     if p.file_state == "unreadable":
         return _res(name, Status.WARN, "haber_sinyal_bozuk", "haber sinyali dosyasi okunamadi/sema disi; HB1 girisleri durdu")
     if p.file_state != "ok" or not isinstance(p.produced_at, datetime) or p.produced_at.tzinfo is None:
-        ilk = snap.installed_at is not None and (snap.now - snap.installed_at).total_seconds() < HABER_SINYAL_ILK_SAAT_S
+        ilk = (isinstance(p.job_since, datetime) and p.job_since.tzinfo is not None
+               and (snap.now - p.job_since).total_seconds() < HABER_SINYAL_ILK_SAAT_S)
         if not p.job_installed or ilk:
             return _res(name, Status.OK, "haber_sinyal_info", "INFO: haber sinyali dosyasi yok (sinyal isi kurulu degil ya da ilk saatler)")
         return _res(name, Status.WARN, "haber_sinyal_yok", "haber sinyali dosyasi yok; HB1 girisleri durdu")
@@ -880,8 +886,9 @@ def _c_haber_sinyal(snap, cfg):
     lim = p.valid_until
     gecerlilik = (lim - p.produced_at).total_seconds() if isinstance(lim, datetime) and lim.tzinfo is not None else 3 * 3600
     if age > gecerlilik:
+        ek = f" (uretici son durum: {p.job_status})" if p.job_status not in (None, "ok") else ""
         return _res(name, Status.WARN, "haber_sinyal_bayat",
-                    f"haber sinyali yasi {age:.0f} sn, gecerlilik {gecerlilik:.0f} sn; HB1 girisleri durdu", age, gecerlilik)
+                    f"haber sinyali yasi {age:.0f} sn, gecerlilik {gecerlilik:.0f} sn{ek}; HB1 girisleri durdu", age, gecerlilik)
     return _res(name, Status.OK, "ok", f"haber sinyali yasi {age:.0f} sn", age, gecerlilik)
 
 
