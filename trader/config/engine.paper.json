@@ -16,6 +16,7 @@
   "korelasyon": {"esik": 0.7, "pencere_gun": 30, "yon_basina_max": 4},
   "kayip_freni": {"ardisik": 5, "gunluk_oran": 0.04, "carpan": 0.5},
   "toplam_buyukluk_kat": 3,
+  "uzun_yon": {"ema": 50, "egim_gun": 10, "min_gun": 60},
   "clusters": {
     "kripto_buyuk": {"pairs": ["BTC/USDT", "ETH/USDT", "XRP/USDT", "BNB/USDT", "SOL/USDT"], "max_positions": 6},
     "kripto_diger": {"pairs": ["DOGE/USDT", "ADA/USDT", "TRX/USDT", "LINK/USDT", "AVAX/USDT", "HYPE/USDT", "BCH/USDT", "XLM/USDT", "SUI/USDT", "HBAR/USDT", "LTC/USDT", "1000SHIB/USDT", "DOT/USDT", "XMR/USDT"], "max_positions": 9},
