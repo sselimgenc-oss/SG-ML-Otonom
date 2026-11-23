@@ -147,7 +147,7 @@ def _adaylar(arm, n, *, t0=datetime(2026, 11, 2, tzinfo=timezone.utc), saat=1):
 
 
 def test_paket_egitim_esik_alti_atlar_ustu_gecirir(tmp_path):
-    OF.egit_hepsi(_adaylar("T1@1h", 12), tmp_path, NOW)
+    OF.egit_hepsi(_adaylar("T1@1h", 20), tmp_path, NOW)
     d = OF.FiltreDeposu(tmp_path)
     assert d.karar("T1@1h", {"x": -5.0}, NOW).izin is False
     k = d.karar("T1@1h", {"x": 5.0}, NOW)
@@ -167,7 +167,7 @@ def test_10dan_az_islem_filtre_yok(tmp_path):
 
 
 def test_bozuk_ve_suresi_gecmis_paket_serbest(tmp_path):
-    OF.egit_hepsi(_adaylar("T1@1h", 12), tmp_path, NOW)
+    OF.egit_hepsi(_adaylar("T1@1h", 20), tmp_path, NOW)
     assert OF.FiltreDeposu(tmp_path).karar("T1@1h", {"x": -5.0}, NOW + timedelta(days=30)).izin is True   # suresi gecmis
     yol = tmp_path / "aile_T1.json"
     yol.write_text(yol.read_text().replace('"esik": ', '"esik": 0.99, "x_": '), encoding="utf-8")         # hash bozuldu
@@ -178,7 +178,7 @@ def test_bozuk_ve_suresi_gecmis_paket_serbest(tmp_path):
 
 
 def test_puan_istisnasi_serbest(tmp_path, monkeypatch):
-    OF.egit_hepsi(_adaylar("T1@1h", 12), tmp_path, NOW)
+    OF.egit_hepsi(_adaylar("T1@1h", 20), tmp_path, NOW)
     d = OF.FiltreDeposu(tmp_path)
     monkeypatch.setattr(d._mod[0], "puan", lambda *a, **k: 1 / 0)
     k = d.karar("T1@1h", {"x": -5.0}, NOW)
@@ -186,29 +186,29 @@ def test_puan_istisnasi_serbest(tmp_path, monkeypatch):
 
 
 def test_env_kapali_filtre_yok(tmp_path, monkeypatch):
-    OF.egit_hepsi(_adaylar("T1@1h", 12), tmp_path, NOW)
+    OF.egit_hepsi(_adaylar("T1@1h", 20), tmp_path, NOW)
     monkeypatch.setenv(OF.ENV_KAPALI, "1")
     assert OF.FiltreDeposu(tmp_path).karar("T1@1h", {"x": -5.0}, NOW).izin is True
 
 
 def test_egitim_holdout_satiri_almaz(tmp_path):
     ic = _adaylar("T1@1h", 5, t0=datetime(2026, 6, 1, tzinfo=timezone.utc))            # holdout icinde
-    dis = _adaylar("T1@1h", 12, t0=datetime(2026, 11, 3, tzinfo=timezone.utc))
+    dis = _adaylar("T1@1h", 20, t0=datetime(2026, 11, 3, tzinfo=timezone.utc))
     OF.egit_hepsi(ic + [dataclasses.replace(a, id="k" + a.id) for a in dis], tmp_path, NOW)
     meta = json.loads((tmp_path / "aile_T1.json").read_text())["meta"]
-    assert meta["n_egitim"] == 12 and meta["kilit_dusen"] == 5
+    assert meta["n_egitim"] == 20 and meta["kilit_dusen"] == 5
     assert OF._kilit_kesisir(datetime(2026, 10, 31, 23, tzinfo=timezone.utc), datetime(2026, 11, 2, tzinfo=timezone.utc))
     assert not OF._kilit_kesisir(datetime(2026, 11, 1, tzinfo=timezone.utc), datetime(2026, 11, 2, tzinfo=timezone.utc))
 
 
 def test_yeniden_egitim_kurali_10_yeni_islem(tmp_path):
-    OF.egit_hepsi(_adaylar("T1@1h", 12), tmp_path, NOW)
+    OF.egit_hepsi(_adaylar("T1@1h", 20), tmp_path, NOW)
     h0 = json.loads((tmp_path / "aile_T1.json").read_text())["meta"]["model_hash"]
-    r = OF.egit_hepsi(_adaylar("T1@1h", 15), tmp_path, NOW + timedelta(days=1))
+    r = OF.egit_hepsi(_adaylar("T1@1h", 24), tmp_path, NOW + timedelta(days=1))
     assert r["aileler"]["T1"]["durum"] == "guncel"
-    r = OF.egit_hepsi(_adaylar("T1@1h", 22), tmp_path, NOW + timedelta(days=2))
+    r = OF.egit_hepsi(_adaylar("T1@1h", 31), tmp_path, NOW + timedelta(days=2))
     assert r["aileler"]["T1"]["durum"] == "ok"
-    assert json.loads((tmp_path / "aile_T1.json").read_text())["meta"]["n_egitim"] == 22
+    assert json.loads((tmp_path / "aile_T1.json").read_text())["meta"]["n_egitim"] == 31
     assert (tmp_path / "aile_T1.prev.json").exists() and h0
 
 
@@ -292,10 +292,10 @@ def test_gece_birimi_paper_models_csv_aile_satiri(tmp_path, monkeypatch):
 
 
 def test_kaldirilan_kol_icin_aile_paketi_uretilmez(tmp_path):
-    adaylar = _adaylar("C1@1h", 12) + _adaylar("T1@1h", 12)
+    adaylar = _adaylar("C1@1h", 20) + _adaylar("T1@1h", 20)
     r = OF.egit_hepsi(adaylar, tmp_path, NOW, kollar=["T1@1h", "T1@4h"])
     assert list(r["aileler"]) == ["T1"]
-    assert sorted(p.name for p in tmp_path.glob("*.json") if p.name.startswith("aile_")) == ["aile_T1.json"]
+    assert sorted(p.name for p in tmp_path.glob("aile_*.json") if not p.name.endswith(".sinama.json")) == ["aile_T1.json"]
     assert "C1" not in json.dumps(r)
     r2 = OF.egit_hepsi(adaylar, tmp_path / "b", NOW)                     # kollar verilmezse eski davranis
     assert sorted(r2["aileler"]) == ["C1", "T1"]
