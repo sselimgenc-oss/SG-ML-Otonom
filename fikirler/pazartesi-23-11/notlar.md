@@ -67,3 +67,4 @@ kâğıt bot 44 enstrümanla çalışıyor (health.py:690 _c_open_price).
   - Günlük zarar kuralı kâğıttaki gibi (açık risk sayılmaz).
   - Çıkış kuralları (başa baş stop + kısmi kapama) canlı borsa için de yazılacak; canlıdan önce prova.
   - ML modeli: canlı, kâğıdın model klasörünü salt-okur (öneri, teknik).
+- h GERİ ALINDI (23.11): gizli repoda Actions kotası doldu (eski CT reposu tüketmiş), CI başlamıyordu. Repo canlıya kadar PUBLIC; canlıdan hemen önce gizli + CI maliyet kararı. Sunucudaki /etc/trader-github-token kalıyor.
