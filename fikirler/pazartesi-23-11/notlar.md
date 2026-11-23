@@ -88,3 +88,12 @@ kâğıt bot 44 enstrümanla çalışıyor (health.py:690 _c_open_price).
 ## ÇALIŞMA KURALI (23.11 akşam, kullanıcı)
 - Yeni işe başlanabilir ama HER İŞ için önce kullanıcıdan onay alınır. Tek tek, ne yapılacağı sade anlatılarak.
 - BEKLEYEN (kullanıcı eve gidince): ders sistemi 0 ders üretmiş (gunluk_ozet: aktif/yeni ders 0). Şüphe: /etc/trader-lesson.env ANTHROPIC_API_KEY_LESSON boş. Kontrol: awk ile anahtar dolu/boş + journalctl -u trader-lesson -u trader-notes --since -2d.
+
+## DURUM ÖZETİ (23.11 akşam, compact öncesi)
+**Ana dala gönderilen (CI yeşilse 22:30 sunucuya):** uyarı düzeltmeleri (44 enstrüman izleme, mutabakat yarışı), capital_latch %15, canlı tavan 2000 $, TON çıkarıldı, canlı = kâğıt faz 1 + 3 güvenlik düzeltmesi (kaçan TF çıkışı telafisi, opsiyonel çift position_risk yumuşak, canlıda ML yoksa giriş kapalı), veri toplayıcılar (haber + piyasa), tur1_olcum raporu (05:10 UTC), oto_guncelle token desteği, arşiv tarama programı.
+**Ayrı dalda BEKLEYEN (gönderilmedi; yarın sabah kontrolden sonra, sırayla):**
+- wt-ustlig (1ff13da, 76af731): LLM tavanı 20 $ + YZ yorumcu (05:40 UTC). Sunucu: /etc/trader-lesson.env ANTHROPIC_API_KEY_YORUMCU.
+- wt-haber (69250ae, wt-ustlig üstüne): haber sinyal işi + hisse/emtia RSS kaynakları (URL'ler denenmedi, kullanım şartları canlı öncesi kontrol). Sunucu: ANTHROPIC_API_KEY_HABER.
+- wt-asamab: Aşama B 4 kural (yazılıyor) → bağımsız inceleme → yarın gönderim.
+**YARIN SABAH KONTROL LİSTESİ:** 1) CI sonucu ve sunucuya inen sürüm, 2) bot/pano/Telegram sorunsuz mu, 3) tur1_olcum ilk raporu (ml/tur1_olcum.md) sade özet, 4) ders sistemi sunucu kontrolü (anahtar + journalctl), 5) haber/piyasa toplayıcıları veri yazıyor mu, 6) DL için 43 enstrüman geçmiş verisi kontrolü (sunucuda var/history).
+**Sonraki işler (her biri kullanıcı onayıyla):** canlı çıkış kuralları (faz 2), DL eğitim hattı (haftalık GitHub Actions), haber kolu HB1 motora takılması, DL kolu, emtia hafta sonu kapalı (Binance 15.09.2026'dan beri hafta içi) etkisi, 4. madde sunucu (Türkiye hesabı; acele yok).
