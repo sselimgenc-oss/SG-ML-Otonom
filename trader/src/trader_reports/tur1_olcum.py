@@ -359,6 +359,26 @@ def dayaniklilik(trades, mumlar) -> dict:
 
 
 # ----------------------------------------------------------------------------- 3) sans / kuyruk
+def _blok_ornekleme(pnl, kasa0: float, runs: int, seed: int, egri) -> dict:
+    """Durağan blok örnekleme (`trader_core.stats.stats`, Politis-Romano): işlem sırası bloklar halinde çekilir, kayıpların peş peşe
+    gelmesi (kümelenme) korunur. Saf karıştırma bunu yok eder ve en kötü düşüşü olduğundan küçük gösterebilir. Ortalama blok uzunluğu
+    aracın varsayılanıdır (Politis-White otomatik seçim; seri bağımlılık yoksa 1'e iner). Karıştırmayla yan yana raporlanır."""
+    from trader_core.stats import stats as S
+    n = len(pnl)
+    mb = float(min(max(S.optimal_block_length(pnl)["stationary"], 1.0), n))
+    rng = np.random.default_rng(seed + 1)
+    dds, batan, left = [], 0, runs
+    while left > 0:
+        m = min(left, max(1, 2_000_000 // n))
+        e, dd = egri(pnl[S.stationary_bootstrap_indices(n, m, mb, rng)])
+        dds.append(dd)
+        batan += int(((np.minimum(e.min(axis=1), kasa0)) < SERMAYE_MANDALI_ORANI * kasa0).sum())
+        left -= m
+    dd = np.concatenate(dds)
+    return {"ort_blok_uzunlugu": mb, "ornekleme": runs, "maks_dusus": {f"p{q}": float(np.percentile(dd, q)) for q in (5, 50, 95, 99)},
+            "batis_olasiligi": batan / runs}
+
+
 def sans_kuyruk(trades, kasa0: float, runs: int = KARISTIRMA_SAYISI, seed: int = SEED) -> dict:
     n = len(trades)
     pnl = np.array([t["pnl"] for t in sorted(trades, key=lambda t: (t["exit_ts"], t["trade_id"]))], float)
@@ -384,6 +404,7 @@ def sans_kuyruk(trades, kasa0: float, runs: int = KARISTIRMA_SAYISI, seed: int =
         out["maks_dusus"] = {f"p{q}": float(np.percentile(dd, q)) for q in (5, 50, 95, 99)}
         out["batis_olasiligi"] = batan / runs
         out["batis_tanimi"] = f"kasa <= {SERMAYE_MANDALI_ORANI:.0%} x baslangic (sermaye mandali) en az bir an"
+        out["blok"] = _blok_ornekleme(pnl, kasa0, runs, seed, egri)
     rs = sorted((t["net_r"] for t in trades), reverse=True)
     pn = sorted((t["pnl"] for t in trades), reverse=True)
     out["en_iyi_cikar"] = {str(k): {"net_r": toplam(rs[k:]) if n > k else None, "net_usd": toplam(pn[k:]) if n > k else None}
@@ -589,6 +610,11 @@ def render_md(d: dict) -> str:
     if "maks_dusus" in sk:
         L.append(f"- Maks düşüş p5/p50/p95: %{sk['maks_dusus']['p5']*100:.1f} / %{sk['maks_dusus']['p50']*100:.1f} / %{sk['maks_dusus']['p95']*100:.1f}; "
                  f"batış olasılığı (kasa <= %{SERMAYE_MANDALI_ORANI*100:.0f}): %{sk['batis_olasiligi']*100:.2f}")
+    if "blok" in sk:
+        b = sk["blok"]
+        L.append(f"- Blok örnekleme (ortalama blok {b['ort_blok_uzunlugu']:.1f} işlem, {b['ornekleme']} çekim, n={sk['n']}) maks düşüş p5/p50/p95: "
+                 f"%{b['maks_dusus']['p5']*100:.1f} / %{b['maks_dusus']['p50']*100:.1f} / %{b['maks_dusus']['p95']*100:.1f}; "
+                 f"batış olasılığı: %{b['batis_olasiligi']*100:.2f} (kayıp kümelenmesini korur; karıştırmayla yan yana)")
     for k, v in sk["en_iyi_cikar"].items():
         L.append(f"- En iyi {k} işlem çıkarılırsa net: {_r(v['net_r'])} R")
     L += ["", "## 4. Canlıya geçiş şartları" + (f" ({YETERSIZ})" if B["canli_sartlari"]["etiket"] else "")]

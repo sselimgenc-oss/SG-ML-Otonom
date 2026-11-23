@@ -121,3 +121,21 @@ def test_gunluk_veri_yoksa_acikca_atlanan_sayilir(tmp_path):
         m.close()
     assert ra["durum"] == "veri_yok" and ra["atlanan"] == 5 and ra["atlanan_tf"] == {"1d": 5}
     assert dy["gecikme"]["1_mum"]["veri_yok_tf"] == {"1d": 5}
+
+
+# ---------------------------------------------------------------- Duzeltme 3: blok ornekleme
+def test_sans_blok_ornekleme_yan_yana_ve_kume_kaybi_daha_kotu():
+    # kayiplar uzun seri halinde (seri bagimlilik): blok ornekleme karistirmadan daha kotu dususu gostermeli
+    pnl = ([-1.0] * 12 + [1.0] * 12) * 4
+    ts = [mk(i, net=v) for i, v in enumerate(pnl)]
+    a = T.sans_kuyruk(ts, 1000.0, 5000, 3)
+    assert a == T.sans_kuyruk(ts, 1000.0, 5000, 3)
+    b = a["blok"]
+    assert b["ort_blok_uzunlugu"] > 1.5 and b["ornekleme"] == 5000
+    assert b["maks_dusus"]["p50"] > a["maks_dusus"]["p50"]
+    assert set(a["maks_dusus"]) == set(b["maks_dusus"]) and 0.0 <= b["batis_olasiligi"] <= 1.0
+    assert "Blok örnekleme" in T.render_md(T.rapor(ts, [], None, kasa0=1000.0, now=NOW, runs=5000))
+
+
+def test_sans_blok_bos_defterde_yok():
+    assert "blok" not in T.sans_kuyruk([], 1000.0, 5000)
