@@ -169,6 +169,7 @@ class Env:
             args.append(_Veto())
         args += [self.clock, _FakeBroker(), self._rules]
         self.gate = EntryGate(*args)
+        self.gate.seans_disi_aktif = False      # eski WP-04 testleri hafta sonu hisse/emtia girisi bekler; yeni kapi ayri test dosyasinda
         self.n = 0
 
     @staticmethod

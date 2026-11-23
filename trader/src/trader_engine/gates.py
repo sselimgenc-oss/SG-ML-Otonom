@@ -28,6 +28,7 @@ from .killswitch import Killswitch
 from .korelasyon_grubu import KorelasyonGruplari
 from .uzun_yon import UzunYon, reddeder as _uy_reddeder
 from .pause import EntryPause
+from . import seans_disi as SD
 from .state import StateStore, parse_iso_z
 from .strategies import arms as AR
 from .strategy_runner import SignalFrame, SignalRow
@@ -35,6 +36,7 @@ from .types import SymbolRules
 
 log = logging.getLogger("engine.gates")
 
+_YUKLENMEDI = object()
 _FILTERED_SKIPS = ("stop_width", "rr_below_min", "ml_filter")
 
 
@@ -127,9 +129,6 @@ def _features(row: SignalRow) -> dict:
 
 
 _HB1_OLAY_RE = re.compile(r"(?:^|[,:])hb1_olay=(\d+(?:\+\d+)*)(?:,|$)")
-# Emtia hafta sonu penceresi TEK KAYNAK: trader_core.arm_time.session_tag (emtia: Cum 21:00 UTC -> Paz 23:00 UTC = "weekend").
-# Kapida ayri saat sabiti yok; karar zamani D bu etiketle olculur (datetime.now yok). Sinif bilinmiyorsa asset_class kripto verir -> engellemez.
-EMTIA_HAFTA_SONU_TAG = "weekend"
 HB1_OLAY_PENCERE = timedelta(hours=6.0)      # = arms/hb1.HS_PENCERE_SAAT: bir olay en cok 6 sa canli (kol sabitiyle esitlik testle sinanir)
 
 
@@ -197,6 +196,9 @@ class EntryGate:
         # Kagitta rejim etiketi kurali girisi YALNIZ atlatabilir (docs/etiket-kurallari-spec.md); sabit kural (otomatik acma/kapama yok).
         # etiket_cfg = dogrulanmis cfg.etiket_kurallari ({} = kapali).
         self.etiket_cfg: Mapping | None = None
+        self.seans_takvimi_yolu: str | None = None             # None = config/seans_takvimi.json (varsayilan); testler yol verir
+        self._takvim = _YUKLENMEDI
+        self.seans_disi_aktif: bool = True                     # uretimde hep True; yalniz eski testler hafta sonu girisi icin kapatir
         self.arms_off: Collection[str] | Callable[[], Collection[str]] | None = None  # DD-12 WP-13: ders kapattigi kurulumlar (arm_id); yok = hepsi acik
         # 23.11 kullanici karari: asama B esikleri (yalniz paper/live; ENTRY-only). Korelasyon grubu: matris kaynagini engine baglar
         # (yoksa sabit kume yedegi); kayip freni + toplam buyukluk tavani cfg'den okunur.
@@ -427,6 +429,21 @@ class EntryGate:
                           veto_reason="gate:uzun_yon", risk_allowed=False,
                           risk_reason=f"uzun dönem yön filtresi: 1d rejimi {r}, {row.side} girişi reddedildi", **tk)
 
+    def _seans_disi_karari(self, row: SignalRow, tf: str, D: datetime, cls: str, tk: dict) -> EntryOutcome | None:
+        """Hafta sonu / tatil / buyuk haber penceresinde hisse+emtia icin YENI giris yok (seans_disi.py). Acik pozisyon ve kripto etkilenmez.
+        Takvim eksik/bozuk -> tatil+haber engellemez, sayac `seans_disi_takvim_yok` (hafta sonu takvimsiz calisir). Kagit ve canli ayni kod."""
+        if not self.seans_disi_aktif or cls not in (SD.CLASS_EMTIA, SD.CLASS_HISSE):
+            return None
+        if self._takvim is _YUKLENMEDI or self._takvim is None:
+            self._takvim = SD.yukle(self.seans_takvimi_yolu)
+        if self._takvim is None:
+            self.counters[SD.SAYAC_TAKVIM_YOK] += 1
+        kod = SD.karar(cls, D, self._takvim)
+        if kod is None:
+            return None
+        self.counters[kod] += 1
+        return self._skip(row, tf, kod, skip_reason="session_closed", veto_reason="gate:" + kod, **tk)
+
     def _fren_karari(self, acct: K.AccountState, D: datetime) -> KF.FrenKarari | None:
         """Kayip freni: defterden (son kapananlar) + state gun basi kasadan TURETILIR (dosya yok). Hata => None (cagiran girisi atlar: fail-closed)."""
         fc = getattr(self.cfg, "kayip_freni", None)
@@ -532,10 +549,9 @@ class EntryGate:
             if AG.session_closed_by_lesson(self._session_off(), cls, pair, tk["session_tag"]):
                 return self._skip(row, tf, "session_closed", skip_reason="session_closed",
                                   veto_reason="gate:session_closed", **tk)
-            if cls == AG.CLASS_COMMODITY and tk["session_tag"] == EMTIA_HAFTA_SONU_TAG:       # 23.11 kullanici karari (b): hafta sonu emtiada YENI giris yok
-                self.counters["emtia_hafta_sonu"] += 1                                       # acik emtia pozisyonu etkilenmez (3. adim zaten ignore eder; cikislar bu yoldan gecmez)
-                return self._skip(row, tf, "emtia_hafta_sonu", skip_reason="session_closed",
-                                  veto_reason="gate:emtia_hafta_sonu", **tk)
+            sd = self._seans_disi_karari(row, tf, D, cls, tk)                                # 23.11 karar (fikir 9 a): seans disi YENI giris yok
+            if sd is not None:
+                return sd
             ho = self._hb1_olay_karari(row, tf, D, tk)                                      # HB1: ayni haberle yeniden giris yok
             if ho is not None:
                 return ho

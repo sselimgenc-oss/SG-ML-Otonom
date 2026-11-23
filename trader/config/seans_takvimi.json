@@ -1,0 +1,428 @@
+{
+ "surum": 1,
+ "not": "Seans disi giris kapisi takvimi (yalniz YENI giris; trader_engine/seans_disi.py). Tatiller: NYSE tam gun kapanislari (yarim gun 13:00 kapanislari dahil DEGIL); emtia icin de ayni liste uygulanir (CME enerji/metal tatilleri birebir ayni degil; temkinli). Haber olaylari UTC; durum=confirmed yayinlanmis resmi tarih, estimated tahmin (BLS/Fed takvimiyle dogrulanip guncellenmeli). Dosya eksik/bozuksa kapi engellemez (sayac).",
+ "tatiller": [
+  {
+   "tarih": "2026-01-01",
+   "ad": "Yilbasi",
+   "durum": "confirmed"
+  },
+  {
+   "tarih": "2026-01-19",
+   "ad": "MLK",
+   "durum": "confirmed"
+  },
+  {
+   "tarih": "2026-02-16",
+   "ad": "Presidents Day",
+   "durum": "confirmed"
+  },
+  {
+   "tarih": "2026-04-03",
+   "ad": "Good Friday",
+   "durum": "confirmed"
+  },
+  {
+   "tarih": "2026-05-25",
+   "ad": "Memorial Day",
+   "durum": "confirmed"
+  },
+  {
+   "tarih": "2026-06-19",
+   "ad": "Juneteenth",
+   "durum": "confirmed"
+  },
+  {
+   "tarih": "2026-07-03",
+   "ad": "Bagimsizlik (4 Temmuz Cumartesi, Cuma gozlenir)",
+   "durum": "confirmed"
+  },
+  {
+   "tarih": "2026-09-07",
+   "ad": "Labor Day",
+   "durum": "confirmed"
+  },
+  {
+   "tarih": "2026-11-26",
+   "ad": "Thanksgiving",
+   "durum": "confirmed"
+  },
+  {
+   "tarih": "2026-12-25",
+   "ad": "Noel",
+   "durum": "confirmed"
+  },
+  {
+   "tarih": "2027-01-01",
+   "ad": "Yilbasi",
+   "durum": "confirmed"
+  },
+  {
+   "tarih": "2027-01-18",
+   "ad": "MLK",
+   "durum": "confirmed"
+  },
+  {
+   "tarih": "2027-02-15",
+   "ad": "Presidents Day",
+   "durum": "confirmed"
+  },
+  {
+   "tarih": "2027-03-26",
+   "ad": "Good Friday",
+   "durum": "confirmed"
+  },
+  {
+   "tarih": "2027-05-31",
+   "ad": "Memorial Day",
+   "durum": "confirmed"
+  },
+  {
+   "tarih": "2027-06-18",
+   "ad": "Juneteenth (19 Haz Cumartesi, Cuma gozlenir)",
+   "durum": "confirmed"
+  },
+  {
+   "tarih": "2027-07-05",
+   "ad": "Bagimsizlik (4 Temmuz Pazar, Pazartesi gozlenir)",
+   "durum": "confirmed"
+  },
+  {
+   "tarih": "2027-09-06",
+   "ad": "Labor Day",
+   "durum": "confirmed"
+  },
+  {
+   "tarih": "2027-11-25",
+   "ad": "Thanksgiving",
+   "durum": "confirmed"
+  },
+  {
+   "tarih": "2027-12-24",
+   "ad": "Noel (25 Aralik Cumartesi, Cuma gozlenir)",
+   "durum": "confirmed"
+  }
+ ],
+ "olaylar": [
+  {
+   "tur": "NFP",
+   "ts": "2026-01-09T13:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "CPI",
+   "ts": "2026-01-13T13:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "FOMC",
+   "ts": "2026-01-28T19:00:00Z",
+   "durum": "confirmed"
+  },
+  {
+   "tur": "NFP",
+   "ts": "2026-02-06T13:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "CPI",
+   "ts": "2026-02-11T13:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "NFP",
+   "ts": "2026-03-06T13:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "CPI",
+   "ts": "2026-03-11T12:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "FOMC",
+   "ts": "2026-03-18T18:00:00Z",
+   "durum": "confirmed"
+  },
+  {
+   "tur": "NFP",
+   "ts": "2026-04-03T12:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "CPI",
+   "ts": "2026-04-10T12:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "FOMC",
+   "ts": "2026-04-29T18:00:00Z",
+   "durum": "confirmed"
+  },
+  {
+   "tur": "NFP",
+   "ts": "2026-05-08T12:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "CPI",
+   "ts": "2026-05-12T12:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "NFP",
+   "ts": "2026-06-05T12:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "CPI",
+   "ts": "2026-06-10T12:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "FOMC",
+   "ts": "2026-06-17T18:00:00Z",
+   "durum": "confirmed"
+  },
+  {
+   "tur": "NFP",
+   "ts": "2026-07-02T12:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "CPI",
+   "ts": "2026-07-14T12:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "FOMC",
+   "ts": "2026-07-29T18:00:00Z",
+   "durum": "confirmed"
+  },
+  {
+   "tur": "NFP",
+   "ts": "2026-08-07T12:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "CPI",
+   "ts": "2026-08-12T12:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "NFP",
+   "ts": "2026-09-04T12:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "CPI",
+   "ts": "2026-09-11T12:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "FOMC",
+   "ts": "2026-09-16T18:00:00Z",
+   "durum": "confirmed"
+  },
+  {
+   "tur": "NFP",
+   "ts": "2026-10-02T12:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "CPI",
+   "ts": "2026-10-14T12:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "FOMC",
+   "ts": "2026-10-28T18:00:00Z",
+   "durum": "confirmed"
+  },
+  {
+   "tur": "NFP",
+   "ts": "2026-11-06T13:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "CPI",
+   "ts": "2026-11-10T13:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "NFP",
+   "ts": "2026-12-04T13:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "FOMC",
+   "ts": "2026-12-09T19:00:00Z",
+   "durum": "confirmed"
+  },
+  {
+   "tur": "CPI",
+   "ts": "2026-12-10T13:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "NFP",
+   "ts": "2027-01-08T13:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "CPI",
+   "ts": "2027-01-13T13:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "FOMC",
+   "ts": "2027-01-27T19:00:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "NFP",
+   "ts": "2027-02-05T13:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "CPI",
+   "ts": "2027-02-10T13:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "NFP",
+   "ts": "2027-03-05T13:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "CPI",
+   "ts": "2027-03-10T13:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "FOMC",
+   "ts": "2027-03-17T18:00:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "NFP",
+   "ts": "2027-04-02T12:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "CPI",
+   "ts": "2027-04-13T12:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "FOMC",
+   "ts": "2027-04-28T18:00:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "NFP",
+   "ts": "2027-05-07T12:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "CPI",
+   "ts": "2027-05-12T12:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "NFP",
+   "ts": "2027-06-04T12:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "CPI",
+   "ts": "2027-06-10T12:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "FOMC",
+   "ts": "2027-06-16T18:00:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "NFP",
+   "ts": "2027-07-02T12:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "CPI",
+   "ts": "2027-07-14T12:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "FOMC",
+   "ts": "2027-07-28T18:00:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "NFP",
+   "ts": "2027-08-06T12:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "CPI",
+   "ts": "2027-08-11T12:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "NFP",
+   "ts": "2027-09-03T12:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "CPI",
+   "ts": "2027-09-14T12:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "FOMC",
+   "ts": "2027-09-22T18:00:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "NFP",
+   "ts": "2027-10-01T12:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "CPI",
+   "ts": "2027-10-13T12:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "FOMC",
+   "ts": "2027-11-03T18:00:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "NFP",
+   "ts": "2027-11-05T12:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "CPI",
+   "ts": "2027-11-10T13:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "NFP",
+   "ts": "2027-12-03T13:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "CPI",
+   "ts": "2027-12-10T13:30:00Z",
+   "durum": "estimated"
+  },
+  {
+   "tur": "FOMC",
+   "ts": "2027-12-15T19:00:00Z",
+   "durum": "estimated"
+  }
+ ]
+}
