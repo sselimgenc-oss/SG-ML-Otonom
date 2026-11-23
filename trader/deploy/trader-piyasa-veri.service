@@ -1,0 +1,29 @@
+[Unit]
+Description=Trader piyasa pozisyon verisi toplayici (yalniz kayit; Binance herkese acik OI/funding/long-short/taker -> var/veri/piyasa/; saatlik tek seferlik)
+Documentation=file:///opt/trader/docs/veri-toplama-spec.md
+After=network-online.target
+Wants=network-online.target
+OnFailure=trader-health-fail@%n.service
+
+[Service]
+Slice=trader.slice
+Type=oneshot
+User=trader
+Group=trader
+WorkingDirectory=/opt/trader
+Environment=PYTHONUNBUFFERED=1
+# Cikis 2 = bazi cift/uc alinamadi (alarm degil); 3 = IP yasagi/429, 6 = HTTP 451: alarm. Ban dosyasi OI toplayicisi ile ORTAK.
+SuccessExitStatus=2
+ExecStart=/usr/bin/python3 -I /opt/trader/scripts/piyasa_veri_run.py --config-dir /opt/trader/config --var-dir /opt/trader/var
+TimeoutStartSec=600
+MemoryHigh=80M
+MemoryMax=100M
+CPUQuota=10%
+Nice=15
+IOSchedulingClass=idle
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/opt/trader/var
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6

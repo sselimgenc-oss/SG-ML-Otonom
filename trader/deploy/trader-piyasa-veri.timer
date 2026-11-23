@@ -1,0 +1,10 @@
+[Unit]
+Description=Trader piyasa pozisyon verisi toplayici zamanlayicisi (saatlik)
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target

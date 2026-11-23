@@ -1,0 +1,28 @@
+[Unit]
+Description=Trader ham haber + Fear & Greed toplayici (yalniz kayit; RSS -> var/veri/haber/; tek seferlik)
+Documentation=file:///opt/trader/docs/veri-toplama-spec.md
+After=network-online.target
+Wants=network-online.target
+OnFailure=trader-health-fail@%n.service
+
+[Service]
+Slice=trader.slice
+Type=oneshot
+User=trader
+Group=trader
+WorkingDirectory=/opt/trader
+Environment=PYTHONUNBUFFERED=1
+# Kaynak hatasi/zaman asimi yutulur (birim basarisiz sayilmaz). Cikis 2 yalniz yerel yazma hatasi.
+ExecStart=/usr/bin/python3 -I /opt/trader/scripts/haber_run.py --var-dir /opt/trader/var
+TimeoutStartSec=120
+MemoryHigh=80M
+MemoryMax=100M
+CPUQuota=10%
+Nice=15
+IOSchedulingClass=idle
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/opt/trader/var/veri
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6

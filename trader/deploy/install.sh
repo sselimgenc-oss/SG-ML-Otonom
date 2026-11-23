@@ -650,13 +650,14 @@ enable_now trader-ml-retrain.timer
 safe_tree_path "$TRADER_DIR/var/universe"
 install -d -m 0750 -o "$TRADER_USER" -g "$TRADER_USER" "$TRADER_DIR/var/universe"
 enable_now trader-universe.timer   # DD-12 WP-16: aylik kagit evreni (1. gun 00:30 UTC; var/universe/paper_pairs.json, ag yok)
-# Haber/duygu toplayicisi KALDIRILDI (21 Kasim 2026 kullanici karari): birimler durdurulur, devre disi birakilir, dosyalari silinir (tekrar calistirmada no-op).
-for u in trader-haber.timer trader-haber.service; do
-  systemctl disable --now "$u" >/dev/null 2>&1 || true
-done
-rm -f "${UNIT_DIR}/trader-haber.service" "${UNIT_DIR}/trader-haber.timer"
+# Etiket/kural mekanizmasi 21 Kasim 2026'da KALDIRILDI ve geri gelmedi. Yeniden eklenen YALNIZ VERI TOPLAMA (23 Kasim 2026 karari; docs/veri-toplama-spec.md):
+# karar girdisi degildir; golge/ust lig hatti icin ham veri biriktirir. Eski birimler (var/durum/haber_v1.json yazani) yerini yenisine birakir.
+safe_tree_path "$TRADER_DIR/var/veri" "$TRADER_DIR/var/veri/haber" "$TRADER_DIR/var/veri/piyasa"
+install -d -m 0750 -o "$TRADER_USER" -g "$TRADER_USER" "$TRADER_DIR/var/veri" "$TRADER_DIR/var/veri/haber" "$TRADER_DIR/var/veri/piyasa"
 safe_tree_path "$TRADER_DIR/var/durum"
 install -d -m 0750 -o "$TRADER_USER" -g "$TRADER_USER" "$TRADER_DIR/var/durum"
+enable_now trader-haber.timer          # veri toplama: ham haber + Fear&Greed (saatlik; var/veri/haber; yalniz https okuma)
+enable_now trader-piyasa-veri.timer    # veri toplama: OI/funding/long-short/taker (saatlik; var/veri/piyasa; herkese acik GET, anahtar yok)
 enable_now trader-weekly-summary.timer
 # Faz 2a: kagit-geri test tutarlilik raporu (haftalik; yalniz bilgi). unit ReadWritePaths (namespace) icin dizinler ilk kurulumda olussun
 safe_tree_path "$TRADER_DIR/var/rapor" "$TRADER_DIR/var/rapor/tutarlilik" "$TRADER_DIR/var/durum"
@@ -735,7 +736,7 @@ else MISSING+=("/etc/trader-testnet.env  -> BINANCE_API_KEY ve BINANCE_API_SECRE
 # birimleri kalmamali (kaldirma yukarida yapildi; eski bir kopya kaldiysa burada gorunur).
 say "DD-12 zamanlayici denetimi"
 for t in trader-notes.timer trader-weekly-summary.timer trader-ml-retrain.timer trader-universe.timer \
-         trader-counterfactual@learner.timer trader-exit-counterfactual@learner.timer trader-tutarlilik.timer trader-mutabakat.timer trader-durum-yayin.timer trader-bakim.timer trader-strateji-veri.timer; do
+         trader-counterfactual@learner.timer trader-exit-counterfactual@learner.timer trader-tutarlilik.timer trader-mutabakat.timer trader-durum-yayin.timer trader-haber.timer trader-piyasa-veri.timer trader-bakim.timer trader-strateji-veri.timer; do
   if systemctl is-enabled --quiet "$t" 2>/dev/null; then echo "  etkin: $t"; else echo "UYARI: $t etkin degil (systemctl enable --now $t)"; fi
 done
 for u in trader-veto.service trader-veto.timer trader-engine@twin.service trader-engine-retry@twin.timer; do

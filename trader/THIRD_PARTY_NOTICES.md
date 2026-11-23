@@ -25,3 +25,7 @@
 
 ## LightGBM (MIT) — yalnız ML eğitim/araştırma tarafı
 - Kod kopyalanmadı; `requirements-ml.txt` içinde tam sürüm (4.6.0) + hash sabitli isteğe bağlı bağımlılık. Motor ve bot süreci yüklemez; motor tarafı kendi ağaç okuyucumuzu (`src/trader_ml/treeeval.py`) kullanır. scipy yalnız lightgbm'in dolaylı bağımlılığıdır.
+
+## CT haber/duygu çözücüleri (kullanıcının kendi projesi) — yalnız veri toplama
+- Kaynak: `copytrade/canli/haber.py` (CT projesi, kullanıcının kendi kodu; yalnız okunarak uyarlandı, çalıştırılmadı), 2026-11-19; 23 Kasım 2026'da yalnız VERİ TOPLAMA olarak yeniden eklendi (etiket/ton/kural yok; bkz. `docs/veri-toplama-spec.md`).
+- Uyarlanan: `src/trader_core/veri_haber.py` (`duygu_coz`, `rss_coz`; ağ `requests` yerine stdlib `urllib`). Kaynaklar (herkese açık, anahtarsız): alternative.me Fear & Greed, CoinDesk RSS, Cointelegraph RSS, Decrypt RSS (`decrypt.co/feed`), Bitcoin Magazine RSS (`bitcoinmagazine.com/.rss/full/`). Yalnız başlık/bağlantı/özet ham olarak saklanır; yeniden yayımlanmaz.

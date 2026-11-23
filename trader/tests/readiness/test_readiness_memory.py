@@ -59,6 +59,20 @@ def test_tutarlilik_weekly_oneshot_is_bounded_and_fits_slice():
     assert "OnCalendar=Mon *-*-* 00:30:00 UTC" in tm and "Persistent=true" in tm
 
 
+def test_veri_toplama_oneshots_are_bounded_and_fit_slice():
+    """Veri toplama (saatlik, yalniz kayit; docs/veri-toplama-spec.md): saf stdlib, 100M tavan; haber yalniz var/veri yazar."""
+    for ad, rw in (("haber", "/opt/trader/var/veri"), ("piyasa-veri", "/opt/trader")):
+        m = _mem(f"trader-{ad}.service")
+        assert m == 100
+        kv = _kv(f"trader-{ad}.service")
+        assert kv["Slice"] == "trader.slice" and kv["Nice"] == "15"
+        assert kv["ReadWritePaths"] == rw + ("" if ad == "haber" else "/var") and kv["ProtectSystem"] == "strict" and kv["NoNewPrivileges"] == "true"
+        assert m <= int(_kv("trader.slice")["MemoryMax"][:-1]) // 2
+        assert 1170 + 64 + 96 + 256 + 400 + 128 + m < RAM_MB + SWAP_MB
+        tm = (DEPLOY / f"trader-{ad}.timer").read_text(encoding="utf-8")
+        assert "OnCalendar=hourly" in tm and "Persistent=true" in tm and "WantedBy=timers.target" in tm
+
+
 def test_bakim_weekly_oneshot_is_bounded_and_fits_slice():
     """Haftalik disk bakimi (pazar 04:20 UTC): saf stdlib sqlite; olculen tepe RSS ~47 MB (65 MB defter VACUUM) -> 128M tavan; idle IO."""
     m = _mem("trader-bakim.service")
