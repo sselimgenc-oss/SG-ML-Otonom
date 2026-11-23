@@ -507,3 +507,20 @@ def test_toplam_buyukluk_mark_fiyat_varsa_mark_kullanilir(mk):
     assert _go(e, "SOL/USDT").action == "enter"                                    # giris fiyati 100: kucuk
     e.g.broker.positions = lambda: [SimpleNamespace(pair="ETH/USDT", mark_price=3000.0 - n + 0.01)]   # type: ignore[attr-defined]
     assert _go(e, "SOL/USDT").code == "toplam_buyukluk"                            # mark 3000: tavani asar
+
+
+def test_fren_ardisik_seri_gece_yarisini_asar_ve_tetik_gunu_sonrasi_sifirlanir():
+    """23.11 kullanici karari b: seri gun sinirina bakmaz; fren tetik gununden sonraki gun basinda kalkar, sayac sifirlanir."""
+    cfg = {"ardisik": 5, "gunluk_oran": 0.04, "carpan": 0.5}
+    gun = T0.replace(hour=0, minute=0, second=0, microsecond=0)
+    t = lambda pnl, ts: SimpleNamespace(realized_pnl=pnl, exit_reason="stop", exit_ts=ts)   # noqa: E731
+    dun = [t(-1, gun - timedelta(hours=h)) for h in (1, 2, 3)]            # dun 3 kayip (yeniden eskiye)
+    bugun = [t(-1, gun + timedelta(hours=h)) for h in (2, 1)]             # bugun 2 kayip
+    assert KF.karar(cfg, bugun + dun, 1000.0, 1000.0, gun) == KF.FrenKarari(True, "ardisik", 0.5, 5)   # 3 + 2 = 5: tetik
+    assert KF.karar(cfg, bugun[1:] + dun, 1000.0, 1000.0, gun).aktif is False                         # 4 kayip: yok
+    dun5 = [t(-1, gun - timedelta(hours=h)) for h in (1, 2, 3, 4, 5)]     # dun tetiklendi
+    assert KF.karar(cfg, dun5, 1000.0, 1000.0, gun).aktif is False                                    # yeni gun: kalkti
+    assert KF.karar(cfg, bugun + dun5, 1000.0, 1000.0, gun).ardisik_kayip == 2                       # sayac sifirdan
+    bugun5 = [t(-1, gun + timedelta(hours=h)) for h in (5, 4, 3, 2, 1)]
+    assert KF.karar(cfg, bugun5 + dun5, 1000.0, 1000.0, gun).neden == "ardisik"                      # 5 YENI kayip: yeniden
+    assert KF.karar(cfg, [t(+1, gun + timedelta(hours=3))] + bugun + dun, 1000.0, 1000.0, gun).aktif is False   # kazanc keser
