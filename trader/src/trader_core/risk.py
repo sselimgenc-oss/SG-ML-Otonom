@@ -38,6 +38,15 @@ PAPER_LIMITS = {**HARD_LIMITS,
                 "max_same_dir_risk": 0.16}
 
 
+# 23 Kasim 2026 kullanici karari: CANLI = KAGIT. Canli motor kagitla ayni risk sinirlarini kullanir (yalniz mode="live").
+# HARD_LIMITS ve PAPER_LIMITS degismez; testnet/geri test `HARD_LIMITS` ile kalir.
+LIVE_LIMITS = {**HARD_LIMITS,
+               "target_trade_risk": 0.014,
+               "daily_max_loss": 0.08,
+               "max_open_risk": 0.24,
+               "max_same_dir_risk": 0.16}
+
+
 def _num(x, name: str = "değer") -> float:
     """int/float/numbers.Real -> float; bool, None, metin, NaN, inf geçersiz."""
     if isinstance(x, bool) or not isinstance(x, numbers.Real):
@@ -134,6 +143,11 @@ class PaperRiskConfig(RiskConfig):
     # Karar A (21 Kasim 2026): kağıtta günlük limit yalnız bugünkü zarara (gerçekleşen+gerçekleşmemiş = day_start-equity)
     # bakar; loss_today >= daily_max_loss*day_start ise yeni giriş yok. Açık riski max_open_risk/max_same_dir_risk sınırlar.
     _DAILY_INCLUDES_OPEN_RISK = False
+
+@dataclass(frozen=True)
+class LiveRiskConfig(PaperRiskConfig):
+    """23 Kasim: canli = kagit. Alanlar RiskConfig ile ayni, ust sinirlar LIVE_LIMITS; gunluk limit kagit kurali (yalniz bugunku zarar)."""
+    _LIMITS = LIVE_LIMITS
 
 # DD-12 §4.1: kağıt parametreleri. Yalnız `paper_config` (trader_engine.config, mode="paper") üretir.
 PAPER_KEYS = ("target_trade_risk", "max_open_risk", "max_same_dir_risk", "daily_max_loss")
@@ -381,3 +395,13 @@ def check_entry_scaled(state: AccountState, cand: Candidate, cfg: RiskConfig, mu
     if not 0 < m <= 1:
         raise ValueError(f"mult (0, 1] içinde olmalı: {m!r}")
     return check_entry(state, cand, tightened(cfg, target_trade_risk=cfg.target_trade_risk * m))
+
+
+def live_config(**kw: float) -> RiskConfig:
+    """Canli katmani RiskConfig'i (`LiveRiskConfig`, LIVE_LIMITS): `paper_config` ile ayni anahtarlar."""
+    unknown = set(kw) - set(PAPER_KEYS)
+    if unknown:
+        raise ValueError(f"live_config bilinmeyen anahtar: {sorted(unknown)}")
+    d = {f.name: getattr(LOCKED_CFG, f.name) for f in fields(LOCKED_CFG)}
+    d.update(kw)
+    return LiveRiskConfig(**d)

@@ -255,8 +255,10 @@ def test_paper_config_modes_are_open_and_paper_equals_backtest(tmp_path):
     cfgdir = Path(__file__).resolve().parents[2] / "config"
     raw = json.loads((cfgdir / "engine.paper.json").read_text())["exit_modes"]
     assert raw == {"default": {"breakeven": True, "partial": True}}
-    for other in ("engine.base.json", "engine.live.json", "engine.testnet.json", "engine.learner.json"):
+    for other in ("engine.base.json", "engine.testnet.json", "engine.learner.json"):
         assert "exit_modes" not in json.loads((cfgdir / other).read_text())
+    # 23.11 kullanici karari: canli = kagit (canli yapilandirma exit_modes'i tasir ama motor FAZ 2'ye kadar yok sayar)
+    assert json.loads((cfgdir / "engine.live.json").read_text())["exit_modes"] == raw
     a_env, a_id, _ = _run(tmp_path / "paper", mode="paper", modes=raw, drop_low=97.0)
     b_env, b_id, _ = _run(tmp_path / "bt", mode="backtest", modes=raw, drop_low=97.0)
     assert _snap(a_env, a_env.real_ledger.get_trade(a_id)) == _snap(b_env, b_env.real_ledger.get_trade(b_id))

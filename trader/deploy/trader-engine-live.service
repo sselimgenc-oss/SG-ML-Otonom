@@ -34,8 +34,8 @@ RestartMaxDelaySec=120
 # 2 = anahtar/ayar eksik, 7 = acilis kapisi, 8 = borsa yetki/izin/bolge reddi ya da yabanci damga: 'failed' + OnFailure alarmi.
 # Diger her cikis (3, 4, 5, sinyal, OOM) 5 sn'den 120 sn'ye buyuyen aralikla SURESIZ yeniden denenir; her acilista protect_first calisir.
 RestartPreventExitStatus=2 7 8
-MemoryHigh=280M
-MemoryMax=350M
+MemoryHigh=600M
+MemoryMax=750M
 OOMScoreAdjust=-300
 Nice=5
 CPUQuota=60%

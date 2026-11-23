@@ -91,8 +91,9 @@ def scan_risk(root: Path) -> list[str]:
                 for k, x in o.items():
                     if k == "target_trade_risk" and p.name == "engine.base.json":
                         continue      # tek izinli ayar: yalniz LOCKED_CFG'den SIKI olabilir (config.build_risk_config, fail-closed)
-                    if p.name == "engine.paper.json" and k in ("target_trade_risk", "risk", "max_open_risk", "max_same_dir_risk", "daily_max_loss"):
-                        continue      # DD-12 WP-01 (§4.1): yalniz kagit katmani; risk.PAPER_LIMITS icinde (config.build_paper_risk_config, fail-closed)
+                    if p.name in ("engine.paper.json", "engine.live.json") and k in ("target_trade_risk", "risk", "max_open_risk", "max_same_dir_risk", "daily_max_loss"):
+                        continue      # DD-12 WP-01 (§4.1): kagit katmani; risk.PAPER_LIMITS icinde (config.build_paper_risk_config, fail-closed)
+                        # 23.11 kullanici karari: canli = kagit; engine.live.json ayni anahtarlari risk.LIVE_LIMITS icinde tasir (fail-closed)
                     if RISK_NAME.search(str(k).lower()):
                         v.append(f"{p.name}: key {k}")
                     walk(x)

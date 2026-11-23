@@ -254,11 +254,14 @@ class EntryGate:
             return None
 
     def _ml_filtre_karari(self, row: SignalRow, tf: str, D: datetime, tk: dict) -> EntryOutcome | None:
-        """ML filtresi (kagit): esik alti puan => `ml_filter` ile atla (karar satiri + puan; karsi-olgu mevcut atlama yolundan).
-        Baska her durum (filtre yok/paket yok/hata) => None (giris serbest). Asla istisna yaymaz."""
+        """ML filtresi: esik alti puan => `ml_filter` ile atla (karar satiri + puan; karsi-olgu mevcut atlama yolundan).
+        KAGIT: baska her durum (filtre yok/paket yok/hata) => None (giris serbest, fail-open). Asla istisna yaymaz.
+        CANLI (23.11; yalniz ml_mode=active): filtre yok / paket yok / bozuk / suresi dolmus / hata => giris YOK (fail-closed;
+        `gate:ml_filter_unavailable`); cikislar etkilenmez. Saglik uyarisi: engine._ml_status (status.json ml -> health)."""
+        live_closed = self.cfg.mode == "live" and self.cfg.ml_mode == "active"
         flt = self.ml_filtre
         if flt is None:
-            return None
+            return self._ml_kapali(row, tf, tk) if live_closed else None
         try:
             from .ogrenme_filtre import ozellikler
             aid = row.arm_id or AG.arm_id_of(row.setup, tf)
@@ -271,13 +274,22 @@ class EntryGate:
             if k.neden == "ok":
                 self.counters["ml_filtre_gecti"] += 1
             if k.izin:
+                if live_closed and k.neden != "ok":
+                    return self._ml_kapali(row, tf, tk)
                 return None
             self.counters["ml_filtre_atladi"] += 1
             return self._skip(row, tf, "ml_filter", skip_reason="ml_filter", veto_reason="gate:ml_filter",
                               ml_score=k.puan, **tk)
-        except Exception as e:  # noqa: BLE001 - filtre hatasi giris engellemez
+        except Exception as e:  # noqa: BLE001
+            if live_closed:
+                log.error("ML filtre kapisi hatasi, CANLIDA giris yok: %s: %s", type(e).__name__, e)
+                return self._ml_kapali(row, tf, tk)
             log.warning("ML filtre kapisi hatasi, giris serbest: %s: %s", type(e).__name__, e)
             return None
+
+    def _ml_kapali(self, row: SignalRow, tf: str, tk: dict) -> EntryOutcome:
+        self.counters["ml_filtre_kapali_blok"] += 1
+        return self._skip(row, tf, "ml_filter", skip_reason="ml_filter", veto_reason="gate:ml_filter_unavailable", **tk)
 
     def _kol_karari(self, aid: str) -> KK.KolKarar | None:
         """Kademeli kucultme (kagit): kolun son kapanan islemlerinin net R'sinden carpan. Okunamazsa None (carpan yok = yapilandirma boyutu;
@@ -300,7 +312,7 @@ class EntryGate:
         `arm_conflict` ile yazilir (kagit; veto yok; `mark_decided` yok - kazananin karari isaretler)."""
         row = frame.last
         tk: dict = {}
-        if self.cfg.mode == "paper":
+        if self.cfg.mode in ("paper", "live"):                                          # 23.11 kullanici karari: canli = kagit
             tk = {"session_tag": AG.session_tag(AG.asset_class(row.pair, self.cfg.clusters), frame.last.bar_close_ts)}
         return self._skip(row, _tf_of(row), "arm_conflict", mark=False, skip_reason="arm_conflict",
                           veto_reason=f"gate:arm_conflict:{winner.arm_id or winner.setup}", **tk)
@@ -311,7 +323,7 @@ class EntryGate:
         row = frame.last
         pair = row.pair
         tf = _tf_of(row)
-        paper = self.cfg.mode == "paper"                                                # DD-12 WP-04: yalniz kagit
+        paper = self.cfg.mode in ("paper", "live")                                      # DD-12 WP-04: kagit sistemi; 23.11 kullanici karari: canli = kagit
         tk: dict = {}
         cls = ""
         if paper:

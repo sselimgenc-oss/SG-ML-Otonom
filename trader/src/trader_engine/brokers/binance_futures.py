@@ -64,7 +64,7 @@ _COUNTERS = ("fee_rate_fallback", "unknown_reject_codes", "fee_drift", "fee_asse
              "working_type_mismatch", "sync_failures", "exchange_bans", "rules_drift", "working_type_unverified",
              "stop_response_mismatch", "exchange_auth", "close_unresolved", "malformed_trades",
              "account_mode_drift", "account_mode_unverified", "entry_weight_rejects", "account_mode_unverified_ban",
-             "zero_fill_pending", "zero_fill_unresolved")
+             "zero_fill_pending", "zero_fill_unresolved", "optional_position_risk_failed")
 _BLOCK_PRIORITY = ("exchange_auth", "exchange_unknown_code", "working_type_unverified", "exchange_unreachable")
 STARTUP_BAN_SLEEP_MAX_S = 300.0
 STARTUP_RULES_TRIES = 2
@@ -162,8 +162,11 @@ class LiveBroker:
     is_simulated = False
 
     def __init__(self, live: LiveSettings, env: Literal["testnet", "live"], leverage: int, pairs: Sequence[str],
-                 rest: Any, clock: Clock, taker_fee_fallback: float, environ: Mapping[str, str] | None = None) -> None:
+                 rest: Any, clock: Clock, taker_fee_fallback: float, environ: Mapping[str, str] | None = None,
+                 contract_types: Sequence[str] | None = None, optional_pairs: Sequence[str] = ()) -> None:
         self._live, self._env, self._lev = live, env, int(leverage)
+        self._optional = frozenset(optional_pairs)       # 23.11: hisse/emtia; baslangic position_risk reddi acilisi DURDURMAZ
+        self._contract_types = tuple(contract_types) if contract_types else ("PERPETUAL",)   # 23.11: canli = kagit (cfg.contract_types)
         self._environ: Mapping[str, str] = os.environ if environ is None else environ
         self._pairs = tuple(pairs)
         self._sym = {p: p.replace("/", "") for p in self._pairs}
@@ -350,7 +353,8 @@ class LiveBroker:
 
     def _apply_rules(self, info: Any) -> None:
         now = self._now()
-        res = extract_all_rules(info if isinstance(info, dict) else {}, [self._sym[p] for p in self._pairs])
+        res = extract_all_rules(info if isinstance(info, dict) else {}, [self._sym[p] for p in self._pairs],
+                                self._contract_types)
         for p in self._pairs:
             r = res.get(self._sym[p])
             if isinstance(r, SymbolRuleSpec):
@@ -500,7 +504,20 @@ class LiveBroker:
                     rejected.append(r0.code)
             ok = False
             held = False
-            for r in self._startup_call(self._rest.position_risk, s) or []:
+            pr = self._startup_call(self._rest.position_risk, s, soft_reject=(p in self._optional))
+            if isinstance(pr, _Rejected):
+                # Istege bagli (TradFi) cift: -1121/bolge kisiti gibi ret acilisi (kod 8 = kalici kapali) durdurmaz; cift hazirlanmamis
+                # (giris yok). Acik pozisyon HESAP GENELI okumadan (adim 4) bilinir: varsa ASLA sessizce atlanmaz (held + CRITICAL;
+                # protect_first/mutabakat yonetir). Cekirdek ciftler eskisi gibi fail-closed.
+                self._ctr["optional_position_risk_failed"] += 1
+                held_all = any(isinstance(r, dict) and r.get("symbol") == s and _d(r.get("positionAmt")) != 0 for r in rows)
+                if held_all:
+                    held_pairs.add(p)
+                self._ctr["prepare_failed"] += 1
+                log.log(logging.CRITICAL if held_all else logging.ERROR,
+                        "optional_position_risk_failed:%s kod=%s held=%s (cift hazirlanmadi, giris yok)", p, pr.code, held_all)
+                continue
+            for r in pr or []:
                 if isinstance(r, dict) and r.get("symbol") == s:
                     held = _d(r.get("positionAmt")) != 0
                     self._last_mark[p] = _fl(r.get("markPrice"), self._last_mark.get(p, 0.0)) or self._last_mark.get(p, 0.0)

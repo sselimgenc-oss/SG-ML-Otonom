@@ -198,14 +198,17 @@ def test_k_01_live_layer_loads_with_fixed_contract_values():
     assert cfg.live.expected_wallet_max == 2000.0   # 23.11 kullanici karari (d): 1500 -> 2000
     assert cfg.live.max_attempts == 1
     assert cfg.leverage == LOCKED_CFG.min_leverage
-    assert cfg.veto_mode == "required"
+    assert cfg.veto_mode == "off"      # 23.11 kullanici karari: canli = kagit (LLM veto yok)
     assert cfg.cost.trigger_source == "mark"
 
 
 def test_k_02_live_json_exact_key_sets():
     live = json.loads(read(CONFIG / "engine.live.json"))
     testnet = json.loads(read(CONFIG / "engine.testnet.json"))
-    assert set(live) == {"mode", "var_dir", "kill_file", "pause_file", "live", "pairs"}   # 22.11: kendi pairs listesi
+    # 23.11 kullanici karari: canli = kagit (kagit sistem anahtarlari eklendi; ayrinti: test_canli_kagit_parite.py)
+    assert set(live) == {"mode", "var_dir", "kill_file", "pause_file", "live", "pairs", "veto_mode", "optional_pairs", "strategy", "arms",
+                         "arm_max_positions", "ml_mode", "shadow_blocks", "exit_modes", "max_positions", "target_trade_risk", "risk",
+                         "clusters", "etiket_kurallari", "flat_bar_guard", "contract_types", "cost_overrides"}
     assert set(live["live"]) == set(testnet["live"])
 
 
@@ -393,7 +396,7 @@ def test_u_06b_unit_difference_rows_per_spec_table():
     live, tn = read(LIVE_UNIT), read(TESTNET_UNIT)
     assert "CANLI" in unit_get(live, "Description")[0]
     assert (unit_get(tn, "MemoryHigh"), unit_get(tn, "MemoryMax"), unit_get(tn, "Nice"), unit_get(tn, "OOMScoreAdjust")) == (["250M"], ["320M"], ["10"], [])
-    assert (unit_get(live, "MemoryHigh"), unit_get(live, "MemoryMax"), unit_get(live, "Nice"), unit_get(live, "OOMScoreAdjust")) == (["280M"], ["350M"], ["5"], ["-300"])
+    assert (unit_get(live, "MemoryHigh"), unit_get(live, "MemoryMax"), unit_get(live, "Nice"), unit_get(live, "OOMScoreAdjust")) == (["600M"], ["750M"], ["5"], ["-300"])   # 23.11 kullanici karari: canli = kagit (kagit motoruyla ayni bellek tavani)
     assert unit_get(live, "ReadWritePaths") == ["/opt/trader/var /opt/trader/var-live /opt/trader/shared /opt/trader/user_data"]
     assert unit_get(tn, "ReadWritePaths") == ["/opt/trader/var /opt/trader/var-testnet /opt/trader/shared /opt/trader/user_data"]
     # ExecStartPre: yalniz market.sqlite bekleme satiri

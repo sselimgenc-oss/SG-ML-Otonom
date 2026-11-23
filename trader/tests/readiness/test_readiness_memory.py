@@ -110,7 +110,7 @@ def test_dd9_budget_with_live_and_testnet_units():
     """DD-9 duzenegi: butce = feed + max(kagit learner, canli) + testnet (+ pano, telegram); canli ile kagit learner AYNI ANDA calismaz.
     Toplam sert tavanlar trader.slice MemoryMax (1300M) ile sinirlanir; RAM+takas icinde kalir."""
     live, paper, testnet = _mem("trader-engine-live.service"), _mem("trader-engine@.service"), _mem("trader-engine-testnet.service")
-    assert (live, testnet) == (350, 320)
+    assert (live, testnet) == (750, 320)      # 23.11 kullanici karari: canli = kagit (canli MemoryMax 350M -> 750M, kagitla ayni)
     budget = (_mem("trader-feed.service") + max(paper, live) + testnet + _mem("trader-panel.service")
               + _mem("trader-telegram.service"))
     assert budget == 260 + 750 + 320 + 64 + 96 == 1490

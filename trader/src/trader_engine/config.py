@@ -16,7 +16,7 @@ from typing import Any, Literal, Mapping
 from trader_core import etiket_kurallari as _EK
 from trader_core import exit_modes as _xm
 from trader_core.config_loader import deep_merge
-from trader_core.risk import LOCKED_CFG, PAPER_KEYS, RiskConfig, paper_config, tightened
+from trader_core.risk import LOCKED_CFG, PAPER_KEYS, RiskConfig, live_config, paper_config, tightened
 
 from .errors import ConfigError
 from .types import canon_pair
@@ -129,8 +129,8 @@ class EngineConfig:
     def risk_config(self) -> RiskConfig:
         """Boyutlama/kapi icin tek RiskConfig (twin ve learner ayni degeri okur). Nesne tek kez kurulur (12 §8.3:
         K0'da `step_config` ayni nesneyi dondurur)."""
-        if self.mode == "paper" and self.risk:
-            return build_paper_risk_config(self.target_trade_risk, self.risk)
+        if self.mode in ("paper", "live") and self.risk:      # 23.11 kullanici karari: canli = kagit (canli: LIVE_LIMITS)
+            return build_paper_risk_config(self.target_trade_risk, self.risk, mode=self.mode)
         return build_risk_config(self.target_trade_risk)
 
     def _bot_path(self, name: str) -> str:
@@ -187,8 +187,8 @@ def build_risk_config(target_trade_risk: Any) -> RiskConfig:
         raise ConfigError(f"target_trade_risk: {e}") from e
 
 
-def build_paper_risk_config(target_trade_risk: Any, risk: Mapping[str, Any]) -> RiskConfig:
-    """DD-12 §4.1 (yalniz mode="paper"): `risk` blogundaki anahtarlar PAPER_LIMITS icinde uygulanir. Ust sinirlari asan,
+def build_paper_risk_config(target_trade_risk: Any, risk: Mapping[str, Any], mode: str = "paper") -> RiskConfig:
+    """DD-12 §4.1 (mode="paper"; 23.11: canli da, LIVE_LIMITS): `risk` blogundaki anahtarlar PAPER_LIMITS icinde uygulanir. Ust sinirlari asan,
     bilinmeyen, sayi olmayan ya da `target_trade_risk` ile celisen deger => ConfigError (fail-closed)."""
     unknown = set(risk) - set(PAPER_KEYS)
     if unknown:
@@ -199,7 +199,7 @@ def build_paper_risk_config(target_trade_risk: Any, risk: Mapping[str, Any]) -> 
         raise ConfigError(f"risk.target_trade_risk ({kw['target_trade_risk']}) ile target_trade_risk ({ttr}) celisiyor")
     kw["target_trade_risk"] = ttr
     try:
-        return paper_config(**kw)
+        return live_config(**kw) if mode == "live" else paper_config(**kw)
     except ValueError as e:
         raise ConfigError(f"risk: {e}") from e
 
@@ -492,8 +492,9 @@ def _validate(raw: Mapping[str, Any]) -> EngineConfig:
     if raw["target_mode"] != "bar_close":
         raise ConfigError(f"target_mode yalniz 'bar_close': {raw['target_mode']!r}")
     veto_mode = _choice("veto_mode", raw["veto_mode"], ("required", "off"))
-    if veto_mode == "off" and mode not in ("backtest", "paper", "testnet"):   # DD-12: LLM veto kaldirildi; testnet kagit gibi veto'suz (live: asagida 'required' zorunlu)
-        raise ConfigError("veto_mode='off' yalniz mode='backtest'|'paper'|'testnet' ile gecerli")
+    # 23.11 kullanici karari: canli = kagit (live: veto_mode 'off' da gecerli)
+    if veto_mode == "off" and mode not in ("backtest", "paper", "testnet", "live"):   # DD-12: LLM veto kaldirildi
+        raise ConfigError("veto_mode='off' yalniz mode='backtest'|'paper'|'testnet'|'live' ile gecerli")
     if not isinstance(raw["record_filtered_candidates"], bool):
         raise ConfigError("record_filtered_candidates bool olmali")
     for n in _STR:
@@ -558,15 +559,15 @@ def _validate(raw: Mapping[str, Any]) -> EngineConfig:
     except _xm.ExitModeError as e:
         raise ConfigError(str(e)) from e
     etiket_raw = raw.get("etiket_kurallari")
-    if etiket_raw and mode != "paper":
-        raise ConfigError(f"etiket_kurallari yalniz mode='paper' ile verilebilir (mode={mode!r})")
+    if etiket_raw and mode not in ("paper", "live"):          # 23.11 kullanici karari: canli = kagit
+        raise ConfigError(f"etiket_kurallari yalniz mode='paper'|'live' ile verilebilir (mode={mode!r})")
     try:
         etiket_kurallari = _EK.build_config(etiket_raw)
     except _EK.EtiketConfigHatasi as e:
         raise ConfigError(str(e)) from e
-    if mode not in ("paper", "backtest") and exit_modes:
-        raise ConfigError(f"exit_modes yalniz mode='paper'/'backtest' ile verilebilir (mode={mode!r})")
-    if mode != "paper":
+    if mode not in ("paper", "backtest", "live") and exit_modes:   # 23.11: canli kabul eder ama FAZ 2'ye kadar motor yok sayar
+        raise ConfigError(f"exit_modes yalniz mode='paper'/'backtest'/'live' ile verilebilir (mode={mode!r})")
+    if mode not in ("paper", "live"):                         # 23.11 kullanici karari: canli = kagit
         given = {"optional_pairs": optional_pairs, "ml_pairs": ml_pairs, "max_positions": max_positions, "risk": risk_raw,
                  "clusters": clusters, "flat_bar_guard": flat_bar_guard, "cost_overrides": cost_overrides,
                  "contract_types": contract_types, "arms": arms, "arm_max_positions": arm_caps}
@@ -584,7 +585,7 @@ def _validate(raw: Mapping[str, Any]) -> EngineConfig:
         live = None
     ttr = raw.get("target_trade_risk", risk_raw.get("target_trade_risk", LOCKED_CFG.target_trade_risk))
     if risk_raw:
-        build_paper_risk_config(ttr, risk_raw)               # mode == 'paper' (digerleri yukarida reddedildi)
+        build_paper_risk_config(ttr, risk_raw, mode=mode)    # mode == 'paper'|'live' (digerleri yukarida reddedildi)
     else:
         build_risk_config(ttr)
     cost = raw["cost"] if isinstance(raw["cost"], CostModel) else None
@@ -594,8 +595,6 @@ def _validate(raw: Mapping[str, Any]) -> EngineConfig:
             raise ConfigError(f"mode={mode!r} yalniz bot='learner' ile gecerli")
         if cost.trigger_source != "mark":
             raise ConfigError(f"mode={mode!r}: cost.trigger_source='mark' zorunlu")
-    if mode == "live" and veto_mode != "required":
-        raise ConfigError("mode='live': veto_mode='required' zorunlu")
     if mode in ("testnet", "live"):
         check_shared_paths(mode, raw["var_dir"], raw["kill_file"], pause_file)
     return EngineConfig(

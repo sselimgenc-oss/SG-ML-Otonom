@@ -1,7 +1,518 @@
 {
   "mode": "live",
   "var_dir": "var-live",
-  "pairs": ["BTC/USDT", "ETH/USDT", "BNB/USDT", "SOL/USDT", "XRP/USDT", "DOGE/USDT", "ADA/USDT", "TRX/USDT", "LINK/USDT", "AVAX/USDT", "HYPE/USDT", "BCH/USDT", "XLM/USDT", "SUI/USDT", "HBAR/USDT", "LTC/USDT", "1000SHIB/USDT", "DOT/USDT", "XMR/USDT"],
+  "veto_mode": "off",
+  "pairs": ["BTC/USDT", "ETH/USDT", "BNB/USDT", "SOL/USDT", "XRP/USDT", "DOGE/USDT", "ADA/USDT", "TRX/USDT", "LINK/USDT", "AVAX/USDT", "HYPE/USDT", "BCH/USDT", "XLM/USDT", "SUI/USDT", "HBAR/USDT", "LTC/USDT", "1000SHIB/USDT", "DOT/USDT", "XMR/USDT", "NVDA/USDT", "MSFT/USDT", "AAPL/USDT", "GOOGL/USDT", "AMZN/USDT", "META/USDT", "AVGO/USDT", "TSLA/USDT", "BRKB/USDT", "JPM/USDT", "LLY/USDT", "WMT/USDT", "V/USDT", "ORCL/USDT", "XOM/USDT", "NFLX/USDT", "PLTR/USDT", "COST/USDT", "AMD/USDT", "HD/USDT", "XAU/USDT", "XAG/USDT", "BZ/USDT", "COPPER/USDT"],
+  "optional_pairs": ["NVDA/USDT", "MSFT/USDT", "AAPL/USDT", "GOOGL/USDT", "AMZN/USDT", "META/USDT", "AVGO/USDT", "TSLA/USDT", "BRKB/USDT", "JPM/USDT", "LLY/USDT", "WMT/USDT", "V/USDT", "ORCL/USDT", "XOM/USDT", "NFLX/USDT", "PLTR/USDT", "COST/USDT", "AMD/USDT", "HD/USDT", "XAU/USDT", "XAG/USDT", "BZ/USDT", "COPPER/USDT"],
+  "strategy": "price_action_lab_ml",
+  "arms": ["T1@15m", "T1@1h", "T1@4h", "T1@1d", "R1@15m", "R1@1h", "R1@4h", "R1@1d", "TF1@15m", "TF1@1h", "TF1@4h", "TF1@1d", "B1@15m", "B1@1h", "B1@4h", "B1@1d", "H2@15m", "H2@1h", "H2@4h", "H2@1d", "S1@15m", "S1@1h", "S1@4h", "S1@1d", "F1@15m", "F1@1h", "F1@4h", "F1@1d", "M1@1h", "M1@4h", "M1@15m", "M1@1d"],
+  "arm_max_positions": {"default": 6, "M1": 4, "L1": 4},
+  "ml_mode": "active",
+  "shadow_blocks": ["regime", "r1_disabled", "same_bar_reentry", "tf_15m"],
+  "exit_modes": {"default": {"breakeven": true, "partial": true}},
+  "max_positions": 24,
+  "target_trade_risk": 0.01,
+  "risk": {"target_trade_risk": 0.01, "max_open_risk": 0.24, "max_same_dir_risk": 0.16, "daily_max_loss": 0.08},
+  "clusters": {
+    "kripto_buyuk": {
+      "pairs": [
+        "BTC/USDT",
+        "ETH/USDT",
+        "XRP/USDT",
+        "BNB/USDT",
+        "SOL/USDT"
+      ],
+      "max_positions": 6
+    },
+    "kripto_diger": {
+      "pairs": [
+        "DOGE/USDT",
+        "ADA/USDT",
+        "TRX/USDT",
+        "LINK/USDT",
+        "AVAX/USDT",
+        "HYPE/USDT",
+        "BCH/USDT",
+        "XLM/USDT",
+        "SUI/USDT",
+        "HBAR/USDT",
+        "LTC/USDT",
+        "1000SHIB/USDT",
+        "DOT/USDT",
+        "XMR/USDT"
+      ],
+      "max_positions": 9
+    },
+    "hisse": {
+      "pairs": [
+        "NVDA/USDT",
+        "MSFT/USDT",
+        "AAPL/USDT",
+        "GOOGL/USDT",
+        "AMZN/USDT",
+        "META/USDT",
+        "AVGO/USDT",
+        "TSLA/USDT",
+        "BRKB/USDT",
+        "JPM/USDT",
+        "LLY/USDT",
+        "WMT/USDT",
+        "V/USDT",
+        "ORCL/USDT",
+        "XOM/USDT",
+        "NFLX/USDT",
+        "PLTR/USDT",
+        "COST/USDT",
+        "AMD/USDT",
+        "HD/USDT"
+      ],
+      "max_positions": 8
+    },
+    "hisse_teknoloji": {
+      "pairs": [
+        "NVDA/USDT",
+        "MSFT/USDT",
+        "AAPL/USDT",
+        "GOOGL/USDT",
+        "AMZN/USDT",
+        "META/USDT",
+        "AVGO/USDT",
+        "TSLA/USDT",
+        "ORCL/USDT",
+        "NFLX/USDT",
+        "PLTR/USDT",
+        "AMD/USDT"
+      ],
+      "max_positions": 5
+    },
+    "metal": {
+      "pairs": [
+        "XAU/USDT",
+        "XAG/USDT"
+      ],
+      "max_positions": 3
+    },
+    "enerji_sanayi": {
+      "pairs": [
+        "BZ/USDT",
+        "COPPER/USDT"
+      ],
+      "max_positions": 3
+    }
+  },
+  "etiket_kurallari": {"rejim": {"acik": true}},
+  "flat_bar_guard": true,
+  "contract_types": ["PERPETUAL", "TRADIFI_PERPETUAL"],
+  "cost_overrides": {
+    "NVDA/USDT": {
+      "open": {
+        "slip_entry_bps": 4.0,
+        "slip_exit_bps": 4.0,
+        "slip_stop_bps": 10.0
+      },
+      "closed": {
+        "slip_entry_bps": 6.0,
+        "slip_exit_bps": 6.0,
+        "slip_stop_bps": 15.0
+      },
+      "weekend": {
+        "slip_entry_bps": 8.0,
+        "slip_exit_bps": 8.0,
+        "slip_stop_bps": 20.0
+      }
+    },
+    "MSFT/USDT": {
+      "open": {
+        "slip_entry_bps": 4.0,
+        "slip_exit_bps": 4.0,
+        "slip_stop_bps": 10.0
+      },
+      "closed": {
+        "slip_entry_bps": 6.0,
+        "slip_exit_bps": 6.0,
+        "slip_stop_bps": 15.0
+      },
+      "weekend": {
+        "slip_entry_bps": 8.0,
+        "slip_exit_bps": 8.0,
+        "slip_stop_bps": 20.0
+      }
+    },
+    "AAPL/USDT": {
+      "open": {
+        "slip_entry_bps": 4.0,
+        "slip_exit_bps": 4.0,
+        "slip_stop_bps": 10.0
+      },
+      "closed": {
+        "slip_entry_bps": 6.0,
+        "slip_exit_bps": 6.0,
+        "slip_stop_bps": 15.0
+      },
+      "weekend": {
+        "slip_entry_bps": 8.0,
+        "slip_exit_bps": 8.0,
+        "slip_stop_bps": 20.0
+      }
+    },
+    "GOOGL/USDT": {
+      "open": {
+        "slip_entry_bps": 4.0,
+        "slip_exit_bps": 4.0,
+        "slip_stop_bps": 10.0
+      },
+      "closed": {
+        "slip_entry_bps": 6.0,
+        "slip_exit_bps": 6.0,
+        "slip_stop_bps": 15.0
+      },
+      "weekend": {
+        "slip_entry_bps": 8.0,
+        "slip_exit_bps": 8.0,
+        "slip_stop_bps": 20.0
+      }
+    },
+    "AMZN/USDT": {
+      "open": {
+        "slip_entry_bps": 4.0,
+        "slip_exit_bps": 4.0,
+        "slip_stop_bps": 10.0
+      },
+      "closed": {
+        "slip_entry_bps": 6.0,
+        "slip_exit_bps": 6.0,
+        "slip_stop_bps": 15.0
+      },
+      "weekend": {
+        "slip_entry_bps": 8.0,
+        "slip_exit_bps": 8.0,
+        "slip_stop_bps": 20.0
+      }
+    },
+    "META/USDT": {
+      "open": {
+        "slip_entry_bps": 4.0,
+        "slip_exit_bps": 4.0,
+        "slip_stop_bps": 10.0
+      },
+      "closed": {
+        "slip_entry_bps": 6.0,
+        "slip_exit_bps": 6.0,
+        "slip_stop_bps": 15.0
+      },
+      "weekend": {
+        "slip_entry_bps": 8.0,
+        "slip_exit_bps": 8.0,
+        "slip_stop_bps": 20.0
+      }
+    },
+    "AVGO/USDT": {
+      "open": {
+        "slip_entry_bps": 4.0,
+        "slip_exit_bps": 4.0,
+        "slip_stop_bps": 10.0
+      },
+      "closed": {
+        "slip_entry_bps": 6.0,
+        "slip_exit_bps": 6.0,
+        "slip_stop_bps": 15.0
+      },
+      "weekend": {
+        "slip_entry_bps": 8.0,
+        "slip_exit_bps": 8.0,
+        "slip_stop_bps": 20.0
+      }
+    },
+    "TSLA/USDT": {
+      "open": {
+        "slip_entry_bps": 4.0,
+        "slip_exit_bps": 4.0,
+        "slip_stop_bps": 10.0
+      },
+      "closed": {
+        "slip_entry_bps": 6.0,
+        "slip_exit_bps": 6.0,
+        "slip_stop_bps": 15.0
+      },
+      "weekend": {
+        "slip_entry_bps": 8.0,
+        "slip_exit_bps": 8.0,
+        "slip_stop_bps": 20.0
+      }
+    },
+    "BRKB/USDT": {
+      "open": {
+        "slip_entry_bps": 4.0,
+        "slip_exit_bps": 4.0,
+        "slip_stop_bps": 10.0
+      },
+      "closed": {
+        "slip_entry_bps": 6.0,
+        "slip_exit_bps": 6.0,
+        "slip_stop_bps": 15.0
+      },
+      "weekend": {
+        "slip_entry_bps": 8.0,
+        "slip_exit_bps": 8.0,
+        "slip_stop_bps": 20.0
+      }
+    },
+    "JPM/USDT": {
+      "open": {
+        "slip_entry_bps": 4.0,
+        "slip_exit_bps": 4.0,
+        "slip_stop_bps": 10.0
+      },
+      "closed": {
+        "slip_entry_bps": 6.0,
+        "slip_exit_bps": 6.0,
+        "slip_stop_bps": 15.0
+      },
+      "weekend": {
+        "slip_entry_bps": 8.0,
+        "slip_exit_bps": 8.0,
+        "slip_stop_bps": 20.0
+      }
+    },
+    "LLY/USDT": {
+      "open": {
+        "slip_entry_bps": 4.0,
+        "slip_exit_bps": 4.0,
+        "slip_stop_bps": 10.0
+      },
+      "closed": {
+        "slip_entry_bps": 6.0,
+        "slip_exit_bps": 6.0,
+        "slip_stop_bps": 15.0
+      },
+      "weekend": {
+        "slip_entry_bps": 8.0,
+        "slip_exit_bps": 8.0,
+        "slip_stop_bps": 20.0
+      }
+    },
+    "WMT/USDT": {
+      "open": {
+        "slip_entry_bps": 4.0,
+        "slip_exit_bps": 4.0,
+        "slip_stop_bps": 10.0
+      },
+      "closed": {
+        "slip_entry_bps": 6.0,
+        "slip_exit_bps": 6.0,
+        "slip_stop_bps": 15.0
+      },
+      "weekend": {
+        "slip_entry_bps": 8.0,
+        "slip_exit_bps": 8.0,
+        "slip_stop_bps": 20.0
+      }
+    },
+    "V/USDT": {
+      "open": {
+        "slip_entry_bps": 4.0,
+        "slip_exit_bps": 4.0,
+        "slip_stop_bps": 10.0
+      },
+      "closed": {
+        "slip_entry_bps": 6.0,
+        "slip_exit_bps": 6.0,
+        "slip_stop_bps": 15.0
+      },
+      "weekend": {
+        "slip_entry_bps": 8.0,
+        "slip_exit_bps": 8.0,
+        "slip_stop_bps": 20.0
+      }
+    },
+    "ORCL/USDT": {
+      "open": {
+        "slip_entry_bps": 4.0,
+        "slip_exit_bps": 4.0,
+        "slip_stop_bps": 10.0
+      },
+      "closed": {
+        "slip_entry_bps": 6.0,
+        "slip_exit_bps": 6.0,
+        "slip_stop_bps": 15.0
+      },
+      "weekend": {
+        "slip_entry_bps": 8.0,
+        "slip_exit_bps": 8.0,
+        "slip_stop_bps": 20.0
+      }
+    },
+    "XOM/USDT": {
+      "open": {
+        "slip_entry_bps": 4.0,
+        "slip_exit_bps": 4.0,
+        "slip_stop_bps": 10.0
+      },
+      "closed": {
+        "slip_entry_bps": 6.0,
+        "slip_exit_bps": 6.0,
+        "slip_stop_bps": 15.0
+      },
+      "weekend": {
+        "slip_entry_bps": 8.0,
+        "slip_exit_bps": 8.0,
+        "slip_stop_bps": 20.0
+      }
+    },
+    "NFLX/USDT": {
+      "open": {
+        "slip_entry_bps": 4.0,
+        "slip_exit_bps": 4.0,
+        "slip_stop_bps": 10.0
+      },
+      "closed": {
+        "slip_entry_bps": 6.0,
+        "slip_exit_bps": 6.0,
+        "slip_stop_bps": 15.0
+      },
+      "weekend": {
+        "slip_entry_bps": 8.0,
+        "slip_exit_bps": 8.0,
+        "slip_stop_bps": 20.0
+      }
+    },
+    "PLTR/USDT": {
+      "open": {
+        "slip_entry_bps": 4.0,
+        "slip_exit_bps": 4.0,
+        "slip_stop_bps": 10.0
+      },
+      "closed": {
+        "slip_entry_bps": 6.0,
+        "slip_exit_bps": 6.0,
+        "slip_stop_bps": 15.0
+      },
+      "weekend": {
+        "slip_entry_bps": 8.0,
+        "slip_exit_bps": 8.0,
+        "slip_stop_bps": 20.0
+      }
+    },
+    "COST/USDT": {
+      "open": {
+        "slip_entry_bps": 4.0,
+        "slip_exit_bps": 4.0,
+        "slip_stop_bps": 10.0
+      },
+      "closed": {
+        "slip_entry_bps": 6.0,
+        "slip_exit_bps": 6.0,
+        "slip_stop_bps": 15.0
+      },
+      "weekend": {
+        "slip_entry_bps": 8.0,
+        "slip_exit_bps": 8.0,
+        "slip_stop_bps": 20.0
+      }
+    },
+    "AMD/USDT": {
+      "open": {
+        "slip_entry_bps": 4.0,
+        "slip_exit_bps": 4.0,
+        "slip_stop_bps": 10.0
+      },
+      "closed": {
+        "slip_entry_bps": 6.0,
+        "slip_exit_bps": 6.0,
+        "slip_stop_bps": 15.0
+      },
+      "weekend": {
+        "slip_entry_bps": 8.0,
+        "slip_exit_bps": 8.0,
+        "slip_stop_bps": 20.0
+      }
+    },
+    "HD/USDT": {
+      "open": {
+        "slip_entry_bps": 4.0,
+        "slip_exit_bps": 4.0,
+        "slip_stop_bps": 10.0
+      },
+      "closed": {
+        "slip_entry_bps": 6.0,
+        "slip_exit_bps": 6.0,
+        "slip_stop_bps": 15.0
+      },
+      "weekend": {
+        "slip_entry_bps": 8.0,
+        "slip_exit_bps": 8.0,
+        "slip_stop_bps": 20.0
+      }
+    },
+    "XAU/USDT": {
+      "open": {
+        "slip_entry_bps": 4.0,
+        "slip_exit_bps": 4.0,
+        "slip_stop_bps": 10.0
+      },
+      "closed": {
+        "slip_entry_bps": 6.0,
+        "slip_exit_bps": 6.0,
+        "slip_stop_bps": 15.0
+      },
+      "weekend": {
+        "slip_entry_bps": 8.0,
+        "slip_exit_bps": 8.0,
+        "slip_stop_bps": 20.0
+      }
+    },
+    "XAG/USDT": {
+      "open": {
+        "slip_entry_bps": 4.0,
+        "slip_exit_bps": 4.0,
+        "slip_stop_bps": 10.0
+      },
+      "closed": {
+        "slip_entry_bps": 6.0,
+        "slip_exit_bps": 6.0,
+        "slip_stop_bps": 15.0
+      },
+      "weekend": {
+        "slip_entry_bps": 8.0,
+        "slip_exit_bps": 8.0,
+        "slip_stop_bps": 20.0
+      }
+    },
+    "BZ/USDT": {
+      "open": {
+        "slip_entry_bps": 4.0,
+        "slip_exit_bps": 4.0,
+        "slip_stop_bps": 10.0
+      },
+      "closed": {
+        "slip_entry_bps": 6.0,
+        "slip_exit_bps": 6.0,
+        "slip_stop_bps": 15.0
+      },
+      "weekend": {
+        "slip_entry_bps": 8.0,
+        "slip_exit_bps": 8.0,
+        "slip_stop_bps": 20.0
+      }
+    },
+    "COPPER/USDT": {
+      "open": {
+        "slip_entry_bps": 4.0,
+        "slip_exit_bps": 4.0,
+        "slip_stop_bps": 10.0
+      },
+      "closed": {
+        "slip_entry_bps": 6.0,
+        "slip_exit_bps": 6.0,
+        "slip_stop_bps": 15.0
+      },
+      "weekend": {
+        "slip_entry_bps": 8.0,
+        "slip_exit_bps": 8.0,
+        "slip_stop_bps": 20.0
+      }
+    }
+  },
   "kill_file": "shared/live/KILL",
   "pause_file": "shared/live/PAUSE",
   "live": {

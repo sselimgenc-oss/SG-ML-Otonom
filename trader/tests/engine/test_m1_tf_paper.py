@@ -29,7 +29,8 @@ def test_paper_config_has_m1_all_four_tfs_only_on_paper():
     for tf in ("15m", "1h", "4h", "1d"):
         assert f"M1@{tf}" in arms
     assert len(arms) == len(set(arms)) == 32
-    for other in ("engine.base.json", "engine.learner.json", "engine.testnet.json", "engine.live.json"):
+    assert _cfg("engine.live.json")["arms"] == arms      # 23.11 kullanici karari: canli = kagit (ayni kurulumlar)
+    for other in ("engine.base.json", "engine.learner.json", "engine.testnet.json"):
         p = ROOT / "config" / other
         if p.exists():
             assert not any(str(a).startswith("M1@") for a in _cfg(other).get("arms", []))

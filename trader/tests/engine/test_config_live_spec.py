@@ -56,10 +56,11 @@ def test_testnet_veto_off_accepted(tmp_path):
     assert cfg.mode == "testnet" and cfg.veto_mode == "off"
 
 
-def test_live_veto_off_still_rejected(tmp_path, monkeypatch):
-    with pytest.raises(ConfigError):
-        _load(tmp_path, {"mode": "live", "live": LIVE_OK, "veto_mode": "off"}, env={"LIVE_CONFIRM": "sub-acct-01"},
-              monkeypatch=monkeypatch)
+def test_live_veto_off_accepted(tmp_path, monkeypatch):
+    # 23.11 kullanici karari: canli = kagit (LLM veto yok; veto_mode 'off' canlida gecerli)
+    cfg = _load(tmp_path, {"mode": "live", "live": LIVE_OK, "veto_mode": "off"}, env={"LIVE_CONFIRM": "sub-acct-01"},
+                monkeypatch=monkeypatch)
+    assert cfg.mode == "live" and cfg.veto_mode == "off"
 
 
 def test_live_mode_accepted_with_matching_confirm(tmp_path, monkeypatch):
@@ -174,10 +175,11 @@ def test_twin_overlay_rejected_everywhere(tmp_path):
         _load(tmp_path, {}, bot="twin")
 
 
-def test_live_requires_veto_required(tmp_path, monkeypatch):
-    with pytest.raises(ConfigError):
-        _load(tmp_path, {"mode": "live", "live": LIVE_OK, "veto_mode": "off"}, env={"LIVE_CONFIRM": "sub-acct-01"},
-              monkeypatch=monkeypatch)
+def test_live_veto_required_still_valid(tmp_path, monkeypatch):
+    # 23.11 kullanici karari: canli = kagit (veto 'off' artik gecerli; 'required' da gecerli kalir)
+    cfg = _load(tmp_path, {"mode": "live", "live": LIVE_OK, "veto_mode": "required"}, env={"LIVE_CONFIRM": "sub-acct-01"},
+                monkeypatch=monkeypatch)
+    assert cfg.veto_mode == "required"
 
 
 def test_live_requires_mark_trigger(tmp_path, monkeypatch):

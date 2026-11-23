@@ -23,6 +23,10 @@ STEPS = {-1: 0.0035, 0: 0.005, 1: 0.0075, 2: 0.010, 3: 0.012, 4: 0.014}   # basa
 STEP_NAMES = {-1: "K-1", 0: "K0", 1: "K1", 2: "K2", 3: "K3", 4: "K4"}
 START_STEP = 0
 MAX_STEP_APPROVABLE = 0          # RK-1: step_up yalniz K-1 -> K0. RK-1b bu sabiti yukseltir
+# 23.11 kullanici karari: canli = kagit. Canli gunlugun `initial` satiri `start_step` tasiyabilir (en cok LIVE_START_STEP = K2 = %1);
+# gunluk kendi kendini tanimlar. Onaylanabilir tavan = max(MAX_STEP_APPROVABLE, gunlugun baslangic basamagi): dusus sonrasi geri cikis
+# en cok baslangic basamagina kadardir. Tum asagi inis korumalari (tepeden -%10/-%15, -%20 durma, taban, capital_latch) degismez.
+LIVE_START_STEP = 2
 KM1_MIN_CAPITAL = 1000.0         # dep_net bunun altindaysa en alt basamak K0
 DOWN_1_RATIO = 0.90              # equity <= 0.90 * peak  (tepeden -%10)
 DOWN_2_RATIO = 0.85              # equity <= 0.85 * peak  (tepeden -%15)
@@ -72,6 +76,7 @@ class LadderState:
     fired: frozenset
     seq: int
     head_hash: str
+    max_step: int = 0                # step_up tavani (gunlugun baslangic basamagina gore; fold doldurur)
 
 
 @dataclass(frozen=True)
@@ -188,6 +193,8 @@ def fold(rows: Sequence[Mapping]) -> LadderState | None:
         if not isinstance(kind, str) or kind not in _EXTRA:
             raise _bad(f"satir {i}: bilinmeyen kind {kind!r}")
         want = set(_COMMON) | set(_EXTRA[kind])
+        if kind == "initial" and "start_step" in row:
+            want.add("start_step")                                # istege bagli (yalniz canli: LIVE_START_STEP)
         if set(row) != want:
             raise _bad(f"satir {i}: alanlar uyusmuyor (fazla/eksik): {sorted(set(row) ^ want)}")
         seq = row["seq"]
@@ -217,13 +224,19 @@ def fold(rows: Sequence[Mapping]) -> LadderState | None:
     return LadderState(
         status=st["status"], step=st["step"], step_since=st["step_since"], dep_net=st["dep_net"], base=st["base"],
         peak=st["peak"], started_at=st["started_at"], last_down_at=st["last_down_at"], stopped_at=st["stopped_at"],
-        fired=frozenset(st["fired"]), seq=len(rows), head_hash=prev_hash)
+        fired=frozenset(st["fired"]), seq=len(rows), head_hash=prev_hash,
+        max_step=max(MAX_STEP_APPROVABLE, st["start_step"]))
 
 
 def _apply(st: dict | None, row: Mapping, kind: str, at: datetime, i: int) -> dict:
     if kind == "initial":
         a = _need_pos(row, "amount")
-        return {"status": "ok", "step": START_STEP, "step_since": at, "dep_net": a, "base": a, "peak": a,
+        start = START_STEP
+        if "start_step" in row:
+            start = row["start_step"]
+            if isinstance(start, bool) or not isinstance(start, int) or not (START_STEP <= start <= LIVE_START_STEP):
+                raise _bad(f"satir {i}: start_step gecersiz: {start!r}")
+        return {"status": "ok", "step": start, "start_step": start, "step_since": at, "dep_net": a, "base": a, "peak": a,
                 "started_at": at, "last_down_at": None, "stopped_at": None, "fired": set()}
     assert st is not None
     s = dict(st)
@@ -316,7 +329,7 @@ def _apply(st: dict | None, row: Mapping, kind: str, at: datetime, i: int) -> di
         _need_str(row, "decision", nonempty=True)
         if s["status"] != "ok":
             raise _bad(f"satir {i}: step_up yalniz ok durumunda")
-        if step != s["step"] + 1 or step > MAX_STEP_APPROVABLE:
+        if step != s["step"] + 1 or step > max(MAX_STEP_APPROVABLE, s["start_step"]):
             raise _bad(f"satir {i}: step_up gecersiz basamak {step}")
         s["step"] = step
         s["step_since"] = at
@@ -552,9 +565,9 @@ def step_up_problems(st: LadderState, cnt: Mapping, now: datetime) -> list[str]:
     out: list[str] = []
     if st.status != "ok":
         out.append(f"durum ok degil ({st.status})")
-    if st.step + 1 > MAX_STEP_APPROVABLE:
+    if st.step + 1 > st.max_step:
         out.append(f"{STEP_NAMES.get(st.step, st.step)} -> {STEP_NAMES.get(st.step + 1, st.step + 1)} RK-1'de onaylanamaz "
-                   f"(tavan {STEP_NAMES[MAX_STEP_APPROVABLE]})")
+                   f"(tavan {STEP_NAMES[st.max_step]})")
     if cnt["step_trades"] < STEP_UP_MIN_TRADES:
         out.append(f"basamak islemi {cnt['step_trades']} < {STEP_UP_MIN_TRADES}")
     if cnt["step_days"] < STEP_UP_MIN_DAYS:
