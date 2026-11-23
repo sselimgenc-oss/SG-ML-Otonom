@@ -1345,7 +1345,7 @@ def _stub_view(first_open, n15=5000, n4=1500):
 
 
 @pytest.mark.parametrize("first_offset_min,computes", [(-15, False), (0, True)])
-def test_S8_tf15_holdout_wait_boundary(monkeypatch, first_offset_min, computes):
+def test_S8_tf15_holdout_wait_boundary(monkeypatch, first_offset_min, computes, kilitli_motor):      # 23.11.2026: kilit acik; mekanizma kapali bayrakla sinanir
     sh = shadow_mod()
     first = HOLDOUT_END + timedelta(minutes=first_offset_min)       # 23:45 of the last locked day / 00:00 of the first free day
     view, D = _stub_view(first)

@@ -70,7 +70,9 @@ def test_ml_matrix_matches_gate_pbo_for():
     assert got["pbo"] == pytest.approx(ref["pbo"]) and got["n_kullanilan"] == ref["n_configs"] and got["T"] == ref["T"]
 
 
-def test_ml_matrix_refuses_holdout_window():
+def test_ml_matrix_refuses_holdout_window(monkeypatch):
+    import trader_engine.holdout as _H
+    monkeypatch.setattr(_H, "KILIT_ACIK", False)      # 23.11.2026: kilit acik; mekanizma kapali bayrakla sinanir
     oof = _oof()
     oof.loc[0, "ts"] = pd.Timestamp(HOLDOUT[0]) + timedelta(days=3)
     oof.loc[0, "taken"] = True
@@ -91,7 +93,9 @@ def _trades(setup_n: dict, seed=0, extra_after=None):
     return pd.DataFrame(rows)
 
 
-def test_rule_series_window_and_holdout_cut():
+def test_rule_series_window_and_holdout_cut(monkeypatch):
+    import trader_engine.holdout as _H
+    monkeypatch.setattr(_H, "KILIT_ACIK", False)      # 23.11.2026: kilit acik; mekanizma kapali bayrakla sinanir
     t = _trades({"T1": 200, "R1": 40}, extra_after=pd.Timestamp(HOLDOUT[0]) + timedelta(days=2))
     s = P.rule_series(t, P.RULE_WINDOW)
     assert set(s) == {"T1", "R1"} and len(s["T1"]) == 365

@@ -74,7 +74,8 @@ def built(mod, candles, tmp_path_factory):
 
 
 # ------------------------------------------------------------------ kilitli donem
-def test_holdout_refusal(mod, tmp_path):
+def test_holdout_refusal(mod, tmp_path, monkeypatch):
+    monkeypatch.setattr(mod, "KILIT_ACIK", False)      # 23.11.2026: kilit acik; mekanizma kapali bayrakla sinanir
     for end in ((END + pd.Timedelta(days=1)).strftime("%Y-%m-%d"), pd.Timestamp(HOLDOUT[1]).strftime("%Y-%m-%d"), "2027-01-01"):
         with pytest.raises(HoldoutViolation):
             mod.run(["--end", end, "--history-dir", str(tmp_path), "--out-dir", str(tmp_path / "o")])

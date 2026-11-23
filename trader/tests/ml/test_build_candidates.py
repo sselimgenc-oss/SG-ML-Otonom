@@ -72,9 +72,11 @@ def test_build_candidates_schema_taken_skipped_and_labels(mod, candles, tmp_path
     assert t["label_end_ts"].dropna().max() < pd.Timestamp("2026-05-01", tz="UTC")
 
 
-def test_holdout_rows_never_loaded(mod):
-    # mum yukleyici dosya duzeyinde keser; sinir disindaki tarih HoldoutViolation ile reddedilir
+def test_holdout_rows_never_loaded(mod, monkeypatch):
+    # mum yukleyici dosya duzeyinde keser; sinir disindaki tarih HoldoutViolation ile reddedilir (23.11.2026: kilit acik -> kapali bayrakla sinanir)
+    from trader_ml import guards as _G
     from trader_ml.guards import HoldoutViolation, assert_pre_holdout
+    monkeypatch.setattr(_G, "KILIT_ACIK", False)
     with pytest.raises(HoldoutViolation):
         assert_pre_holdout(pd.DatetimeIndex([pd.Timestamp("2026-05-01", tz="UTC")]))
     assert mod.PERIOD.endswith("20260501")

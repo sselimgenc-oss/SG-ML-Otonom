@@ -111,7 +111,9 @@ def test_unmatched_entered_reported():
     assert info["overlay_unmatched_entered"] == 1
 
 
-def test_holdout_guard_on_corpus_and_overlay():
+def test_holdout_guard_on_corpus_and_overlay(monkeypatch):
+    from trader_ml import guards as _G
+    monkeypatch.setattr(_G, "KILIT_ACIK", False)      # 23.11.2026: kilit acik; mekanizma kapali bayrakla sinanir
     c = make_corpus(n_per_pair=40)
     ov = make_overlay(c)
     bad = c.copy()
@@ -505,7 +507,9 @@ def test_fix11_holdout_and_schema_errors_map_to_exit_6(files, monkeypatch, capsy
         assert type(exc).__name__ in capsys.readouterr().err
 
 
-def test_fix11_real_holdout_row_in_corpus_exits_6(files, tmp_path, capsys):
+def test_fix11_real_holdout_row_in_corpus_exits_6(files, tmp_path, capsys, monkeypatch):
+    from trader_ml import guards as _G
+    monkeypatch.setattr(_G, "KILIT_ACIK", False)      # 23.11.2026: kilit acik; mekanizma kapali bayrakla sinanir
     d = tmp_path / "ho"
     d.mkdir()
     c = pd.read_parquet(files["corpus"])

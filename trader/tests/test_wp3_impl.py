@@ -513,7 +513,7 @@ def test_regime_candidate_invalid_ohlc_and_non_blocked_rows():
     assert SH.regime_cands(_Row(regime="volatile", reasons="v1b:x"), t, p, {"regime_volatile"}, trigger_tf="1h") == []
 
 
-def test_tf15_holdout_wait_reads_nothing_and_after_wait_computes():
+def test_tf15_holdout_wait_reads_nothing_and_after_wait_computes(kilitli_motor):      # 23.11.2026: kilit acik; mekanizma kapali bayrakla sinanir
     from trader_engine import shadow as SH
     calls = []
 
@@ -533,7 +533,7 @@ def test_tf15_holdout_wait_reads_nothing_and_after_wait_computes():
     assert SH.tf15_window_start(D_ok) == first_ok
 
 
-def test_in_holdout_boundaries():
+def test_in_holdout_boundaries(kilitli_motor):      # 23.11.2026: kilit acik; mekanizma kapali bayrakla sinanir
     from trader_engine import shadow as SH
     assert SH.in_holdout(datetime(2026, 5, 1, tzinfo=UTC)) and SH.in_holdout(datetime(2026, 10, 31, 23, 0, tzinfo=UTC))
     assert not SH.in_holdout(datetime(2026, 11, 1, tzinfo=UTC)) and not SH.in_holdout(datetime(2026, 4, 30, tzinfo=UTC))
@@ -622,7 +622,7 @@ class _Sh:
         self.__dict__.update(kw)
 
 
-def test_run_shadow_matches_run_once_and_is_separate(tmp_path):
+def test_run_shadow_matches_run_once_and_is_separate(tmp_path, kilitli_motor):      # 23.11.2026: kilit acik; mekanizma kapali bayrakla sinanir
     t0 = datetime(2026, 12, 1, 9, 0, tzinfo=UTC)
     mk = tmp_path / "market.sqlite"
     _market(mk, "BTC/USDT", int((t0).timestamp() * 1000), 100, price=100.0, hi=100.5, lo=90.0)   # stop vurulur
@@ -757,7 +757,7 @@ def test_gates_fixed_rows_from_shadow_rows_and_legacy_fallback():
     assert k_old.cells == k_new.cells
 
 
-def test_reports_load_shadow_and_lock(tmp_path, led):
+def test_reports_load_shadow_and_lock(tmp_path, led, kilitli_donem):      # 23.11.2026: kilit acik; mekanizma kapali bayrakla sinanir
     from trader_reports import inputs as I
     led.record_shadow(mk_shadow(bar_close_ts=BAR))
     led.record_shadow(mk_shadow(bar_close_ts=datetime(2026, 6, 1, 9, 0, tzinfo=UTC), pair="ETH/USDT"))
@@ -914,3 +914,11 @@ def test_outbox_corrupt_order_ts_with_valid_ack_still_writes_null_measurements(t
         assert tr.entry_ref_price == 100.0                           # saglam grup korunur
     finally:
         st.close()
+
+
+def test_acik_kilitte_shadow_in_holdout_hep_false_ve_tf15_beklemez():
+    """23.11.2026 kullanici karari: kilit ACIK -> shadow satirlari kilitli donemde de yazilir, 15 dk golge adayi beklemeden hesaplanir."""
+    from trader_engine import holdout as H
+    from trader_engine import shadow as SH
+    assert H.KILIT_ACIK is True
+    assert not SH.in_holdout(datetime(2026, 5, 1, tzinfo=timezone.utc)) and not SH.in_holdout(datetime(2026, 10, 31, 23, tzinfo=timezone.utc))

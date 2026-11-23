@@ -193,13 +193,18 @@ def test_hash_equals_reference_module(env):
 
 
 # ------------------------------------------------------------------------------------------------ kilit statigi
-def test_central_lock_still_blocks_and_real_seal_stays_closed():
+def test_central_lock_open_and_real_seal_opened(monkeypatch):
+    """23.11.2026 kullanici karari: kilit ACIK (KILIT_ACIK) ve gercek muhur acildi; kilit kapatilirsa merkezi kontrol eskisi gibi reddeder."""
+    import trader_engine.holdout as H
+    check_holdout(HOLDOUT[0], HOLDOUT[1])                                       # acik kilit: gecer
+    monkeypatch.setattr(H, "KILIT_ACIK", False)
     with pytest.raises(BacktestArgError):
         check_holdout(HOLDOUT[0], HOLDOUT[1])
     with pytest.raises(BacktestArgError):
         check_holdout(HOLDOUT[0] - pd.Timedelta(days=1), HOLDOUT[0] + pd.Timedelta(days=1))
     real = json.loads((ROOT / "research" / "holdout" / "muhur.json").read_text(encoding="utf-8"))
-    assert real["acildi"] is False and "acilis" not in real
+    assert real["acildi"] is True and real["acilis"]["gerekce"] == "23.11 kullanici karari: kilit kaldirildi"
+    assert real["acilis"]["birlesik_sha256"] == real["birlesik_sha256"]
 
 
 def test_no_other_module_uses_holdout_degerlendir_and_it_never_imports_seal_module():

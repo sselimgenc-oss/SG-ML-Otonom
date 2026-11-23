@@ -55,3 +55,22 @@ def kilitli_donem(monkeypatch):
     monkeypatch.setattr(guard, "H0_PAD_ISO", iso(h0 - timedelta(hours=guard.PAD_HOURS)))
     monkeypatch.setattr(guard, "PARAMS", {"h1": iso(h1), "h0p": iso(h0 - timedelta(hours=guard.PAD_HOURS))})
     yield
+
+
+@pytest.fixture
+def egitim_kilitli(monkeypatch):
+    """23.11.2026: kilit ACIK (varsayilan). Bu fixture kurulum suzgeci egitimindeki kilit mekanizmasini KAPALI bayrakla (eski davranis) sinamak icindir."""
+    from trader_ml.setup_filter import train
+    monkeypatch.setattr(train, "KILIT_ACIK", False)
+
+
+@pytest.fixture
+def kilitli_motor(monkeypatch):
+    """23.11.2026: kilit ACIK (varsayilan). Bu fixture motor/backtest kilidini (holdout.check_holdout) KAPALI bayrakla (eski davranis) sinamak icindir.
+    Yalniz ayni surecteki cagrilar icindir; alt surec testleri acik davranisi sinar."""
+    from trader_core import counterfactual as CF
+    from trader_core import exit_counterfactual as EC
+    from trader_engine import holdout as H
+    monkeypatch.setattr(H, "KILIT_ACIK", False)
+    monkeypatch.setattr(CF, "KILIT_ACIK", False)
+    monkeypatch.setattr(EC, "KILIT_ACIK", False)

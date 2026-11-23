@@ -262,8 +262,10 @@ def test_pbo_rapor_builds_harness_family_and_marks_arms(tmp_path):
     assert P.build(tmp_path / "bt", tmp_path / "ml", ["TF1@4h"], arm_dir=arm) == P.build(tmp_path / "bt", tmp_path / "ml", ["TF1@4h"], arm_dir=arm)
 
 
-def test_pbo_rapor_refuses_series_touching_holdout(tmp_path):
+def test_pbo_rapor_refuses_series_touching_holdout(tmp_path, monkeypatch):
+    import trader_engine.holdout as _H
     from trader_engine.holdout import BacktestArgError
+    monkeypatch.setattr(_H, "KILIT_ACIK", False)      # 23.11.2026: kilit acik; mekanizma kapali bayrakla sinanir
     P = _pbo()
     arm = tmp_path / "arm"
     arm.mkdir()

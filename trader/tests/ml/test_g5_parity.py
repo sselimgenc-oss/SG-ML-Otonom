@@ -144,7 +144,9 @@ def test_funding_points_rounded_to_hour():
     assert f.index[0] == pd.Timestamp("2024-01-01 08:00", tz="UTC") and f["funding_rate"].iloc[0] == 0.0001
 
 
-def test_guarded_wrapper_equals_core_and_blocks_holdout(world):
+def test_guarded_wrapper_equals_core_and_blocks_holdout(world, monkeypatch):
+    from trader_ml import guards as _G
+    monkeypatch.setattr(_G, "KILIT_ACIK", False)      # 23.11.2026: kilit acik; koruma mekanizmasi kapali bayrakla sinanir
     px, fund = world
     cands = _cands(px, [24 * 210])
     a = guarded_v2(px, cands, funding=fund, recipe="r03")

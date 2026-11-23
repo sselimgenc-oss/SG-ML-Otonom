@@ -85,7 +85,8 @@ def test_missing_bar_waits_then_data_gap_after_grace(tmp_path):
     assert all(v["exit_reason"] == "data_gap" and v["hyp_r_net"] is None for v in rows.values())
 
 
-def test_holdout_decisions_never_read(tmp_path):
+def test_holdout_decisions_never_read(tmp_path, monkeypatch):
+    monkeypatch.setattr(CF, "KILIT_ACIK", False)      # 23.11.2026: kilit acik; mekanizma kapali bayrakla sinanir
     ts = datetime(2026, 6, 1, tzinfo=UTC)
     mk = mk_market(tmp_path, start=ts)
     r, rows = run(tmp_path, [dec(ts=ts)], mk, datetime(2026, 12, 20, tzinfo=UTC))

@@ -21,6 +21,10 @@ from trader_ml.pa_proposer import package as PK
 from trader_ml.pa_proposer import train as TR
 from trader_ml.setup_filter.train import LockWindowError
 
+# 23.11.2026 kullanici karari: kilit ACIK. Bu dosya kilit mekanizmasini sinar -> kilit KAPALI bayragiyla (conftest.egitim_kilitli); acik davranis tests/ml/test_kilit_acik_egitim.py.
+pytestmark = pytest.mark.usefixtures("egitim_kilitli")
+
+
 UTC = timezone.utc
 NOW = datetime(2026, 11, 19, tzinfo=UTC)
 T_OK = datetime(2026, 11, 2, tzinfo=UTC)

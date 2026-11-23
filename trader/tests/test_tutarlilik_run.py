@@ -289,7 +289,16 @@ def test_main_param_activation_cut_passes_params_and_reports(tmp_path):
     assert "param_activation_changed" in doc["not"] and doc["donem"]["bas"].startswith("2026-11-19")
 
 
-def test_holdout_part_of_window_is_truncated_and_never_read(tmp_path):
+def test_acik_kilitte_pencere_kesilmez(tmp_path):
+    """23.11.2026 kullanici karari: kilit ACIK -> kilitli doneme dusen hafta penceresi kesilmez, calistirilir."""
+    now = datetime(2026, 11, 2, 0, 30, tzinfo=UTC)
+    seen = []
+    _, doc = _run_main(tmp_path, _fake_runner([], seen), now=now, paper=[])
+    assert seen and seen[0].start < datetime(2026, 11, 1, tzinfo=UTC)
+    assert "kesildi" not in (doc.get("not") or "")
+
+
+def test_holdout_part_of_window_is_truncated_and_never_read(tmp_path, kilitli_motor):      # kilit kapali bayragiyla (eski davranis)
     now = datetime(2026, 11, 2, 0, 30, tzinfo=UTC)                 # pencere 26 Ekim .. 2 Kasim -> 1 Kasim'a kesilir
     seen = []
     _, doc = _run_main(tmp_path, _fake_runner([], seen), now=now, paper=[])

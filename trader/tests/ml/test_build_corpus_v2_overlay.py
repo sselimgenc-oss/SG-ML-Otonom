@@ -131,7 +131,8 @@ def test_unmatched_entered_refused(mod, clean, tmp_path, capsys):
     assert corpus_v2.verify_overlay_manifest(man, out / "corpus_v2_taken.parquet", corpus)        # yuklemeyi de reddeder
 
 
-def test_period_end_after_holdout_refused(mod, clean, tmp_path):
+def test_period_end_after_holdout_refused(mod, clean, tmp_path, monkeypatch):
+    monkeypatch.setattr(mod, "KILIT_ACIK", False)      # 23.11.2026: kilit acik; mekanizma kapali bayrakla sinanir
     rd = make_run(tmp_path)
     corpus = corpus_for(tmp_path)
     late = (HOLD0 + pd.Timedelta(days=1)).strftime("%Y%m%d")
