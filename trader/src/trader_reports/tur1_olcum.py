@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import math
+import warnings
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -27,10 +28,12 @@ YETERSIZ_N = 30              # Bir bolumde bu sayidan az islem varsa sonuc "yete
 CANLI_MIN_ISLEM = 300        # Canliya gecis sarti 1: en az bu kadar kapanmis islem.
 CANLI_GUVEN_ALT_SINIR = 0.0  # Sart 2: islem basina net R ortalamasinin guven alt siniri bunun USTUNDE olmali.
 CANLI_MIN_REJIM = 2          # Sart 3: en az bu kadar farkli rejimde toplam net pozitif olmali.
-REJIM_MIN_ISLEM = 10         # Bir rejimin "sayilmasi" icin o rejimde en az bu kadar islem gerekir.
+REJIM_MIN_ISLEM = 30         # Bir rejimin "sayilmasi" icin o rejimde en az bu kadar islem gerekir (eskiden 10; 23.11 karari: 30) ve gun kumeli guven alt siniri > 0 olmali.
 CANLI_MIN_RASTGELE_YUZDELIK = 90.0   # Sart 4: sonucumuz rastgele giris dagiliminin en az bu yuzdeligine ulasmali.
 CANLI_MASRAF_CARPANI = 1.5   # Sart 5: masraflar bu carpanla buyutulunca da net > 0 kalmali.
 SERMAYE_MANDALI_ORANI = 0.85  # Kasa baslangicin bu oraninin altina inerse sermaye mandali kapanir (batis).
+CANLI_MAKS_DUSUS = 1.0 - SERMAYE_MANDALI_ORANI   # Sart 6: Monte Carlo %95 maks dusus bundan (= %15, yani mandal siniri) kotu olmamali. Yeni sayi degil: mandaldan turetilir.
+PBO_BOLUM = 16               # DSR/PBO bilgi satiri: PBO icin gun serisi bu kadar (cift) parcaya bolunur; en az 2 x bu kadar gun gerekir.
 KARISTIRMA_SAYISI = 10000    # Islem sirasi karistirma sayisi (en az 5000).
 RASTGELE_B = 2000            # Rastgele giris simulasyon sayisi (ilk asama k2'de 500; p kucukse 5000'e cikar).
 GECIKME_BARLARI = (1, 2)     # Girisi kendi zaman diliminin kac mum geciktirecegiz.
@@ -522,7 +525,44 @@ def kayip_kumeleri(trades, ilk: int = KUME_ILK_N) -> dict:
 
 
 # ----------------------------------------------------------------------------- 4) canliya gecis sartlari
-def canli_sartlari(trades, rakip: dict, dayan: dict) -> dict:
+def dsr_pbo(trades) -> dict:
+    """BİLGİ (karar vermez): deflated Sharpe (işlem başına net R; deneme sayısı = işlem yapan kol sayısı, deneme Sharpe dağılımı kol
+    başına) ve PBO (gün x kol net R matrisi, CSCV). Az veride ikisi de belirsizdir; hesaplanamayanın nedeni yazılır."""
+    from trader_core.stats import stats as S
+    rs = np.array([t["net_r"] for t in trades], float)
+    out = {"n": len(rs), "etiket": etiket(len(rs)), "dsr": None, "pbo": None}
+    if len(rs) < 3 or not rs.std() > 0:
+        out["dsr_not"] = "hesaplanamadı (en az 3 işlem ve sıfırdan farklı dağılım gerekir)"
+    else:
+        kol: dict = defaultdict(list)
+        for t in trades:
+            kol[t["arm"]].append(t["net_r"])
+        srs = [float(np.mean(v) / np.std(v, ddof=1)) for v in kol.values() if len(v) >= 2 and np.std(v, ddof=1) > 0]
+        sk, ku = S.return_moments(rs)
+        sr = float(rs.mean() / rs.std(ddof=1))
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)       # çok küçük/dejenere örnekte basıklık uyarısı: bilgi satırı, gürültü yok
+            dsr = float(S.deflated_sharpe(sr, len(rs), sk, ku, trial_srs=srs if len(srs) > 1 else None, n_trials=max(1, len(kol))))
+        out.update({"kol_sayisi": len(kol), "deneme_sharpe_sayisi": len(srs), "sr_islem_basina": sr, "dsr": dsr})
+    gunler = sorted({t["entry_ts"][:10] for t in trades})
+    kollar = sorted({t["arm"] for t in trades})
+    if gunler and len(kollar) >= 2:
+        d0, d1 = datetime.fromisoformat(gunler[0]).date(), datetime.fromisoformat(gunler[-1]).date()
+        nd = (d1 - d0).days + 1
+        if nd >= 2 * PBO_BOLUM:
+            m = np.zeros((nd, len(kollar)))
+            for t in trades:
+                m[(datetime.fromisoformat(t["entry_ts"][:10]).date() - d0).days, kollar.index(t["arm"])] += t["net_r"]
+            r = S.pbo_cscv(m, n_splits=PBO_BOLUM, max_combinations=2000, seed=SEED)
+            out["pbo"], out["pbo_gun"], out["pbo_kol"] = float(r.pbo), nd, len(kollar)
+        else:
+            out["pbo_not"] = f"hesaplanamadı ({nd} gün < {2 * PBO_BOLUM})"
+    else:
+        out["pbo_not"] = "hesaplanamadı (en az 2 kol gerekir)"
+    return out
+
+
+def canli_sartlari(trades, rakip: dict, dayan: dict, sans: dict | None = None) -> dict:
     n = len(trades)
     rs = [t["net_r"] for t in trades]
     toplam_net = toplam(rs)
@@ -530,7 +570,11 @@ def canli_sartlari(trades, rakip: dict, dayan: dict) -> dict:
     rej: dict = defaultdict(list)
     for t in trades:
         rej[t["regime"]].append(t["net_r"])
-    pozitif = sorted(r for r, v in rej.items() if len(v) >= REJIM_MIN_ISLEM and toplam(v) > 0)
+    rej_gun: dict = defaultdict(list)
+    for t in trades:
+        rej_gun[t["regime"]].append(t["entry_ts"][:10])
+    rej_lo = {r: cluster_mean(v, rej_gun[r])["lo"] for r, v in rej.items() if len(v) >= REJIM_MIN_ISLEM}
+    pozitif = sorted(r for r, lo in rej_lo.items() if lo is not None and lo > CANLI_GUVEN_ALT_SINIR and toplam(rej[r]) > 0)
     yz = rakip.get("rastgele_giris", {}).get("yuzdelik")
     m15 = dayan["masraf"].get(f"x{CANLI_MASRAF_CARPANI}", {})
     m15t = m15.get("toplam")
@@ -540,18 +584,32 @@ def canli_sartlari(trades, rakip: dict, dayan: dict) -> dict:
          "gecti": bool(toplam_net > 0 and c["lo"] is not None and c["lo"] > CANLI_GUVEN_ALT_SINIR),
          "deger": f"net = {toplam_net:+.2f} R; ort = {(c['m'] if c['m'] is not None else float('nan')):+.3f} R; alt sınır = "
                   + (f"{c['lo']:+.3f}" if c["lo"] is not None else f"hesaplanamadı (gün sayısı {c.get('G', 0)} < {MIN_G})")},
-        {"ad": f"En az {CANLI_MIN_REJIM} rejimde pozitif (rejim başına >= {REJIM_MIN_ISLEM} işlem)",
+        {"ad": f"En az {CANLI_MIN_REJIM} rejimde pozitif (rejim başına >= {REJIM_MIN_ISLEM} işlem ve gün kümeli güven alt sınırı > 0)",
          "gecti": len(pozitif) >= CANLI_MIN_REJIM,
-         "deger": f"{len(pozitif)} rejim pozitif {pozitif}; rejim n: " + ", ".join(f"{r}={len(v)}" for r, v in sorted(rej.items()))},
+         "deger": f"{len(pozitif)} rejim pozitif {pozitif}; rejim n: " + ", ".join(f"{r}={len(v)}" for r, v in sorted(rej.items()))
+                  + "; alt sınır: " + ", ".join(f"{r}={lo:+.3f}" if lo is not None else f"{r}=hesaplanamadı" for r, lo in sorted(rej_lo.items()))},
         {"ad": f"Rastgele giriş yüzdeliği >= {CANLI_MIN_RASTGELE_YUZDELIK:g}",
          "gecti": bool(yz is not None and yz >= CANLI_MIN_RASTGELE_YUZDELIK),
          "deger": f"yüzdelik = {yz:.1f}" if yz is not None else "ölçülemedi (mum verisi yok)"},
         {"ad": f"Masraf x{CANLI_MASRAF_CARPANI} altında net > 0", "gecti": bool(m15t is not None and m15t > 0),
          "deger": f"net = {m15t:+.2f} R" if m15t is not None else "ölçülemedi"},
     ]
+    if sans is not None:                          # sans verilmezse (eski çağrı) bu madde yok
+        dds = [v["maks_dusus"]["p95"] for v in (sans, sans.get("blok") or {}) if v.get("maks_dusus")]
+        kotu = max(dds) if dds else None
+        maddeler.append({"ad": f"Monte Carlo %95 maks düşüş <= %{CANLI_MAKS_DUSUS * 100:.0f} (sermaye mandalı oranından türetilir: 1 - {SERMAYE_MANDALI_ORANI:g}; "
+                               "karıştırma ve blok örneklemenin kötüsü)",
+                         "gecti": bool(kotu is not None and kotu <= CANLI_MAKS_DUSUS),
+                         "deger": (f"p95 = %{kotu * 100:.1f} (n={sans['n']})" if kotu is not None else "ölçülemedi (işlem yok)")})
+    bilgi = dsr_pbo(trades)
     for m in maddeler:
         m["sonuc"] = "PASS" if m["gecti"] else "FAIL"
-    return {"n": n, "etiket": etiket(n), "maddeler": maddeler, "hepsi_gecti": all(m["gecti"] for m in maddeler),
+    dsr_s = (f"DSR = {bilgi['dsr']:.2f} (kol sayısı {bilgi.get('kol_sayisi')})" if bilgi["dsr"] is not None else bilgi.get("dsr_not", "DSR yok"))
+    pbo_s = (f"PBO = {bilgi['pbo']:.2f} ({bilgi['pbo_gun']} gün x {bilgi['pbo_kol']} kol)" if bilgi["pbo"] is not None else bilgi.get("pbo_not", "PBO yok"))
+    maddeler.append({"ad": "Çoklu deneme: deflated Sharpe ve PBO (BİLGİ, geçme şartı değil)", "gecti": True, "bilgi": True,
+                     "sonuc": "BİLGİ", "deger": f"{dsr_s}; {pbo_s}; n={bilgi['n']}"})
+    return {"n": n, "etiket": etiket(n), "maddeler": maddeler, "dsr_pbo": bilgi,
+            "hepsi_gecti": all(m["gecti"] for m in maddeler if not m.get("bilgi")),
             "uyari": "Bu liste karar vermez; yalnız ölçer. Örnek küçükken PASS bile kanıt sayılmaz." if n < CANLI_MIN_ISLEM else None}
 
 
@@ -561,11 +619,12 @@ def rapor(trades_raw, decisions_raw, mumlar, *, kasa0: float, now: datetime, mod
     trades, decisions, kilit = holdout_filtrele(trades_raw, decisions_raw)
     rakip = rakip_kiyasi(trades, mumlar, b, seed)
     dayan = dayaniklilik(trades, mumlar)
+    sans = sans_kuyruk(trades, kasa0, runs, seed)
     return {"sema": SCHEMA, "uretim": now.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "n_islem": len(trades),
             "kilitli_donem_atilan_islem": kilit, "tohum": seed,
             "bolumler": {"rakip_kiyasi": rakip, "dayaniklilik": dayan,
-                         "sans_kuyruk": sans_kuyruk(trades, kasa0, runs, seed),
-                         "canli_sartlari": canli_sartlari(trades, rakip, dayan),
+                         "sans_kuyruk": sans,
+                         "canli_sartlari": canli_sartlari(trades, rakip, dayan, sans),
                          "yon_denetimi": yon_denetimi(trades, decisions, models_dir),
                          "kayip_kumeleri": kayip_kumeleri(trades)}}
 

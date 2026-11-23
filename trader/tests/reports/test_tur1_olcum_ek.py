@@ -139,3 +139,58 @@ def test_sans_blok_ornekleme_yan_yana_ve_kume_kaybi_daha_kotu():
 
 def test_sans_blok_bos_defterde_yok():
     assert "blok" not in T.sans_kuyruk([], 1000.0, 5000)
+
+
+# ---------------------------------------------------------------- Duzeltme 9, 10: canli sartlari
+RK = {"rastgele_giris": {"yuzdelik": 95.0}}
+
+
+def _iyi(n=330, net=1.0):
+    return [mk(i, net=(net + 0.01 * (i % 7)), regime=("range", "trend_up", "volatile")[i % 3], entry_ms=T0 + (40 + i * 24) * H) for i in range(n)]
+
+
+def test_canli_azami_dusus_maddesi_esik_mandaldan_turer():
+    assert T.CANLI_MAKS_DUSUS == pytest.approx(1.0 - T.SERMAYE_MANDALI_ORANI)
+    g = _iyi()
+    sk = T.sans_kuyruk(g, 1000.0, 5000)
+    c = T.canli_sartlari(g, RK, T.dayaniklilik(g, None), sk)
+    m = [x for x in c["maddeler"] if "maks düşüş" in x["ad"]][0]
+    assert m["sonuc"] == "PASS" and "%15" in m["ad"] and c["hepsi_gecti"]
+    kotu = [mk(i, net=(-1.0 if i % 3 else 1.0), regime=("range", "trend_up", "volatile")[i % 3], entry_ms=T0 + (40 + i * 24) * H) for i in range(330)]
+    sk2 = T.sans_kuyruk(kotu, 1000.0, 5000)
+    c2 = T.canli_sartlari(kotu, RK, T.dayaniklilik(kotu, None), sk2)
+    m2 = [x for x in c2["maddeler"] if "maks düşüş" in x["ad"]][0]
+    assert m2["sonuc"] == "FAIL" and not c2["hepsi_gecti"]
+    # blok orneklemenin p95'i karistirmadan kotuyse o kullanilir
+    sans = {"n": 330, "maks_dusus": {"p95": 0.05}, "blok": {"maks_dusus": {"p95": 0.20}}}
+    m3 = [x for x in T.canli_sartlari(g, RK, T.dayaniklilik(g, None), sans)["maddeler"] if "maks düşüş" in x["ad"]][0]
+    assert m3["sonuc"] == "FAIL" and "%20.0" in m3["deger"]
+
+
+def test_canli_dsr_pbo_bilgi_satiri_gecmeyi_etkilemez():
+    g = _iyi(400)
+    for i, t in enumerate(g):
+        t["arm"] = ("T1@1h", "R1@1h", "B1@4h")[i % 3]
+    c = T.canli_sartlari(g, RK, T.dayaniklilik(g, None), T.sans_kuyruk(g, 1000.0, 5000))
+    b = [x for x in c["maddeler"] if x.get("bilgi")]
+    assert len(b) == 1 and b[0]["sonuc"] == "BİLGİ" and "DSR" in b[0]["deger"] and "PBO" in b[0]["deger"]
+    d = c["dsr_pbo"]
+    assert d["dsr"] is not None and 0.0 <= d["dsr"] <= 1.0 and d["pbo"] is not None and 0.0 <= d["pbo"] <= 1.0 and d["kol_sayisi"] == 3
+    assert c["hepsi_gecti"]                                     # bilgi satiri sonucu degistirmez
+    az = T.canli_sartlari(g[:5], RK, T.dayaniklilik(g[:5], None))["dsr_pbo"]
+    assert az["pbo"] is None and "hesaplanamadı" in az["pbo_not"]
+
+
+def test_rejim_sarti_30_islem_ve_guven_alt_siniri():
+    assert T.REJIM_MIN_ISLEM == 30
+    # 25 islemlik rejimler (30'dan az) sayilmaz
+    az = [mk(i, net=1.0, regime=("range", "trend_up")[i % 2], entry_ms=T0 + (40 + i * 24) * H) for i in range(50)]
+    assert T.canli_sartlari(az, RK, T.dayaniklilik(az, None))["maddeler"][2]["sonuc"] == "FAIL"
+    # 60 islem/rejim, toplam pozitif ama guven alt siniri 0'in altinda (gurultulu): sayilmaz
+    rng = np.random.default_rng(2)
+    gur = [mk(i, net=float(rng.normal(0.02, 2.0)), regime=("range", "trend_up")[i % 2], entry_ms=T0 + (40 + i * 24) * H) for i in range(120)]
+    c = T.canli_sartlari(gur, RK, T.dayaniklilik(gur, None))["maddeler"][2]
+    assert c["sonuc"] == "FAIL" and "alt sınır" in c["deger"]
+    # 60 islem/rejim, net pozitif ve tutarli: sayilir
+    ok = [mk(i, net=1.0 + 0.01 * (i % 5), regime=("range", "trend_up")[i % 2], entry_ms=T0 + (40 + i * 24) * H) for i in range(120)]
+    assert T.canli_sartlari(ok, RK, T.dayaniklilik(ok, None))["maddeler"][2]["sonuc"] == "PASS"
