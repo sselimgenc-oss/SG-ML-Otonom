@@ -97,3 +97,17 @@ kâğıt bot 44 enstrümanla çalışıyor (health.py:690 _c_open_price).
 - wt-asamab: Aşama B 4 kural (yazılıyor) → bağımsız inceleme → yarın gönderim.
 **YARIN SABAH KONTROL LİSTESİ:** 1) CI sonucu ve sunucuya inen sürüm, 2) bot/pano/Telegram sorunsuz mu, 3) tur1_olcum ilk raporu (ml/tur1_olcum.md) sade özet, 4) ders sistemi sunucu kontrolü (anahtar + journalctl), 5) haber/piyasa toplayıcıları veri yazıyor mu, 6) DL için 43 enstrüman geçmiş verisi kontrolü (sunucuda var/history).
 **Sonraki işler (her biri kullanıcı onayıyla):** canlı çıkış kuralları (faz 2), DL eğitim hattı (haftalık GitHub Actions), haber kolu HB1 motora takılması, DL kolu, emtia hafta sonu kapalı (Binance 15.09.2026'dan beri hafta içi) etkisi, 4. madde sunucu (Türkiye hesabı; acele yok).
+
+## GÜNDEM: KOL PERFORMANSI KONUŞMASI (kullanıcı, 23.11 — bu akşamki işler bitince)
+Hazırlanacak sorular (veriyle cevaplanacak; her cevapta n ve "yetersiz örnek" uyarısı):
+1. 32 kolun kaçı hiç işlem açtı? Kaçı hiç sinyal üretmedi (ölü kol)?
+2. Kol başına: işlem sayısı, kazanma oranı, ortalama R, toplam net $, en kötü düşüş. Hangi kollar masraf sonrası pozitif?
+3. Zaman dilimi bazında (15m / 1h / 4h / 1d) hangisi taşıyor, hangisi kaybettiriyor?
+4. Aynı kurulumun farklı zaman dilimleri birbirini kopyalıyor mu (aynı coinde aynı anda aynı yön)? → gizli tekrar.
+5. Short yığılması hangi kollardan geliyor? Long açabilen kol var mı?
+6. ML filtresinin elediği işlemler "açılsaydı" ne olurdu — filtre hangi kolda kazandırıyor, hangisinde kaybettiriyor?
+7. Kollar arası korelasyon: hangi kollar hep birlikte kazanıp birlikte kaybediyor?
+8. Kaç kol "yeterli örnek" seviyesinde (≥30 işlem)? Karar vermek için kaç hafta daha veri gerekir?
+9. Kol kapatma/küçültme kuralı ne olmalı (önceden yazılı eşik; tek kötü hafta yüzünden kapatmamak)?
+10. Yeni kollar (HB1 haber, DL1 derin öğrenme) gelince toplam kol sayısı ve kalabalık riski.
+Kaynak: tur1_olcum raporu (kayıp kümeleri, yön denetimi), kâğıt defteri, mutabakat; analiz Fable, sunum sade tablo.
