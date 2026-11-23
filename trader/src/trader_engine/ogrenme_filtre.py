@@ -329,6 +329,8 @@ def _cf_adaylari(dec, trade_karar: set, satirlar, kesim: datetime, Aday) -> list
         d = dec.get(did)
         if d is None or did in trade_karar or not d.arm_id:        # alinmis karar: counterfactual SAYILMAZ (cift sayim yok)
             continue
+        if str(getattr(d, "veto_reason", None) or "").startswith("gate:seans_disi_"):   # seans disi kapisi: egitim orneği degil (cf_outcomes'ta rapor icin kalir)
+            continue
         try:
             r_net = float(r["hyp_r_net"])
             bitis = r["window_end_ts"]

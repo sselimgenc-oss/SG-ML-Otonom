@@ -95,8 +95,10 @@ def test_tum_emtia_ciftleri(env, pair):
 
 
 @pytest.mark.parametrize("D,red", [
-    (u(2026, 12, 4, 20, 59), False), (u(2026, 12, 4, 21, 0), True),        # Cum 21:00 UTC
-    (u(2026, 12, 6, 21, 59), True), (u(2026, 12, 6, 22, 0), False),        # Paz 22:00 UTC
+    (u(2026, 12, 4, 21, 59), False), (u(2026, 12, 4, 22, 0), True),        # kis: Cum 17:00 ET = 22:00Z
+    (u(2026, 12, 6, 22, 59), True), (u(2026, 12, 6, 23, 0), False),        # kis: Paz 18:00 ET = 23:00Z
+    (u(2026, 7, 17, 20, 59), False), (u(2026, 7, 17, 21, 0), True),        # yaz: Cum 21:00Z
+    (u(2026, 7, 19, 21, 59), True), (u(2026, 7, 19, 22, 0), False),        # yaz: Paz 22:00Z
 ])
 def test_emtia_sinirlar(env, D, red):
     o = _go(env, XAU, D)

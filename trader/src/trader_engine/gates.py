@@ -438,6 +438,8 @@ class EntryGate:
             self._takvim = SD.yukle(self.seans_takvimi_yolu)
         if self._takvim is None:
             self.counters[SD.SAYAC_TAKVIM_YOK] += 1
+        elif SD.takvim_eski_mi(self._takvim, D):
+            self.counters[SD.SAYAC_TAKVIM_ESKI] += 1
         kod = SD.karar(cls, D, self._takvim)
         if kod is None:
             return None

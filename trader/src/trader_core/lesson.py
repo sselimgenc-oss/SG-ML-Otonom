@@ -2953,6 +2953,8 @@ def measure_effect(ledger_ro, cfg: LessonConfig, cur_params: Mapping[str, Any], 
     for d in decs:
         if d.final_action != "entered" and d.skip_reason not in ("rr_below_min", "session_closed", "other"):
             continue                                   # parametre disi nedenle atlananlar (kapi, tavan, ML ...) olcuye girmez
+        if d.final_action != "entered" and d.skip_reason == "session_closed" and getattr(d, "veto_reason", None) != "gate:session_closed":
+            continue                                   # seans disi kapisi (gate:seans_disi_*) da session_closed yazar: ders parametresi degil, olcuye girmez
         tc, tr = would_take(cur_params, d), would_take(ref_params, d)
         if tc == tr:
             continue

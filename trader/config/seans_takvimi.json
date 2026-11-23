@@ -1,6 +1,6 @@
 {
  "surum": 1,
- "not": "Seans disi giris kapisi takvimi (yalniz YENI giris; trader_engine/seans_disi.py). Tatiller: NYSE tam gun kapanislari (yarim gun 13:00 kapanislari dahil DEGIL); emtia icin de ayni liste uygulanir (CME enerji/metal tatilleri birebir ayni degil; temkinli). Haber olaylari UTC; durum=confirmed yayinlanmis resmi tarih, estimated tahmin (BLS/Fed takvimiyle dogrulanip guncellenmeli). Dosya eksik/bozuksa kapi engellemez (sayac).",
+ "not": "Seans disi giris kapisi takvimi (yalniz YENI giris; trader_engine/seans_disi.py). Tatiller: NYSE tam gun kapanislari (erken_kapanislar: 13:00 ET kapanis, yalniz hisse, kapanistan sonraki acilisa kadar engel); emtia icin de ayni liste uygulanir (CME enerji/metal tatilleri birebir ayni degil; temkinli). Haber olaylari UTC; durum=confirmed yayinlanmis resmi tarih, estimated tahmin (BLS/Fed takvimiyle dogrulanip guncellenmeli). Dosya eksik/bozuksa kapi engellemez (sayac).",
  "tatiller": [
   {
    "tarih": "2026-01-01",
@@ -100,6 +100,26 @@
   {
    "tarih": "2027-12-24",
    "ad": "Noel (25 Aralik Cumartesi, Cuma gozlenir)",
+   "durum": "confirmed"
+  }
+ ],
+ "erken_kapanislar": [
+  {
+   "tarih": "2026-11-27",
+   "ad": "Sukran Gunu ertesi",
+   "kapanis_et": "13:00",
+   "durum": "confirmed"
+  },
+  {
+   "tarih": "2026-12-24",
+   "ad": "Noel arifesi (Persembe)",
+   "kapanis_et": "13:00",
+   "durum": "confirmed"
+  },
+  {
+   "tarih": "2027-11-26",
+   "ad": "Sukran Gunu ertesi",
+   "kapanis_et": "13:00",
    "durum": "confirmed"
   }
  ],
@@ -335,13 +355,13 @@
    "durum": "estimated"
   },
   {
-   "tur": "CPI",
-   "ts": "2027-06-10T12:30:00Z",
+   "tur": "FOMC",
+   "ts": "2027-06-09T18:00:00Z",
    "durum": "estimated"
   },
   {
-   "tur": "FOMC",
-   "ts": "2027-06-16T18:00:00Z",
+   "tur": "CPI",
+   "ts": "2027-06-10T12:30:00Z",
    "durum": "estimated"
   },
   {
@@ -381,7 +401,7 @@
   },
   {
    "tur": "FOMC",
-   "ts": "2027-09-22T18:00:00Z",
+   "ts": "2027-09-15T18:00:00Z",
    "durum": "estimated"
   },
   {
@@ -396,7 +416,7 @@
   },
   {
    "tur": "FOMC",
-   "ts": "2027-11-03T18:00:00Z",
+   "ts": "2027-10-27T18:00:00Z",
    "durum": "estimated"
   },
   {
@@ -415,13 +435,13 @@
    "durum": "estimated"
   },
   {
-   "tur": "CPI",
-   "ts": "2027-12-10T13:30:00Z",
+   "tur": "FOMC",
+   "ts": "2027-12-08T19:00:00Z",
    "durum": "estimated"
   },
   {
-   "tur": "FOMC",
-   "ts": "2027-12-15T19:00:00Z",
+   "tur": "CPI",
+   "ts": "2027-12-10T13:30:00Z",
    "durum": "estimated"
   }
  ]

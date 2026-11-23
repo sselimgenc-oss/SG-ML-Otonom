@@ -169,7 +169,7 @@ class Env:
             args.append(_Veto())
         args += [self.clock, _FakeBroker(), self._rules]
         self.gate = EntryGate(*args)
-        self.gate.seans_disi_aktif = False      # eski WP-04 testleri hafta sonu hisse/emtia girisi bekler; yeni kapi ayri test dosyasinda
+        self.gate.seans_disi_aktif = False      # eski WP-04 harness zaman damgalari hafta sonu/acilis oncesi pencerelere duser; bu kapi (seans_disi) o beklentilerin yerine gecer, yeni davranis test_emtia_hafta_sonu_gate.py
         self.n = 0
 
     @staticmethod
