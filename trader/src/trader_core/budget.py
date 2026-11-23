@@ -27,16 +27,26 @@ from typing import Any, Callable, Literal, Sequence
 
 log = logging.getLogger("trader_core.budget")
 
-Service = Literal["haftalik_ozet", "lesson"]
-SERVICES: tuple[str, ...] = ("haftalik_ozet", "lesson")
+Service = Literal["haftalik_ozet", "lesson", "haber_kolu", "yorumcu"]
+SERVICES: tuple[str, ...] = ("haftalik_ozet", "lesson", "haber_kolu", "yorumcu")
+# Cekirdek servisler yapilandirmada zorunlu; ust lig servisleri (haber_kolu, yorumcu) eksikse
+# varsayilanla tamamlanir (eski yapilandirmalar bozulmaz).
+CORE_SERVICES: tuple[str, ...] = ("haftalik_ozet", "lesson")
+_EXTRA_DEFAULTS: dict[str, dict[str, Any]] = {
+    "daily_cap_usd": {"haber_kolu": 0.10, "yorumcu": 0.15},
+    "api_key_env": {"haber_kolu": "ANTHROPIC_API_KEY_HABER", "yorumcu": "ANTHROPIC_API_KEY_YORUMCU"},
+    "reservation_ttl_s": {"haber_kolu": 3600, "yorumcu": 108000},
+}
+_EXTRA_DEADLINE_S = {"haber_kolu": 120, "yorumcu": 300}
 DEFAULT_PATH = "config/budget.json"
 SCHEMA_VERSION = 1
 MAX_TOTAL_INPUT_TOKENS = 100_000
 PRICE_KEYS = ("input", "output", "cache_write_5m", "cache_write_1h", "cache_read")
 
 HARD_LIMITS: dict[str, Any] = {
-    "daily_cap_usd": {"haftalik_ozet": 0.25, "lesson": 0.10},
-    "monthly_cap_usd": 10.0,
+    "daily_cap_usd": {"haftalik_ozet": 0.25, "lesson": 0.10, "haber_kolu": 0.10, "yorumcu": 0.15},
+    # 23.11 kullanici karari: ust lig, LLM tavani 20 $
+    "monthly_cap_usd": 20.0,
     "warn_fraction_max": 0.70,
     "price_safety_factor_min": 1.0,
     "batch_multiplier_min": 0.5,
@@ -149,10 +159,22 @@ class BudgetConfig:
     retry: dict = field(default_factory=_default_retry)
     prices_usd_per_mtok: dict = field(default_factory=lambda: copy.deepcopy(_DEFAULT_PRICES))
 
+    monthly_share_usd: dict = field(default_factory=dict)
+
     def __post_init__(self) -> None:
         for n in ("daily_cap_usd", "api_key_env", "reservation_ttl_s", "retry",
-                  "prices_usd_per_mtok"):
+                  "prices_usd_per_mtok", "monthly_share_usd"):
             object.__setattr__(self, n, copy.deepcopy(getattr(self, n)))
+        # ust lig servisleri eksikse varsayilanla tamamla (yalniz dict ise; dogrulama sonra)
+        for n, extra in _EXTRA_DEFAULTS.items():
+            v = getattr(self, n)
+            if isinstance(v, dict):
+                for k, dv in extra.items():
+                    v.setdefault(k, dv)
+        r = self.retry
+        if isinstance(r, dict) and isinstance(r.get("deadline_s"), dict):
+            for k, dv in _EXTRA_DEADLINE_S.items():
+                r["deadline_s"].setdefault(k, dv)
         self._validate()
 
     # -- dogrulama
@@ -165,7 +187,7 @@ class BudgetConfig:
         for name in ("daily_cap_usd", "api_key_env", "reservation_ttl_s"):
             v = getattr(self, name)
             if not isinstance(v, dict) or set(v) != set(SERVICES):
-                raise E(f"{name}: haftalik_ozet ve lesson anahtarlari gerekli")
+                raise E(f"{name}: servis anahtarlari gerekli")
         for s in SERVICES:
             cap = _dec(self.daily_cap_usd[s], f"daily_cap_usd.{s}")
             if cap > Decimal(str(HARD_LIMITS["daily_cap_usd"][s])):
@@ -174,7 +196,12 @@ class BudgetConfig:
             if not isinstance(env, str) or not env.strip():
                 raise E(f"api_key_env.{s} bos")
             _dec(self.reservation_ttl_s[s], f"reservation_ttl_s.{s}", allow_zero=False)
+        sh = self.monthly_share_usd
+        if not isinstance(sh, dict) or not set(sh) <= set(SERVICES):
+            raise E("monthly_share_usd: bilinen servis anahtarlari olmali")
         mcap = _dec(self.monthly_cap_usd, "monthly_cap_usd")
+        if sum((_dec(v, f"monthly_share_usd.{k}") for k, v in sh.items()), Decimal(0)) > mcap:
+            raise E("monthly_share_usd toplami monthly_cap_usd'yi asiyor")
         if mcap > Decimal(str(HARD_LIMITS["monthly_cap_usd"])):
             raise E("monthly_cap_usd kilitli ust siniri asiyor")
         if _dec(self.monthly_warn_usd, "monthly_warn_usd") > mcap:
@@ -207,7 +234,7 @@ class BudgetConfig:
         if _dec(r["jitter"], "retry.jitter") > 1:
             raise E("retry.jitter <= 1 olmali")
         if not isinstance(r["deadline_s"], dict) or set(r["deadline_s"]) != set(SERVICES):
-            raise E("retry.deadline_s haftalik_ozet ve lesson gerektirir")
+            raise E("retry.deadline_s tum servisleri gerektirir")
         for s in SERVICES:
             _dec(r["deadline_s"][s], f"retry.deadline_s.{s}", allow_zero=False)
         p = self.prices_usd_per_mtok
@@ -390,7 +417,8 @@ CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY AUTOINCREMENT, ev_key T
   acked INTEGER NOT NULL DEFAULT 0);
 """
 
-_SVC_TR = {"haftalik_ozet": "haftalık özet", "lesson": "ders"}
+_SVC_TR = {"haftalik_ozet": "haftalık özet", "lesson": "ders", "haber_kolu": "haber kolu",
+           "yorumcu": "yorumcu"}
 
 
 # --------------------------------------------------------------------------- guard
@@ -601,7 +629,8 @@ class BudgetGuard:
 
     def _stopped_event(self, conn, now, service, day, used) -> None:
         cap = self.config.cap_micro(service)
-        tail = "haftalık özet atlandı" if service == "haftalik_ozet" else "bugünkü ders atlandı"
+        tail = {"haftalik_ozet": "haftalık özet atlandı", "haber_kolu": "haber sinyali durdu",
+                "yorumcu": "bugünkü yorum atlandı"}.get(service, "bugünkü ders atlandı")
         self._event(conn, f"daily_stopped_100:{service}:{day}", "daily_stopped_100", service, day,
                     now, f"{_SVC_TR[service]} günlük bütçesi doldu: {tail} "
                     f"({used / 1e6:.3f} / {cap / 1e6:g} $)",
@@ -1057,7 +1086,8 @@ def ack_events(event_ids: Sequence[int]) -> None:
     return _get_guard().ack_events(event_ids)
 
 
-_DEFAULT_KEY_ENV = {"haftalik_ozet": "ANTHROPIC_API_KEY_HAFTALIK_OZET", "lesson": "ANTHROPIC_API_KEY_LESSON"}
+_DEFAULT_KEY_ENV = {"haftalik_ozet": "ANTHROPIC_API_KEY_HAFTALIK_OZET", "lesson": "ANTHROPIC_API_KEY_LESSON",
+                    **_EXTRA_DEFAULTS["api_key_env"]}
 
 
 def api_key_env(service: Service) -> str:

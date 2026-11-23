@@ -27,7 +27,9 @@ def mk(tmp_path, clk=None, **kw):
 
 def test_shipped_config_loads():
     cfg = load_config(str(Path(__file__).resolve().parents[1] / "config" / "budget.json"))
-    assert cfg.daily_cap_usd == {"haftalik_ozet": 0.25, "lesson": 0.10}
+    # 23.11 kullanici karari: ust lig, LLM tavani 20 $
+    assert cfg.daily_cap_usd == {"haftalik_ozet": 0.25, "lesson": 0.10, "haber_kolu": 0.10, "yorumcu": 0.15}
+    assert cfg.monthly_cap_usd == 20.0
 
 
 def test_cost_examples(tmp_path):
@@ -44,7 +46,7 @@ def test_cost_examples(tmp_path):
 
 
 def test_hard_limits():
-    for kw in ({"monthly_cap_usd": 11.0}, {"warn_fraction": 0.8}, {"price_safety_factor": 0.9},
+    for kw in ({"monthly_cap_usd": 21.0}, {"warn_fraction": 0.8}, {"price_safety_factor": 0.9},
                {"batch_multiplier": 0.4}, {"daily_cap_usd": {"haftalik_ozet": 0.3, "lesson": 0.1}},
                {"db_path": ""}):
         with pytest.raises(BudgetConfigError):

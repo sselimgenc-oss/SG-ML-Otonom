@@ -481,13 +481,30 @@ def canli_sartlari(trades, rakip: dict, dayan: dict) -> dict:
 
 
 # ----------------------------------------------------------------------------- ana akis
+UST_LIG_KOLLARI = ("HB1", "DL1")   # Ust lig (23.11): 32 kolun disinda, ayri karne; kol yoksa "kol henüz yok"
+
+
+def ust_lig(trades) -> dict:
+    """Ust lig karnesi: HB1 ve DL1 icin ayri satir; 32 kolun toplamina KARISMAZ (rakip/dayaniklilik bolumleri bu kollari da icerir
+    ama burada ayri raporlanir). Kolun hic islemi/karari yoksa durum 'kol henuz yok'."""
+    out = {}
+    for kol in UST_LIG_KOLLARI:
+        xs = [t for t in trades if (t.get("arm") or "").split("@")[0] == kol]
+        if not xs:
+            out[kol] = {"durum": "kol henüz yok", "n": 0}
+            continue
+        r = ozet([t["net_r"] for t in xs])
+        out[kol] = {"durum": "var", "n": r["n"], "toplam": r["toplam"], "ort": r["ort"], "etiket": r["etiket"]}
+    return out
+
+
 def rapor(trades_raw, decisions_raw, mumlar, *, kasa0: float, now: datetime, models_dir=None, b: int = RASTGELE_B,
           runs: int = KARISTIRMA_SAYISI, seed: int = SEED) -> dict:
     trades, decisions, kilit = holdout_filtrele(trades_raw, decisions_raw)
     rakip = rakip_kiyasi(trades, mumlar, b, seed)
     dayan = dayaniklilik(trades, mumlar)
     return {"sema": SCHEMA, "uretim": now.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "n_islem": len(trades),
-            "kilitli_donem_atilan_islem": kilit, "tohum": seed,
+            "kilitli_donem_atilan_islem": kilit, "tohum": seed, "ust_lig": ust_lig(trades),
             "bolumler": {"rakip_kiyasi": rakip, "dayaniklilik": dayan,
                          "sans_kuyruk": sans_kuyruk(trades, kasa0, runs, seed),
                          "canli_sartlari": canli_sartlari(trades, rakip, dayan),
@@ -546,4 +563,10 @@ def render_md(d: dict) -> str:
     for r in kk["sayiya_gore"][:5]:
         L.append(f"- {r['kol']} · {r['rejim']} · {r['yon']} · {r['varlik_sinifi']} · {r['saat']}: {r['kayip_sayisi']} kayıp, {_r(r['toplam_kayip_r'])} R"
                  + (f" ({r['not']})" if r["not"] else ""))
+    L += ["", "## Üst lig (HB1, DL1; 32 kolun dışında ayrı karne)"]
+    for kol, v in (d.get("ust_lig") or ust_lig([])).items():
+        if v["durum"] != "var":
+            L.append(f"- {kol}: kol henüz yok")
+        else:
+            L.append(f"- {kol}: n={v['n']}, toplam {_r(v['toplam'])} R, ort {_r(v['ort'], 3)} R/işlem" + (f" ({YETERSIZ})" if v["etiket"] else ""))
     return "\n".join(L) + "\n"

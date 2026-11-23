@@ -95,7 +95,8 @@ def test_budget_ok_and_corrupt(tmp_path):
     B.BudgetGuard(B.load_config(tmp_path / "config" / "budget.json")).authorize("haftalik_ozet", 0.01)   # deposu başlat
     assert (tmp_path / "b.sqlite").exists()
     s = T.section_budget(cfg)
-    assert "/10.00$" in s and "/0.25$" in s and "ders 0.00$/0.10$" in s
+    # 23.11 kullanici karari: ust lig, LLM tavani 20 $
+    assert "/20.00$" in s and "/0.25$" in s and "ders 0.00$/0.10$" in s
     _budget(tmp_path, "{bozuk")
     out = T.build_report(cfg, NOW, DAY, {"Bütçe": lambda: T.rapor_butce(cfg)})
     assert "Bazı bilgiler okunamadı" in out and "yapilandirma" not in out

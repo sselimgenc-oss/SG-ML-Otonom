@@ -381,8 +381,9 @@ class TestConfig:
         [
             lambda d: d["daily_cap_usd"].update(haftalik_ozet=0.26),
             lambda d: d["daily_cap_usd"].update(lesson=0.11),
-            lambda d: d.update(monthly_cap_usd=10.5),
-            lambda d: d.update(monthly_warn_usd=10.5),
+            lambda d: d.update(monthly_cap_usd=20.5),  # 23.11 kullanici karari: ust lig, LLM tavani 20 $
+            lambda d: d.update(monthly_share_usd={"lesson": 8.0, "yorumcu": 13.0}),
+            lambda d: d.update(monthly_warn_usd=20.5),
             lambda d: d.update(warn_fraction=0.8),
             lambda d: d.update(warn_fraction=1.0),
             lambda d: d.update(warn_fraction=0),
@@ -440,7 +441,8 @@ class TestConfig:
         raw = p.read_text()
         d = json.loads(raw)
         assert d["daily_cap_usd"]["haftalik_ozet"] <= 0.25 and d["daily_cap_usd"]["lesson"] <= 0.10
-        assert d["monthly_cap_usd"] <= 10.0 and d["monthly_warn_usd"] <= d["monthly_cap_usd"]
+        # 23.11 kullanici karari: ust lig, LLM tavani 20 $
+        assert d["monthly_cap_usd"] <= 20.0 and d["monthly_warn_usd"] <= d["monthly_cap_usd"]
         assert 0 < d["warn_fraction"] <= 0.70
         assert d["price_safety_factor"] >= 1.0 and d["batch_multiplier"] >= 0.5
         assert d["retry"]["max_retries"] <= 3
