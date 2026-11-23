@@ -14,7 +14,7 @@ sys.path.insert(0, str(ROOT / "paket"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from trader_reports import tur1_olcum as T  # noqa: E402
-from test_tur1_olcum import H, NOW, T0, iso, market, mk  # noqa: E402
+from test_tur1_olcum import H, NOW, T0, iso, market, mk, trades_mix  # noqa: E402
 
 
 # ---------------------------------------------------------------- Duzeltme 1: canli aile paketi semasi
@@ -277,3 +277,90 @@ def test_rastgele_rakip_kagit_masrafi_ve_eski_yan_yana(tmp_path):
     assert yeni["eski_masraf"]["rastgele_ort_toplam_r"] == pytest.approx(eski["rastgele_ort_toplam_r"])   # yan yana eski = eski sonuc
     assert yeni["rastgele_ort_toplam_r"] < eski["rastgele_ort_toplam_r"]                                   # pahali masraf rakibi dusurur
     assert "FONLAMA" in yeni["not"]
+
+
+# ---------------------------------------------------------------- Yeni fikirler 1-6 (ek bolumler)
+def _seri(netler, **kw):
+    return [mk(i, net=v, entry_ms=T0 + (40 + i * 24) * H, **kw) for i, v in enumerate(netler)]   # pnl = net * 10, kasa0 1000
+
+
+def test_baslangic_en_kotu_dusus():
+    ts = _seri([1, 1, -5, -5, 1, 1])
+    r = T.baslangic_en_kotu_dusus(ts, 1000.0)
+    # pnl: +10 +10 -50 -50 +10 +10. ilk islemden: tepe 1020, dip 920 -> 100/1020; 3. islemden baslasak: 1000 -> 950 -> 900: %10
+    assert r["durum"] == "ok" and r["n"] == 6 and r["baslangic_sayisi"] == 6
+    assert r["gercek_ilk_islemden"] == pytest.approx(100.0 / 1020.0)
+    assert r["en_kotu"] == pytest.approx(max(100.0 / 1020.0, 0.10)) and r["en_iyi"] == pytest.approx(0.0)
+    assert r["en_kotu_baslangic"]["trade_id"] == 2
+    assert T.baslangic_en_kotu_dusus([], 1000.0)["durum"] == "veri_yok"
+
+
+def test_kosu_testi_yetersiz_ve_kumelenme():
+    assert T.kosu_testi(_seri([1, -1] * 10))["durum"] == "yetersiz_ornek"            # n=20 < 30
+    kume = T.kosu_testi(_seri([1.0] * 20 + [-1.0] * 20))                              # 2 koşu: aşırı kümelenme
+    assert kume["durum"] == "ok" and kume["kosu"] == 2 and kume["z"] < -5 and kume["p"] < 0.001 and "kümeleniyor" in kume["yorum"]
+    alt = T.kosu_testi(_seri([1.0, -1.0] * 20))                                       # 40 koşu: aşırı dönüşümlü
+    assert alt["kosu"] == 40 and alt["z"] > 5
+    assert T.kosu_testi(_seri([1.0] * 40))["durum"] == "tek_sinif"
+    # el hesabı: n1=n2=20 -> mu = 21, var = 2*400*(800-40)/(1600*39)
+    assert kume["beklenen_kosu"] == pytest.approx(21.0)
+
+
+def test_tf_masraf_tablosu():
+    a = [mk(i, net=1.0, cost=0.5) for i in range(3)]                  # brüt 1.5 R, masraf 0.5 R
+    b = [dict(mk(10 + i, net=-0.2, cost=0.3), tf="15m") for i in range(2)]   # brüt 0.2, masraf 0.6
+    c = [dict(mk(20, net=-1.0, cost=0.2), tf="1d")]                  # brüt -0.8: oran yok
+    r = T.tf_masraf_tablosu(a + b + c)
+    s = {x["tf"]: x for x in r["satirlar"]}
+    assert [x["tf"] for x in r["satirlar"]] == ["15m", "1h", "1d"]
+    assert s["1h"]["n"] == 3 and s["1h"]["brut_r"] == pytest.approx(4.5) and s["1h"]["masraf_r"] == pytest.approx(1.5)
+    assert s["1h"]["net_r"] == pytest.approx(3.0) and s["1h"]["masraf_brut_orani"] == pytest.approx(1.5 / 4.5)
+    assert s["15m"]["masraf_brut_orani"] == pytest.approx(0.6 / 0.2)
+    assert s["1d"]["masraf_brut_orani"] is None and s["1d"]["etiket"] == T.YETERSIZ
+
+
+def test_verimlilik():
+    # brüt R = net + cost = 1.1 (cost 0.1); mfe 1.5, mae 0.2 -> cikis (1.1+0.2)/1.7, giris 1.5/1.7
+    ts = [mk(1, net=1.0, mfe=1.5), dict(mk(2, net=1.0), mfe_r=None)]
+    r = T.verimlilik(ts)
+    assert r["n"] == 2 and r["n_mfe_mae_var"] == 1 and r["n_mfe_mae_yok"] == 1
+    assert r["cikis_verimi"] == pytest.approx(1.3 / 1.7) and r["giris_verimi"] == pytest.approx(1.5 / 1.7)
+    assert r["ort_geri_verme_r"] == pytest.approx(0.4) and r["kazananlarda_gerceklesen_mfe_orani"] == pytest.approx(1.1 / 1.5)
+    assert r["etiket"] == T.YETERSIZ
+
+
+def test_toparlanma():
+    # kasa: 1000 -> +10 +10 (zirve 1020, i=1) -> -30 (990) -> +5 (995) -> +5 (1000)  ... hâlâ altında
+    ts = _seri([1, 1, -3, 0.5, 0.5])
+    r = T.toparlanma(ts, 1000.0)
+    assert r["durum"] == "ok" and r["su_an_dususte"] is True and r["simdi"]["islem"] == 3 and r["simdi"]["bitti"] is False
+    assert r["en_uzun"]["islem"] == 3 and r["en_uzun"]["bitti"] is False and r["kasa_son"] == pytest.approx(1000.0)
+    ts2 = _seri([1, 1, -1, 3])                          # 1020 -> 1010 -> 1040: düşüş 2 işlemde bitti
+    r2 = T.toparlanma(ts2, 1000.0)
+    assert r2["su_an_dususte"] is False and r2["en_uzun"]["islem"] == 2 and r2["en_uzun"]["bitti"] is True
+    assert r2["en_uzun"]["gun"] == pytest.approx(2.0)   # zirve 2. işlemin çıkışı, toparlanma 4. işlemin çıkışı: 2 x 24 saat
+    assert T.toparlanma([], 1000.0)["durum"] == "veri_yok"
+
+
+def test_puan_kalibrasyonu():
+    ts = [dict(mk(i, net=(1.0 if i % 4 else -1.0)), ml_score=0.55 + 0.001 * i) for i in range(20)]    # puan 0.5-0.6 diliminde
+    ts += [dict(mk(100 + i, net=1.0), ml_score=0.95) for i in range(3)] + [mk(200)]                    # biri puansız
+    r = T.puan_kalibrasyonu(ts)
+    assert r["durum"] == "ok" and r["n"] == 24 and r["n_puanli"] == 23 and r["n_puansiz"] == 1
+    d = {round(x["dilim"][0], 1): x for x in r["dilimler"]}
+    assert set(d) == {0.5, 0.9} and d[0.5]["n"] == 20 and d[0.5]["kazanma_orani"] == pytest.approx(15 / 20) and d[0.5]["not"] is None
+    assert d[0.9]["n"] == 3 and d[0.9]["not"] == "az örnek"
+    assert T.puan_kalibrasyonu([mk(1)])["durum"] == "veri_yok"
+
+
+def test_ek_bolumler_raporda_ve_md(tmp_path):
+    d = T.rapor(trades_mix(20), [], None, kasa0=1000.0, now=NOW, runs=5000)
+    assert set(d["ek_bolumler"]) == {"baslangic_dusus", "kosu_testi", "tf_masraf", "verimlilik", "toparlanma", "puan_kalibrasyonu"}
+    json.dumps(d)
+    md = T.render_md(d)
+    for baslik in ("## 7. Başlangıç noktasına göre", "## 8. Kazanç/kayıp koşu testi", "## 9. Zaman dilimi × masraf",
+                   "## 10. Giriş/çıkış verimliliği", "## 11. Düşüşten toparlanma", "## 12. Süzgeç puanı kalibrasyonu"):
+        assert baslik in md
+    assert "veri yok (puanlı işlem yok)" in md and "(n=20" in md
+    assert T.trade_dict({"trade_id": 1, "pair": "BTC/USDT", "side": "long", "setup": "T1", "entry_ts": iso(T0), "exit_ts": iso(T0 + H),
+                         "planned_risk": 1.0}, {"ml_score": 0.7, "trigger_tf": "1h"}, lambda p: "kripto")["ml_score"] == 0.7

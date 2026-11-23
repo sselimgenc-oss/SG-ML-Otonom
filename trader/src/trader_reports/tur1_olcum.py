@@ -81,7 +81,7 @@ def trade_dict(t, dec, asset_of) -> dict:
             "entry_price": _f(g("entry_price")), "exit_price": _f(g("exit_price")), "qty": _f(g("qty")),
             "planned_entry": _f(g("planned_entry")), "planned_stop": _f(g("planned_stop")), "planned_risk": pr,
             "gross_pnl": _f(g("gross_pnl")), "pnl": _f(g("realized_pnl")), "net_r": _f(g("r_multiple")),
-            "mfe_r": _f(g("mfe_r")), "mae_r": _f(g("mae_r")), "bars_held": g("bars_held")}
+            "mfe_r": _f(g("mfe_r")), "mae_r": _f(g("mae_r")), "bars_held": g("bars_held"), "ml_score": _f(dg("ml_score"))}
 
 
 def decision_dict(d, asset_of) -> dict:
@@ -692,6 +692,144 @@ def canli_sartlari(trades, rakip: dict, dayan: dict, sans: dict | None = None) -
             "uyari": "Bu liste karar vermez; yalnız ölçer. Örnek küçükken PASS bile kanıt sayılmaz." if n < CANLI_MIN_ISLEM else None}
 
 
+# ----------------------------------------------------------------------------- ek bolumler (7-12): yalniz olcum
+def _sirali(trades):
+    return sorted(trades, key=lambda t: (t["exit_ts"], t["trade_id"]))
+
+
+def _dusus(pnl, kasa0: float) -> float:
+    """Kasa kasa0'dan baslayarak pnl dizisini uygular; en buyuk tepe-dip dusus orani (sans_kuyruk ile ayni tanim)."""
+    e = kasa0 + np.cumsum(np.asarray(pnl, float))
+    pk = np.maximum.accumulate(np.concatenate([[kasa0], e]))[1:]
+    return float(((pk - e) / pk).max()) if len(e) else 0.0
+
+
+def baslangic_en_kotu_dusus(trades, kasa0: float) -> dict:
+    """Fikir 1: eğriyi her işlemden başlatırız ('o işlemden canlıya başlasaydık'); her başlangıç için en kötü düşüş. Kasa her başlangıçta kasa0."""
+    ts = _sirali(trades)
+    n = len(ts)
+    out = {"n": n, "etiket": etiket(n)}
+    if not n:
+        return {**out, "durum": "veri_yok"}
+    pnl = np.array([t["pnl"] for t in ts], float)
+    dd = np.array([_dusus(pnl[i:], kasa0) for i in range(n)])
+    w = int(dd.argmax())
+    return {**out, "durum": "ok", "en_kotu": float(dd[w]), "en_kotu_baslangic": {"trade_id": ts[w]["trade_id"], "zaman": ts[w]["entry_ts"]},
+            "medyan": float(np.median(dd)), "en_iyi": float(dd.min()), "gercek_ilk_islemden": float(dd[0]), "baslangic_sayisi": n}
+
+
+def kosu_testi(trades) -> dict:
+    """Fikir 2: Wald-Wolfowitz koşu testi (kazanç = net R > 0, aksi kayıp; çıkış sırasıyla). Koşu sayısı beklenenden azsa kazanç/kayıplar
+    kümeleniyor (z < 0). n < YETERSIZ_N ise sonuç verilmez."""
+    ts = _sirali(trades)
+    n = len(ts)
+    out = {"n": n, "etiket": etiket(n)}
+    seq = [t["net_r"] > 0 for t in ts]
+    n1, n2 = sum(seq), n - sum(seq)
+    out.update({"kazanc": n1, "kayip": n2})
+    if n < YETERSIZ_N:
+        return {**out, "durum": "yetersiz_ornek"}
+    if n1 == 0 or n2 == 0:
+        return {**out, "durum": "tek_sinif"}
+    kosu = 1 + sum(1 for a, b in zip(seq, seq[1:]) if a != b)
+    mu = 2.0 * n1 * n2 / n + 1.0
+    var = 2.0 * n1 * n2 * (2.0 * n1 * n2 - n) / (n * n * (n - 1.0))
+    z = (kosu - mu) / math.sqrt(var) if var > 0 else 0.0
+    p = math.erfc(abs(z) / math.sqrt(2.0))
+    return {**out, "durum": "ok", "kosu": kosu, "beklenen_kosu": mu, "z": z, "p": p,
+            "yorum": "kümeleniyor (kosu az)" if z < 0 else "dönüşümlü (koşu çok)"}
+
+
+def tf_masraf_tablosu(trades) -> dict:
+    """Fikir 3: zaman dilimi x masraf: brüt R, masraf R, net R, masrafın brüte oranı (brüt <= 0 ise oran yok)."""
+    g: dict = defaultdict(list)
+    for t in trades:
+        g[t["tf"]].append(t)
+    sira = {"15m": 0, "1h": 1, "4h": 2, "1d": 3}
+    rows = []
+    for tf, ts in sorted(g.items(), key=lambda kv: (sira.get(kv[0], 9), kv[0])):
+        brut = toplam(t["gross_pnl"] / t["planned_risk"] for t in ts)
+        mas = toplam(cost_r(t) for t in ts)
+        rows.append({"tf": tf, "n": len(ts), "brut_r": brut, "masraf_r": mas, "net_r": toplam(t["net_r"] for t in ts),
+                     "masraf_brut_orani": (mas / brut) if brut > 0 else None, "etiket": etiket(len(ts))})
+    return {"n": len(trades), "etiket": etiket(len(trades)), "satirlar": rows}
+
+
+def verimlilik(trades) -> dict:
+    """Fikir 4: giriş/çıkış verimi (`exits.py` ile aynı tanım): çıkış = (brüt R + MAE) / (MFE + MAE), 0-1'e kırpılır (payda < 0,05 tanımsız);
+    giriş = MFE / (MFE + MAE) (girişten sonra görülen toplam yolun ne kadarı lehimizeydi); geri verme = MFE - brüt R. MFE/MAE yoksa işlem dışarıda."""
+    cik, gir, geri, kaz = [], [], [], []
+    for t in trades:
+        mfe, mae = t.get("mfe_r"), t.get("mae_r")
+        if mfe is None or mae is None:
+            continue
+        g = t["gross_pnl"] / t["planned_risk"]
+        den = mfe + mae
+        if den >= 0.05:
+            cik.append(min(1.0, max(0.0, (g + mae) / den)))
+            gir.append(min(1.0, max(0.0, mfe / den)))
+        geri.append(mfe - g)
+        if g > 0 and mfe > 0:
+            kaz.append(min(1.0, g / mfe))
+    n_var = sum(1 for t in trades if t.get("mfe_r") is not None and t.get("mae_r") is not None)
+    ort = lambda xs: (toplam(xs) / len(xs)) if xs else None   # noqa: E731
+    return {"n": len(trades), "n_mfe_mae_var": n_var, "n_mfe_mae_yok": len(trades) - n_var, "etiket": etiket(n_var),
+            "cikis_verimi": ort(cik), "cikis_verimi_n": len(cik), "giris_verimi": ort(gir), "giris_verimi_n": len(gir),
+            "ort_geri_verme_r": ort(geri), "kazananlarda_gerceklesen_mfe_orani": ort(kaz), "kazanan_n": len(kaz)}
+
+
+def toparlanma(trades, kasa0: float) -> dict:
+    """Fikir 5: düşüşten toparlanma süresi. Kasa eğrisi (çıkış sırasıyla) önceki zirveyi yeniden geçene kadar geçen süre; en uzun ve şu anki
+    (şu an zirvenin altındaysa o zirveden beri). Süre hem işlem sayısı hem takvim günü."""
+    ts = _sirali(trades)
+    n = len(ts)
+    out = {"n": n, "etiket": etiket(n)}
+    if not n:
+        return {**out, "durum": "veri_yok"}
+
+    def gun(a, b):
+        return (datetime.fromisoformat(b[:19]) - datetime.fromisoformat(a[:19])).total_seconds() / 86400.0
+    eq, zirve, z_i, z_ts = kasa0, kasa0, -1, ts[0]["entry_ts"]
+    en_uzun = {"islem": 0, "gun": 0.0, "bitti": True}
+    for i, t in enumerate(ts):
+        eq += t["pnl"]
+        if eq >= zirve:                                  # yeni zirve: önceki düşüş (varsa) bitti
+            uz = {"islem": i - z_i, "gun": gun(z_ts, t["exit_ts"]), "bitti": True}
+            if i - z_i > 1 and uz["gun"] > en_uzun["gun"]:
+                en_uzun = uz
+            zirve, z_i, z_ts = eq, i, t["exit_ts"]
+    simdi = {"islem": n - 1 - z_i, "gun": gun(z_ts, ts[-1]["exit_ts"]), "bitti": False} if eq < zirve else {"islem": 0, "gun": 0.0, "bitti": True}
+    if not simdi["bitti"] and simdi["gun"] > en_uzun["gun"]:
+        en_uzun = dict(simdi)
+    return {**out, "durum": "ok", "en_uzun": en_uzun, "simdi": simdi, "su_an_dususte": eq < zirve,
+            "kasa_son": eq, "kasa_zirve": zirve}
+
+
+def puan_kalibrasyonu(trades, kenar: int = 10) -> dict:
+    """Fikir 6: süzgeç (ML) puanı kalibrasyonu: puan dilimi -> gerçekleşen kazanma oranı (net R > 0), n ile. Puanı olmayan işlem (süzgeç yoktu)
+    dışarıda; hiç puan yoksa 'veri yok'. Dilim genişliği 1/kenar; dilimde n < 10 ise 'az örnek'."""
+    pu = [t for t in trades if t.get("ml_score") is not None]
+    out = {"n": len(trades), "n_puanli": len(pu), "n_puansiz": len(trades) - len(pu), "etiket": etiket(len(pu))}
+    if not pu:
+        return {**out, "durum": "veri_yok", "dilimler": []}
+    rows = []
+    for k in range(kenar):
+        lo, hi = k / kenar, (k + 1) / kenar
+        ds = [t for t in pu if lo <= t["ml_score"] < hi or (k == kenar - 1 and t["ml_score"] == 1.0)]
+        if not ds:
+            continue
+        w = sum(1 for t in ds if t["net_r"] > 0)
+        rows.append({"dilim": [lo, hi], "n": len(ds), "kazanma_orani": w / len(ds), "ort_puan": toplam(t["ml_score"] for t in ds) / len(ds),
+                     "not": "az örnek" if len(ds) < 10 else None})
+    return {**out, "durum": "ok", "dilimler": rows}
+
+
+def ek_bolumler(trades, kasa0: float) -> dict:
+    return {"baslangic_dusus": baslangic_en_kotu_dusus(trades, kasa0), "kosu_testi": kosu_testi(trades),
+            "tf_masraf": tf_masraf_tablosu(trades), "verimlilik": verimlilik(trades), "toparlanma": toparlanma(trades, kasa0),
+            "puan_kalibrasyonu": puan_kalibrasyonu(trades)}
+
+
 # ----------------------------------------------------------------------------- ana akis
 def rapor(trades_raw, decisions_raw, mumlar, *, kasa0: float, now: datetime, models_dir=None, b: int = RASTGELE_B,
           runs: int = KARISTIRMA_SAYISI, seed: int = SEED, maliyet_cfg: dict | None = None) -> dict:
@@ -705,7 +843,8 @@ def rapor(trades_raw, decisions_raw, mumlar, *, kasa0: float, now: datetime, mod
                          "sans_kuyruk": sans,
                          "canli_sartlari": canli_sartlari(trades, rakip, dayan, sans),
                          "yon_denetimi": yon_denetimi(trades, decisions, models_dir),
-                         "kayip_kumeleri": kayip_kumeleri(trades)}}
+                         "kayip_kumeleri": kayip_kumeleri(trades)},
+            "ek_bolumler": ek_bolumler(trades, kasa0)}
 
 
 def _sozluk(d):
@@ -714,6 +853,54 @@ def _sozluk(d):
 
 def _r(x, nd=2):
     return "—" if x is None else f"{x:+.{nd}f}".replace(".", ",")
+
+
+def _yz(x, nd=1):
+    return "—" if x is None else f"%{x * 100:.{nd}f}".replace(".", ",")
+
+
+def _render_ek(E) -> list[str]:
+    if not E:
+        return []
+    L = []
+    b = E["baslangic_dusus"]
+    L += ["", f"## 7. Başlangıç noktasına göre en kötü düşüş (n={b['n']})" + (f" ({YETERSIZ})" if b["etiket"] else "")]
+    if b["durum"] == "ok":
+        L.append(f"- Her işlemden başlasaydık ({b['baslangic_sayisi']} başlangıç): en kötü düşüş {_yz(b['en_kotu'])} (başlangıç: işlem {b['en_kotu_baslangic']['trade_id']}, "
+                 f"{b['en_kotu_baslangic']['zaman'][:10]}); medyan {_yz(b['medyan'])}; en iyi {_yz(b['en_iyi'])}; ilk işlemden başlayan {_yz(b['gercek_ilk_islemden'])}")
+    else:
+        L.append("- veri yok")
+    k = E["kosu_testi"]
+    L += ["", f"## 8. Kazanç/kayıp koşu testi (n={k['n']})" + (f" ({YETERSIZ})" if k["etiket"] else "")]
+    if k["durum"] == "ok":
+        L.append(f"- Kazanç {k['kazanc']} / kayıp {k['kayip']}; koşu {k['kosu']} (beklenen {k['beklenen_kosu']:.1f}), z={k['z']:+.2f}, p={k['p']:.3f}: {k['yorum']}")
+    else:
+        L.append(f"- {YETERSIZ if k['durum'] == 'yetersiz_ornek' else 'tek sınıf (hepsi kazanç ya da hepsi kayıp)'}: n={k['n']} (en az {YETERSIZ_N}); test yapılmadı")
+    m = E["tf_masraf"]
+    L += ["", f"## 9. Zaman dilimi × masraf (n={m['n']})" + (f" ({YETERSIZ})" if m["etiket"] else "")]
+    for r in m["satirlar"]:
+        L.append(f"- {r['tf']}: n={r['n']}, brüt {_r(r['brut_r'])} R, masraf {_r(-r['masraf_r'])} R, net {_r(r['net_r'])} R, masraf/brüt "
+                 + ("—" if r["masraf_brut_orani"] is None else f"%{r['masraf_brut_orani'] * 100:.0f}") + (f" ({YETERSIZ})" if r["etiket"] else ""))
+    v = E["verimlilik"]
+    L += ["", f"## 10. Giriş/çıkış verimliliği (n={v['n']}, MFE/MAE olan {v['n_mfe_mae_var']})" + (f" ({YETERSIZ})" if v["etiket"] else "")]
+    L.append(f"- Çıkış verimi {_yz(v['cikis_verimi'])} (n={v['cikis_verimi_n']}); giriş verimi {_yz(v['giris_verimi'])} (n={v['giris_verimi_n']}); "
+             f"ort geri verme {_r(v['ort_geri_verme_r'])} R; kazananlarda gerçekleşen/işlem içi en iyi {_yz(v['kazananlarda_gerceklesen_mfe_orani'])} (n={v['kazanan_n']})")
+    t = E["toparlanma"]
+    L += ["", f"## 11. Düşüşten toparlanma süresi (n={t['n']})" + (f" ({YETERSIZ})" if t["etiket"] else "")]
+    if t["durum"] == "ok":
+        L.append(f"- En uzun düşüş: {t['en_uzun']['islem']} işlem, {t['en_uzun']['gun']:.1f} gün" + ("" if t["en_uzun"]["bitti"] else " (hâlâ sürüyor)"))
+        L.append(f"- Şu an: " + (f"zirvenin altında, {t['simdi']['islem']} işlem, {t['simdi']['gun']:.1f} gündür" if t["su_an_dususte"] else "zirvede"))
+    else:
+        L.append("- veri yok")
+    c = E["puan_kalibrasyonu"]
+    L += ["", f"## 12. Süzgeç puanı kalibrasyonu (n={c['n_puanli']} puanlı / {c['n']} işlem)" + (f" ({YETERSIZ})" if c["etiket"] else "")]
+    if c["durum"] == "ok":
+        for r in c["dilimler"]:
+            L.append(f"- puan {r['dilim'][0]:.1f}–{r['dilim'][1]:.1f}: n={r['n']}, ort puan {r['ort_puan']:.2f}, gerçekleşen kazanma {_yz(r['kazanma_orani'], 0)}"
+                     + (f" ({r['not']})" if r["not"] else ""))
+    else:
+        L.append("- veri yok (puanlı işlem yok)")
+    return L
 
 
 def render_md(d: dict) -> str:
@@ -785,4 +972,5 @@ def render_md(d: dict) -> str:
     for r in kk["sayiya_gore"][:5]:
         L.append(f"- {r['kol']} · {r['rejim']} · {r['yon']} · {r['varlik_sinifi']} · {r['saat']}: {r['kayip_sayisi']} kayıp, {_r(r['toplam_kayip_r'])} R"
                  + (f" ({r['not']})" if r["not"] else ""))
+    L += _render_ek(d.get("ek_bolumler"))
     return "\n".join(L) + "\n"
