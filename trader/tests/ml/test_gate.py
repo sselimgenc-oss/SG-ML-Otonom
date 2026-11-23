@@ -82,7 +82,7 @@ def test_gate_rejects_when_dsr_trials_explode():
 
 def test_walk_forward_folds_are_purged_and_non_overlapping(table):
     folds = make_folds(table)
-    assert len(folds) == 4                                            # §3.3: 2026-04 sonuna kadar 4 test dilimi
+    assert len(folds) == 7                                            # §3.3: kesim EGITIM_KESIMI (kilit acik: 2026-11-01) -> 7 test dilimi (kilit kapaliyken 2026-04 sonuna kadar 4)
     gap = (HORIZON_BARS + EMBARGO_BARS) * BAR
     for f in folds:
         tr, te = table.iloc[f["train_rows"]], table.iloc[f["test_rows"]]

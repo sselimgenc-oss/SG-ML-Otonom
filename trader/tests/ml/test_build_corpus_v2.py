@@ -194,7 +194,7 @@ def test_label_columns_equal_multi_r_labels(mod, candles, built):
     assert (t["label_end_ts_2r"].dropna() <= END).all()
 
 
-def test_features_equal_guarded_wrapper(mod, candles, built):
+def test_features_equal_guarded_wrapper(mod, candles, built, monkeypatch):
     t = built["a"]["table"]
     funding = {p: mod.load_funding(built["a"]["hist"], p, END) for p in PAIRS}
     c = t[["pair", "ts", "side", "planned_entry", "planned_stop"]]
@@ -205,7 +205,9 @@ def test_features_equal_guarded_wrapper(mod, candles, built):
     for col in mod.R03_EXTRA:
         np.testing.assert_array_equal(t[col].to_numpy(float), r03[col].to_numpy(float))
     assert t[list(r02.columns)].notna().to_numpy().mean() > 0.5                             # anlamsiz (hep NaN) karsilastirma degil
-    # sarmalayici kilitli donemi reddeder
+    # sarmalayici kilitli donemi reddeder (23.11.2026: kilit acik; mekanizma kapali bayrakla sinanir)
+    from trader_ml import guards as _G
+    monkeypatch.setattr(_G, "KILIT_ACIK", False)
     late = {p: d.copy() for p, d in candles.items()}
     late[PAIRS[1]].index = late[PAIRS[1]].index + pd.Timedelta(days=400)
     with pytest.raises(HoldoutViolation):
