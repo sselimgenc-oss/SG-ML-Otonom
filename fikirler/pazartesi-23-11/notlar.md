@@ -56,3 +56,14 @@ kâğıt bot 44 enstrümanla çalışıyor (health.py:690 _c_open_price).
 4) 23.11 sabah Telegram: "Açık işlemlerin kâr/zararı panelle tutmuyor". canli-durum 09:05Z: 8 açık pozisyonun hepsinde mark var,
    mutabakat 10:34 TSİ "geçti". Motor 07:34Z (10:34 TSİ, oto-güncelleme) yeniden başlamış; ilk dakikalarda mark yok -> geçici uyarı şüphesi.
    Kontrol: iki uyarı da yeniden başlatmaya denk mi? health _c_open_price'ta mutabakat'taki _yeni_basladi benzeri susturma yok.
+
+## KARARLAR (23.11 öğleden sonra)
+- d uygulandı: canlı kasa tavanı 2000 $ (85a5aa9). b uygulandı: ana para kilidi %15, Telegram /devam ile açılır, yeniden silahlanma kalıcı (e952096).
+- TON kâğıttan çıkarıldı (Binance SETTLING), evren hariç listesinde.
+- Repo GİZLİ yapıldı (kullanıcı). oto_guncelle GitHub token desteği (c3500fa); kullanıcı sunucuda /etc/trader-github-token (fine-grained, yalnız Actions:read) oluşturacak; bir kez elle kurulum.
+- CANLI = KÂĞIT BİREBİR (c genişledi): price_action_lab_ml + 32 kol + ML filtresi, veto kapalı, 43 enstrüman (kripto+hisse+emtia), aynı kümeler/flat_bar_guard.
+  - Risk sınırları kâğıtla aynı: açık %24 / aynı yön %16 / günlük %8 (yalnız canlıya ayrı sınır; HARD_LIMITS testnet/geri test için dokunulmaz).
+  - İşlem başına risk %1 (kâğıtla aynı) — risk kademe üst sınırı buna göre yükseltilecek.
+  - Günlük zarar kuralı kâğıttaki gibi (açık risk sayılmaz).
+  - Çıkış kuralları (başa baş stop + kısmi kapama) canlı borsa için de yazılacak; canlıdan önce prova.
+  - ML modeli: canlı, kâğıdın model klasörünü salt-okur (öneri, teknik).
