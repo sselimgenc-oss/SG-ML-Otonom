@@ -442,3 +442,10 @@ def test_c1_goc_wired_motor_stopped_marker_and_refusal_retry():
 def test_durum_yayinla_whitelists_c1_goc_raporu():
     t = (DEPLOY / "durum_yayinla.sh").read_text(encoding="utf-8")
     assert "c1_goc_raporu.json" in t.split("for f in", 1)[1].split("; do", 1)[0]
+
+
+def test_uzun_omurlu_daemonlar_reboot_sonrasi_acilir():
+    """23.11: trader-telegram.service [Install] bolumu olmadan 'static' idi; sunucu yeniden baslayinca kapali kaldi."""
+    for n in ("trader-telegram.service", "trader-feed.service", "trader-panel.service", "trader-engine@.service"):
+        t = (DEPLOY / n).read_text(encoding="utf-8")
+        assert "[Install]" in t and "WantedBy=multi-user.target" in t, n

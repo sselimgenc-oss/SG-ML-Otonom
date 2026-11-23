@@ -26,3 +26,7 @@ ProtectHome=read-only
 # var/learner: ders aktivasyonu icin yazma; var/learner: /durdur denetim gunlugu (pause_audit.jsonl) icin yazma.
 ReadWritePaths=/opt/trader/var/telegram /opt/trader/shared /opt/trader/user_data -/opt/trader/var/learner -/opt/trader/var-live/learner
 # Kurulum: groupadd trader-tg; usermod -aG trader-tg trader; install -d -m 2770 -o trader -g trader-tg /opt/trader/var/telegram/outbox
+
+[Install]
+# Yeniden baslatmada kendiliginden acilsin (23.11: reboot sonrasi static oldugu icin kapali kalmisti; install.sh enable_now artik gercekten etkinlestirir).
+WantedBy=multi-user.target
