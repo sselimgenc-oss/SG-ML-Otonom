@@ -50,8 +50,10 @@ ML_SCORED = False
 EXIT_MODE = "target"
 PRIORITY = 92                            # M1 (90) ile ayni mumda cakisirsa M1 kazanir; DL1 icin 95 ayrilmis
 FEATURES = {"hb1_body": "body_ratio", "hb1_wick": "wick_ratio", "hb1_rr": "rr"}
-# olay_kimligi sinyal dosyasinda kalir; ML ozellik tasiyicisina (edge_dist_atr) YAZILMAZ: suzgec ozelligini bozardi.
-# "Ayni haberle yeniden giris yok" kontrolu motor katmaninda ayri is (kol defteri okuyamaz).
+# olay_kimligi ML ozellik tasiyicisina (edge_dist_atr) YAZILMAZ: suzgec ozelligini bozardi. `reasons` etiketi `hb1_olay=<kimlik>` olarak
+# tasinir (tum canli ayni yonlu olay kimlikleri "+" ile, kucukten buyuge); gates._features bunu features["hb1_olay"] alanina virgullu METIN olarak yazar (ML sayisal ozellik cikarimi metni atlar).
+# "Ayni haberle yeniden giris yok" kontrolu gates.py `_hb1_olay_karari` (kol defteri okuyamaz).
+OLAY_ETIKET = "hb1_olay="
 
 # ---- adlandirilmis sabitler (giris kurali)
 ESIK_PUAN = 0.6          # |sonumlu puan| alt siniri. Tek olay puani = yon * siddet/3 * guven * sonum <= 1; 0,6 ~ "taze, siddet 3, guven >= 0,6"
@@ -121,7 +123,8 @@ def yeniden_sonumle(s: dict, D_ms: int) -> dict:
     ayni = [e for e in canli if e["yon"] == yon] if yon else []
     en_yeni = max(ayni, key=lambda e: (e["alim_ms"], e["kimlik"]), default=None)
     return {**s, "puan": puan, "teyit_kaynak": len({k for e in ayni for k in e["kaynaklar"]}),
-            "max_siddet": max((e["siddet"] for e in ayni), default=0), "olay_kimligi": en_yeni["kimlik"] if en_yeni else 0}
+            "max_siddet": max((e["siddet"] for e in ayni), default=0), "olay_kimligi": en_yeni["kimlik"] if en_yeni else 0,
+            "olay_kimlikleri": sorted({e["kimlik"] for e in ayni})}
 
 
 def sinyal_oku(yol: Path | None = None) -> tuple[dict | None, str | None]:
@@ -212,7 +215,9 @@ def compute(inp: ArmInput):
     body = float(abs(p.c[i] - p.o[i]) / rng)
     wick = float((p.h[i] - max(p.o[i], p.c[i])) / rng) if side == "long" else float((min(p.o[i], p.c[i]) - p.l[i]) / rng)
     COUNTERS["aday"] += 1
+    ids = s.get("olay_kimlikleri")                      # tum canli ayni yonlu olaylar (olaylar yoksa yalniz en yeni kimlik)
+    ids = sorted({int(x) for x in ids}) if ids else ([int(s["olay_kimligi"])] if int(s["olay_kimligi"]) > 0 else [])
     tab.put(i, setup=SETUP, side=side, skip=None,
-            labels=["hb1", f"puan={s['puan']:+.2f}", f"k={s['teyit_kaynak']}", f"s={s['max_siddet']}"], entry=entry,
+            labels=["hb1", f"puan={s['puan']:+.2f}", f"k={s['teyit_kaynak']}", f"s={s['max_siddet']}", f"{OLAY_ETIKET}{'+'.join(map(str, ids)) if ids else 0}"], entry=entry,
             stop=stop, target=target, rr=RR, sda=PF.STOP_ATR, ema=np.nan, body=body, wick=wick, edge=np.nan, pb=0)
     return tab.frame()
