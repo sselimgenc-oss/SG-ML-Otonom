@@ -29,7 +29,7 @@ ROOT = Path(__file__).resolve().parents[2]
 UTC = timezone.utc
 PAPER = load_cli_config(ROOT / "config", "learner", "paper")
 ALL_ARMS = tuple(f"{s_}@{tf}" for s_ in ("T1", "R1", "TF1", "B1", "H2", "S1", "F1") for tf in ("15m", "1h", "4h", "1d"))   # WP-12a: TF1/B1; WP-12b: H2/S1/F1
-PAPER_ARMS = ALL_ARMS + ("M1@1h", "M1@4h", "M1@15m", "M1@1d")   # 20 Kasim: M1 15dk/1g kagitta acik; DD-12 WP-14: M1 (ML'in kendi adayi) config/engine.paper.json'a eklendi
+PAPER_ARMS = ALL_ARMS + ("M1@1h", "M1@4h", "M1@15m", "M1@1d", "HB1@1h")   # 23.11: HB1 haber kolu; 20 Kasim: M1 15dk/1g kagitta acik; DD-12 WP-14: M1 (ML'in kendi adayi) config/engine.paper.json'a eklendi
 
 
 # --------------------------------------------------------------------------- arms paketi
@@ -126,7 +126,7 @@ def test_arm_tf_helpers_and_old_contract_untouched():
 # --------------------------------------------------------------------------- yapilandirma
 def test_config_arms_and_caps():
     assert PAPER.strategy == NAME and PAPER.arms == PAPER_ARMS
-    assert PAPER.arm_max_positions == {"default": 6, "M1": 4, "L1": 4}   # C1 kaldirildi (CT/ML ayriligi); 20 Kasim: kagit tavanlari gevsetildi
+    assert PAPER.arm_max_positions == {"default": 6, "M1": 4, "L1": 4, "HB1": 3}   # 23.11: HB1 3; C1 kaldirildi (CT/ML ayriligi); 20 Kasim: kagit tavanlari gevsetildi
     c = apply_overrides(PAPER, arms={"T1": ["1h", "4h"]}, arm_max_positions=2)
     assert c.arms == ("T1@1h", "T1@4h") and c.arm_max_positions == {"default": 2}
     for kw in ({"arms": ["T1@5m"]}, {"arms": ["T1@1h", "T1@1h"]}, {"arms": "T1@1h"}, {"arm_max_positions": 0},
