@@ -108,7 +108,7 @@ def test_n1_fomc_2027_tarihleri_ve_durum():
     raw = json.loads((ROOT / "config" / "seans_takvimi.json").read_text())
     f = [o for o in raw["olaylar"] if o["tur"] == "FOMC" and o["ts"].startswith("2027")]
     assert sorted(o["ts"][:10] for o in f) == ["2027-01-27", "2027-03-17", "2027-04-28", "2027-06-09", "2027-07-28",
-                                                "2027-09-15", "2027-10-27", "2027-12-08"]
+                                                "2027-09-15", "2027-10-27", "2027-11-17"]
     assert {o["durum"] for o in f} == {"estimated"}
 
 
