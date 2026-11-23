@@ -55,7 +55,7 @@ PINNED_SHA = {
     "engine.base.json": "ba218ea0404803c9e5af7ffbd276fad79b6d0af714c94150172f7d56e674c328",   # WP-06a: yalniz veto_config yolu
     "engine.learner.json": "30ca2842c40cacafbf6cdd90c9e6f1f54fc62b9a9ec913476d1399ac5352cb12",
     "engine.testnet.json": "54247bbd4d0fcea5eda5add465809938178ec4a1decf7f61cb9aa838daa4e952",
-    "engine.live.json": "47ca5d092009a9708ac2497b3654f744b044c7e4ca1ae208ff0b72e886c87368",   # 23.11 kullanici karari: asama B esikleri (canli = kagit; paper sistem anahtarlari + same_dir 0.06 + korelasyon/kayip_freni/toplam_buyukluk_kat)
+    "engine.live.json": "7b773a009cfaff555bd862995a3a54b72c97ba1375f0b4f0dfe5c538267d934e",   # 23.11 kullanici karari: asama B esikleri + HB1 haber kolu (canli = kagit; paper sistem anahtarlari + same_dir 0.06 + korelasyon/kayip_freni/toplam_buyukluk_kat)
 }
 # 23.11 kullanici karari: canli = kagit. engine.live.json'a eklenen kagit sistem anahtarlari (+ pairs yerine kagit evreni).
 LIVE_PAPER_SYSTEM_KEYS = {"veto_mode", "pairs", "optional_pairs", "strategy", "arms", "arm_max_positions", "ml_mode", "shadow_blocks",

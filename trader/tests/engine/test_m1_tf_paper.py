@@ -28,7 +28,7 @@ def test_paper_config_has_m1_all_four_tfs_only_on_paper():
     arms = _cfg("engine.paper.json")["arms"]
     for tf in ("15m", "1h", "4h", "1d"):
         assert f"M1@{tf}" in arms
-    assert len(arms) == len(set(arms)) == 32
+    assert len(arms) == len(set(arms)) == 33     # 23.11: + HB1@1h (haber kolu)
     assert _cfg("engine.live.json")["arms"] == arms      # 23.11 kullanici karari: canli = kagit (ayni kurulumlar)
     for other in ("engine.base.json", "engine.learner.json", "engine.testnet.json"):
         p = ROOT / "config" / other
