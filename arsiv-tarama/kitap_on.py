@@ -18,7 +18,7 @@ import sys
 from pathlib import Path
 
 try:
-    import fitz  # pymupdf
+    import pymupdf as fitz
 except ImportError:
     sys.exit("pymupdf yok: once  pip install pymupdf")
 
@@ -72,6 +72,9 @@ def main() -> int:
     ap.add_argument("--klasor", action="append", required=True, type=Path)
     ap.add_argument("--cikti", type=Path, default=Path("kitap_on.jsonl"))
     a = ap.parse_args()
+    yok = [str(k) for k in a.klasor if not k.is_dir()]
+    if yok:
+        sys.exit("Klasor bulunamadi:\n  " + "\n  ".join(yok) + "\nDosya Gezgini adres cubugundaki yolu tirnak icinde ver.")
     pdfler = sorted({p for k in a.klasor for p in k.rglob("*") if p.suffix.lower() == ".pdf"})
     print(f"{len(pdfler)} PDF bulundu")
     gorulen, n_yaz, taranmis = set(), 0, []
