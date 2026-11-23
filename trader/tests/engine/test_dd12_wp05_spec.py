@@ -106,6 +106,7 @@ class E:
         self.cfg = _cfg(self.tmp, self.pairs, **_paper_over(self.pairs, **over))
         self.view = T5.SynthView(self.pairs, start - timedelta(days=2), start + timedelta(days=4), clock=self.clock)
         self.eng = build_engine(self.cfg, clock=self.clock, view=self.view)
+        self.eng.gate.seans_disi_aktif = False  # eski WP-05 harness zaman damgalari hafta sonu/acilis oncesi pencerelere duser; bu kapi (seans_disi) o beklentilerin yerine gecer
         self.eng.signals = T5.FakeSignalSource()
         led = self.eng.ledger
         try:
