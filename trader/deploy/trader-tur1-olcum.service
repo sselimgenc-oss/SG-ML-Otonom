@@ -1,0 +1,25 @@
+[Unit]
+Description=Trader tur 1 olcum raporu (rakip kiyasi, dayaniklilik, sans/kuyruk, canli sartlari, yon, kayip kumeleri; yalniz bilgi)
+Documentation=file:///opt/trader/docs/ml/tur1-olcum.md
+OnFailure=trader-health-fail@%n.service
+
+[Service]
+Slice=trader.slice
+Type=oneshot
+User=trader
+Group=trader
+WorkingDirectory=/opt/trader
+# Defter ve market.sqlite SALT OKUNUR; kilitli donem okunmaz. Cikti: var/durum/tur1_olcum_v1.json + tur1_olcum.md (atomik).
+ExecStart=/usr/bin/python3 -I /opt/trader/scripts/tur1_olcum_run.py --once
+TimeoutStartSec=600
+MemoryMax=384M
+CPUQuota=30%
+Nice=15
+IOSchedulingClass=idle
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/opt/trader/var/durum
+PrivateNetwork=true
+RestrictAddressFamilies=AF_UNIX
