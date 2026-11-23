@@ -50,3 +50,74 @@ def test_yon_onemi_arastirma_semasi_hala_calisir(tmp_path):
                                                 "model": {"kind": "logistic", "coef": [1.0, 3.0]}}))
     r = T.yon_ozelligi_onemi(tmp_path)["paketler"][0]
     assert r["sema"] == "features" and r["ozellik"] == "f_side_sign" and r["onem_payi"] == pytest.approx(0.75)
+
+
+# ---------------------------------------------------------------- Duzeltme 5: gunluk (1d) kollar
+GUN = 86_400_000
+
+
+def market_4h(tmp_path, pair="BTC/USDT", gun=260, eksik_gun=()):
+    """Yalniz 4s mumlar (market.sqlite gercekte 1d tutmaz); 1d bu mumlardan kurulur."""
+    import sqlite3
+    p = tmp_path / "market1d.sqlite"
+    c = sqlite3.connect(str(p))
+    c.executescript("""CREATE TABLE bars(kind TEXT NOT NULL, pair TEXT NOT NULL, tf TEXT NOT NULL, open_ms INTEGER NOT NULL,
+      o REAL NOT NULL, h REAL NOT NULL, l REAL NOT NULL, c REAL NOT NULL, v REAL NOT NULL DEFAULT 0, written_ms INTEGER NOT NULL,
+      PRIMARY KEY(kind,pair,tf,open_ms)) WITHOUT ROWID; PRAGMA user_version=1;""")
+    rng = np.random.default_rng(9)
+    px, rows = 100.0, []
+    for d in range(gun):
+        for k in range(6):
+            ms = T0 + d * GUN + k * 4 * H
+            o, px = px, px * (1 + rng.normal(0, 0.01))
+            if d in eksik_gun and k == 3:
+                continue
+            rows.append(("last", pair, "4h", ms, o, max(o, px) * 1.002, min(o, px) * 0.998, px, 1.0, ms + 5 * H))
+    c.executemany("INSERT INTO bars(kind,pair,tf,open_ms,o,h,l,c,v,written_ms) VALUES (?,?,?,?,?,?,?,?,?,?)", rows)
+    c.commit(), c.close()
+    return p
+
+
+def mk1d(i, **kw):
+    t = mk(i, arm="T1@1d", entry_ms=T0 + (40 + i * 2) * GUN + 3 * H, **kw)
+    t["tf"] = "1d"
+    t["exit_ts"] = iso(T0 + (40 + i * 2) * GUN + 3 * H + 2 * GUN)
+    t["bars_held"] = 2
+    return t
+
+
+def test_gunluk_mum_4s_den_kurulur_eksik_gun_atlanir(tmp_path):
+    m = T.MumDeposu(market_4h(tmp_path, eksik_gun=(5,)))
+    try:
+        assert m.bar("BTC/USDT", "1d", T0 + 4 * GUN) is not None
+        assert m.bar("BTC/USDT", "1d", T0 + 5 * GUN) is None            # 6 mumdan biri eksik
+        o, h, l, c = m.bar("BTC/USDT", "1d", T0 + 6 * GUN)
+        assert h >= max(o, c) and l <= min(o, c)
+    finally:
+        m.close()
+
+
+def test_gunluk_kollar_rastgele_giris_ve_gecikmeye_girer(tmp_path):
+    ts = [mk1d(i) for i in range(12)] + [mk(100 + i) for i in range(3)]
+    m = T.MumDeposu(market_4h(tmp_path))
+    try:
+        ra = T.rastgele_giris(ts, m, 200, 3)
+        dy = T.dayaniklilik(ts, m)
+    finally:
+        m.close()
+    assert ra["durum"] == "ok" and "1d" in ra["kapsanan_tf"] and ra["n"] == 12
+    assert ra["atlanan"] == 3 and ra["atlanan_tf"] == {"1h": 3} and ra["atlanan_neden"] == {"mum_yok": 3}   # 1h mumu yok: acikca yazilir
+    g = dy["gecikme"]["1_mum"]
+    assert g["durum"].get("ok", 0) + g["durum"].get("kacirildi", 0) == 12 and g["veri_yok_tf"] == {"1h": 3}
+
+
+def test_gunluk_veri_yoksa_acikca_atlanan_sayilir(tmp_path):
+    ts = [mk1d(i) for i in range(5)]
+    m = T.MumDeposu(market(tmp_path))                                   # yalniz 1h mumu var
+    try:
+        ra = T.rastgele_giris(ts, m, 200, 3)
+        dy = T.dayaniklilik(ts, m)
+    finally:
+        m.close()
+    assert ra["durum"] == "veri_yok" and ra["atlanan"] == 5 and ra["atlanan_tf"] == {"1d": 5}
+    assert dy["gecikme"]["1_mum"]["veri_yok_tf"] == {"1d": 5}

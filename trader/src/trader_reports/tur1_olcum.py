@@ -40,7 +40,7 @@ KUME_ILK_N = 10              # Kayip kumeleri: listelenecek kume sayisi.
 KUME_MIN_ISLEM = 3           # Bir kumede bundan az kayip varsa "az ornek" notu.
 SEED = 20261123              # Tum rastgelelik bu tohumdan turetilir.
 
-TF_MS = {"15m": 900_000, "1h": 3_600_000, "4h": 14_400_000}
+TF_MS = {"15m": 900_000, "1h": 3_600_000, "4h": 14_400_000, "1d": 86_400_000}   # 1d: market.sqlite 4s mumlarından kurulur (tam 6 mumlu UTC günü)
 SIDE_FEATURE = "f_side_sign"                      # araştırma paketi: meta.features içinde
 SIDE_FEATURES = ("f_side_sign", "side_long")      # canlı aile paketi: meta.ozellikler içinde "side_long"
 FEATURE_KEYS = ("features", "ozellikler")         # paket şeması: araştırma = features, canlı aile (ortak_ogrenme) = ozellikler
@@ -125,10 +125,30 @@ class MumDeposu:
             guard.check_window(start_ms, n, ms)
         except BacktestArgError:
             return None
+        if tf == "1d":
+            return self._rows_1d(pair, start_ms, n)
         cur = self.conn.execute(
             "SELECT open_ms, o, h, l, c FROM bars WHERE kind='last' AND pair=? AND tf=? AND open_ms>=? AND open_ms<? "
             "AND written_ms >= open_ms + ? ORDER BY open_ms", (pair, tf, start_ms, start_ms + n * ms, ms))
         return cur.fetchall()
+
+    def _rows_1d(self, pair, start_ms, n):
+        """Günlük mumlar 4s'lerden kurulur: yalnız TAM 6 x 4s mumlu UTC günü (motor/`counterfactual` kuralıyla aynı); eksik gün yok sayılır."""
+        h4, gun = TF_MS["4h"], TF_MS["1d"]
+        rows = self.conn.execute(
+            "SELECT open_ms, o, h, l, c, written_ms FROM bars WHERE kind='last' AND pair=? AND tf='4h' AND open_ms>=? AND open_ms<? "
+            "ORDER BY open_ms", (pair, start_ms, start_ms + n * gun)).fetchall()
+        gunler: dict = defaultdict(list)
+        for r in rows:
+            if r[5] >= r[0] + h4:
+                gunler[r[0] - r[0] % gun].append(r)
+        out = []
+        for g in sorted(gunler):
+            bs = gunler[g]
+            if [b[0] for b in bs] != [g + k * h4 for k in range(6)]:
+                continue
+            out.append((g, bs[0][1], max(b[2] for b in bs), min(b[3] for b in bs), bs[-1][4]))
+        return out
 
     def bar(self, pair: str, tf: str, open_ms: int):
         """(o, h, l, c) ya da None (yok/kilitli/bilinmeyen tf)."""
@@ -183,11 +203,21 @@ def _kurulum_islemleri(trades, mumlar: MumDeposu):
     from trader_core import tur1_rastgele as RG
     gruplar: dict = defaultdict(list)
     for t in trades:
-        if t["tf"] not in TF_MS or not t.get("planned_entry") or not t.get("planned_stop"):
+        if t["tf"] not in TF_MS:
+            at(t, "tf_bilinmiyor")
+            continue
+        if not t.get("planned_entry") or not t.get("planned_stop"):
+            at(t, "plan_yok")
             continue
         parca = "once" if t["entry_ts"] < guard.H0_PAD_ISO else "sonra"
         gruplar[(t["pair"], t["tf"], parca)].append(t)
-    sonuc, atlanan = {}, 0
+    sonuc = {}
+    neden: dict = defaultdict(int)          # atlanma nedeni -> sayı
+    atlanan_tf: dict = defaultdict(int)     # zaman dilimi -> atlanan işlem sayısı (sessiz düşme yok)
+
+    def at(t, ne):
+        neden[ne] += 1
+        atlanan_tf[t.get("tf") or "?"] += 1
     for (pair, tf, parca), ts in gruplar.items():
         ms = TF_MS[tf]
         giris = [_ms(t["entry_ts"]) - _ms(t["entry_ts"]) % ms for t in ts]
@@ -198,20 +228,21 @@ def _kurulum_islemleri(trades, mumlar: MumDeposu):
             lo = max(lo, guard.H1_MS)
         mum = mumlar.frame(pair, tf, lo, hi)
         if mum is None or len(mum["ms"]) < 30:
-            atlanan += len(ts)
+            for t in ts:
+                at(t, "mum_yok")
             continue
         atr_ = RG.atr_onceki(mum, giris)
         sat, tr = [], []
         for t, g, a in zip(ts, giris, atr_):
             if not (a == a and a > 0):
-                atlanan += 1
+                at(t, "atr_yok")
                 continue
             tutma = int(t["bars_held"]) if t.get("bars_held") else max(1, round((_ms(t["exit_ts"]) - _ms(t["entry_ts"])) / ms))
             sat.append((g, sig(t), abs(t["planned_entry"] - t["planned_stop"]) / a, max(1, tutma)))
             tr.append(t)
         if sat:
             sonuc[(pair, tf, parca)] = (mum, sat, tr)
-    return sonuc, atlanan
+    return sonuc, {"toplam": sum(neden.values()), "neden": dict(neden), "tf": dict(atlanan_tf)}
 
 
 def rastgele_giris(trades, mumlar: MumDeposu | None, b: int = RASTGELE_B, seed: int = SEED) -> dict:
@@ -220,15 +251,17 @@ def rastgele_giris(trades, mumlar: MumDeposu | None, b: int = RASTGELE_B, seed: 
     from trader_core import tur1_rastgele as RG
     if mumlar is None or not trades:
         return {"durum": "veri_yok", "n": 0, "etiket": YETERSIZ}
-    gr, atlanan = _kurulum_islemleri(trades, mumlar)
+    gr, at = _kurulum_islemleri(trades, mumlar)
+    atlanan = at["toplam"]
     n = sum(len(v[1]) for v in gr.values())
     if not n:
-        return {"durum": "veri_yok", "n": 0, "atlanan": atlanan, "etiket": YETERSIZ}
+        return {"durum": "veri_yok", "n": 0, "atlanan": atlanan, "atlanan_neden": at["neden"], "atlanan_tf": at["tf"], "etiket": YETERSIZ}
     gercek = toplam(t["net_r"] for v in gr.values() for t in v[2])
     k = RG.k2_toplam({key: (v[0], v[1]) for key, v in gr.items()}, gercek, b, seed, guard.H1_MS)
     sim = k["sim"]
     yuzdelik = 100.0 * float((np.sum(sim < gercek) + 0.5 * np.sum(sim == gercek)) / sim.size)
-    return {"durum": "ok", "n": n, "atlanan": atlanan, "simulasyon_sayisi": int(sim.size), "bizim_toplam_r": gercek,
+    return {"durum": "ok", "n": n, "atlanan": atlanan, "atlanan_neden": at["neden"], "atlanan_tf": at["tf"],
+            "kapsanan_tf": sorted({k[1] for k in gr}), "simulasyon_sayisi": int(sim.size), "bizim_toplam_r": gercek,
             "bizim_ort_r": gercek / n, "rastgele_ort_toplam_r": float(sim.mean()), "rastgele_ort_r": float(sim.mean() / n),
             "rastgele_p5": float(np.percentile(sim, 5)), "rastgele_p50": float(np.percentile(sim, 50)),
             "rastgele_p95": float(np.percentile(sim, 95)), "yuzdelik": yuzdelik, "p": k["p"], "asama": k["asama"],
@@ -288,16 +321,19 @@ def gecikmeli_r(t: dict, mumlar: MumDeposu | None, tf: str, k: int) -> tuple[flo
 
 
 def _senaryo(trades, fn) -> dict:
-    xs, durum = [], defaultdict(int)
+    xs, durum, yok_tf = [], defaultdict(int), defaultdict(int)
     baz = []
     for t in trades:
         r, d = fn(t)
         durum[d] += 1
+        if d == "veri_yok":
+            yok_tf[t.get("tf") or "?"] += 1
         if r is not None:
             xs.append(r)
             baz.append(t["net_r"])
     o = ozet(xs)
     o["durum"] = dict(durum)
+    o["veri_yok_tf"] = dict(yok_tf)          # sessiz düşme yok: hangi zaman diliminde kaç işlem için mum verisi yok
     o["ayni_islemlerde_gercek_net"] = toplam(baz)
     o["kalan_oran"] = (o["toplam"] / toplam(baz)) if baz and toplam(baz) > 0 else None
     return o
@@ -513,6 +549,10 @@ def rapor(trades_raw, decisions_raw, mumlar, *, kasa0: float, now: datetime, mod
                          "kayip_kumeleri": kayip_kumeleri(trades)}}
 
 
+def _sozluk(d):
+    return ", ".join(f"{k}={v}" for k, v in sorted((d or {}).items())) or "yok"
+
+
 def _r(x, nd=2):
     return "—" if x is None else f"{x:+.{nd}f}".replace(".", ",")
 
@@ -530,13 +570,16 @@ def render_md(d: dict) -> str:
                  f"bizim yüzdelik **{ra['yuzdelik']:.1f}**, p={ra['p']:.3f}" + (f" ({YETERSIZ})" if ra.get("etiket") else ""))
     else:
         L.append("- Rastgele giriş: ölçülemedi (mum verisi yok)")
+    if ra.get("atlanan"):
+        L.append(f"  - Kıyas dışı kalan işlem: {ra['atlanan']} (neden: {_sozluk(ra.get('atlanan_neden'))}; zaman dilimi: {_sozluk(ra.get('atlanan_tf'))})")
     for ad, k in (("Hep long", "hep_long"), ("Hep short", "hep_short")):
         L.append(f"- {ad} (aynı giriş zamanları, tahmin): toplam {_r(rk[k]['toplam'])} R, ort {_r(rk[k]['ort'], 3)} R")
     L.append("- Hiçbir şey yapmamak: 0 R")
     dy = B["dayaniklilik"]
     L += ["", "## 2. Gecikme / masraf dayanıklılığı", f"- Gerçek net: {_r(dy['gercek_net_r'])} R (n={dy['n']})"]
     for k, v in dy["gecikme"].items():
-        L.append(f"- Giriş {k} gecikmeli: n={v['n']}, net {_r(v['toplam'])} R, kalan oran {_r(v['kalan_oran'], 2)}; durum {v['durum']}")
+        L.append(f"- Giriş {k} gecikmeli: n={v['n']}, net {_r(v['toplam'])} R, kalan oran {_r(v['kalan_oran'], 2)}; durum {v['durum']}"
+                 + (f"; veri yok (zaman dilimi): {_sozluk(v['veri_yok_tf'])}" if v.get("veri_yok_tf") else ""))
     for k, v in dy["masraf"].items():
         L.append(f"- Masraf {k}: net {_r(v['toplam'])} R, kalan oran {_r(v['kalan_oran'], 2)}")
     L.append(f"- 15 dk mum saati kayması: **tam ölçülemedi** (sinyali yeniden üretmek gerekir). Vekil: giriş 15 dk gecikmeli n="
