@@ -19,6 +19,7 @@
             "deadline_s": {"haftalik_ozet": 300, "lesson": 300, "haber_kolu": 120, "yorumcu": 300}},
   "prices_usd_per_mtok": {
     "claude-haiku-5-5":  {"input": 0.10, "output": 0.50, "cache_write_5m": 0.125, "cache_write_1h": 0.20, "cache_read": 0.01},
-    "claude-sonnet-5-5": {"input": 2.00, "output": 10.00, "cache_write_5m": 2.50, "cache_write_1h": 4.00, "cache_read": 0.10}
+    "claude-sonnet-5-5": {"input": 2.00, "output": 10.00, "cache_write_5m": 2.50, "cache_write_1h": 4.00, "cache_read": 0.10},
+    "claude-fable-5-2":  {"input": 8.00, "output": 40.00, "cache_write_5m": 10.00, "cache_write_1h": 16.00, "cache_read": 0.20}
   }
 }

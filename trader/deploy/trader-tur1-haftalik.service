@@ -1,0 +1,28 @@
+[Unit]
+Description=Trader tur 1 haftalik YZ yorumu (olcum raporunu 3-4 maddede ozetler; YETKISI YOK, yalniz Telegram mesaji; haftalik_ozet butce payi)
+Documentation=file:///opt/trader/docs/ml/tur1-olcum.md
+After=network-online.target
+Wants=network-online.target
+OnFailure=trader-health-fail@%n.service
+
+[Service]
+Slice=trader.slice
+Type=oneshot
+User=trader
+Group=trader
+WorkingDirectory=/opt/trader
+# ANTHROPIC_API_KEY_HAFTALIK_OZET (yoksa sessizce atlanir, cikis 0). Girdi var/durum/tur1_olcum.md + tur1_karar_son.json SALT OKUNUR.
+EnvironmentFile=/etc/trader-lesson.env
+Environment=TELEGRAM_VAR_DIR=/opt/trader/var/telegram
+ExecStart=/usr/bin/python3 -I /opt/trader/scripts/tur1_haftalik_yorum_run.py --once
+TimeoutStartSec=420
+MemoryMax=256M
+CPUQuota=30%
+Nice=15
+IOSchedulingClass=idle
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+# user_data = butce deposu (budget.authorize/record); var/durum = hafta isareti; var/telegram = outbox (yoksa '-' ile atlanir; dizin 2770 trader:trader-tg)
+ReadWritePaths=/opt/trader/user_data /opt/trader/var/durum -/opt/trader/var/telegram

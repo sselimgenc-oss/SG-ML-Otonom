@@ -674,6 +674,8 @@ enable_now trader-tutarlilik.timer
 enable_now trader-mutabakat.timer
 # Tur 1 olcum raporu (gunluk 05:10 UTC, gece islerinden sonra; yalniz bilgi, botu degistirmez). Cikti var/durum; durum-yayin ml/ altina yayimlar
 enable_now trader-tur1-olcum.timer
+# Tur 1 haftalik YZ yorumu (pazar 06:00 UTC; YETKISI YOK, yalniz Telegram). Butce payi haftalik_ozet; anahtar ANTHROPIC_API_KEY_HAFTALIK_OZET yoksa sessizce atlar
+enable_now trader-tur1-haftalik.timer
 # YZ yorumcu (ust lig §3; gunluk 05:40 UTC; YETKISI YOK). unit ReadWritePaths (namespace) icin var/durum/yorumcu ilk kurulumda olussun.
 # Anahtar ANTHROPIC_API_KEY_YORUMCU (/etc/trader-lesson.env) yoksa servis "bugun rapor yok" dosyasi yazar (zarari yok); yine de bildir
 safe_tree_path "$TRADER_DIR/var/durum" "$TRADER_DIR/var/durum/yorumcu"
@@ -750,7 +752,7 @@ else MISSING+=("/etc/trader-testnet.env  -> BINANCE_API_KEY ve BINANCE_API_SECRE
 # birimleri kalmamali (kaldirma yukarida yapildi; eski bir kopya kaldiysa burada gorunur).
 say "DD-12 zamanlayici denetimi"
 for t in trader-notes.timer trader-weekly-summary.timer trader-ml-retrain.timer trader-universe.timer \
-         trader-counterfactual@learner.timer trader-exit-counterfactual@learner.timer trader-tutarlilik.timer trader-mutabakat.timer trader-tur1-olcum.timer trader-yorumcu.timer trader-durum-yayin.timer trader-haber.timer trader-haber-sinyal.timer trader-piyasa-veri.timer trader-bakim.timer trader-strateji-veri.timer; do
+         trader-counterfactual@learner.timer trader-exit-counterfactual@learner.timer trader-tutarlilik.timer trader-mutabakat.timer trader-tur1-olcum.timer trader-tur1-haftalik.timer trader-yorumcu.timer trader-durum-yayin.timer trader-haber.timer trader-haber-sinyal.timer trader-piyasa-veri.timer trader-bakim.timer trader-strateji-veri.timer; do
   if systemctl is-enabled --quiet "$t" 2>/dev/null; then echo "  etkin: $t"; else echo "UYARI: $t etkin degil (systemctl enable --now $t)"; fi
 done
 for u in trader-veto.service trader-veto.timer trader-engine@twin.service trader-engine-retry@twin.timer; do

@@ -131,6 +131,9 @@ _DEFAULT_PRICES = {
                          "cache_write_1h": 0.20, "cache_read": 0.01},
     "claude-sonnet-5-5": {"input": 2.00, "output": 10.00, "cache_write_5m": 2.50,
                           "cache_write_1h": 4.00, "cache_read": 0.10},
+    # 24.11: fiyat claude-api tablosundan (giris 8, cikis 40, onbellek okuma 0.20 $/MTok); yazma fiyatlari 1.25x/2x kuralindan turetildi (kullanilmaz)
+    "claude-fable-5-2": {"input": 8.00, "output": 40.00, "cache_write_5m": 10.00,
+                         "cache_write_1h": 16.00, "cache_read": 0.20},
 }
 
 
