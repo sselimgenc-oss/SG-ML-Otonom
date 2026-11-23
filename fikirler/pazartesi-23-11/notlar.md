@@ -69,3 +69,12 @@ kâğıt bot 44 enstrümanla çalışıyor (health.py:690 _c_open_price).
   - ML modeli: canlı, kâğıdın model klasörünü salt-okur (öneri, teknik).
 - h GERİ ALINDI (23.11): gizli repoda Actions kotası doldu (eski CT reposu tüketmiş), CI başlamıyordu. Repo canlıya kadar PUBLIC; canlıdan hemen önce gizli + CI maliyet kararı. Sunucudaki /etc/trader-github-token kalıyor.
 - Arşiv taraması (23.11): HİÇBİR klasör atlanmaz. Scalp/Day Trade ileride açılacak kısa vadeli kollar için; Diğer ve İlgi Çekici klasörlerinden alışılmadık fikirler bekleniyor (kart_batch --genis, ilginçlik puanı).
+
+## MADDE 2 KARARI (23.11)
+- Fable'ın 7 maddesi: 1 yön sınırı, 6 basit rakip kıyası, 7 gecikme/masraf testi, 8 sıra karıştırma, 9 canlı şartları, 10 filtrede yön denetimi, 13 v2 paketini aç (fikirler/pazartesi-23-11/madde2_ml_tablo.md).
+- + "ÜST LİG" HATTI (kullanıcı: es geçilmez), hepsi önce GÖLGEDE (kayıt, işlem açmaz), kanıtlanırsa devreye:
+  1) Veri toplama hemen: haber akışı (21.11'de silinen toplayıcı YENİDEN AÇILIR — karar girdisi değil, yalnız kayıt), fonlama, açık pozisyon, long/short oranı.
+  2) LLM haber okuyucu (gölge): haber → olumlu/olumsuz/önemsiz, kayıt; haftalar sonra fiyatla ölç.
+  3) Derin öğrenme fiyat verisinden (milyonlarca mum): yön/oynaklık tahmini → filtreye özellik, gölgede ölç.
+  4) YZ ajanı yorumcu: günlük işlem incelemesi/rapor, işlem yetkisi yok.
+- Not: LLM veto 19-20.11'de kullanıcı kararıyla kaldırılmıştı ("veto nedir, kaldır"), kanıt nedeniyle değil. LLM zaten sistemde: işlem notu + ders + M1 "yapay zekâ adayı" kolu (aylık LLM bütçesi config/budget.json).
