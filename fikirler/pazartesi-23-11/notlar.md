@@ -87,3 +87,4 @@ kâğıt bot 44 enstrümanla çalışıyor (health.py:690 _c_open_price).
 
 ## ÇALIŞMA KURALI (23.11 akşam, kullanıcı)
 - Yeni işe başlanabilir ama HER İŞ için önce kullanıcıdan onay alınır. Tek tek, ne yapılacağı sade anlatılarak.
+- BEKLEYEN (kullanıcı eve gidince): ders sistemi 0 ders üretmiş (gunluk_ozet: aktif/yeni ders 0). Şüphe: /etc/trader-lesson.env ANTHROPIC_API_KEY_LESSON boş. Kontrol: awk ile anahtar dolu/boş + journalctl -u trader-lesson -u trader-notes --since -2d.
