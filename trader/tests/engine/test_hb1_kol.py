@@ -159,3 +159,11 @@ def test_bozuk_dosya_diger_kollari_etkilemez(sinyal):
     assert not HB1.compute(inp)["signal"].any()
     assert not M1.compute(inp)["signal"].any()        # M1 de bagimsiz (paketsiz) bos doner; ikisi birbirinin hatasini tasimaz
     assert "HB1" not in str(M1.__dict__.get("COUNTERS", ""))
+
+
+def test_hb1_sinyal_sozlesmesi_uretici_ile_ayni():
+    """Motor trader_core.haber_sinyal'i ice aktarmaz; sabitler elle kopyalandi, burada esitlik sinanir."""
+    from trader_core import haber_sinyal as HS
+    from trader_engine.strategies.arms import hb1
+    assert (hb1.HS_SEMA, hb1.HS_GECERLILIK_SAAT, hb1.HS_PUAN_SINIR, hb1.HS_H_MS, hb1.HS_CIKTI_DOSYASI) == \
+        (HS.SEMA, HS.GECERLILIK_SAAT, HS.PUAN_SINIR, HS.H_MS, HS.CIKTI_DOSYASI)
