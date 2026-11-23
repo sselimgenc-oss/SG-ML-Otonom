@@ -1,0 +1,10 @@
+[Unit]
+Description=Trader tur 1 haftalik YZ yorumu zamanlayicisi (pazar 06:00 UTC = 09:00 TSI; gunluk olcum raporundan 05:10 sonra)
+
+[Timer]
+OnCalendar=Sun *-*-* 06:00:00 UTC
+Persistent=true
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target

@@ -10,6 +10,7 @@ User=trader
 Group=trader
 WorkingDirectory=/opt/trader
 # Defter ve market.sqlite SALT OKUNUR; kilitli donem okunmaz. Cikti: var/durum/tur1_olcum_v1.json + tur1_olcum.md (atomik).
+Environment=TELEGRAM_VAR_DIR=/opt/trader/var/telegram
 ExecStart=/usr/bin/python3 -I /opt/trader/scripts/tur1_olcum_run.py --once
 TimeoutStartSec=600
 MemoryMax=384M
@@ -20,6 +21,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/opt/trader/var/durum
+# Telegram: gunluk tek satir karar var/telegram/outbox'a YALNIZ degisince yazilir (mutabakat ile ayni bicim; dizin 2770 trader:trader-tg; yoksa '-' ile atlanir, rapor etkilenmez)
+ReadWritePaths=/opt/trader/var/durum -/opt/trader/var/telegram
 PrivateNetwork=true
 RestrictAddressFamilies=AF_UNIX
