@@ -19,13 +19,13 @@ from datetime import datetime
 
 import pandas as pd
 
-from trader_core import regime as R
 from trader_core import signals as S
 
+from .. import arm_guard as AG
 from ..bars import (ARM_TFS, MIN_CONTIG_ARM, STARTUP_BARS_ARM, WINDOW_ARM, arm_tf_delta)
 from .arms import ArmError, ArmInput, find_arm, make_arm_id, mask_to_setups, parse_arm_id
 from .base import ExitPolicy, StrategyContext, StrategyError, StrategyInfo
-from .price_action_v1 import _OHLC, _REENTRY_BLOCK, _param_specs
+from .price_action_v1 import _REENTRY_BLOCK, _param_specs
 from .price_action_v1_ml import PriceActionV1Ml
 
 log = logging.getLogger("engine.strategy.lab")
@@ -76,6 +76,7 @@ class PriceActionLab:
         self._arm_ids: tuple[str, ...] = ()
         self._core_key: tuple | None = None
         self._core_val: pd.DataFrame | None = None
+        self._core_c: tuple[pd.DataFrame, pd.DataFrame] | None = None     # (dolu satirlarin tablosu, dolu tetik) - olu mum yoksa ikisi de tam
         self._reg_cache: dict[str, tuple] = {}                  # cift -> (son 4s acilis, rejim parametreleri, uzunluk, rejim tablosu); tek giris/cift
         self.info = self._make_info(())
         self._inner = _CoreInner(self)
@@ -180,7 +181,7 @@ class PriceActionLab:
         hit = self._reg_cache.get(pair)
         if hit is not None and hit[0] == last and hit[1] == rp and hit[2] == len(h4):
             return hit[3]
-        reg = R.classify_series(h4[_OHLC], rp)
+        reg = AG.regime_series(h4, rp)                          # olu 4s mumlar (hisse/emtia hafta sonu) rejim girdisinden cikar; kriptoda eski yol
         self._reg_cache[pair] = (last, rp, len(h4), reg)
         return reg
 
@@ -193,10 +194,15 @@ class PriceActionLab:
         trig = ctx.bars[ctx.tf]
         h4 = ctx.bars["4h"]
         reg = self._regime(ctx.pair, h4, params)
-        aligned = R.align_to_base(reg, trig.index, 4)
-        core = S.compute_signals(trig[_OHLC], aligned, params)
-        self._core_key, self._core_val = key, core
+        # olu (hacim 0, o=h=l=c) mumlar gosterge girdisinden cikarilir; `core` tam izgarada, `core_c` yalniz dolu satirlarda (kurulumlar icin)
+        core, core_c, trig_c = AG.core_signals(trig, reg, params)
+        self._core_key, self._core_val, self._core_c = key, core, (core_c, trig_c)
         return core
+
+    def _core_compact(self, ctx: StrategyContext) -> pd.DataFrame:
+        """Kurulumlarin gordugu ortak tablo: olu mum yoksa `_core` ile ayni; varsa yalniz dolu satirlar (kurulum girdisi `trig_c`)."""
+        self._core(ctx)
+        return self._core_c[0]                                  # type: ignore[index]
 
     def core_group_table(self, ctx: StrategyContext) -> pd.DataFrame:
         setups = tuple(m.SETUP for m in self.arms_at(ctx.tf) if getattr(m, "CORE", False))
@@ -226,12 +232,20 @@ class PriceActionLab:
 
         if (force_core or any(getattr(m, "CORE", False) for m in arms)) and (CORE_KEY not in skip or force_core):
             run(CORE_KEY, lambda: self.compute(ctx))
+        full = ctx.bars[ctx.tf]
+        keep = AG.active_mask(full)                              # None: olu mum yok (kripto) -> eski yol, kurulum girdisi/ciktisi degismez
+        trig_a = full if keep is None else full[keep]
         for m in arms:
             if getattr(m, "CORE", False) or m.SETUP in skip:
                 continue
-            inp = ArmInput(pair=ctx.pair, tf=ctx.tf, D=ctx.D, trig=ctx.bars[ctx.tf], h4=ctx.bars["4h"],
-                           params=S.SignalParams.from_mapping(ctx.params), core_fn=lambda c=ctx: self._core(c))
-            run(m.SETUP, lambda m=m, inp=inp: m.compute(inp))
+            inp = ArmInput(pair=ctx.pair, tf=ctx.tf, D=ctx.D, trig=trig_a, h4=ctx.bars["4h"],
+                           params=S.SignalParams.from_mapping(ctx.params), core_fn=lambda c=ctx: self._core_compact(c))
+            if keep is None:
+                run(m.SETUP, lambda m=m, inp=inp: m.compute(inp))
+            else:
+                # kurulum yalniz dolu mumlarda calisir, tablo tam izgaraya genisler (olu satirlarda aday yok: karar mumu oluysa
+                # son satir aday degildir; yalniz-son-bar kurulumlarinin (M1/DL1/HB1) bayat dolu bardaki adayi gecmis satirda kalir)
+                run(m.SETUP, lambda m=m, inp=inp: AG.expand_rows(m.compute(inp), full.index, keep, AG.CARRY_SIGNAL))
         return out
 
     def filter_row(self, key: str, row: pd.Series, ctx: StrategyContext) -> pd.Series:

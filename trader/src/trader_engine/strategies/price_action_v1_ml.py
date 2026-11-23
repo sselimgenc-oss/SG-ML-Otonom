@@ -19,6 +19,7 @@ import pandas as pd
 from trader_core.ml_features import FEATURE_NAMES, feature_frame
 from trader_core.ml_package import MlModelView, load_model_view, load_package, ml_score_from_reasons, view_from_package
 
+from .. import arm_guard as AG
 from .base import ExitPolicy, StrategyContext, StrategyError
 from .price_action_v1 import PriceActionV1, make_v1b
 
@@ -109,7 +110,9 @@ class PriceActionV1Ml:
             if ctx.ml_v2 is not None:                       # ML-G5 (bayrakli): r02/r03, motor hesapladi (iki gecisli)
                 X = self._x_v2(ctx, model, sig.index[cand])
             else:
-                fr = feature_frame(ctx.bars[ctx.tf][["open", "high", "low", "close"]])
+                bt = ctx.bars[ctx.tf]
+                keep = AG.active_mask(bt)                       # olu (hacim 0, o=h=l=c) mumlar ozellik girdisinden cikar; aday satirlari her zaman dolu bardir
+                fr = feature_frame((bt if keep is None else bt[keep])[["open", "high", "low", "close"]])
                 X = fr.loc[sig.index[cand], list(model.features)].to_numpy(dtype=float)
             p = np.asarray(model.score(X), dtype=float)
             if not np.isfinite(p).all():

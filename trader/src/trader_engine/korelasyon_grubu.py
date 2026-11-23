@@ -22,6 +22,11 @@ def getiriler(df):
     """1s kapanislardan (ardisik saatler arasi) getiri serisi; yetersiz/bozuk girdide None."""
     if df is None or len(df) < 3 or "close" not in df.columns:
         return None
+    keep = AG.active_mask(df)                        # olu (hacim 0, o=h=l=c) mumlar: sifir getiri korelasyonu seyreltmesin; ardisik dolu saatler arasi getiri kalir
+    if keep is not None:
+        df = df[keep]
+        if len(df) < 3:
+            return None
     c = df["close"].astype("float64")
     c = c[~c.index.duplicated(keep="last")]
     prev = c.copy()

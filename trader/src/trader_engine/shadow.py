@@ -17,6 +17,7 @@ from trader_core import indicators as I
 from trader_core import regime as R
 from trader_core import signals as S
 
+from . import arm_guard as AG
 from .bars import tf_delta
 from . import holdout as _H
 from .holdout import HOLDOUT
@@ -228,9 +229,8 @@ def tf15_candidates(view, pair: str, D: datetime, params, *, counters: MutableMa
     if not _contiguous_tail(b15.index, d15, CONTIG15) or not _contiguous_tail(b4.index, d4, CONTIG4H):
         return []
     p15 = dataclasses.replace(params, trigger_tf="15m")
-    reg = R.classify_series(b4[_OHLC], p15.regime_params())
-    aligned = R.align_to_base(reg, b15.index, 4)
-    sig = S.compute_signals(b15[_OHLC], aligned, p15)
+    reg = AG.regime_series(b4, p15.regime_params())          # olu mumlar (hisse/emtia hafta sonu) gostergeden cikar; kriptoda eski yol
+    sig, _, _ = AG.core_signals(b15, reg, p15)
     cutoff = D - tf_delta("1h")
     out: list[ShadowCand] = []
     for ts, r in sig.iloc[-8:].iterrows():           # (D - 1 sa, D] en cok 4 mum; 8 satir bol marj

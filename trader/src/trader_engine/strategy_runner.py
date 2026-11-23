@@ -18,6 +18,7 @@ from trader_core import ledger as L
 from trader_core.ml_package import MlModelView, ml_score_from_reasons
 from trader_core.signals import SignalParams
 
+from . import arm_guard as AG
 from .arm_quarantine import unit_for
 from .errors import is_strategy_error
 from .bars import (ARM_TFS, MIN_CONTIG_ARM, STARTUP_BARS_ARM, WINDOW_ARM, aggregate_4h_to_1d, arm_closing_tfs,
@@ -87,6 +88,27 @@ class SignalSource(Protocol):
     def exit_context(self, pair: str, pos: Position, D: datetime) -> ExitContext | None: ...
 
 
+_WIDEN_MAX = 8        # seansli enstrumanda pencereyi en cok bu kadar katina genisletir (olu mum orani <= %87)
+
+
+def _bars_window(view: MarketView, pair: str, tf: str, D: datetime, n: int) -> pd.DataFrame:
+    """`view.bars(n)` ile ayni, ama pencere n DOLU bar sayar: olu mum (hacim 0, o=h=l=c) olan seansli enstrumanda pencereyi genisletip
+    son n dolu bari (+ aralarindaki olu mumlari) dondurur. Olu mum yoksa tam olarak `view.bars(pair, tf, D, n)` (kripto: degismez). Boylece
+    EMA/ATR tohum etkisi 7/24 enstrumanla ayni mertebede kalir ve canli pencere kesiti tum gecmis (geri test) hesabiyla ayni degeri verir."""
+    df = view.bars(pair, tf, D, n)
+    m = n
+    for _ in range(3):
+        keep = AG.active_mask(df)
+        if keep is None or len(df) < m:                      # olu mum yok / magazadaki tum gecmis zaten okundu
+            break
+        got = int(keep.sum())
+        if got >= n or m >= n * _WIDEN_MAX:
+            break
+        m = min(n * _WIDEN_MAX, int(math.ceil(n * len(df) / max(got, 1))) + 32)
+        df = view.bars(pair, tf, D, m)
+    return AG.tail_active(df, n)
+
+
 def _opt(x) -> float | None:
     try:
         v = float(x)
@@ -109,7 +131,9 @@ def _vol(setup, side, trig, atr, tf) -> dict:
     if not (setup and side) or trig is None or "close" not in trig.columns:
         return {}
     try:
-        return vol_ozellikleri(trig["close"].to_numpy(dtype=float), atr, tf)
+        keep = AG.active_mask(trig)                       # olu (hacim 0, o=h=l=c) mumlar sifir getiri uretip varyansi kucultmesin
+        c = trig["close"].to_numpy(dtype=float)
+        return vol_ozellikleri(c if keep is None else c[keep], atr, tf)
     except Exception:  # noqa: BLE001 - ek ozellik asla motoru durdurmaz
         return {}
 
@@ -235,7 +259,7 @@ class WindowedSignalSource:
         names = {("trigger" if t == "trigger" else t): (tf if t == "trigger" else t) for t in info.timeframes}
         bars: dict[str, pd.DataFrame] = {}
         for key, real in names.items():
-            bars[real] = self.view.bars(pair, real, D, info.window_bars[real])
+            bars[real] = _bars_window(self.view, pair, real, D, info.window_bars[real])
         trig = bars[tf]
         for key, real in names.items():
             if len(bars[real]) < info.warmup_bars[real]:
@@ -366,9 +390,9 @@ class MultiArmSignalSource(WindowedSignalSource):
         if tf == "4h":
             trig = h4
         elif tf == "1d":
-            trig = aggregate_4h_to_1d(h4).iloc[-WINDOW_ARM["1d"]:]
+            trig = AG.tail_active(aggregate_4h_to_1d(h4), WINDOW_ARM["1d"])
         else:
-            trig = self.view.bars(pair, tf, D, WINDOW_ARM[tf])
+            trig = _bars_window(self.view, pair, tf, D, WINDOW_ARM[tf])
         if len(trig) < STARTUP_BARS_ARM[tf]:
             return None, ("no_history", f"{tf}:{len(trig)}<{STARTUP_BARS_ARM[tf]}")
         if trig.index[-1].to_pydatetime() != D - arm_tf_delta(tf):
@@ -420,7 +444,7 @@ class MultiArmSignalSource(WindowedSignalSource):
             if g[2] is None:
                 h4 = g[0]["4h"]
         if h4 is None:
-            h4 = self.view.bars(pair, "4h", D, WINDOW_ARM["4h"])
+            h4 = _bars_window(self.view, pair, "4h", D, WINDOW_ARM["4h"])
         h4_bad = self._h4_checked(pair, D, h4)
         if "1d" in tfs:
             self._d1_note(D, None)

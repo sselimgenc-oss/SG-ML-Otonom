@@ -55,6 +55,118 @@ def is_flat_bar(high: float | None, low: float | None, volume: float | None) -> 
     return ok(high) and ok(low) and float(high) == float(low)
 
 
+# ---------------------------------------------------------------------------------------------------------------------
+# Olu (islem gormeyen) mumlar: seansli hisse/emtia perp'lerinde hafta sonu/tatil/seans disi mumlar hacim 0 ve o==h==l==c gelebilir.
+# Bu mumlar gosterge girdisinden CIKARILIR (ATR'ye sifir gercek aralik, EMA'ya tekrarlanan kapanis eklemesinler); sonuc tabloya
+# TAM izgara uzerinde geri genisletilir (olu satirlar: aday yok, baglam sutunlari son dolu satirdan tasinir). TEK yer: bu bolum.
+# Kripto etkilenmez: olu mum yoksa `active_mask` None doner ve her cagiran eski yolu AYNEN calistirir (bayt-bayt ayni).
+# ---------------------------------------------------------------------------------------------------------------------
+_OHLC = ["open", "high", "low", "close"]
+CARRY_SIGNAL = ("atr_tf", "atr_4h", "atr_ratio", "regime", "rh", "rl", "rh_touches", "rl_touches")
+CARRY_REGIME = ("regime", "rh", "rl", "rh_touches", "rl_touches", "atr", "atr_ratio")
+
+
+def flat_mask(df):
+    """Olu mum maskesi (numpy bool): hacim == 0 VE high == low (o==h==l==c). Sutun yoksa/okunamazsa None (karar verilemez); NaN = olu degil."""
+    import numpy as np
+    try:
+        v = df["volume"].to_numpy(dtype=float)
+        h = df["high"].to_numpy(dtype=float)
+        lo = df["low"].to_numpy(dtype=float)
+    except (KeyError, TypeError, ValueError, AttributeError):
+        return None
+    with np.errstate(invalid="ignore"):
+        return (v == 0.0) & (h == lo)
+
+
+def active_mask(df):
+    """Gosterge girdisine GIRECEK (dolu) satirlarin maskesi; hic olu mum yoksa None (cagiran degistirilmemis yolu kullanir)."""
+    m = flat_mask(df)
+    if m is None or not bool(m.any()):
+        return None
+    return ~m
+
+
+def _default_arr(dtype, n: int, col: str):
+    import numpy as np
+    if col == "reasons":
+        return np.full(n, "", dtype=object)
+    if col == "regime":
+        return np.full(n, "unclear", dtype=object)
+    if dtype == object:
+        return np.full(n, None, dtype=object)
+    if dtype.kind == "b":
+        return np.zeros(n, dtype=bool)
+    if dtype.kind in "iu":
+        return np.zeros(n, dtype=dtype)
+    return np.full(n, np.nan, dtype=dtype)
+
+
+def expand_rows(df_c, full_index, keep, carry: Collection[str]):
+    """Dolu satirlara hesaplanmis tabloyu (`df_c`, len == keep.sum()) tam izgaraya (`full_index`) genisletir. `carry` sutunlari olu
+    satirlarda SON dolu satirdan tasinir (gecmis; ileri bakma yok; ilk dolu satirdan once varsayilan), digerleri olu satirda
+    varsayilan (NaN/None/False/0; `reasons` bos; `regime` 'unclear')."""
+    import numpy as np
+    import pandas as pd
+    n = len(full_index)
+    keep = np.asarray(keep, dtype=bool)
+    cum = np.cumsum(keep) - 1
+    have = cum >= 0
+    src = np.where(have, cum, 0)
+    cols = {}
+    for c in df_c.columns:
+        a = df_c[c].to_numpy()
+        if c in carry:
+            if len(a) == 0:
+                res = _default_arr(a.dtype, n, c)
+            else:
+                res = a[src].copy()
+                if not bool(have.all()):
+                    res[~have] = _default_arr(a.dtype, n, c)[~have]
+        else:
+            res = _default_arr(a.dtype, n, c)
+            if len(a):
+                res[keep] = a
+        cols[c] = res
+    return pd.DataFrame({c: pd.Series(v, index=full_index, dtype=v.dtype) for c, v in cols.items()}, index=full_index)   # object sutunlar object kalir (pandas 3: str'ye cevrilmesin, None korunur)
+
+
+def tail_active(df, n: int):
+    """Son `n` DOLU satiri (ve aralarindaki olu satirlari) kapsayan kuyruk. Olu satir yoksa `df.iloc[-n:]` (eski davranis AYNEN).
+    Pencere boyu gosterge yariomrunu dolu bar sayisiyla olcmeli: seansli enstrumanda olu mumlar pencereyi 4-5 kat kisaltir."""
+    keep = active_mask(df)
+    if keep is None:
+        return df.iloc[-n:] if n > 0 else df.iloc[0:0]
+    import numpy as np
+    pos = np.flatnonzero(keep)
+    if len(pos) <= n:
+        return df
+    return df.iloc[int(pos[-n]):]
+
+
+def regime_series(h4, rp):
+    """4s rejim tablosu TAM 4s izgarasinda: olu 4s mumlar rejim hesabindan cikarilir, sonuc son dolu satirdan tasinir."""
+    from trader_core import regime as R
+    keep = active_mask(h4)
+    if keep is None:
+        return R.classify_series(h4[_OHLC], rp)
+    return expand_rows(R.classify_series(h4[keep][_OHLC], rp), h4.index, keep, CARRY_REGIME)
+
+
+def core_signals(trig, reg, params):
+    """Ortak `compute_signals` tablosu. Doner (tam_izgara_tablo, dolu_satir_tablosu, dolu_tetik): olu mum yoksa ucu de ayni nesne/yol
+    (eski davranis AYNEN). `reg`: `regime_series` ciktisi (tam 4s izgarasi); dolu tetik barlarina hizalanir."""
+    from trader_core import regime as R
+    from trader_core import signals as S
+    keep = active_mask(trig)
+    if keep is None:
+        core = S.compute_signals(trig[_OHLC], R.align_to_base(reg, trig.index, 4), params)
+        return core, core, trig
+    tc = trig[keep]
+    core_c = S.compute_signals(tc[_OHLC], R.align_to_base(reg, tc.index, 4), params)
+    return expand_rows(core_c, trig.index, keep, CARRY_SIGNAL), core_c, tc
+
+
 def load_arms_off(path) -> frozenset[str]:
     """DD-12 WP-13 (D-T22): ders kapattigi kurulumlar (`var/<bot>/arms_off.json`, yazan: lesson.write_arms_state). Salt
     okuma; dosya yoksa ya da bozuksa bos kume (hepsi acik). Kayit yapisi: {"arms": {arm_id: {"state": "closed", ...}}}."""
