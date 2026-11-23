@@ -299,7 +299,7 @@ def adaylar_defterden(led, cf_satirlari=None, simdi: datetime | None = None) -> 
     if mod is None:
         return []
     Aday = mod[1].Aday
-    kesim = _utc(simdi or datetime.now(timezone.utc))
+    kesim = _utc(simdi) if simdi is not None else datetime.max.replace(tzinfo=timezone.utc)   # motor duvar saati okumaz; cagiran (gece betigi) simdi verir
     dec = {d.id: d for d in led.list_decisions()}
     out = []
     trade_karar: set[int] = set()
