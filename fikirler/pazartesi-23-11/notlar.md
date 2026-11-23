@@ -72,7 +72,7 @@ kâğıt bot 44 enstrümanla çalışıyor (health.py:690 _c_open_price).
 
 ## MADDE 2 KARARI (23.11)
 - Fable'ın 7 maddesi: 1 yön sınırı, 6 basit rakip kıyası, 7 gecikme/masraf testi, 8 sıra karıştırma, 9 canlı şartları, 10 filtrede yön denetimi, 13 v2 paketini aç (fikirler/pazartesi-23-11/madde2_ml_tablo.md).
-- + "ÜST LİG" HATTI (kullanıcı: es geçilmez), hepsi önce GÖLGEDE (kayıt, işlem açmaz), kanıtlanırsa devreye:
+- + "ÜST LİG" HATTI (kullanıcı: es geçilmez). DÜZELTME 23.11: GÖLGE YOK — kâğıtta her şey açık ve işlemi etkiler; yeni kollar kâğıtta gerçek işlem açar ve canlı=kâğıt paritesiyle canlıda da hazır durur (ayrı karne, önceden yazılı tut/kaldır eşikleri):
   1) Veri toplama hemen: haber akışı (21.11'de silinen toplayıcı YENİDEN AÇILIR — karar girdisi değil, yalnız kayıt), fonlama, açık pozisyon, long/short oranı.
   2) LLM haber okuyucu (gölge): haber → olumlu/olumsuz/önemsiz, kayıt; haftalar sonra fiyatla ölç.
   3) Derin öğrenme fiyat verisinden (milyonlarca mum): yön/oynaklık tahmini → filtreye özellik, gölgede ölç.
