@@ -2,15 +2,19 @@
 risk carpani. Spec: docs/motor/kademeli-kucultme-spec.md. Saf Python (stdlib); girdi: kolun kapanan islemlerinin net R
 degerleri, EN YENIDEN ESKIYE.
 
-Kural (kesin, deterministik):
+Kural (kesin, deterministik), aile ortalamasi YOKSA (ham):
   n >= 10 ve son 10'un toplami < 0  -> 0.3   (asgari boyut; kol ASLA kapatilmaz)
   degilse n >= 5 ve son 5'in toplami < 0 -> 0.5
   degilse 1.0
-Buzulme (23.11, fikir 8): `aile_ort` (ayni kurulumun TUM TF'lerindeki tum kapanmis islemlerin ortalama net R'si) verilirse
-kolun pencere ORTALAMASI aileye cekilir: R_buzulmus = (n*R_kol + k*R_aile)/(n+k), k = K_BUZULME (10), n = pencere (5 / 10).
-Esikler ayni (< 0) ama toplam yerine buzulmus ortalama kullanilir; aile ortalamasi yoksa (None) ham toplam kurali.
+Buzulme (23.11, fikir 8): `aile_ort` (ayni kurulumun, kolun KENDISI haric diger kollarinin son 90 gundeki karar zamanina kadar
+kapanmis islemlerinin ortalama net R'si; holdout disinda) verilirse kolun pencere ortalamasi aileye cekilir:
+R_buz = (n*m_kol + K*R_aile)/(n+K), K = K_BUZULME (10), n = penceredeki GERCEK kapanmis islem sayisi (0..pencere; m_kol bu n
+islemin ortalamasi, n = 0 ise yalniz aile). Olcut R_buz < 0: 5'lik pencere (n = min(islem, 5), 0 islem dahil) -> 0.5;
+10'luk pencere (n = min(islem, 10)) -> 0.3, ama 0.3 yalniz pencere dolu (n >= 10) iken; az veride (n < 10) en kotu 0.5.
+Aile ortalamasi yoksa (None) ham kural (toplam < 0, n >= 5 / n >= 10).
 Carpan yalniz kucultur (<= 1.0); stop/kaldirac/gunluk limit/kademe (RK-1) anlamina dokunmaz. Geri yukselis otomatiktir:
-pencere toplami >= 0 olunca carpan bir ust basamaga cikar (0.3 -> 0.5 -> 1.0)."""
+her karar yeniden hesaplanir; buzulmus ortalama >= 0 olunca (kol toparlayinca ya da aile duzelince) carpan bir ust basamaga
+(0.3 -> 0.5 -> 1.0) ya da dogrudan 1.0'a doner."""
 from __future__ import annotations
 
 import math
@@ -30,7 +34,7 @@ class KolKarar(NamedTuple):
     net_5: float | None         # son 5'in net R toplami (n < 5 ise None)
     net_10: float | None        # son 10'un net R toplami (n < 10 ise None)
     aile: float | None = None   # aile ortalama net R (buzulme kullanildiysa)
-    buz_5: float | None = None  # son 5'in buzulmus ortalama R'si
+    buz_5: float | None = None  # 5'lik pencerenin buzulmus ortalama R'si
     buz_10: float | None = None
 
 
@@ -41,12 +45,19 @@ def buzulme(n: int, r_kol: float | None, r_aile: float, k: int = K_BUZULME) -> f
     return (n * float(r_kol) + k * float(r_aile)) / (n + k)
 
 
-def aile_ortalamasi(kol_sonuclari: "dict[str, Sequence[float]]") -> dict[str, float]:
-    """{arm_id: net R listesi} -> {kurulum (arm_id'nin '@' oncesi): tum TF'lerdeki ortalama net R}."""
+def aile_ortalamasi(kol_sonuclari: "dict[str, Sequence[float]]", haric: str | None = None) -> dict[str, float]:
+    """{arm_id: net R listesi} -> {kurulum (arm_id'nin '@' oncesi): tum TF'lerdeki ortalama net R}; `haric` arm_id'si sayilmaz."""
     toplam: dict[str, list[float]] = {}
     for arm, vals in kol_sonuclari.items():
+        if haric is not None and arm == haric:
+            continue
         toplam.setdefault(str(arm).split("@")[0], []).extend(float(v) for v in vals if v is not None and math.isfinite(float(v)))
     return {a: math.fsum(v) / len(v) for a, v in toplam.items() if v}
+
+
+def _buz(vals: Sequence[float], pencere: int, aile: float) -> float:
+    w = vals[:pencere]
+    return buzulme(len(w), math.fsum(w) / len(w) if w else None, aile)
 
 
 def karar(net_r_yeniden_eskiye: Sequence[float], aile_ort: float | None = None) -> KolKarar:
@@ -62,15 +73,15 @@ def karar(net_r_yeniden_eskiye: Sequence[float], aile_ort: float | None = None) 
         else:
             c = 1.0
         return KolKarar(c, n, n5, n10)
-    b5 = buzulme(PENCERE_KISA, n5 / PENCERE_KISA, aile_ort) if n5 is not None else None
-    b10 = buzulme(PENCERE_UZUN, n10 / PENCERE_UZUN, aile_ort) if n10 is not None else None
-    if b10 is not None and b10 < 0:
+    b5 = _buz(vals, PENCERE_KISA, float(aile_ort))
+    b10 = _buz(vals, PENCERE_UZUN, float(aile_ort))
+    if n >= PENCERE_UZUN and b10 < 0:
         c = CARPAN_MIN
-    elif b5 is not None and b5 < 0:
+    elif b5 < 0:
         c = CARPAN_YARI
     else:
         c = 1.0
-    return KolKarar(c, n, n5, n10, float(aile_ort), b5, b10)
+    return KolKarar(c, n, n5, n10, float(aile_ort), b5, b10 if n >= PENCERE_UZUN else None)
 
 
 def ozellikler(k: KolKarar) -> dict:
@@ -92,8 +103,8 @@ def ozellikler(k: KolKarar) -> dict:
 def azaltilanlar(kol_sonuclari: "dict[str, Sequence[float]]", buzulmeli: bool = True) -> dict[str, KolKarar]:
     """{arm_id: net R (yeniden eskiye)} -> yalniz carpani < 1.0 olan kollar ({arm_id: KolKarar}); rapor/panel icin."""
     out: dict[str, KolKarar] = {}
-    aile = aile_ortalamasi(kol_sonuclari) if buzulmeli else {}    # NOT: ham liste ne kadar uzunsa aile ortalamasi o kadar genis (kapi ile ayni: tum zaman)
-    for arm, vals in kol_sonuclari.items():
+    for arm, vals in kol_sonuclari.items():       # NOT: rapor/panel yaklasimi; aile = kolun kendisi haric, verilen listelerin tamami (kapi 90 gunluk pencere kullanir)
+        aile = aile_ortalamasi(kol_sonuclari, haric=arm) if buzulmeli else {}
         k = karar(vals, aile.get(str(arm).split("@")[0]))
         if k.carpan < 1.0:
             out[arm] = k

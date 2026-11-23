@@ -302,7 +302,7 @@ class EntryGate:
         self.counters["ml_filtre_kapali_blok"] += 1
         return self._skip(row, tf, "ml_filter", skip_reason="ml_filter", veto_reason="gate:ml_filter_unavailable", **tk)
 
-    def _kol_karari(self, aid: str) -> KK.KolKarar | None:
+    def _kol_karari(self, aid: str, D: datetime | None = None) -> KK.KolKarar | None:
         """Kademeli kucultme (kagit): kolun son kapanan islemlerinin net R'sinden carpan. Okunamazsa None (carpan yok = yapilandirma boyutu;
         hata yalniz kucultmeyi atlar, hicbir seyi arttirmaz/engellemez)."""
         fn = getattr(self.ledger, "arm_recent_results", None)
@@ -310,7 +310,7 @@ class EntryGate:
             return None
         try:
             fam = getattr(self.ledger, "arm_family_mean_r", None)
-            aile = fam(aid) if fam is not None else None          # fikir 8: az islemli kol aile ortalamasina cekilir (buzulme)
+            aile = fam(aid, D) if fam is not None else None          # fikir 8: az islemli kol aile ortalamasina cekilir (buzulme)
             return KK.karar(fn(aid, KK.KAYIT_SAYISI), aile)
         except Exception as e:  # noqa: BLE001
             log.warning("kol kucultme okunamadi, tam boyut: %s: %s", type(e).__name__, e)
@@ -511,7 +511,7 @@ class EntryGate:
         src = self.ladder if self.ladder is not None else self.cfg
         dec = None
         if paper:                                                                       # 20 Kasim: kademeli kucultme (yalniz kagit, yalniz kucultur)
-            kk = self._kol_karari(aid)
+            kk = self._kol_karari(aid, D)
             kol_mult = 1.0
             if kk is not None:
                 tk["features"] = {**(tk.get("features") or _features(row)), **KK.ozellikler(kk)}
