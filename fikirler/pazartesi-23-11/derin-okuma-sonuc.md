@@ -129,3 +129,7 @@ Not: 13 ve 14, yukarıdaki 11 eksik sayısına dahil değildir; küçük iyileş
 8. **Belgelerdeki "gradient boosting" ifadesi düzeltilsin mi?** (Düzeltme 4) Öneri: evet. Canlı süzgeç ridge lojistik; az veride doğru seçim de bu.
 9. **S10, S11, S12 ne zaman?** Öneri: üçü de beklesin. Kitapların ortak görüşü: bu veri miktarında yeni özellik paketi ve derin öğrenme yalnız aşırı uyum üretir. 300 işlem eşiğinden önce açılmasın.
 10. **Yeni fikirlerden hangileri?** Öneri: 1–6 (yalnız rapor) hemen; 7 ve 8 gölgede; 9 ve 10 sonraya.
+
+## KULLANICI KARARI (23.11)
+- Gölge yok: fikir 7 ve 10 dahil her şey kâğıtta açık ve işlem etkili olacak.
+- Derin öğrenme (DL1) ve haber kolu (HB1) 300 işlemi BEKLEMEZ. Kod hazır olunca hemen kâğıtta açılır. 300 işlem eşiği yalnız canlı şartıdır. 60/100 işlemlik tut/kaldır eşikleri (üst lig tasarımı) yalnız değerlendirme içindir, açılış şartı değildir.
