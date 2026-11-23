@@ -11,7 +11,8 @@
 #   OTO_STATE_DIR OTO_RELEASE_FILE OTO_ROOT_DIR OTO_GIT_DIR OTO_INSTALL OTO_API_URL OTO_TELEGRAM_ENV OTO_BRANCH OTO_INSTALL_TIMEOUT
 #   OTO_SIMDI_DAKIKA OTO_SIMDI_SANIYE (UTC 'simdi' dakika/saniye) OTO_UYKU (sleep komutu): mum kapanisi beklemesi testi
 #   OTO_SIMDI_SAAT (UTC saat; pencere testi) OTO_ZORLA (=1: pencere kontrolu atlanir; uretimde `--simdi` ile ayni)
-# Telegram token'i asla komut satirinda degildir: curl --config - ile stdin'den okunur.
+#   OTO_GITHUB_TOKEN_FILE (varsayilan /etc/trader-github-token; repo gizliyse salt-okunur fine-grained token; yoksa/bossa anonim)
+# Telegram ve GitHub token'i asla komut satirinda degildir: curl --config - ile stdin'den okunur.
 set -uo pipefail
 
 ZORLA="${OTO_ZORLA:-}"
@@ -28,6 +29,7 @@ ROOT_DIR="${OTO_ROOT_DIR:-/usr/local/lib/trader-root}"
 GIT_DIR_ROOT="${OTO_GIT_DIR:-${ROOT_DIR}/repo.git}"
 INSTALL_SH="${OTO_INSTALL:-${ROOT_DIR}/current/deploy/install.sh}"
 TG_ENV="${OTO_TELEGRAM_ENV:-/etc/trader-telegram.env}"
+GH_TOKEN_FILE="${OTO_GITHUB_TOKEN_FILE:-/etc/trader-github-token}"   # 23.11 repo gizli: token destegi
 API_URL="${OTO_API_URL:-https://api.github.com/repos/sselimgenc-oss/SG-ML-Otonom/actions/workflows/tests.yml/runs}"
 BRANCH="${OTO_BRANCH:-claude/charming-hawking-ab5w5q}"   # install.sh BRANCH ile ayni olmali
 INSTALL_TIMEOUT="${OTO_INSTALL_TIMEOUT:-1800}"            # 30 dk
@@ -181,11 +183,14 @@ oto_guncelle() {
     return 0
   fi
 
-  # yesil commit: kimlik dogrulamasiz GitHub Actions sorgusu (yalniz tests.yml basarili kosusu)
-  local json yeni
-  if ! json="$(curl -fsSL --max-time 20 -H 'User-Agent: trader-oto-guncelle' \
-        "${API_URL}?branch=${BRANCH}&status=success&per_page=1" 2>/dev/null)"; then
-    log "GitHub'a ulasilamadi; islem yok"
+  # yesil commit: GitHub Actions sorgusu (yalniz tests.yml basarili kosusu); token dosyasi varsa Bearer ile (stdin'den)
+  local json yeni ghtok=""
+  [ -f "$GH_TOKEN_FILE" ] && ghtok="$(tr -d ' \t\r\n' < "$GH_TOKEN_FILE" 2>/dev/null || true)"
+  local -a ghcmd=(curl -fsSL --max-time 20 -H 'User-Agent: trader-oto-guncelle')
+  [ -z "$ghtok" ] || ghcmd+=(--config -)
+  if ! json="$( { [ -z "$ghtok" ] || printf 'header = "Authorization: Bearer %s"\n' "$ghtok"; } \
+        | "${ghcmd[@]}" "${API_URL}?branch=${BRANCH}&status=success&per_page=1" 2>/dev/null)"; then
+    log "GitHub'a ulasilamadi; islem yok (repo gizliyse /etc/trader-github-token gerekli)"
     return 0
   fi
   yeni="$(printf '%s' "$json" | python3 -I -c 'import json, sys

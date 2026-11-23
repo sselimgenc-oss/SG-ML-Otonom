@@ -38,6 +38,7 @@ if [[ "$cfg" == *api.telegram.org* ]]; then
   [ -z "${FAKE_TG_FAIL:-}" ] || exit 22
   exit 0
 fi
+[ -z "$cfg" ] || printf '%s\n' "$cfg" >> "$L/gh_cfg.log"
 [ -z "${FAKE_GH_FAIL:-}" ] || exit 22
 cat "$FAKE_RUNS_FILE"
 '''
@@ -554,3 +555,37 @@ def test_install_sh_kurulum_isareti_yazar():
     assert '"onceki":"%s"' in t and '"tur":"%s"' in t and "OTO_KURULUM_TUR:-elle" in t
     assert t.index("kurulum.json") < t.index("Kod degisti: calisan motorlar yeniden baslatiliyor")   # motorlar yeniden baslamadan ONCE
     assert "enable_now trader-kurulum-gozcu.timer" in t and "trader-oto-simdi" in t
+
+
+# 23.11 repo gizli: token destegi
+GH_TOK = "github_pat_FAKETOKEN0123456789abcdef"
+
+
+def test_github_token_dosyasi_varsa_bearer_stdinde_argvde_yok(world):
+    world.set_release(world.shas[0])
+    f = world.tmp / "gh-token"
+    f.write_text(f"  {GH_TOK}\n\r\n", encoding="utf-8")
+    r = world.run(OTO_GITHUB_TOKEN_FILE=str(f))
+    assert r.returncode == 0, r.stderr
+    assert world.install_calls() == [f"COMMIT={world.shas[2]}"]
+    cfg = (world.log / "gh_cfg.log").read_text(encoding="utf-8")
+    assert f'Authorization: Bearer {GH_TOK}"' in cfg                  # bosluk/satir sonu kirpildi
+    assert GH_TOK not in world.curl_argv() and GH_TOK not in r.stdout + r.stderr
+
+
+def test_github_token_dosyasi_yoksa_ya_da_bossa_anonim(world):
+    world.set_release(world.shas[0])
+    bos = world.tmp / "bos"
+    bos.write_text(" \n", encoding="utf-8")
+    for tf in (world.tmp / "yok", bos):
+        world.set_release(world.shas[0])
+        assert world.run(OTO_GITHUB_TOKEN_FILE=str(tf)).returncode == 0
+    assert not (world.log / "gh_cfg.log").exists()                    # stdin config yok
+    assert "--config" not in "".join(l for l in world.curl_argv().splitlines() if "status=success" in l)
+    assert "-H User-Agent: trader-oto-guncelle" in world.curl_argv()
+
+
+def test_github_reddedilirse_ipucu_gunlukte(world):
+    world.set_release(world.shas[0])
+    r = world.run(FAKE_GH_FAIL="1", OTO_GITHUB_TOKEN_FILE=str(world.tmp / "yok"))  # dosya yok: anonim
+    assert "GitHub'a ulasilamadi" in r.stdout and "repo gizliyse /etc/trader-github-token gerekli" in r.stdout
