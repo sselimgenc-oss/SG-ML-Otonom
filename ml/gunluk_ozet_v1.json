@@ -2,7 +2,7 @@
   "sema": "ortak.gunluk_ozet.v1",
   "proje": "ML",
   "mod": "kagit",
-  "uretim": "2026-11-23T17:03:35Z",
+  "uretim": "2026-11-23T18:04:41Z",
   "gun": "2026-11-23",
   "kasa": {
     "baslangic": 1000.0,
@@ -83,11 +83,11 @@
     "durdu_mu": false
   },
   "saglik": {
-    "son_nabiz": "2026-11-23T17:00:15Z",
-    "hata_sayisi_gun": 2
+    "son_nabiz": "2026-11-23T18:00:30Z",
+    "hata_sayisi_gun": 1
   },
   "notlar": [
-    "ML filtresi: 1 kurulumda aktif, bugün 17 giriş atlandı",
+    "ML filtresi: 1 kurulumda aktif, bugün 18 giriş atlandı",
     "en iyi kurulum: T1"
   ]
 }
