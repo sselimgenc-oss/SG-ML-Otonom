@@ -55,13 +55,14 @@ PINNED_SHA = {
     "engine.base.json": "ba218ea0404803c9e5af7ffbd276fad79b6d0af714c94150172f7d56e674c328",   # WP-06a: yalniz veto_config yolu
     "engine.learner.json": "30ca2842c40cacafbf6cdd90c9e6f1f54fc62b9a9ec913476d1399ac5352cb12",
     "engine.testnet.json": "54247bbd4d0fcea5eda5add465809938178ec4a1decf7f61cb9aa838daa4e952",
-    "engine.live.json": "47ca5d092009a9708ac2497b3654f744b044c7e4ca1ae208ff0b72e886c87368",   # 23.11 kullanici karari: asama B esikleri (canli = kagit; paper sistem anahtarlari + same_dir 0.06 + korelasyon/kayip_freni/toplam_buyukluk_kat)
+    "engine.live.json": "e2b2a0d8fe4847f084604be2ab3e539995ad1a03e20538eec9943ea347ca9d78",   # 23.11 kullanici karari: asama B esikleri + uzun_yon (canli = kagit; paper sistem anahtarlari + same_dir 0.06 + korelasyon/kayip_freni/toplam_buyukluk_kat)
 }
 # 23.11 kullanici karari: canli = kagit. engine.live.json'a eklenen kagit sistem anahtarlari (+ pairs yerine kagit evreni).
 LIVE_PAPER_SYSTEM_KEYS = {"veto_mode", "pairs", "optional_pairs", "strategy", "arms", "arm_max_positions", "ml_mode", "shadow_blocks",
                           "exit_modes", "max_positions", "target_trade_risk", "risk", "clusters", "etiket_kurallari",
                           "flat_bar_guard", "contract_types", "cost_overrides",
-                          "korelasyon", "kayip_freni", "toplam_buyukluk_kat"}   # 23.11 kullanici karari: asama B esikleri
+                          "korelasyon", "kayip_freni", "toplam_buyukluk_kat",   # 23.11 kullanici karari: asama B esikleri
+                          "uzun_yon"}   # 23.11 kullanici karari: fikir 7 uzun donem yon kapisi
 UNIT_SHA = {
     "trader-engine-testnet.service": "c753d965c4b8e4a239f6ca44fa83a17e3824ed501583aadc8c7a21c27c5ac07d",
     "trader-engine-live.service": "c847990df3760c790df8418b771679f59a4256d0c902b9d6d990a23a55474549",   # 23.11 kullanici karari: canli = kagit (MemoryMax 750M, MemoryHigh 600M)
