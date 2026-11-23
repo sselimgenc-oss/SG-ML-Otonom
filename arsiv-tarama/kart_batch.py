@@ -46,7 +46,7 @@ En cok 6 fikir. Kati ol: bos vaatler, kanitsiz iddialar dusuk puan. Kitapta olma
 
 
 def oku(p: Path) -> list[dict]:
-    return [json.loads(s) for s in p.read_text(encoding="utf-8").splitlines() if s.strip()]
+    return [json.loads(s) for s in p.read_text(encoding="utf-8").split("\n") if s.strip()]   # splitlines \u2028 vb. ile boler
 
 
 def secim(kitaplar: list[dict], limit: int | None, gonderilen: set[str]) -> list[dict]:
