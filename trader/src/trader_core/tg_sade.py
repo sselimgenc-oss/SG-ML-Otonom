@@ -362,6 +362,7 @@ _SAGLIK_EK: dict[str, tuple[str, str | None]] = {
     # risk, hesap, canli
     "ladder_missing": ("Risk kademesi bilgisi yok", None), "ladder_invalid": ("Risk kademesi bilgisi geçersiz", None),
     "capital_missing": ("Sermaye bilgisi okunamıyor", None), "equity_unreadable": ("Kasa bilgisi okunamıyor", None),
+    "capital_latch": ("Ana para kilidi: kasa ana paranın %15 altına indi", "Yeni girişler kapalı; açmak için /devam yaz."),
     "capital_floor": ("Sermaye koruma alt sınırına yaklaşıldı", None), "drawdown_review": ("Zirveden düşüş incelemesi gerekiyor", None),
     "account_mode_unverified": ("Hesap ayarı doğrulanamadı, bir giriş atlandı", None),
     "account_mode_unknown": ("Hesap ayarı bilgisi okunamıyor", None),

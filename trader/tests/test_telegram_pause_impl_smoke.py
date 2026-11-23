@@ -262,7 +262,9 @@ def test_pause_remove_appears_once_with_pause_user():
                     and not (isinstance(n.func.value, ast.Name) and n.func.value.id in ("os", "files"))):   # files: list.remove
                 calls.append((f.name, ast.unparse(n.args[0]) if n.args else None))
     # 12 (RK-1) ile guncellendi: /kademe_devam onayi drawdown_review tutusunu (kademe satiri yazildiktan SONRA) kaldirir
-    assert sorted(calls) == sorted([("telegram.py", "PAUSE_USER"), ("telegram.py", "'drawdown_review'")]), calls
+    # capital_latch (kullanici karari): /devam ayni kodla ana para kilidini de kaldirir
+    assert sorted(calls) == sorted([("telegram.py", "PAUSE_USER"), ("telegram.py", "PAUSE_LATCH"),
+                                    ("telegram.py", "'drawdown_review'")]), calls
 
 
 # ---------------------------------------------------------------- F9

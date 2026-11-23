@@ -81,7 +81,7 @@ def test_bad_reason(tmp_path):
     with pytest.raises(ValueError):
         p.remove("nope", "x")
     assert set(REASONS) == {"user_cmd", "drawdown_review", "capital_floor", "unknown_position", "late_fill",
-                            "exchange_ban", "exchange_auth", "manual", "stop_failed_repeat", "wallet_above_expected"}   # 12: capital_floor; DD-6: stop_failed_repeat; DD-8: wallet_above_expected
+                            "exchange_ban", "exchange_auth", "manual", "stop_failed_repeat", "wallet_above_expected", "capital_latch"}   # 12: capital_floor; DD-6: stop_failed_repeat; DD-8: wallet_above_expected
 
 
 def test_audit_log(tmp_path):

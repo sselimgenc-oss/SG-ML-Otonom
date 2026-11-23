@@ -28,6 +28,7 @@ DOWN_1_RATIO = 0.90              # equity <= 0.90 * peak  (tepeden -%10)
 DOWN_2_RATIO = 0.85              # equity <= 0.85 * peak  (tepeden -%15)
 STOP_RATIO = 0.80                # equity <= 0.80 * base  (-%20 durma)
 FLOOR_RATIO = 0.60               # equity <= 0.60 * dep_net (son taban)
+CAPITAL_LATCH_RATIO = 0.85      # equity <= 0.85 * dep_net -> yeni giris mandali (capital_latch; tum kiplerde, yalniz kullanici acar)
 NEAR_RATIO = 0.85                # equity <= 0.85 * base -> "esige yaklasiyor" uyarisi
 CONFIRM_N = 2
 EVAL_EVERY_S = 60.0

@@ -4,6 +4,8 @@ Motor bu sinifi her karar adiminda ve canli dongude `tick` ile besler; kapi (`ga
 durum (`status`) buradan okunur. Risk sayisi YOKTUR: basamaklar/esikler `trader_core.risk_ladder` kod sabitleridir.
 Motor yalniz `step_down`/`review_stop`/`floor_stop`/`peak` satirlari yazar ve duraklatma tutusu KURAR; tutus kaldirmak,
 sermaye/devam/yeniden baslatma satiri yazmak yalniz CLI'nin (ve Telegram'in) isidir. Paper kipi GOZLEM'dir (enforce=False).
+Sermaye mandali (`capital_latch`): equity <= 0.85 x dep_net -> yeni giris kapanir; TUM kiplerde (paper dahil, enforce'tan bagimsiz)
+kurulur, yeniden baslatmada kalir, yalniz kullanici acar; kaldirildiktan sonra esigin ustune cikilip yeniden inilmedikce tekrar kurulmaz.
 """
 from __future__ import annotations
 
@@ -72,6 +74,10 @@ class RiskLadder:
         self._cnt_at: datetime | None = None
         self._follow_state: dict | None = None
         self._follow_cfg: RiskConfig | None = None
+        self._latch_init = False                       # capital_latch yeniden silahlanma durumu (yeniden baslatmada denetim gunlugunden)
+        self._latch_armed = True
+        self._latch_seen = False                       # tutus bu surecte goruldu (kullanici kaldirdi mi ayrimi)
+        self._latch_n = 0
 
     # ================================================================== kapi / etkin risk
     def gate_code(self) -> str | None:
@@ -218,6 +224,7 @@ class RiskLadder:
         eq = self._equity
         if st.status == "ok":                                                                 # 7: tepe
             st = self._peak(now, st, eq)
+        self._capital_latch(now, st, eq)                                                      # 7b: sermaye mandali
         self._trigger(now, st, eq)                                                            # 8: tetik + onay
         self._refresh_counters(now, self._st or st)                                           # 9: sayaclar
 
@@ -340,6 +347,43 @@ class RiskLadder:
             self._load()
         self._peak_day = day
         return self._st or st
+
+    # -- 7b ----------------------------------------------------------------
+    def _capital_latch(self, now: datetime, st: RL.LadderState, eq: float) -> None:
+        """equity <= 0.85 x dep_net -> `capital_latch` tutusu (enforce'tan bagimsiz). Kullanici kaldirdiysa esigin ustune
+        cikilmadan yeniden kurulmaz; yeniden baslatmada denetim gunlugunun son capital_latch satiri `remove` ise ve hala esikte
+        isek silahsiz baslar. Gunluk satiri yazilmaz (kademe zinciri etkilenmez)."""
+        if self.pause is None:
+            return
+        below = eq <= RL.CAPITAL_LATCH_RATIO * st.dep_net
+        try:
+            present = any(h.reason == "capital_latch" for h in self.pause.holds())
+        except Exception as e:  # noqa: BLE001
+            log.error("capital_latch tutusu okunamadi: %r", e)
+            return
+        if not self._latch_init:
+            self._latch_init = True
+            last = getattr(self.pause, "last_op", lambda r: None)("capital_latch")
+            if below and not present and last == "remove":
+                self._latch_armed = False
+        if not below:
+            self._latch_armed, self._latch_seen, self._latch_n = True, False, 0
+            return
+        if present:
+            self._latch_seen, self._latch_n = True, 0
+            return
+        if self._latch_seen:                          # kullanici kaldirdi, hala esikte: yeniden kurma
+            self._latch_armed, self._latch_seen, self._latch_n = False, False, 0
+            return
+        if not self._latch_armed:
+            return
+        self._latch_n += 1
+        if self._latch_n < RL.CONFIRM_N:
+            return
+        if self._add_hold("capital_latch", f"dep_net={st.dep_net:.2f} equity={eq:.2f}"):
+            self._latch_seen, self._latch_n = True, 0
+            log.critical("sermaye mandali: ozsermaye %.2f <= yatirilan %.2f x %.2f; yeni giris kapali", eq, st.dep_net,
+                         RL.CAPITAL_LATCH_RATIO)
 
     # -- 8 -----------------------------------------------------------------
     def _trigger(self, now: datetime, st: RL.LadderState, eq: float) -> None:

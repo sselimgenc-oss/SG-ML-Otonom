@@ -27,7 +27,7 @@ REJIM_TR = {"range": "yatay piyasa", "trend": "trend", "trending": "trend", "ran
 # giris kapisi / duraklatma kodu -> kisa sade neden (ham kod gosterilmez)
 NEDEN_KISA = {
     "user_cmd": "elle durdurdun", "manual": "elle durduruldu", "kill": "acil durdurma", "paused": "duraklatıldı",
-    "drawdown_review": "risk incelemesi bekliyor", "capital_floor": "sermaye tabanı", "capital_missing": "sermaye kaydı yok",
+    "drawdown_review": "risk incelemesi bekliyor", "capital_floor": "sermaye tabanı", "capital_latch": "ana para kilidi", "capital_missing": "sermaye kaydı yok",
     "ladder_invalid": "risk kaydı bozuk", "unknown_position": "tanınmayan pozisyon", "late_fill": "geç gelen emir",
     "exchange_ban": "borsa engeli", "exchange_auth": "borsa erişimi sorunlu", "exchange_unreachable": "borsaya ulaşılamıyor",
     "exchange_rate_limited": "borsa istek sınırı", "stale_data": "piyasa verisi eski", "day_start_missing": "gün başı bakiyesi yok",

@@ -975,7 +975,7 @@ def test_t32_confirmation_two_consecutive(tmp_path):
     e.tick(800.0)
     assert e.reasons() == []
     e.tick(800.0)                                                # iki ardisik
-    assert e.reasons() == ["drawdown_review"] and "review_stop" in e.kinds()
+    assert e.reasons() == ["capital_latch", "drawdown_review"] and "review_stop" in e.kinds()
 
 
 def test_t32_eval_throttle_59_60(tmp_path):
@@ -984,7 +984,7 @@ def test_t32_eval_throttle_59_60(tmp_path):
     e.tick(800.0, dt=59.0)                                       # 59 sn: sayilmaz
     assert e.reasons() == []
     e.tick(800.0, dt=1.0)                                        # son degerlendirmeden 60 sn
-    assert e.reasons() == ["drawdown_review"]
+    assert e.reasons() == ["capital_latch", "drawdown_review"]
 
 
 def test_t33_review_stop_applied(tmp_path):
@@ -993,8 +993,8 @@ def test_t33_review_stop_applied(tmp_path):
     e.tick(800.0)
     last = e.log.rows()[-1]
     assert last["kind"] == "review_stop" and last["equity"] == 800.0 and last["base"] == 1000.0
-    (h,) = e.pause.holds()
-    assert h.reason == "drawdown_review" and h.by == "engine:rk1"
+    hs = e.pause.holds()                                          # capital_latch (kullanici karari) + -%20 tutusu
+    assert [h.reason for h in hs] == ["capital_latch", "drawdown_review"] and all(h.by == "engine:rk1" for h in hs)
     assert e.pause.code() == "drawdown_review"       # SPEC-AMBIGUOUS: "kapi kodu" = pause.code(); rl.gate_code() None kalir
     assert e.rl.status()["state"] == "review"
     assert not os.path.exists(e.cfg.kill_file)                   # KILL kurulmaz
@@ -1007,11 +1007,11 @@ def test_t34_persistence_across_restart(tmp_path):
     rl2 = e.mk(rl.LadderLog(e.log_path))                         # motor yeniden kuruldu
     e.clock.advance(60)
     rl2.tick(e.clock.now(), 1000.0, 1000.0)                      # ozsermaye toparlandi
-    assert e.reasons() == ["drawdown_review"] and rl2.status()["state"] == "review"
+    assert e.reasons() == ["capital_latch", "drawdown_review"] and rl2.status()["state"] == "review"
     e.log.append("deposit", "cli:t", e.clock.now(), amount=500.0)   # deposit durumu acmaz
     e.clock.advance(60)
     rl2.tick(e.clock.now(), 1500.0, 1500.0)
-    assert e.reasons() == ["drawdown_review"] and rl2.status()["state"] == "review"
+    assert e.reasons() == ["capital_latch", "drawdown_review"] and rl2.status()["state"] == "review"
 
 
 @pytest.mark.parametrize("equity,reason", [(800.0, "drawdown_review"), (600.0, "capital_floor")])
@@ -1044,7 +1044,7 @@ def test_t36_log_unwritable_hold_still_set(tmp_path, caplog):
     caplog.set_level(logging.DEBUG)
     e.tick(800.0)
     e.tick(800.0)                                                # istisna sizmaz
-    assert e.reasons() == ["drawdown_review"]                    # satir yazilamasa da tutus kurulur
+    assert e.reasons() == ["capital_latch", "drawdown_review"]                    # satir yazilamasa da tutus kurulur
     assert any(r.levelno >= logging.CRITICAL for r in caplog.records)
     assert e.kinds() == ["initial"]
     lg.fail = False                                              # yazma duzeldi
@@ -1211,7 +1211,7 @@ def test_t29_paper_observation_ladder_level(tmp_path):
     e = Env(tmp_path, mode="paper", enforce=False)               # SPEC-AMBIGUOUS: sanal `initial` kimin yazdigi belirsiz; burada tohumlanir
     e.tick(800.0)
     e.tick(800.0)
-    assert e.reasons() == [] and e.rl.gate_code() is None        # tutus yok, kapi acik
+    assert e.reasons() == ["capital_latch"] and e.rl.gate_code() is None        # capital_latch var, -%20 tutusu yok (kullanici karari), kapi acik
     w = e.rl.status()["would"]
     assert w["kind"] == "review_stop"
     assert e.rl.risk_config is e.cfg.risk_config                 # boyutlama cfg.risk_config ile (bit-bit ayni)

@@ -562,6 +562,8 @@ def _norm_cmd_text(s: str) -> str:
 HELP = ("/durum  /rapor  /kurulumlar  /ders  /hepsini_kapat  /durdur  /devam  /kademe  /kademe_devam  /karantina_kaldir <kurulum>  /onayla <id>  /reddet <id>  /yardim\n"
         "/durdur: yeni girisleri durdurur, pozisyonlar acik kalir (tam kapatma icin /hepsini_kapat)")
 PAUSE_USER = "user_cmd"
+PAUSE_LATCH = "capital_latch"          # sermaye mandali: /devam + 4 haneli kodla kaldirilir
+PAUSE_LIFTABLE = (PAUSE_USER, PAUSE_LATCH)
 
 
 def pause_state(pauses: Mapping[str, Any] | None) -> dict[str, list]:
@@ -940,7 +942,7 @@ class TelegramDaemon:
     def _pause_devam_refusal(self) -> str | None:
         """KILL yokken /devam: kaldirilabilecek user_cmd tutusu var mi (None = var)."""
         st = self._pause_state()
-        if any(h.reason == PAUSE_USER for hs in st.values() for h in hs):
+        if any(h.reason in PAUSE_LIFTABLE for hs in st.values() for h in hs):
             return None
         others = sorted({h.reason for hs in st.values() for h in hs})
         if st and not others:
@@ -1187,7 +1189,7 @@ class TelegramDaemon:
             self._reply(f"KILL kaldirilacak ve girisler yeniden acilabilir. {CODE_TTL_S} sn icinde yalniz su 4 haneli "
                         f"kodu yanitla: {code}.{extra}")
         else:
-            self._reply(f"/durdur ile konan duraklatma kaldirilacak. {CODE_TTL_S} sn icinde yalniz su 4 haneli "
+            self._reply(f"/durdur ile konan duraklatma ya da ana para kilidi kaldirilacak. {CODE_TTL_S} sn icinde yalniz su 4 haneli "
                         f"kodu yanitla: {code}")
         return "code_sent"
 
@@ -1255,10 +1257,11 @@ class TelegramDaemon:
                 for bot, ps in self.pauses.items():
                     try:
                         ps.remove(PAUSE_USER, f"telegram:{who}")
+                        ps.remove(PAUSE_LATCH, f"telegram:{who}")
                     except Exception as e:  # noqa: BLE001
                         log.error("pause remove basarisiz: %s %s", bot, type(e).__name__)
                         failed.append(f"{bot}: kaldırılamadı ({type(e).__name__})")
-                head = "Duraklatma (user_cmd) kaldirildi." if not failed else \
+                head = "Duraklatma (user_cmd / ana para kilidi) kaldirildi." if not failed else \
                     "Duraklatma kısmen kaldırıldı:\n" + "\n".join(failed)
                 self._reply(head + "\n" + self._remaining_lines(), "CRIT" if failed else "WARN")
                 return "pause_partial" if failed else "pause_cleared"
@@ -1438,7 +1441,8 @@ BUTCE_GOSTER_ORANI = 0.5                     # yapay zekâ bütçesi satırı: s
 NEDEN_TR = {
     "user_cmd": "senin /durdur komutun", "manual": "elle durduruldu", "kill": "acil durdurma (KILL) açık",
     "paused": "duraklatma var", "drawdown_review": "risk kademesi incelemesi bekliyor",
-    "capital_floor": "sermaye tabanına inildi (yalnız sunucuda açılır)", "capital_missing": "sermaye kaydı yok",
+    "capital_floor": "sermaye tabanına inildi (yalnız sunucuda açılır)",
+    "capital_latch": "Ana para kilidi (kasa ana paranın %15 altına indi)", "capital_missing": "sermaye kaydı yok",
     "ladder_invalid": "risk kademesi kaydı bozuk", "unknown_position": "borsada tanınmayan pozisyon bulundu",
     "late_fill": "geç gelen bir emir dolumu var", "exchange_ban": "borsa geçici engel koydu",
     "stop_failed_repeat": "24 saatte ikinci kez stop kurulamadı (yalnız sunucuda açılır)",

@@ -77,7 +77,7 @@ def audit_rows(tmp: Path) -> list[dict]:
 class TestActive:
     def test_reasons_constant(self):
         # 12 (RK-1) ile guncellendi: REASONS'a "capital_floor" eklendi (drawdown_review'dan sonra); ALL_REASONS 11 donemidir
-        assert tuple(pmod().REASONS) == ALL_REASONS[:2] + ("capital_floor",) + ALL_REASONS[2:] + ("stop_failed_repeat", "wallet_above_expected")  # DD-6; DD-8: wallet_above_expected
+        assert tuple(pmod().REASONS) == ALL_REASONS[:2] + ("capital_floor",) + ALL_REASONS[2:] + ("stop_failed_repeat", "wallet_above_expected", "capital_latch")  # capital_latch: kullanici karari; DD-6; DD-8: wallet_above_expected
 
     def test_no_file_inactive(self, pz):
         assert pz.active() is False

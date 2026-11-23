@@ -64,6 +64,7 @@ DOWN_1_RATIO = 0.90              # equity <= 0.90 * peak  (tepeden -%10)
 DOWN_2_RATIO = 0.85              # equity <= 0.85 * peak  (tepeden -%15)
 STOP_RATIO = 0.80                # equity <= 0.80 * base  (-%20 durma)
 FLOOR_RATIO = 0.60               # equity <= 0.60 * dep_net (son taban)
+CAPITAL_LATCH_RATIO = 0.85       # equity <= 0.85 * dep_net -> capital_latch (yeni giriş mandalı)
 NEAR_RATIO = 0.85                # equity <= 0.85 * base -> "eşiğe yaklaşıyor" uyarısı
 CONFIRM_N = 2
 EVAL_EVERY_S = 60.0
@@ -74,6 +75,8 @@ RESUME_MIN_WAIT_S = 86400        # yalnız Telegram yolu
 STATUS_FRESH_S = 120.0
 STEP_UP_MIN_TRADES = 60; STEP_UP_MIN_DAYS = 42; STEP_UP_SINCE_DOWN_DAYS = 56
 ```
+
+**Ana para kilidi (`capital_latch`, kullanıcı kararı).** `equity <= 0.85 × dep_net` (dep_net = başlangıç + yatırılan − çekilen) ardışık `CONFIRM_N` ölçümde sürerse yeni girişler kapanır (duraklatma tutuşu `capital_latch`); açık pozisyonlar ve stopları etkilenmez. TÜM kiplerde etkindir (paper dahil, `enforce`'tan bağımsız; paper'da dep_net = `wallet_start`), yeniden başlatmada kalır, yalnız kullanıcı kaldırır (Telegram `/devam` + 4 haneli kod ya da CLI). Kullanıcı kaldırdıktan sonra eşiğin altındayken yeniden kurulmaz; kasa eşiğin üstüne çıkıp yeniden inerse kurulur (yeniden başlatmada `pause_audit.jsonl`'daki son `capital_latch` satırı `remove` ise ve hâlâ eşikteyse silahsız başlar). Günlüğe yeni satır türü yazılmaz; −%20 kuralı (`STOP_RATIO`) aynen korunur (paper'da gözlem).
 
 Değişmezler (test edilir): `STEPS[4] == LOCKED_CFG.target_trade_risk`; değerler basamakla kesin artan; `STEPS[0] == 0.005`.
 

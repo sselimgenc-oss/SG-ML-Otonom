@@ -22,9 +22,26 @@ log = logging.getLogger(__name__)
 
 SCHEMA = "pause/1"
 REASONS = ("user_cmd", "drawdown_review", "capital_floor", "unknown_position", "late_fill", "exchange_ban", "exchange_auth",
-           "manual", "stop_failed_repeat", "wallet_above_expected")      # DD-8 O4: wallet_above_expected (cuzdan tavani asildi; yalniz sunucuda CLI ile kalkar). 12: capital_floor (son taban); DD-6: stop_failed_repeat (24 sa'te 2. stop_failed) - ikisi de yalniz sunucuda CLI ile kalkar
+           "manual", "stop_failed_repeat", "wallet_above_expected", "capital_latch")      # DD-8 O4: wallet_above_expected (cuzdan tavani asildi; yalniz sunucuda CLI ile kalkar). 12: capital_floor (son taban); DD-6: stop_failed_repeat (24 sa'te 2. stop_failed) - ikisi de yalniz sunucuda CLI ile kalkar
 UNREADABLE = "unreadable"
 AUDIT_NAME = "pause_audit.jsonl"
+
+
+def last_audit_op(audit_path: str, reason: str) -> str | None:
+    """Denetim gunlugunda `reason` icin SON satirin islemi ("add" | "remove"); yok/okunamaz -> None (yeniden baslatma kararlari)."""
+    last = None
+    try:
+        with open(audit_path, encoding="utf-8") as f:
+            for line in f:
+                try:
+                    d = json.loads(line)
+                except ValueError:
+                    continue
+                if isinstance(d, dict) and d.get("reason") == reason and d.get("op") in ("add", "remove"):
+                    last = d["op"]
+    except OSError:
+        return None
+    return last
 
 
 @dataclass(frozen=True)
@@ -86,6 +103,9 @@ class EntryPause:
         if raw is None:
             return ()
         return _parse(raw) or _unreadable(raw)
+
+    def last_op(self, reason: str) -> str | None:
+        return last_audit_op(self.audit_path, reason)
 
     def code(self) -> str | None:
         if not self.active():

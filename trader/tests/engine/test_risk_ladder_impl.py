@@ -285,9 +285,9 @@ def test_t29_paper_observation_sizing_unchanged_and_would(tmp_path):
         e.decide(T0 + H)
         blk = e.status.build(e.engine)["risk_ladder"]
         assert blk["would"]["kind"] == "review_stop" and blk["enforce"] is False
-        assert pause.holds() == () and lad.gate_code() is None
+        assert [h.reason for h in pause.holds()] == ["capital_latch"] and lad.gate_code() is None   # kullanici karari: paper'de de sermaye mandali
         assert lad.risk_config is e.cfg.risk_config
-        assert e.engine.status_fields()["gate_code"] == "ok"
+        assert e.engine.status_fields()["gate_code"] == "paused"      # capital_latch tutusu girisleri kapatir; -%20 yine gozlem
     finally:
         e.close()
 
@@ -318,7 +318,7 @@ def test_t33_review_stop_end_to_end_via_decision_steps(tmp_path):
         e.broker.account = lambda: Acct()
         e.decide(T0)
         e.decide(T0 + H)                                  # iki ardisik degerlendirme (60 sn kismasi asildi)
-        assert [h.reason for h in pause.holds()] == ["drawdown_review"] and pause.holds()[0].by == "engine:rk1"
+        assert [h.reason for h in pause.holds()] == ["capital_latch", "drawdown_review"] and pause.holds()[0].by == "engine:rk1"
         assert b.state().status == "review"
         assert not os.path.exists(e.cfg.kill_file)
         st = e.status.build(e.engine)
@@ -614,7 +614,7 @@ def test_fix1_hold_write_failure_latches_ladder_invalid_until_add_succeeds(tmp_p
     assert e.rl.gate_code() == "ladder_invalid"
     e.pause.add = real_add                                                   # sonraki basarili ekleme mandali kaldirir
     e.tick(790.0)
-    assert e.reasons() == ["drawdown_review"] and e.rl.gate_code() is None
+    assert sorted(e.reasons()) == ["capital_latch", "drawdown_review"] and e.rl.gate_code() is None
 
 
 def test_fix1_floor_state_gate_never_none_without_verified_hold(tmp_path):
@@ -641,17 +641,17 @@ def test_fix2a_unwritten_stop_row_keeps_gate_closed_and_rehold(tmp_path):
     e.log.append = _boom
     e.tick(790.0)
     e.tick(790.0)                                                            # onay: review_stop yazilamadi
-    assert e.rl._retry is not None and e.reasons() == ["drawdown_review"]
+    assert e.rl._retry is not None and e.reasons() == ["capital_latch", "drawdown_review"]
     assert e.rl.gate_code() == "ladder_invalid"
     e.pause.remove("drawdown_review", "telegram:x")                          # harici kaldirma
     e.tick(810.0)                                                            # ozsermaye toparlandi
-    assert e.reasons() == ["drawdown_review"]                                # her adimda yeniden kurulur
+    assert e.reasons() == ["capital_latch", "drawdown_review"]                                # her adimda yeniden kurulur
     assert e.rl.gate_code() == "ladder_invalid"                              # (/kademe_devam red 6'ya takilir)
     assert e.rl._retry[0] == "review_stop"                                   # sonraki tetik stop retry'ini ezmez
     e.log.append = real_append
     e.tick(810.0)
     assert e.log.state().status == "review" and e.rl._retry is None
-    assert e.rl.gate_code() is None and e.reasons() == ["drawdown_review"]
+    assert e.rl.gate_code() is None and e.reasons() == ["capital_latch", "drawdown_review"]
 
 
 def test_fix2b_retry_with_engine_clock_behind_last_row_is_written_not_dropped(tmp_path):
@@ -670,7 +670,7 @@ def test_fix2b_retry_with_engine_clock_behind_last_row_is_written_not_dropped(tm
     for _ in range(4):
         e.tick(790.0)                                                        # base 1000 -> durma; ilk yazma duser
     st = e.log.state()
-    assert st.status == "review" and e.reasons() == ["drawdown_review"]
+    assert st.status == "review" and e.reasons() == ["capital_latch", "drawdown_review"]
     last = e.log.rows()[-1]
     assert last["kind"] == "review_stop" and rl.parse_at(last["at"]) >= S.NOW0 + 5 * H
 
