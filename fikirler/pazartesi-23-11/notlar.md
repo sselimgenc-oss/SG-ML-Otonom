@@ -34,7 +34,7 @@ ML+CT'yi izometrik 3D ofis gibi oyunlaştırıp YouTube canlı yayını. Şartla
 | Madde | Karar |
 |---|---|
 | a | Kâğıt kaldıraç 3x kalır; S1 stop bandı 2,0 kalır, 2 hafta ölçülür sonra karar |
-| b | Zirveden düşüş kilidi %15, kâğıtta da açık; açık pozisyonlar kalır, yalnız kullanıcı açar; başlangıç −%20 kuralı ikinci emniyet olarak kalır; zirve değeri yeniden başlatmada silinmez |
+| b | (23.11 DEĞİŞTİ) Kilit ZİRVEDEN DEĞİL ANA PARADAN: kasa ana paranın %15 altına inince (kâğıt 1.000 $ → 850 $) yeni giriş kilitlenir; kâğıtta da açık; açık pozisyonlar kalır, yalnız kullanıcı açar; başlangıç −%20 kuralı ikinci emniyet olarak kalır |
 | c | Canlıda HEPSİ (kripto + hisse + emtia). TradFi için kod değişikliği gerekli (config contract_types + broker extract_all_rules); sembol adları sunucuda doğrulanacak |
 | d | Canlı kasa tavanı 2.000 $ (toplam vadeli cüzdan, sonradan eklenenler dahil) — koddaki kilitli 1.500 $ sınırı kullanıcı kararıyla 2.000 $ olacak |
 | e | İlk canlı kasa en az 1.000 $, en çok 2.000 $ (kullanıcı: riskleri biliyorum) |

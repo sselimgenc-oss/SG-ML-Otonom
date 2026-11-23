@@ -37,7 +37,7 @@ Yeni oturum bunu baştan sona okur, sonra İLK İŞ olarak pazartesi 23.11 12:00
 ### 1) Kararlar VERİLDİ — "okey" gelince uygulama planı sun (Fable öncelik sırası)
 Tam tablo: `notlar.md` sonu ("KULLANICI KARARLARI 22.11").
 - g) İki komut: "Durdur" = yalnız yeni giriş durur; "Hepsini kapat" = ayrı, onay sorar; açık pozisyon stopları çalışmaya devam eder.
-- b) Zirveden düşüş kilidi %15, kâğıtta da açık; açıklar kalır; yalnız kullanıcı açar; zirve yeniden başlatmada silinmez; başlangıç −%20 kuralı (ladder) ikinci emniyet. Yer: `src/trader_engine/pause.py`, `ladder.py`, `gates.py`.
+- b) (23.11 DEĞİŞTİ) Kilit ana paradan %15 (zirveden değil): kâğıt 1.000 $ → 850 $; kâğıtta da açık; açıklar kalır; yalnız kullanıcı açar; başlangıç −%20 kuralı (ladder) ikinci emniyet. Yer: `src/trader_engine/pause.py`, `ladder.py`, `gates.py`.
 - c) Canlıda HEPSİ (kripto + hisse + emtia). Gerekli: `src/trader_engine/config.py` `_PAPER_ONLY_KEYS` içindeki `contract_types` canlıya da izin (22.11'de otomatik güvenlik kontrolüne takıldı — kullanıcının açık kararı burada; yine takılırsa kullanıcıdan izin ayarı iste) + broker `binance_futures.py:353` `extract_all_rules` contract_types geçirmiyor. Önce sunucuda tam sembol adları doğrulanmalı: pairs'te borsada olmayan TEK sembol motoru başlatmaz (RulesFetchError, marketdata/feed.py:322-356). Sunucu testi: gerçek Binance'te 43/44 var (TON yok); "V" yalnız önek eşleşmesiyle bulundu, doğrulanmadı.
 - h) Repolar canlıdan önce private + sunucuya okuma yetkili anahtar + oto güncelleme yeniden test (oto_guncelle şu an anonim curl ile indiriyor).
 - d) Canlı kasa tavanı 2.000 $ TOPLAM (vadeli cüzdan, sonradan eklenenler dahil); koddaki kilitli 1.500 $ sert sınırı kullanıcı kararıyla 2.000 $ (kilit testleri bilerek güncellenir).
