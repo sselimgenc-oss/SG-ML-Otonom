@@ -1,7 +1,7 @@
 {
   "surum": 1,
   "kaynak": "ML",
-  "uretim_ts": "2026-11-23T11:04:08Z",
+  "uretim_ts": "2026-11-23T12:04:49Z",
   "gecerlilik_dk": 90,
   "rejimler": [
     "trend_up",
@@ -16,7 +16,7 @@
       "varlik_sinifi": "kripto",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "trend_down",
@@ -28,7 +28,7 @@
       "varlik_sinifi": "kripto",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "trend_down",
@@ -40,7 +40,7 @@
       "varlik_sinifi": "kripto",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "trend_down",
@@ -52,7 +52,7 @@
       "varlik_sinifi": "kripto",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "trend_down",
@@ -64,7 +64,7 @@
       "varlik_sinifi": "kripto",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "trend_down",
@@ -76,7 +76,7 @@
       "varlik_sinifi": "kripto",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "trend_down",
@@ -88,7 +88,7 @@
       "varlik_sinifi": "kripto",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "trend_down",
@@ -100,7 +100,7 @@
       "varlik_sinifi": "kripto",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "trend_down",
@@ -112,7 +112,7 @@
       "varlik_sinifi": "kripto",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "trend_down",
@@ -124,7 +124,7 @@
       "varlik_sinifi": "kripto",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "trend_down",
@@ -136,7 +136,7 @@
       "varlik_sinifi": "kripto",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "trend_down",
@@ -148,7 +148,7 @@
       "varlik_sinifi": "kripto",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "trend_down",
@@ -160,7 +160,7 @@
       "varlik_sinifi": "kripto",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "trend_down",
@@ -172,7 +172,7 @@
       "varlik_sinifi": "kripto",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "trend_down",
@@ -184,7 +184,7 @@
       "varlik_sinifi": "kripto",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "trend_down",
@@ -196,7 +196,7 @@
       "varlik_sinifi": "kripto",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "trend_down",
@@ -208,7 +208,7 @@
       "varlik_sinifi": "kripto",
       "4h": {
         "rejim": "unclear",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "unclear",
@@ -220,7 +220,7 @@
       "varlik_sinifi": "kripto",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "trend_down",
@@ -232,7 +232,7 @@
       "varlik_sinifi": "kripto",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "trend_down",
@@ -244,7 +244,7 @@
       "varlik_sinifi": "kripto",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "trend_down",
@@ -256,7 +256,7 @@
       "varlik_sinifi": "hisse",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "volatile",
@@ -268,7 +268,7 @@
       "varlik_sinifi": "hisse",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "trend_down",
@@ -280,7 +280,7 @@
       "varlik_sinifi": "hisse",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "trend_up",
@@ -292,7 +292,7 @@
       "varlik_sinifi": "hisse",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "trend_down",
@@ -304,7 +304,7 @@
       "varlik_sinifi": "hisse",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "volatile",
@@ -316,7 +316,7 @@
       "varlik_sinifi": "hisse",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "trend_down",
@@ -328,7 +328,7 @@
       "varlik_sinifi": "hisse",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "volatile",
@@ -340,7 +340,7 @@
       "varlik_sinifi": "hisse",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "trend_down",
@@ -352,7 +352,7 @@
       "varlik_sinifi": "hisse",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "trend_up",
@@ -364,7 +364,7 @@
       "varlik_sinifi": "hisse",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "trend_down",
@@ -376,7 +376,7 @@
       "varlik_sinifi": "hisse",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "trend_up",
@@ -388,7 +388,7 @@
       "varlik_sinifi": "hisse",
       "4h": {
         "rejim": "trend_up",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "trend_up",
@@ -400,7 +400,7 @@
       "varlik_sinifi": "hisse",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "trend_up",
@@ -412,7 +412,7 @@
       "varlik_sinifi": "hisse",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "trend_down",
@@ -424,7 +424,7 @@
       "varlik_sinifi": "hisse",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "unclear",
@@ -436,7 +436,7 @@
       "varlik_sinifi": "hisse",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "trend_down",
@@ -448,7 +448,7 @@
       "varlik_sinifi": "hisse",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "trend_down",
@@ -460,7 +460,7 @@
       "varlik_sinifi": "hisse",
       "4h": {
         "rejim": "trend_up",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "trend_up",
@@ -472,7 +472,7 @@
       "varlik_sinifi": "hisse",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "volatile",
@@ -484,7 +484,7 @@
       "varlik_sinifi": "hisse",
       "4h": {
         "rejim": "unclear",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "trend_up",
@@ -496,7 +496,7 @@
       "varlik_sinifi": "emtia",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "trend_down",
@@ -508,7 +508,7 @@
       "varlik_sinifi": "emtia",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "trend_down",
@@ -520,7 +520,7 @@
       "varlik_sinifi": "emtia",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "trend_down",
@@ -532,7 +532,7 @@
       "varlik_sinifi": "emtia",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-23T04:00:00Z"
+        "bar_ts": "2026-11-23T08:00:00Z"
       },
       "1d": {
         "rejim": "trend_down",
