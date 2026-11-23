@@ -156,6 +156,8 @@ class Engine:
             self.gate.arms_off = lambda: load_arms_off(_arms_path)
             if self.gate.korelasyon is not None:                        # 23.11 asama B: korelasyon matrisi market.sqlite barlarindan (saatte bir)
                 self.gate.korelasyon.bars_fn = lambda p, tf, until, n: self.view.bars(p, tf, until, n)
+            if self.gate.uzun_yon is not None:                          # fikir 7: 1d rejimi market.sqlite 4h barlarindan
+                self.gate.uzun_yon.bars_fn = lambda p, tf, until, n: self.view.bars(p, tf, until, n)
             if cfg.etiket_kurallari:                                    # rejim etiketi kurali (sabit; girisi yalniz atlatabilir; docs/etiket-kurallari-spec.md)
                 self.gate.etiket_cfg = cfg.etiket_kurallari
             if cfg.ml_mode == "active":                                 # 19.11 kullanici karari: kagitta ML filtresi AKTIF (girisi atlatabilir)

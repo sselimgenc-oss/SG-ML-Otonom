@@ -25,6 +25,7 @@ from .config import EngineConfig
 from .errors import DataError
 from .killswitch import Killswitch
 from .korelasyon_grubu import KorelasyonGruplari
+from .uzun_yon import UzunYon, reddeder as _uy_reddeder
 from .pause import EntryPause
 from .state import StateStore, parse_iso_z
 from .strategies import arms as AR
@@ -176,6 +177,8 @@ class EntryGate:
         self.korelasyon: KorelasyonGruplari | None = None
         if kc and cfg.mode in ("paper", "live"):
             self.korelasyon = KorelasyonGruplari(None, cfg.pairs, cfg.clusters, kc["esik"], int(kc["pencere_gun"]))
+        uc = getattr(cfg, "uzun_yon", None)                      # fikir 7: uzun donem yon filtresi (bos = kapali); bars_fn'i engine baglar
+        self.uzun_yon: UzunYon | None = UzunYon(uc) if uc and cfg.mode in ("paper", "live") else None
         self.memory_lock: str | None = None       # DD-8 O4: dosya tutusu yazilamadiysa bellek kilidi (kapi kodu); None = yok
 
     # ------------------------------------------------------------------ cift-bagimsiz kapilar (4-8)
@@ -306,7 +309,9 @@ class EntryGate:
         if fn is None:
             return None
         try:
-            return KK.karar(fn(aid, KK.KAYIT_SAYISI))
+            fam = getattr(self.ledger, "arm_family_mean_r", None)
+            aile = fam(aid) if fam is not None else None          # fikir 8: az islemli kol aile ortalamasina cekilir (buzulme)
+            return KK.karar(fn(aid, KK.KAYIT_SAYISI), aile)
         except Exception as e:  # noqa: BLE001
             log.warning("kol kucultme okunamadi, tam boyut: %s: %s", type(e).__name__, e)
             return None
@@ -331,6 +336,29 @@ class EntryGate:
             self.counters["korelasyon_grubu_hata"] += 1
             log.warning("korelasyon grubu hatasi, giris serbest: %s: %s", type(e).__name__, e)
             return None
+
+    def _uzun_yon_karari(self, row: SignalRow, tf: str, D: datetime, tk: dict) -> EntryOutcome | None:
+        """Fikir 7: 1d rejimi boga ise short, ayi ise long girisi `uzun_yon` ile atlanir; yatay/veri yok serbest (veri yok sayilir).
+        Rejim karar olayi features["uzun_yon"] alanina yazilir. Hata => engellemez (sayilir)."""
+        uy = self.uzun_yon
+        if uy is None:
+            return None
+        try:
+            r = uy.rejim(row.pair, self.clock.now())
+        except Exception as e:  # noqa: BLE001
+            self.counters["uzun_yon_hata"] += 1
+            log.warning("uzun yon hesabi hatasi, giris serbest: %s: %s", type(e).__name__, e)
+            return None
+        tk["features"] = {**(tk.get("features") or _features(row)), "uzun_yon": r}
+        if r == "veri_yok":
+            self.counters["uzun_yon_veri_yok"] += 1
+            return None
+        if not _uy_reddeder(r, row.side):
+            return None
+        self.counters["uzun_yon_blok"] += 1
+        return self._skip(row, tf, "uzun_yon", skip_reason="risk_denied", veto_status="not_evaluated",
+                          veto_reason="gate:uzun_yon", risk_allowed=False,
+                          risk_reason=f"uzun dönem yön filtresi: 1d rejimi {r}, {row.side} girişi reddedildi", **tk)
 
     def _fren_karari(self, acct: K.AccountState, D: datetime) -> KF.FrenKarari | None:
         """Kayip freni: defterden (son kapananlar) + state gun basi kasadan TURETILIR (dosya yok). Hata => None (cagiran girisi atlar: fail-closed)."""
@@ -453,6 +481,9 @@ class EntryGate:
             if AG.account_full(len(held), self.cfg.max_positions):
                 return self._skip(row, tf, "max_positions", skip_reason="max_positions",
                                   veto_reason="gate:max_positions", **tk)
+            uy = self._uzun_yon_karari(row, tf, D, tk)                                   # fikir 7: 1d rejimi (boga: short yok, ayi: long yok)
+            if uy is not None:
+                return uy
             kg = self._korelasyon_karari(row, tf, D, tk)                                 # 23.11 asama B: korelasyon grubu yon tavani
             if kg is not None:
                 return kg

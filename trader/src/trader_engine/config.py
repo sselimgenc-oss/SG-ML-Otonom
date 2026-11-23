@@ -126,6 +126,7 @@ class EngineConfig:
     # --- 23.11 kullanici karari: asama B esikleri (yalniz paper/live giris kapisi; bos/None = kapali) ---
     korelasyon: Mapping[str, float] = dataclasses.field(default_factory=dict)       # {esik, pencere_gun, yon_basina_max}
     kayip_freni: Mapping[str, float] = dataclasses.field(default_factory=dict)      # {ardisik, gunluk_oran, carpan}
+    uzun_yon: Mapping[str, float] = dataclasses.field(default_factory=dict)         # fikir 7: {ema, egim_gun, min_gun}; bos = kapali
     toplam_buyukluk_kat: float | None = None                  # acik pozisyon nominali + aday <= kat x kasa
     exit_modes: Mapping[str, Mapping] = dataclasses.field(default_factory=dict)      # cikis kipleri (basa-bas / kismi kar); anahtar default|KURULUM|arm_id; bos = kapali (docs/cikis-kipleri-spec.md)
 
@@ -165,9 +166,9 @@ _OPTIONAL_KEYS = {"strategy", "target_trade_risk", "ml_mode", "ml_model_path", "
                   "leverage", "live", "ladder_follow", "shadow_blocks", "mtm_marks",
                   "optional_pairs", "retired_pairs", "ml_pairs", "max_positions", "risk", "clusters", "flat_bar_guard", "contract_types",
                   "cost_overrides", "arms", "arm_max_positions", "exit_modes", "etiket_kurallari",
-                  "korelasyon", "kayip_freni", "toplam_buyukluk_kat"}
+                  "korelasyon", "kayip_freni", "toplam_buyukluk_kat", "uzun_yon"}
 _PAPER_ONLY_KEYS = ("optional_pairs", "ml_pairs", "max_positions", "risk", "clusters", "flat_bar_guard", "contract_types",
-                    "cost_overrides", "arms", "arm_max_positions", "korelasyon", "kayip_freni", "toplam_buyukluk_kat")
+                    "cost_overrides", "arms", "arm_max_positions", "korelasyon", "kayip_freni", "toplam_buyukluk_kat", "uzun_yon")
 _LIVE_KEYS = {f.name for f in dataclasses.fields(LiveSettings)}
 _STRATEGY_RE = re.compile(r"[a-z][a-z0-9_]{0,39}")
 
@@ -336,6 +337,7 @@ def _build_clusters(v: Any, pairs: tuple[str, ...]) -> dict[str, ClusterSpec]:
 
 
 _KORELASYON_KEYS = {"esik": (0.0, 1.0), "pencere_gun": (1, 365), "yon_basina_max": (1, 1000)}
+_UZUN_YON_KEYS = {"ema": (2, 400), "egim_gun": (1, 100), "min_gun": (2, 1000)}
 _FREN_KEYS = {"ardisik": (1, 1000), "gunluk_oran": (0.0, 1.0), "carpan": (0.0, 1.0)}
 
 
@@ -591,6 +593,7 @@ def _validate(raw: Mapping[str, Any]) -> EngineConfig:
         raise ConfigError(str(e)) from e
     korelasyon = _build_sayi_blogu("korelasyon", raw.get("korelasyon"), _KORELASYON_KEYS, ("pencere_gun", "yon_basina_max"))
     kayip_freni = _build_sayi_blogu("kayip_freni", raw.get("kayip_freni"), _FREN_KEYS, ("ardisik",))
+    uzun_yon = _build_sayi_blogu("uzun_yon", raw.get("uzun_yon"), _UZUN_YON_KEYS, ("ema", "egim_gun", "min_gun"))
     tb_raw = raw.get("toplam_buyukluk_kat")
     toplam_buyukluk_kat = None if tb_raw is None else _num("toplam_buyukluk_kat", tb_raw, 0.0, 100.0)
     if toplam_buyukluk_kat is not None and toplam_buyukluk_kat <= 0:
@@ -601,7 +604,8 @@ def _validate(raw: Mapping[str, Any]) -> EngineConfig:
         given = {"optional_pairs": optional_pairs, "ml_pairs": ml_pairs, "max_positions": max_positions, "risk": risk_raw,
                  "clusters": clusters, "flat_bar_guard": flat_bar_guard, "cost_overrides": cost_overrides,
                  "contract_types": contract_types, "arms": arms, "arm_max_positions": arm_caps,
-                 "korelasyon": korelasyon, "kayip_freni": kayip_freni, "toplam_buyukluk_kat": toplam_buyukluk_kat}
+                 "korelasyon": korelasyon, "kayip_freni": kayip_freni, "toplam_buyukluk_kat": toplam_buyukluk_kat,
+                 "uzun_yon": uzun_yon}
         bad = sorted(k for k, x in given.items() if x not in ((), {}, None, False))
         if bad:
             raise ConfigError(f"{bad} yalniz mode='paper' ile verilebilir (mode={mode!r})")
@@ -645,7 +649,7 @@ def _validate(raw: Mapping[str, Any]) -> EngineConfig:
         risk=risk_raw, clusters=clusters,
         flat_bar_guard=flat_bar_guard, contract_types=contract_types, cost_overrides=cost_overrides,
         arms=arms, arm_max_positions=arm_caps, exit_modes=exit_modes, etiket_kurallari=etiket_kurallari,
-        korelasyon=korelasyon, kayip_freni=kayip_freni, toplam_buyukluk_kat=toplam_buyukluk_kat,
+        korelasyon=korelasyon, kayip_freni=kayip_freni, toplam_buyukluk_kat=toplam_buyukluk_kat, uzun_yon=uzun_yon,
         **{n: raw[n] for n in _STR},
     )
 

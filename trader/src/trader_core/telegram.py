@@ -1654,7 +1654,7 @@ def _kucultulen_kollar(cfg: TelegramConfig) -> str:
             return ""
         led = L.open_ledger(cfg.ledger_path, "learner", create=False, read_only=True, migrate=False)
         try:
-            return KK.satir(KK.azaltilanlar(led.arm_results_all(KK.KAYIT_SAYISI)))
+            return KK.satir(KK.azaltilanlar(led.arm_results_all(10**6)))
         finally:
             led.close()
     except Exception as e:  # noqa: BLE001 - istege bagli satir
