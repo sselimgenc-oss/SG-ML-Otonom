@@ -224,11 +224,12 @@ def test_olaysiz_dosyada_sinyal_yasi_90_dk_siniri(sinyal):
     assert bool(_son(HB1.compute(_inp()))["signal"])
 
 
-def test_olay_kimligi_feature_olarak_kaydedilir(sinyal):
-    assert HB1.FEATURES["hb1_olay"] == "edge_dist_atr"
+def test_olay_kimligi_ml_ozelligine_yazilmaz(sinyal):
+    """Olay kimligi edge_dist_atr tasiyicisina yazilmaz (suzgec ozelligi bozulmasin)."""
+    assert "hb1_olay" not in HB1.FEATURES and "edge_dist_atr" not in HB1.FEATURES.values()
     sinyal(_belge(D - timedelta(minutes=50), {"BTC/USDT": _s(kimlik=3_000_000_001)}))
     r = _son(HB1.compute(_inp()))
-    assert r["edge_dist_atr"] == 3_000_000_001.0 and int(r["edge_dist_atr"]) == 3_000_000_001       # 32 bit kimlik float'ta tam
+    assert bool(r["signal"]) and np.isnan(r["edge_dist_atr"])
 
 
 def test_kapi_duzeyi_hb1_tavani_3_dorduncu_aday_reddedilir():
@@ -270,7 +271,7 @@ def test_uretici_ciktisi_kolda_uctan_uca(sinyal):
     sinyal(belge)
     r = _son(HB1.compute(_inp()))
     assert bool(r["signal"]) and r["side"] == "long"
-    assert r["edge_dist_atr"] == float(belge["enstrumanlar"]["BTC/USDT"]["olay_kimligi"])
+    assert np.isnan(r["edge_dist_atr"])                    # olay kimligi ML ozelligine yazilmaz
     assert HB1.COUNTERS["aday"] == 1
 
 

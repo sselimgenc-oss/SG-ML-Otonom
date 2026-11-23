@@ -49,9 +49,9 @@ CORE = False
 ML_SCORED = False
 EXIT_MODE = "target"
 PRIORITY = 92                            # M1 (90) ile ayni mumda cakisirsa M1 kazanir; DL1 icin 95 ayrilmis
-FEATURES = {"hb1_body": "body_ratio", "hb1_wick": "wick_ratio", "hb1_rr": "rr", "hb1_olay": "edge_dist_atr"}
-# hb1_olay: sinyali olusturan en yeni olayin kimligi (32 bit tamsayi, float'ta tam). Kol defteri OKUYAMAZ (ArmInput'ta yok); "ayni haberle
-# yeniden giris yok" kontrolu bu kayittan sonra motor/kapi katmaninda (kapanan son HB1 isleminin hb1_olay'i ile) yapilabilir.
+FEATURES = {"hb1_body": "body_ratio", "hb1_wick": "wick_ratio", "hb1_rr": "rr"}
+# olay_kimligi sinyal dosyasinda kalir; ML ozellik tasiyicisina (edge_dist_atr) YAZILMAZ: suzgec ozelligini bozardi.
+# "Ayni haberle yeniden giris yok" kontrolu motor katmaninda ayri is (kol defteri okuyamaz).
 
 # ---- adlandirilmis sabitler (giris kurali)
 ESIK_PUAN = 0.6          # |sonumlu puan| alt siniri. Tek olay puani = yon * siddet/3 * guven * sonum <= 1; 0,6 ~ "taze, siddet 3, guven >= 0,6"
@@ -214,5 +214,5 @@ def compute(inp: ArmInput):
     COUNTERS["aday"] += 1
     tab.put(i, setup=SETUP, side=side, skip=None,
             labels=["hb1", f"puan={s['puan']:+.2f}", f"k={s['teyit_kaynak']}", f"s={s['max_siddet']}"], entry=entry,
-            stop=stop, target=target, rr=RR, sda=PF.STOP_ATR, ema=np.nan, body=body, wick=wick, edge=float(s["olay_kimligi"]), pb=0)
+            stop=stop, target=target, rr=RR, sda=PF.STOP_ATR, ema=np.nan, body=body, wick=wick, edge=np.nan, pb=0)
     return tab.frame()
