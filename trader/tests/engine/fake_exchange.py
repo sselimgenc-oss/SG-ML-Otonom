@@ -73,6 +73,8 @@ class FakeExchange:
         self.stop_after_close = "keep"
         self.immediate_trigger = "reject"
         self.market_parts = 1
+        self.hold_market = False                         # True: reduceOnly piyasa emri NEW kalir (dolmaz) -> release_market(cid) doldurur
+        self.hide_trades_oids: set[int] = set()          # userTrades gecikmesi: bu orderId'lerin islemleri gizlenir
         self.hide_rules: set[str] = set()
         self.liquidation_queryable = True
         self.force_rows: list[dict] = []
@@ -179,6 +181,12 @@ class FakeExchange:
         row.update(orderId=oid, status="FILLED", executedQty=str(qty), avgPrice=str(price), cumQuote=str(price * qty),
                    updateTime=now)
         return oid
+
+    def release_market(self, cid: str) -> None:
+        """hold_market ile NEW tutulan piyasa emrini simdiki mark'tan doldurur."""
+        o = self.orders[cid]
+        assert o["status"] == "NEW"
+        self._fill(o["symbol"], o["side"], D(o["origQty"]), self.marks[o["symbol"]], cid, True)
 
     # ------------------------------------------------------------------ HTTP
     def request(self, method: str, url: str, headers=None, timeout=None):
@@ -289,7 +297,8 @@ class FakeExchange:
             return [self._algo_row(a) for a in self.algos.values() if a["algoStatus"] == "NEW" and sym in (None, a["symbol"])]
         if path == "/fapi/v1/userTrades":
             lo, hi = int(q.get("startTime", 0)), int(q.get("endTime", 1 << 62))
-            return [t for t in self.trades if t["symbol"] == sym and lo <= t["time"] <= hi][:int(q.get("limit", 500))]
+            return [t for t in self.trades if t["symbol"] == sym and lo <= t["time"] <= hi
+                    and t["orderId"] not in self.hide_trades_oids][:int(q.get("limit", 500))]
         if path == "/fapi/v1/income":
             lo, hi = int(q.get("startTime", 0)), int(q.get("endTime", 1 << 62))
             return [i for i in self.incomes if i["symbol"] == sym and i["incomeType"] == q.get("incomeType")
@@ -349,6 +358,12 @@ class FakeExchange:
                     qty = abs(p["amt"])
             elif qty * self.marks[sym] < D(self.symbols[sym]["notional"]):
                 return _err(-4164, "Order's notional must be no smaller than 5.")
+            if self.hold_market and reduce:
+                self._oid += 1
+                self.orders[cid] = {"clientOrderId": cid, "symbol": sym, "side": side, "type": "MARKET", "reduceOnly": True,
+                                    "origQty": str(qty), "time": self.now_ms(), "orderId": self._oid, "status": "NEW",
+                                    "executedQty": "0", "avgPrice": "0", "cumQuote": "0", "updateTime": self.now_ms()}
+                return self._row(self.orders[cid])
             self._fill(sym, side, qty, self.marks[sym], cid, reduce, parts=self.market_parts)
             return self._row(self.orders[cid])
         o = self.orders.get(cid) if cid else next((x for x in self.orders.values() if x.get("orderId") == int(q.get("orderId", -1))), None)

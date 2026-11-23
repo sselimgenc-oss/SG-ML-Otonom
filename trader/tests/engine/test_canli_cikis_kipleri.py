@@ -356,3 +356,172 @@ def test_testnet_cikis_kipi_kapali_kalir(tmp_path):
         assert e.engine._exit_modes(_pos()) is None
     finally:
         e.close()
+
+
+# ---------------------------------------------------------------------------------------------- inceleme duzeltmeleri
+BLENDED = (1.5 * 2.12 + 3.3 * 1.85) / 4.8
+
+
+def _fee_sum(e, trade_id):
+    t = e.real_ledger.get_trade(trade_id)
+    return t, float(getattr(t, "fee_exit", 0.0) or 0.0)
+
+
+def test_madde1_kismi_done_motor_kapaliyken_stop_tetiklenir_yeniden_baslatmada_tek_sayim(tmp_path):
+    e = mk(tmp_path, ONLY_PT)
+    pos = e.enter()
+    e.src.ctx[(XRP, D2)] = ctx(D2, 2.16)
+    e.ex.set_mark(SYM, "2.12")
+    e.decide(D2)
+    pk = e.state.kv_get(f"partial:{pos.trade_id}")
+    assert pk["state"] == "done" and e.pos().qty == pytest.approx(3.3)
+    e.close()
+    e.ex.set_mark(SYM, "1.85")                                       # motor kapali: stop tetiklenir, borsa duz
+    assert not e.ex.pos.get(SYM) or e.ex.pos[SYM]["amt"] == 0
+    e2 = mk(e.tmp, ONLY_PT, ex=e.ex, clock=e.clock)
+    try:
+        e2.tick(31)
+        e2.tick(31)
+        assert e2.state.get_position(pos.trade_id).status == "closed"
+        t, fee = _fee_sum(e2, pos.trade_id)
+        assert t.exit_price == pytest.approx(BLENDED)                # kismi bacak tek kez karma fiyata girer
+        stop_fee = 3.3 * 1.85 * 0.0004
+        assert fee == pytest.approx(stop_fee + float(pk["fee"]), rel=1e-6)      # komisyon bir kez (stop bacagi + kismi)
+    finally:
+        e2.close()
+
+
+def test_madde2_pending_kismi_dolmus_sonra_stop_kapanista_cozulur_ve_harmanlanir(tmp_path):
+    e, pos, cid = _crash_after_partial_post(tmp_path)                # pending, borsada dolmus, motor haberdar degil
+    try:
+        e.engine._register(pos.trade_id)
+        e.ex.set_mark(SYM, "1.85")
+        e.tick(31)
+        e.tick(31)
+        e.tick(31)
+        assert e.state.get_position(pos.trade_id).status == "closed"
+        assert e.state.kv_get(f"partial:{pos.trade_id}")["state"] == "done"
+        t, _ = _fee_sum(e, pos.trade_id)
+        assert t.exit_price == pytest.approx(BLENDED)                # kismi bacagin kari dusmez
+    finally:
+        e.close()
+
+
+def test_madde2_pending_kismi_yeniden_baslatma_sonrasi_stop_kapanista_cozulur(tmp_path):
+    e, pos, cid = _crash_after_partial_post(tmp_path)
+    e.close()
+    e.ex.set_mark(SYM, "1.85")                                       # kapaliyken stop tetiklenir
+    e2 = mk(e.tmp, ONLY_PT, ex=e.ex, clock=e.clock)
+    try:
+        e2.tick(31)
+        e2.tick(31)
+        assert e2.state.get_position(pos.trade_id).status == "closed"
+        t, _ = _fee_sum(e2, pos.trade_id)
+        assert t.exit_price == pytest.approx(BLENDED)
+    finally:
+        e2.close()
+
+
+@pytest.mark.parametrize("reason", [(429, -1003, "rate_limited"), (418, -1003, "exchange_ban")])
+def test_madde3_gecici_ret_kismiyi_skipped_yapmaz_sonraki_barda_yeniden_dener(tmp_path, reason):
+    status, code, _ = reason
+    e = mk(tmp_path, ONLY_PT)
+    pos = e.enter()
+    e.src.ctx[(XRP, D2)] = ctx(D2, 2.16)
+    e.src.ctx[(XRP, D3)] = ctx(D3, 2.16)
+    e.ex.set_mark(SYM, "2.12")
+    e.ex.inject("/fapi/v1/order", FakeResp(status, {"code": code, "msg": "x"}))
+    e.decide(D2)
+    pk = e.state.kv_get(f"partial:{pos.trade_id}")
+    assert pk["state"] == "retry" and e.pos().qty == pytest.approx(4.8)
+    assert e.engine.counters()["partial_retry_transient"] == 1
+    e.decide(D2)                                                      # ayni bar: yeniden deneme yok
+    assert reduce_markets(e) == [] or len(reduce_markets(e)) <= 1
+    e.decide(D3)
+    pk = e.state.kv_get(f"partial:{pos.trade_id}")
+    assert pk["state"] == "done" and e.pos().qty == pytest.approx(3.3)
+    assert len([m for m in e.ex.trades if m["side"] == "SELL"]) == 1          # tek kismi emir dolmus (cift emir yok)
+
+
+def test_madde3_kalici_ret_skipped_kalir(tmp_path):
+    e = mk(tmp_path, ONLY_PT)
+    pos = e.enter()
+    e.src.ctx[(XRP, D2)] = ctx(D2, 2.16)
+    e.src.ctx[(XRP, D3)] = ctx(D3, 2.16)
+    e.ex.set_mark(SYM, "2.12")
+    e.ex.inject("/fapi/v1/order", FakeResp(400, {"code": -2022, "msg": "ReduceOnly Order is rejected."}))
+    e.decide(D2)
+    assert e.state.kv_get(f"partial:{pos.trade_id}")["state"] == "skipped"
+    e.decide(D3)
+    assert reduce_markets(e) == [] or len(reduce_markets(e)) == 1 and e.state.kv_get(f"partial:{pos.trade_id}")["state"] == "skipped"
+
+
+def test_madde4_bayat_last_pos_kismi_dolumu_olay_uretir_ve_kapanis_dogru(tmp_path):
+    e = mk(tmp_path, ONLY_PT)
+    pos = e.enter()
+    e.src.ctx[(XRP, D2)] = ctx(D2, 2.16)
+    e.ex.set_mark(SYM, "2.12")
+    e.engine.broker._last_pos.pop(XRP, None)                          # bayat/bilinmeyen son miktar
+    e.decide(D2)
+    assert e.state.kv_get(f"partial:{pos.trade_id}")["state"] == "done" and e.pos().qty == pytest.approx(3.3)
+    assert e.engine.counters()["partial_fills"] == 1
+    e.ex.set_mark(SYM, "1.85")
+    e.tick(31)
+    e.tick(31)
+    t, _ = _fee_sum(e, pos.trade_id)
+    assert e.state.get_position(pos.trade_id).status == "closed" and t.exit_price == pytest.approx(BLENDED)
+    e.close()
+
+
+def test_madde4_kismi_new_kalir_sonra_dolar_gecikmeli_user_trades(tmp_path):
+    e = mk(tmp_path, ONLY_PT)
+    pos = e.enter()
+    e.src.ctx[(XRP, D2)] = ctx(D2, 2.16)
+    e.ex.set_mark(SYM, "2.12")
+    e.ex.hold_market = True
+    e.decide(D2)
+    pk = e.state.kv_get(f"partial:{pos.trade_id}")
+    assert pk["state"] == "pending" and e.pos().qty == pytest.approx(4.8)
+    e.ex.hold_market = False
+    e.ex.release_market(pk["cid"])
+    oid = e.ex.orders[pk["cid"]]["orderId"]
+    e.ex.hide_trades_oids.add(oid)                                     # userTrades gecikmesi
+    e.tick(31)
+    e.ex.hide_trades_oids.clear()
+    e.tick(31)
+    e.decide(D2)
+    assert e.state.kv_get(f"partial:{pos.trade_id}")["state"] == "done" and e.pos().qty == pytest.approx(3.3)
+    assert len(reduce_markets(e)) == 1
+    e.close()
+
+
+def test_madde5_mutabakat_bekleyen_kismi_dolmus_ext_reduction_uretmez(tmp_path):
+    e, pos, cid = _crash_after_partial_post(tmp_path)                   # state Q=4.8 pending(1.5), borsa 3.3
+    e.close()
+    e2 = mk(e.tmp, ONLY_PT, ex=e.ex, clock=e.clock)
+    try:
+        assert e2.state.kv_get(f"ext_reduction:{pos.trade_id}") is None
+        ctr = e2.engine.reconciler.counters if hasattr(e2.engine, "reconciler") else None
+        if ctr is not None:
+            assert ctr.get("qty_reduced_external", 0) == 0
+        e2.src.ctx[(XRP, D2)] = ctx(D2, 2.16)
+        e2.decide(D2)
+        assert e2.state.kv_get(f"partial:{pos.trade_id}")["state"] == "done" and e2.pos().qty == pytest.approx(3.3)
+        assert e2.state.kv_get(f"ext_reduction:{pos.trade_id}") is None
+    finally:
+        e2.close()
+
+
+def test_madde7_accept_then_trigger_basabas_yeniden_boyutlama(tmp_path):
+    e = mk(tmp_path, BOTH)
+    pos = e.enter()
+    e.ex.immediate_trigger = "accept_then_trigger"
+    e.src.ctx[(XRP, D2)] = ctx(D2, 2.16, last_close=2.0)               # basa-bas + kismi ayni barda
+    e.ex.set_mark(SYM, "2.001")                                        # yeni stop mark'in ustunde: NEW kabul, hemen tetik
+    e.decide(D2)
+    e.tick(31)
+    e.tick(31)
+    p = e.state.get_position(pos.trade_id)
+    assert p.status == "closed" and e.ex_qty() == 0
+    assert [a for a in e.stops()] == []                                 # acik koruyucu stop kalmadi
+    e.close()

@@ -148,11 +148,22 @@ class LiveReconciler(Reconciler):
             self._register(sp, bp, oo.get(pair, []))
             step = self._rules(pair)[1]
             excess = sp.qty is not None and bp.qty - sp.qty >= step / 2
+            pk = self.state.kv_get(f"partial:{sp.trade_id}")
+            pq = float(pk.get("qty", 0.0) or 0.0) if isinstance(pk, dict) else 0.0
+            if excess and pq > 0 and pk.get("state") == "done" and abs((bp.qty - sp.qty) - pq) < step / 2:
+                self.counters["partial_exch_lag_suspect"] += 1       # state kismiyi dusmus, borsa henuz eski adet (positionRisk gecikmesi?)
+                log.warning("mutabakat: kismi %s sonrasi borsa adedi eski gorunuyor (state %s borsa %s): gecikme suphesi; "
+                            "davranis degismedi", sp.trade_id, sp.qty, bp.qty)
             if excess:
                 fatal |= self._unknown(pair, bp, now, acts, finds, reasons, kill_close=True, excess=bp.qty - sp.qty,
                                        known=sp)
             elif sp.qty is not None and sp.qty - bp.qty >= step / 2:
-                self._l4(sp, bp, now, acts, finds)
+                if pq > 0 and pk.get("state") == "pending" and abs((sp.qty - bp.qty) - pq) < step / 2:
+                    self.counters["partial_pending_expected"] += 1   # bekleyen kismi emir borsada doldu: dis azaltma DEGIL
+                    log.warning("mutabakat: bekleyen kismi emir trade %s dolmus gorunuyor (state %s borsa %s): ext_reduction yok; "
+                                "motor emri kimlikle cozer", sp.trade_id, sp.qty, bp.qty)
+                else:
+                    self._l4(sp, bp, now, acts, finds)
             else:
                 self._clear_reduction(sp)
             self._stops(sp, bp, oo.get(pair, []), now, acts, finds, reasons, protect_only=False, skip_requantity=excess)
@@ -395,6 +406,7 @@ class LiveReconciler(Reconciler):
 
     def _l3(self, sp: Position, now, acts, finds, reasons) -> bool:
         """True: cikis turetildi/isleme verildi."""
+        self._register_partial(sp)                         # duz pozisyon yolu: kismi bacak kapanis olayindan dislanir (cift sayim yok)
         try:
             evs = self.broker.closing_events(sp.pair, sp.entry_ts or sp.signal_bar_close_ts, self._hint_ids(sp))
         except StateError:
@@ -691,14 +703,25 @@ class LiveReconciler(Reconciler):
         ids = self._hint_ids(sp) + [o.client_id for o in orders_open if o.client_id not in self._hint_ids(sp)]
         try:
             reg(sp.pair, sp.entry_ts or bp.opened_ts, ids)
-            rp = getattr(self.broker, "register_partial", None)        # cikis kipleri: kismi bacak kapanis olayindan dislanir (yeniden baslatma)
-            pk = self.state.kv_get(f"partial:{sp.trade_id}")
-            if callable(rp) and isinstance(pk, dict) and pk.get("cid") and pk.get("state") in ("pending", "done"):
-                rp(sp.pair, str(pk["cid"]))
         except StateError:
             raise
         except Exception as e:  # noqa: BLE001
             log.warning("register_position basarisiz %s: %r", sp.pair, e)
+        self._register_partial(sp)
+
+    def _register_partial(self, sp: Position) -> None:
+        """Cikis kipleri: kismi bacak kimligi brokera bildirilir (pozisyon borsada olsun olmasin; yeniden baslatma). Bu emrin
+        islemleri son kapanis olayindan dislanir; defter kismi bacagi tek kez karma fiyata katar."""
+        rp = getattr(self.broker, "register_partial", None)
+        pk = self.state.kv_get(f"partial:{sp.trade_id}")
+        if not (callable(rp) and isinstance(pk, dict) and pk.get("cid") and pk.get("state") in ("pending", "done")):
+            return
+        try:
+            rp(sp.pair, str(pk["cid"]))
+        except StateError:
+            raise
+        except Exception as e:  # noqa: BLE001
+            log.warning("register_partial basarisiz %s: %r", sp.pair, e)
 
     # ================================================================== L11 + blokaj
     def _exit_unknown_hold(self, reasons: list[str]) -> None:

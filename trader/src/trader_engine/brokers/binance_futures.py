@@ -1043,8 +1043,11 @@ class LiveBroker:
         known = self._last_pos.get(pair)
         spec = (self._rules.get(pair).spec if pair in self._rules else None)       # type: ignore[union-attr]
         eps = (spec.market_step / 2) if spec is not None else D("1e-9")
-        if known is None or known == 0 or ex <= 0 or ex >= abs(known) - eps:
+        if ex <= 0:
             return False
+        if known is not None and known != 0 and ex >= abs(known) - eps:
+            return False                                       # emir tum bilinen pozisyonu kapatti: normal kapanis yolu
+        # emir KIMLIGI kismi kumesinde (info.partial) -> bayat/bilinmeyen _last_pos (yeniden baslatma, gec okuma) kararini degistirmez
         if not (math.isfinite(avg) and avg > 0):
             cum = _d(body.get("cumQuote"))
             avg = float(cum / ex) if cum > 0 else float("nan")
@@ -1052,8 +1055,9 @@ class LiveBroker:
                 return False
         ts = _ts(body.get("updateTime"), now)
         fee = self._order_commission(pair, body, ex, avg)
-        sign = 1 if known > 0 else -1
-        self._last_pos[pair] = known - D(sign) * ex
+        if known is not None and known != 0:
+            sign = 1 if known > 0 else -1
+            self._last_pos[pair] = known - D(sign) * ex
         self._ctr["partial_exit_events"] += 1
         self._push(BrokerEvent("fill", ts, pair, cid, Fill(cid, pair, "exit", info.side, float(ex), avg, fee, ts, "market")))  # type: ignore[arg-type]
         return True
@@ -1548,8 +1552,8 @@ class LiveBroker:
             return None
         if balanced and e_sum > r_all + eps:
             return None                                        # girisler azaltmalardan fazla: kapanis tam gorunmuyor
-        if known is not None and known != 0 and r_sum < abs(known) - eps:
-            return None                                        # son bilinen miktar kadar azaltma yok: eksik
+        if known is not None and known != 0 and r_all < abs(known) - eps:
+            return None                                        # son bilinen miktar kadar azaltma yok: eksik (kismi bacak dahil sayilir)
         if not balanced:
             if known is None or known == 0:
                 return None                                    # giris gorunmuyor ve alt sinir yok: dogrulanamaz
