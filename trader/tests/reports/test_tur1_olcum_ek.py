@@ -194,3 +194,86 @@ def test_rejim_sarti_30_islem_ve_guven_alt_siniri():
     # 60 islem/rejim, net pozitif ve tutarli: sayilir
     ok = [mk(i, net=1.0 + 0.01 * (i % 5), regime=("range", "trend_up")[i % 2], entry_ms=T0 + (40 + i * 24) * H) for i in range(120)]
     assert T.canli_sartlari(ok, RK, T.dayaniklilik(ok, None))["maddeler"][2]["sonuc"] == "PASS"
+
+
+# ---------------------------------------------------------------- Duzeltme 7, 8: al-tut ve rakip masrafi
+def _bars(tmp_path, ad, pair_aralik):
+    """pair_aralik: {pair: [(baslangic_ms, adet, baslangic_fiyat, saatlik_carpan)]}"""
+    import sqlite3
+    p = tmp_path / ad
+    c = sqlite3.connect(str(p))
+    c.executescript("""CREATE TABLE bars(kind TEXT NOT NULL, pair TEXT NOT NULL, tf TEXT NOT NULL, open_ms INTEGER NOT NULL,
+      o REAL NOT NULL, h REAL NOT NULL, l REAL NOT NULL, c REAL NOT NULL, v REAL NOT NULL DEFAULT 0, written_ms INTEGER NOT NULL,
+      PRIMARY KEY(kind,pair,tf,open_ms)) WITHOUT ROWID; PRAGMA user_version=1;""")
+    rows = []
+    for pair, aralik in pair_aralik.items():
+        for bas, adet, px, mul in aralik:
+            for k in range(adet):
+                o, px = px, px * mul
+                ms = bas + k * H
+                rows.append(("last", pair, "1h", ms, o, max(o, px), min(o, px), px, 1.0, ms + 2 * H))
+    c.executemany("INSERT INTO bars VALUES (?,?,?,?,?,?,?,?,?,?)", rows)
+    c.commit(), c.close()
+    return p
+
+
+def test_al_tut_esit_agirlik_ve_veri_yok(tmp_path):
+    m = T.MumDeposu(_bars(tmp_path, "a.sqlite", {"BTC/USDT": [(T0, 300, 100.0, 1.001)], "ETH/USDT": [(T0, 300, 50.0, 0.999)]}))
+    ts = [mk(1, pair="BTC/USDT", entry_ms=T0 + 10 * H), mk(2, pair="ETH/USDT", entry_ms=T0 + 20 * H), mk(3, pair="SOL/USDT", entry_ms=T0 + 30 * H)]
+    try:
+        r = T.al_tut(ts, m, 1000.0)
+    finally:
+        m.close()
+    # donem: T0+10h (ilk giris) -> son cikis T0+33h; bar basi hizasi: [T0+10h, T0+34h) = 24 bar
+    assert r["durum"] == "ok" and r["n_enstruman"] == 3 and r["n_veri_var"] == 2 and r["veri_yok_enstruman"] == ["SOL/USDT"]
+    assert r["enstruman_getirisi"]["BTC/USDT"] == pytest.approx(1.001 ** 24 - 1, rel=1e-9)
+    assert r["enstruman_getirisi"]["ETH/USDT"] == pytest.approx(0.999 ** 24 - 1, rel=1e-9)
+    assert r["ort_getiri"] == pytest.approx((r["enstruman_getirisi"]["BTC/USDT"] + r["enstruman_getirisi"]["ETH/USDT"]) / 2)
+    assert r["bizim_getiri"] == pytest.approx(sum(t["pnl"] for t in ts) / 1000.0)
+    assert T.al_tut(ts, None)["durum"] == "veri_yok" and T.al_tut([], None)["durum"] == "veri_yok"
+    md = T.render_md(T.rapor(ts, [], T.MumDeposu(_bars(tmp_path, "b.sqlite", {"BTC/USDT": [(T0, 300, 100.0, 1.001)]})), kasa0=1000.0, now=NOW, b=100, runs=5000))
+    assert "Al-tut (gerçek" in md and "veri yok: ETH/USDT" in md
+
+
+def test_al_tut_kilitli_donemi_okumaz_zincirler(tmp_path):
+    from datetime import datetime, timezone
+    h0p = T.guard.H0_MS - T.guard.PAD_HOURS * H
+    on = h0p - 50 * H
+    sonra = T.guard.H1_MS
+    p = _bars(tmp_path, "k.sqlite", {"BTC/USDT": [(on, 50, 100.0, 1.01), (sonra, 60, 200.0, 1.01)]})
+    a = mk(1, pair="BTC/USDT", entry_ms=on + 2 * H)
+    b = mk(2, pair="BTC/USDT", entry_ms=sonra + 50 * H)
+    m = T.MumDeposu(p)
+    try:
+        r = T.al_tut([a, b], m)
+    finally:
+        m.close()
+    assert r["durum"] == "ok" and r["kilitli_aralik_disarida"] is True
+    onc = (1.01 ** 50)
+    snr = 1.01 ** 60
+    # parca 1: [on+2h, h0p) = 48 bar; parca 2: [H1, son cikis+) = 53 bar (60 bar mevcut, cikis sonrasi dahil degil)
+    bit = sonra + 50 * H + 3 * H
+    n2 = (bit - bit % H + H - sonra) // H
+    assert r["enstruman_getirisi"]["BTC/USDT"] == pytest.approx(1.01 ** 48 * 1.01 ** n2 - 1, rel=1e-9)
+
+
+def test_rastgele_rakip_kagit_masrafi_ve_eski_yan_yana(tmp_path):
+    cfg = {"cost_overrides": {"BTC/USDT": {"open": {"slip_entry_bps": 40.0, "slip_exit_bps": 40.0, "slip_stop_bps": 90.0}}},
+           "cost": {"taker_fee": 0.001}}
+    fn = T.kagit_maliyet_fn(cfg)
+    c = fn("BTC/USDT")
+    assert c.kayma == pytest.approx(40e-4) and c.stop_kayma == pytest.approx(90e-4) and c.taker == pytest.approx(0.001)
+    d = fn("ETH/USDT")                                      # override yok: CostModel varsayilani (2/2/5 bp)
+    assert d.kayma == pytest.approx(2e-4) and d.stop_kayma == pytest.approx(5e-4)
+    assert T.kagit_maliyet_fn(None) is None
+    ts = [mk(i) for i in range(12)]
+    m = T.MumDeposu(market(tmp_path))
+    try:
+        yeni = T.rastgele_giris(ts, m, 200, 7, cfg)
+        eski = T.rastgele_giris(ts, m, 200, 7)
+    finally:
+        m.close()
+    assert yeni["masraf_modeli"] == "kagit_config" and eski["masraf_modeli"] == "k2_varsayilan" and eski["eski_masraf"] is None
+    assert yeni["eski_masraf"]["rastgele_ort_toplam_r"] == pytest.approx(eski["rastgele_ort_toplam_r"])   # yan yana eski = eski sonuc
+    assert yeni["rastgele_ort_toplam_r"] < eski["rastgele_ort_toplam_r"]                                   # pahali masraf rakibi dusurur
+    assert "FONLAMA" in yeni["not"]

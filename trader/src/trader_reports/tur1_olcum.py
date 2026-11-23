@@ -248,7 +248,27 @@ def _kurulum_islemleri(trades, mumlar: MumDeposu):
     return sonuc, {"toplam": sum(neden.values()), "neden": dict(neden), "tf": dict(atlanan_tf)}
 
 
-def rastgele_giris(trades, mumlar: MumDeposu | None, b: int = RASTGELE_B, seed: int = SEED) -> dict:
+def kagit_maliyet_fn(cfg: dict | None):
+    """Kâğıt masraf modelinden (`config/engine.paper.json`: `cost` + `cost_overrides`, `trader_engine.config.CostModel` varsayılanları)
+    çift -> K2Maliyet. Hisse/emtia için 'open' seans kayması. FONLAMA YOK: k2 simülasyonu fonlama taşımaz (rapor notu). cfg None -> None."""
+    if not isinstance(cfg, dict):
+        return None
+    from trader_core.stats.k2_simulasyon import K2Maliyet
+    from trader_engine.config import CostModel
+    d = CostModel()
+    c = cfg.get("cost") if isinstance(cfg.get("cost"), dict) else {}
+    ov = cfg.get("cost_overrides") if isinstance(cfg.get("cost_overrides"), dict) else {}
+    taker = float(c.get("taker_fee", d.taker_fee))
+    base = {k: float(c.get(k, getattr(d, k))) for k in ("slip_entry_bps", "slip_exit_bps", "slip_stop_bps")}
+
+    def fn(pair: str):
+        o = ((ov.get(pair) or {}).get("open")) or {}
+        v = {k: float(o.get(k, base[k])) for k in base}
+        return K2Maliyet(kayma=(v["slip_entry_bps"] + v["slip_exit_bps"]) / 2e4, stop_kayma=v["slip_stop_bps"] / 1e4, taker=taker)
+    return fn
+
+
+def rastgele_giris(trades, mumlar: MumDeposu | None, b: int = RASTGELE_B, seed: int = SEED, maliyet_cfg: dict | None = None) -> dict:
     """Mevcut k2 simulasyonu (`trader_core.stats.k2_simulasyon`): ayni sayi, yon, stop/ATR kati ve tutma suresi; giris ayni takvim
     ceyreginde rastgele. Rakip dagilim 'toplam R'; bizimki ayni islem alt kumesinin gercek toplam net R'si."""
     from trader_core import tur1_rastgele as RG
@@ -260,15 +280,27 @@ def rastgele_giris(trades, mumlar: MumDeposu | None, b: int = RASTGELE_B, seed: 
     if not n:
         return {"durum": "veri_yok", "n": 0, "atlanan": atlanan, "atlanan_neden": at["neden"], "atlanan_tf": at["tf"], "etiket": YETERSIZ}
     gercek = toplam(t["net_r"] for v in gr.values() for t in v[2])
-    k = RG.k2_toplam({key: (v[0], v[1]) for key, v in gr.items()}, gercek, b, seed, guard.H1_MS)
+    gk = {key: (v[0], v[1]) for key, v in gr.items()}
+    mf = kagit_maliyet_fn(maliyet_cfg)
+    k = RG.k2_toplam(gk, gercek, b, seed, guard.H1_MS, mf)
     sim = k["sim"]
     yuzdelik = 100.0 * float((np.sum(sim < gercek) + 0.5 * np.sum(sim == gercek)) / sim.size)
+    eski = None
+    if mf is not None:                       # yan yana: eski sabit k2 masrafı (2/5/5 bp, fonlamasız)
+        ke = RG.k2_toplam(gk, gercek, b, seed, guard.H1_MS)
+        se = ke["sim"]
+        eski = {"rastgele_ort_toplam_r": float(se.mean()), "yuzdelik": 100.0 * float((np.sum(se < gercek) + 0.5 * np.sum(se == gercek)) / se.size),
+                "p": ke["p"], "masraf": "k2 varsayılanı: kayma 2bp, stop kayması 5bp, taker 5bp"}
     return {"durum": "ok", "n": n, "atlanan": atlanan, "atlanan_neden": at["neden"], "atlanan_tf": at["tf"],
             "kapsanan_tf": sorted({k[1] for k in gr}), "simulasyon_sayisi": int(sim.size), "bizim_toplam_r": gercek,
             "bizim_ort_r": gercek / n, "rastgele_ort_toplam_r": float(sim.mean()), "rastgele_ort_r": float(sim.mean() / n),
             "rastgele_p5": float(np.percentile(sim, 5)), "rastgele_p50": float(np.percentile(sim, 50)),
             "rastgele_p95": float(np.percentile(sim, 95)), "yuzdelik": yuzdelik, "p": k["p"], "asama": k["asama"],
-            "not": "Rastgele giriş k2 varsayılan masrafıyla (kayma 2bp, stop kayması 5bp, taker 5bp) fiyatlanır; bizimki gerçek masraflıdır.",
+            "masraf_modeli": "kagit_config" if mf is not None else "k2_varsayilan", "eski_masraf": eski,
+            "not": ("Rastgele giriş kâğıt masraf modeliyle (config kayma/komisyon; hisse/emtia 'open' seans kayması) fiyatlanır; FONLAMA dahil değildir "
+                    "(k2 simülasyonu taşımaz), yani rakip bizden biraz ucuza çıkar. Eski sabit masrafla sonuç yan yanadır."
+                    if mf is not None else
+                    "Rastgele giriş k2 varsayılan masrafıyla (kayma 2bp, stop kayması 5bp, taker 5bp) fiyatlanır; bizimki gerçek masraflıdır."),
             "etiket": etiket(n)}
 
 
@@ -292,10 +324,57 @@ def sabit_yon(trades, yon: int) -> dict:
     return d
 
 
-def rakip_kiyasi(trades, mumlar, b: int = RASTGELE_B, seed: int = SEED) -> dict:
+def al_tut(trades, mumlar: MumDeposu | None, kasa0: float | None = None) -> dict:
+    """Gerçek al-tut: işlem yapılan her enstrüman için aynı dönem (ilk giriş -> son çıkış), 1s mumlarla, long, EŞİT ağırlık; masrafsız.
+    Kilitli dönem okunmaz: dönem kilitli aralığı kesiyorsa iki parça ayrı okunur ve zincirlenir (kilitli aralık dışarıda bırakılır).
+    Mum verisi olmayan enstrüman sayılır ('veri yok'). Bizimki: toplam net USD / başlangıç kasası (kasa0 verilmişse)."""
+    out = {"n": len(trades), "etiket": etiket(len(trades))}
+    if mumlar is None or not trades:
+        return {**out, "durum": "veri_yok"}
+    tf, ms = "1h", TF_MS["1h"]
+    bas = min(_ms(t["entry_ts"]) for t in trades)
+    bit = max(_ms(t["exit_ts"]) for t in trades)
+    bas, bit = bas - bas % ms, bit - bit % ms + ms
+    h0 = guard.H0_MS - guard.PAD_HOURS * 3_600_000
+    parcalar = [(bas, bit)]
+    if bas < h0 < bit:                                  # kilitli aralıkla kesişen dönem: iki parça
+        parcalar = [(bas, h0), (max(guard.H1_MS, bas), bit)]
+    elif guard.H0_MS - 1 <= bas < guard.H1_MS:
+        parcalar = [(guard.H1_MS, bit)]
+    getiri, yok = {}, []
+    for pair in sorted({t["pair"] for t in trades}):
+        g, ok = 1.0, True
+        for lo, hi in parcalar:
+            if hi <= lo:
+                continue
+            f = mumlar.frame(pair, tf, lo, hi)
+            if f is None or len(f["ms"]) < 2:
+                ok = False
+                break
+            g *= f["close"][-1] / f["open"][0]
+        if ok:
+            getiri[pair] = g - 1.0
+        else:
+            yok.append(pair)
+    out.update({"n_enstruman": len(getiri) + len(yok), "n_veri_var": len(getiri), "veri_yok_enstruman": yok,
+                "donem": [iso_ms(bas), iso_ms(bit)], "kilitli_aralik_disarida": len(parcalar) > 1})
+    if not getiri:
+        return {**out, "durum": "veri_yok"}
+    out.update({"durum": "ok", "ort_getiri": float(np.mean(list(getiri.values()))), "enstruman_getirisi": getiri,
+                "masraf": "yok (al-tut masrafsız; bizimki masraflı)"})
+    if kasa0:
+        out["bizim_getiri"] = toplam(t["pnl"] for t in trades) / kasa0
+    return out
+
+
+def iso_ms(ms: int) -> str:
+    return datetime.fromtimestamp(ms / 1000, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def rakip_kiyasi(trades, mumlar, b: int = RASTGELE_B, seed: int = SEED, maliyet_cfg: dict | None = None, kasa0: float | None = None) -> dict:
     rs = [t["net_r"] for t in trades]
     return {"n": len(trades), "etiket": etiket(len(trades)), "bizim": ozet(rs),
-            "rastgele_giris": rastgele_giris(trades, mumlar, b, seed),
+            "rastgele_giris": rastgele_giris(trades, mumlar, b, seed, maliyet_cfg), "al_tut": al_tut(trades, mumlar, kasa0),
             "hep_long": sabit_yon(trades, +1), "hep_short": sabit_yon(trades, -1),
             "hicbir_sey": {"n": len(trades), "toplam": 0.0, "ort": 0.0}}
 
@@ -615,9 +694,9 @@ def canli_sartlari(trades, rakip: dict, dayan: dict, sans: dict | None = None) -
 
 # ----------------------------------------------------------------------------- ana akis
 def rapor(trades_raw, decisions_raw, mumlar, *, kasa0: float, now: datetime, models_dir=None, b: int = RASTGELE_B,
-          runs: int = KARISTIRMA_SAYISI, seed: int = SEED) -> dict:
+          runs: int = KARISTIRMA_SAYISI, seed: int = SEED, maliyet_cfg: dict | None = None) -> dict:
     trades, decisions, kilit = holdout_filtrele(trades_raw, decisions_raw)
-    rakip = rakip_kiyasi(trades, mumlar, b, seed)
+    rakip = rakip_kiyasi(trades, mumlar, b, seed, maliyet_cfg, kasa0)
     dayan = dayaniklilik(trades, mumlar)
     sans = sans_kuyruk(trades, kasa0, runs, seed)
     return {"sema": SCHEMA, "uretim": now.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "n_islem": len(trades),
@@ -652,6 +731,20 @@ def render_md(d: dict) -> str:
         L.append("- Rastgele giriş: ölçülemedi (mum verisi yok)")
     if ra.get("atlanan"):
         L.append(f"  - Kıyas dışı kalan işlem: {ra['atlanan']} (neden: {_sozluk(ra.get('atlanan_neden'))}; zaman dilimi: {_sozluk(ra.get('atlanan_tf'))})")
+    if ra.get("eski_masraf"):
+        e = ra["eski_masraf"]
+        L.append(f"  - Yan yana, eski sabit masrafla (k2: 2/5/5 bp): ort toplam {_r(e['rastgele_ort_toplam_r'])} R, bizim yüzdelik {e['yuzdelik']:.1f}, p={e['p']:.3f}")
+    if ra.get("masraf_modeli") == "kagit_config":
+        L.append("  - Masraf: kâğıt modeli (config kayma/komisyon); fonlama rakipte yok (k2 taşımaz), yani rakip bizden biraz ucuz.")
+    at_ = rk.get("al_tut", {})
+    if at_.get("durum") == "ok":
+        L.append(f"- Al-tut (gerçek, long, eşit ağırlık, {at_['n_veri_var']}/{at_['n_enstruman']} enstrüman, {at_['donem'][0][:10]} → {at_['donem'][1][:10]}, masrafsız): "
+                 f"ort getiri %{at_['ort_getiri']*100:+.1f}".replace(".", ",")
+                 + (f"; bizim net/kasa başlangıcı %{at_['bizim_getiri']*100:+.1f} (farklı risk büyüklüğü, doğrudan kıyas değil)".replace(".", ",") if "bizim_getiri" in at_ else "")
+                 + (f"; veri yok: {', '.join(at_['veri_yok_enstruman'])}" if at_["veri_yok_enstruman"] else "")
+                 + (" (kilitli aralık dışarıda bırakıldı)" if at_["kilitli_aralik_disarida"] else ""))
+    else:
+        L.append("- Al-tut (gerçek): veri yok")
     for ad, k in (("Hep long", "hep_long"), ("Hep short", "hep_short")):
         L.append(f"- {ad} (aynı giriş zamanları, tahmin): toplam {_r(rk[k]['toplam'])} R, ort {_r(rk[k]['ort'], 3)} R")
     L.append("- Hiçbir şey yapmamak: 0 R")
