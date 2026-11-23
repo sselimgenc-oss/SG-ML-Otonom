@@ -2618,6 +2618,24 @@ class Ledger:
                              "ORDER BY exit_ts DESC, trade_id DESC LIMIT ?", (self.bot, str(arm_id), lim)).fetchall()
         return [float(r["r_multiple"]) for r in rows]
 
+    FAMILY_WINDOW_DAYS = 90
+    FAMILY_HOLDOUT = (datetime(2026, 5, 1, tzinfo=timezone.utc), datetime(2026, 11, 1, tzinfo=timezone.utc))   # trader_engine.holdout.HOLDOUT kopyasi (parite testi)
+
+    def arm_family_mean_r(self, arm_id: str, until: datetime | None = None) -> float | None:
+        """Kolun AILESININ (ayni kurulum, tum TF'ler: arm_id '@' oncesi) kolun KENDISI HARIC kapanmis islemlerinin ortalama net R'si
+        (kol buzulmesi, kol_kucultme.buzulme): `until - 90 gun <= exit_ts < until` (until karar zamani; None ise tum zaman), HOLDOUT [2026-05-01, 2026-11-01) cikis zamanlari dislanir.
+        Islem yoksa None. Salt okunur."""
+        fam = str(arm_id).split("@")[0]
+        esc = fam.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        where = ["bot=?", "(arm_id=? OR arm_id LIKE ? ESCAPE '\\')", "arm_id<>?", "(exit_ts<? OR exit_ts>=?)"]
+        args: list[Any] = [self.bot, fam, esc + "@%", str(arm_id), _ts(self.FAMILY_HOLDOUT[0], "holdout"), _ts(self.FAMILY_HOLDOUT[1], "holdout")]
+        if until is not None:
+            where += ["exit_ts>=?", "exit_ts<?"]
+            args += [_ts(until - timedelta(days=self.FAMILY_WINDOW_DAYS), "since"), _ts(until, "until")]
+        with self._read() as c:
+            row = c.execute("SELECT AVG(r_multiple) AS m, COUNT(*) AS n FROM v_closed_trades WHERE " + " AND ".join(where), args).fetchone()
+        return float(row["m"]) if row is not None and row["n"] else None
+
     def arm_results_all(self, limit: int = 10) -> dict[str, list[float]]:
         """{arm_id: son `limit` kapanan islemin net R'si (yeniden eskiye)} (rapor/panel; salt okunur)."""
         lim = _int(limit, "limit", minimum=0)

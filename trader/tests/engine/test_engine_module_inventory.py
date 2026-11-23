@@ -22,6 +22,7 @@ ALLOWED_MODULES_B = ALLOWED_MODULES_A | {"exchange/binance_rest.py", "pause.py",
                                          "ladder.py",                    # 12 (RK-1): risk kademe calisma zamani sarmalayicisi
                                          "shadow.py", "mtm.py",          # WP-3: golge karar satirlari ve oz varlik isareti (yalniz kayit)
                                          "korelasyon_grubu.py",          # 23.11 kullanici karari: asama B esikleri (korelasyon grubu, giris kapisi)
+                                         "uzun_yon.py",                  # 23.11 fikir 7: uzun donem (1d) yon filtresi, giris kapisi
                                          "arm_guard.py",                 # DD-12 WP-04: saf kume/seans/tatil yardimcilari
                                          "arm_quarantine.py", "tur_koruyucu.py", "sembol_izleme.py",   # 1L3A dayaniklilik portu: kurulum karantinasi, tur koruyucusu, sembol izleyici
                                          "strategies/lab.py", "strategies/arms/__init__.py",   # DD-12 WP-11: bilesik strateji ve kurulum paketi

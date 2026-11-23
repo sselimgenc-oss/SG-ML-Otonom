@@ -527,7 +527,7 @@ def kucultme_view(ledger_path: str, bot: str) -> dict | None:
     from . import kol_kucultme as KK  # noqa: PLC0415
     led = P.open_ledger_ro(ledger_path, bot)
     try:
-        az = KK.azaltilanlar(led.arm_results_all(KK.KAYIT_SAYISI))
+        az = KK.azaltilanlar(led.arm_results_all(10**6))
     finally:
         led.close()
     if not az:
