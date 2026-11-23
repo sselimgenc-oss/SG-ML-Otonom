@@ -259,6 +259,10 @@ def _json_safe(obj):
 
 _ETIKET_ANAHTARLARI = ("duygu", "haber", "etiket_atlardi")        # ESKI satirlardaki yalniz-kayit etiketleri (21 Kasim 2026: yeni yazilmaz; eski satirlar okunur kalir)
 
+# Fikir 10: yalniz gece suzgecinin ek ozellikleri; ayni kararin yeniden yazilmasinda (deploy sonrasi yeniden baslatma) karsilastirmaya
+# girmez, aksi halde eski kayit ile yeni ozellikli ayni karar LedgerConflictError verirdi.
+_CMP_HARIC_OZELLIK = ("vol_tahmin", "vol_asim")
+
 
 def _json_limited(obj, name) -> str:
     try:
@@ -1733,7 +1737,7 @@ class Ledger:
             d = json.loads(v)
         except ValueError:
             return v
-        return {a: b for a, b in d.items() if a not in _ETIKET_ANAHTARLARI} if isinstance(d, dict) else v
+        return {a: b for a, b in d.items() if a not in _ETIKET_ANAHTARLARI and a not in _CMP_HARIC_OZELLIK} if isinstance(d, dict) else v
 
     def _write_decision(self, c, vals, sup, now: datetime) -> int:
         bot = self.bot

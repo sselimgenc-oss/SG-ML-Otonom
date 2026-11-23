@@ -138,3 +138,61 @@ def test_runner_satira_yazar_yalniz_adayda():
     s2 = s.copy(); s2["setup"] = None
     assert _to_row("BTC/USDT", T0, T0, s2, 1, trig, "1h").vol_tahmin is None
     assert _to_row("BTC/USDT", T0, T0, s, 1, None, "1h").vol_tahmin is None
+
+
+def _adaylar(n, kac_vol, arm="T1@1h"):
+    return [Aday(id=f"s{i}", proje="ML", kurulum=arm, enstruman="BTC/USDT", varlik_sinifi="kripto", yon="long",
+                 ts=T0 + timedelta(hours=i), alindi=True, r=1.0 if i % 2 else -1.0,
+                 ozellikler={"x": 5.0 if i % 2 else -5.0, **({"f_vol_tahmin": 1.0 + 0.01 * i} if i < kac_vol else {})},
+                 cikis={"kapanis": (T0 + timedelta(hours=i + 1)).isoformat()}) for i in range(n)]
+
+
+def test_seyrek_vol_ozelligi_egitimden_atilir_paket_ayni():
+    ad_seyrek = OF.aile_adaylari(_adaylar(60, 2))["T1"]
+    ad_yok = OF.aile_adaylari(_adaylar(60, 0))["T1"]
+    assert not any("f_vol_tahmin" in a.ozellikler for a in ad_seyrek)
+    p1 = PF.egit("aile:T1", ad_seyrek, olusturma=T0)
+    p0 = PF.egit("aile:T1", ad_yok, olusturma=T0)
+    assert "f_vol_tahmin" not in p1["meta"]["ozellikler"] and p1 == p0
+    # yeterli kapsam (>=30 ve >=%50): ozellik KALIR
+    dolu = OF.aile_adaylari(_adaylar(60, 40))["T1"]
+    assert PF.egit("aile:T1", dolu, olusturma=T0)["meta"]["ozellikler"].count("f_vol_tahmin") == 1
+    az = OF.aile_adaylari(_adaylar(60, 29))["T1"]            # 29 < 30
+    assert not any("f_vol_tahmin" in a.ozellikler for a in az)
+    yarim = OF.aile_adaylari(_adaylar(100, 40))["T1"]         # 40 < %50
+    assert not any("f_vol_tahmin" in a.ozellikler for a in yarim)
+
+
+def test_z_kirpma():
+    pk = PF.egit("aile:T1", OF.aile_adaylari(_adaylar(60, 0))["T1"], olusturma=T0)
+    i = pk["meta"]["ozellikler"].index("x")
+    ort, sd = pk["model"]["mean"][i], pk["model"]["std"][i]
+    k = OF.z_kirp(pk, {"x": 1e9})
+    assert math.isclose(k["x"], ort + 5 * sd) and OF.z_kirp(pk, {"x": ort})["x"] == ort
+    assert OF.z_kirp(pk, {"x": float("nan")})["x"] != OF.z_kirp(pk, {"x": float("nan")})["x"]   # NaN korunur (fill'e birakilir)
+
+
+def test_global_suzgec_vol_ozelligi_almaz():
+    from trader_ml.setup_filter.features import choose_feature_names
+    fd = [{"f_vol_tahmin": 1.0, "f_vol_asim": 0.1, "f_btc_vr": 2.0} for _ in range(5)]
+    n = choose_feature_names(fd)
+    assert "f_btc_vr" in n and "f_vol_tahmin" not in n and "f_vol_asim" not in n
+
+
+def test_deploy_sonrasi_ayni_karar_yeniden_yazilinca_cakisma_yok(tmp_path):
+    from trader_core import ledger as L
+    from trader_engine.clock import SimClock
+    from trader_engine.gates import build_decision_event
+    from test_engine_05_impl_smoke import _params
+    from test_engine_05_impl_smoke import T0 as T0S
+    clock = SimClock(T0S + timedelta(seconds=5))
+    led = L.open_ledger(str(tmp_path / "l.sqlite"), "learner", create=True, clock=clock.now)
+    try:
+        led.init_params(_params(), reason="t")
+        eski = build_decision_event(_row(), "1h", skip_reason="stop_width")                          # deploy oncesi: vol ozelligi yok
+        i1 = led.record_decision(eski)
+        yeni = build_decision_event(_row(vol_tahmin=1.2, vol_asim=0.1), "1h", skip_reason="stop_width")   # restart sonrasi ayni mum, yeni ozellikli
+        assert "vol_tahmin" in yeni.features
+        assert led.record_decision(yeni) == i1                              # LedgerConflictError YOK
+    finally:
+        led.close()

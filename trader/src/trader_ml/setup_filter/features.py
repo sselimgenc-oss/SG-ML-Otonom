@@ -11,6 +11,8 @@ from trader_core.ml_live_v2 import SETUP_BASE_FEATURES, guess_asset_class, setup
 
 MAX_EXTRA_FEATURES = 24      # `f_*` ozellik tavani (en sik gorulenler; deterministik)
 MAX_LESSON_FEATURES = 16
+# Fikir 10 (23.11): oynaklik tahmini ozellikleri YALNIZ gece aile suzgecinin girdisidir; global (ml1) suzgece girmez.
+HARIC_ONEKLER = ("f_vol_tahmin", "f_vol_asim")
 
 
 def choose_feature_names(fdicts: Sequence[dict]) -> list[str]:
@@ -18,7 +20,7 @@ def choose_feature_names(fdicts: Sequence[dict]) -> list[str]:
     cf, cl = Counter(), Counter()
     for d in fdicts:
         for k in d:
-            if k.startswith("f_"):
+            if k.startswith("f_") and not k.startswith(HARIC_ONEKLER):
                 cf[k] += 1
             elif k.startswith("ders:"):
                 cl[k] += 1

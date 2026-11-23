@@ -26,6 +26,9 @@ _TF_DK = {"15m": 15, "1h": 60, "4h": 240, "1d": 1440}
 
 
 def ufuk_mum(tf: str | None) -> int:
+    """Ufuk SAAT cinsinden sabit (4 saat), mum sayisi zaman dilimine gore: 15m -> 16, 1h -> 4, 4h -> 1. 1g'de de 1 mum: 4 saatlik ufuk
+    bir gunluk mumdan kisadir, ileri varyans en az 1 mum (bir sonraki mumun tahmini) olur; 1g icin ufku gune uzatmak ayni ozelligin
+    anlamini zaman dilimleri arasinda kaydirirdi (zaman dilimi zaten `tf_*` ozellikleriyle modele verilir)."""
     dk = _TF_DK.get(str(tf), 60)
     return max(1, UFUK_DK // dk)
 
