@@ -44,6 +44,13 @@ YALNIZ su JSON nesnesini dondur (baska metin yok):
                "zaten_var": "evet|kismen|hayir", "puan": 0-5} ]}
 En cok 6 fikir. Kati ol: bos vaatler, kanitsiz iddialar dusuk puan. Kitapta olmayani uydurma. Alakasizsa fikirler bos liste."""
 
+GENIS_EK = """
+
+GENIS MOD (kullanici istegi): Bu kitaplar scalp/day trade ve 'ilginc/alisilmadik' klasorlerinden. Hicbir seyi atlama.
+- Kisa zaman dilimi (1m-5m, gun ici) fikirleri DUSUK PUANLAMA: ileride acilacak kisa vadeli kollar icin degerlendir; zaman_dilimi alanina yaz.
+- Alisilmadik, sezgiye ters, yaratici fikirleri ozellikle yakala; her fikre ek alan ekle: "ilginclik": 0-5 (ne kadar ozgun/beyin yakici).
+- puan yine bizim bota faydadir; ilginclik ayri olcudur. Genis modda en cok 8 fikir."""
+
 
 def oku(p: Path) -> list[dict]:
     return [json.loads(s) for s in p.read_text(encoding="utf-8").split("\n") if s.strip()]   # splitlines \u2028 vb. ile boler
@@ -72,12 +79,14 @@ def main() -> int:
     ap.add_argument("--girdi", type=Path, default=Path("kitap_on.jsonl"))
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--onay", action="store_true", help="gonder icin zorunlu (para harcar)")
+    ap.add_argument("--genis", action="store_true", help="scalp/day/ilginc: kisa vade cezasi yok, ilginclik puani")
     a = ap.parse_args()
     d = durum_oku()
+    sistem = SISTEM + (GENIS_EK if a.genis else "")
 
     if a.komut in ("tahmin", "gonder"):
         sec = secim(oku(a.girdi), a.limit, set(d["gonderilen"]))
-        tok = sum(len(SISTEM) + len(icerik(k)) for k in sec) / 3.0          # kaba: ~3 karakter/token
+        tok = sum(len(sistem) + len(icerik(k)) for k in sec) / 3.0          # kaba: ~3 karakter/token
         tahmin = tok / 1e6 * FIYAT_GIRDI + len(sec) * 2500 / 1e6 * FIYAT_CIKTI
         print(f"{len(sec)} kitap, ~{tok / 1e6:.2f} M girdi token, tahmini maliyet ~{tahmin:.2f} $ (ust sinir icin x1.5 dusun)")
         if a.komut == "tahmin":
@@ -91,7 +100,7 @@ def main() -> int:
         client = anthropic.Anthropic()
         b = client.messages.batches.create(requests=[
             Request(custom_id=k["sha256"][:64], params=MessageCreateParamsNonStreaming(
-                model=MODEL, max_tokens=MAX_TOKENS, output_config={"effort": "low"}, system=SISTEM,
+                model=MODEL, max_tokens=MAX_TOKENS, output_config={"effort": "low"}, system=sistem,
                 messages=[{"role": "user", "content": icerik(k)}]))
             for k in sec])
         d["batchler"].append(b.id)
