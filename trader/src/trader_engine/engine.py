@@ -32,7 +32,7 @@ from . import shadow as SH
 from .marketdata.sources import MarketView, MinuteStep
 from .mtm import MtmRecorder
 from .numeric import round_tight
-from .order_manager import EXIT_RETRY_LIMIT, OrderManager, make_client_id
+from .order_manager import EXIT_RETRY_LIMIT, OrderManager, SubmitOutcome, make_client_id
 from .position_manager import (apply_entry_fill, apply_exit_fill, apply_exit_modes, apply_funding, build_trade_entry,
                                build_trade_exit, close_position, evaluate_exit, exec_fields, exec_payload,
                                fill_risk_violation, partial_due, update_excursion)
@@ -48,6 +48,9 @@ from .strategy_runner import MultiArmSignalSource, SignalFrame, SignalSource, Wi
 from .types import BrokerEvent, Fill, Intent, OrderRequest, Position, order_side_for
 
 log = logging.getLogger("engine")
+PARTIAL_RETRY_MAX = 5                                           # gecici retlerde kismi emir yeniden deneme ust siniri (bar basina bir)
+_PARTIAL_TRANSIENT = ("exchange_ban", "rate_limited", "order_rate_cap", "exchange_-1021", "exchange_auth", "weight_high",
+                      "rules_stale", "rules_missing")           # emir borsada YOK; kalici ret (miktar/min notional/kural) degil
 
 ENGINE_VERSION = "05.1"
 KALDIRILAN_KOLLAR = ("C1",)          # CT/C1 ayriligi: kullanici karariyla kaldirilan kurulumlar (acik pozisyonlari baslangicta kapatilir)
@@ -181,8 +184,6 @@ class Engine:
         self._params_map: dict | None = None
         self._exit_seen: dict[int, datetime] = {}                 # canli telafi: trade_id -> en son degerlendirilen TF siniri (bellek)
         self._mode_flags: dict[str, int] = {}                  # etkin defter surumunun cikis kipi bayraklari (exit_breakeven/exit_partial)
-        if cfg.mode == "live" and cfg.exit_modes:               # 23.11 kullanici karari: canli = kagit; borsada basa-bas/kismi = FAZ 2
-            log.warning("cikis modlari canlida faz 2: exit_modes yapilandirmada var ama canlida YOK SAYILIR (basa-bas/kismi kapanis yok)")
         self._act_id: int | None = None
         self._version_id = 0
         self._params_ok = False
@@ -1321,6 +1322,15 @@ class Engine:
             log.critical("beklenmeyen cikis dolumu %s", e.pair)
             return
         pk = self.state.kv_get(f"partial:{pos.trade_id}")
+        if (not self.is_paper and isinstance(pk, dict) and pk.get("state") == "pending" and pk.get("cid")
+                and fill.client_id != pk.get("cid")):
+            self._partial_recover(pos, closing=True)            # kapanistan ONCE: belirsiz kismi bacak cozulur (dolduysa kaydedilir)
+            pos = self.state.get_position(pos.trade_id) or pos
+            pk = self.state.kv_get(f"partial:{pos.trade_id}")
+            if isinstance(pk, dict) and pk.get("state") == "pending":
+                self._c["partial_unresolved_at_close"] += 1
+                log.critical("kapanista kismi bacak cozulemedi trade %s (cid %s): defter kismi bacagi icermeyebilir",
+                             pos.trade_id, pk.get("cid"))
         if isinstance(pk, dict) and self._partial_fill(pos, fill, pk):
             return                                              # kismi kar alma dolumu: pozisyon acik kalir
         closed = apply_exit_fill(pos, fill, step.bars.get(e.pair) if step is not None else None, now)
@@ -1649,6 +1659,9 @@ class Engine:
                 continue
             seen[pos.trade_id] = Dx
             try:
+                if not self.is_paper:
+                    self._partial_recover(pos)              # canli: belirsiz/yarim kalmis kismi emri cozumle (yeniden baslatma dahil)
+                    pos = self.state.get_position(pos.trade_id) or pos
                 ctx = self.signals.exit_context(pos.pair, pos, Dx)
                 if self._multi_tf and ctx is None:              # baglam yok (kendi tf verisi bosluklu): zorla cikis DEGIL, atla
                     self._c["exit_data_gap"] += 1
@@ -1670,6 +1683,9 @@ class Engine:
                             self._submit_exit(cur, "trail_stop", Dx, quote=True)
                     elif out.ok and not self.is_paper:
                         self._register(pos.trade_id)
+                    elif not out.ok and modes is not None and not self.is_paper:
+                        self._c["exit_mode_stop_replace_failed"] += 1       # canli: eski stop DURUR (yeni once kurulur); sonraki adimda yeniden denenir
+                        log.warning("cikis kipi stop tasima basarisiz trade %s (%s): eski stop korur", pos.trade_id, out.note)
                 if modes is not None and modes.partial and dec.kind != "exit":
                     cur = self.state.get_position(pos.trade_id)
                     if cur is not None and cur.status == "open":
@@ -1685,20 +1701,34 @@ class Engine:
     # ------------------------------------------------------------------ cikis kipleri (basa-bas / kismi kar alma)
     def _exit_modes(self, pos: Position):
         """Pozisyonun cikis kipleri (yapilandirma + ders bayraklari; docs/cikis-kipleri-spec.md). Kip yoksa None."""
-        if not self.is_paper or (not self.cfg.exit_modes and not self._mode_flags):
-            return None                                         # kipler yalniz benzetimli broker (kagit/geri test); testnet/canli: kapali
+        if not (self.is_paper or self.cfg.mode == "live") or (not self.cfg.exit_modes and not self._mode_flags):
+            return None                                         # kipler kagit/geri test ve CANLI (23.11: canli = kagit); testnet: kapali
         return XM.resolve(self.cfg.exit_modes, pos.setup, pos.trigger_tf, self._mode_flags)
 
     def _maybe_partial(self, pos: Position, ctx, modes, D: datetime) -> None:
-        """Kismi kar alma: tetik gerceklesince BIR kez pozisyonun `pt_frac` kadari piyasada kapanir (yalniz benzetimli broker;
-        testnet/canlida kismi kapanis yoktur). Durum `partial:<trade_id>` anahtarinda (pending | done | skipped)."""
-        if not self.is_paper or self.state.kv_get(f"partial:{pos.trade_id}") is not None:
-            return
+        """Kismi kar alma: tetik gerceklesince BIR kez pozisyonun `pt_frac` kadari piyasada kapanir (kagit ve canli ayni kural;
+        canlida reduceOnly piyasa emri). Durum `partial:<trade_id>` anahtarinda (pending | done | skipped); emir kimligi
+        gonderimden ONCE kalici yazilir, yeniden baslatmada anahtar bos degilse ikinci kismi emir ASLA gonderilmez."""
+        prev = self.state.kv_get(f"partial:{pos.trade_id}")
+        n_try = 0
+        if prev is not None:
+            if not (isinstance(prev, dict) and prev.get("state") == "retry"):
+                return
+            if prev.get("d") == iso_z(D):
+                return                                          # ayni barda yeniden deneme yok (kimlik ayni)
+            n_try = int(prev.get("n", 0))
+            if n_try >= PARTIAL_RETRY_MAX:
+                with self.state.tx():
+                    self.state.kv_set(f"partial:{pos.trade_id}", {"state": "skipped", "why": "retry_exhausted"})
+                self._c["partial_skipped"] += 1
+                return
         if not partial_due(pos, ctx, modes):
             return
         rules = self.broker.rules(pos.pair)
         q = XM.partial_qty(float(pos.qty), modes.pt_frac, rules.step, rules.min_qty, rules.min_notional,
                            float(getattr(ctx, "last_close", 0.0) or 0.0))
+        if q is not None:
+            q = round(round(q / rules.step) * rules.step, 12)       # emirle ayni adim (market_step); kv adedi gonderilenle ayni
         if q is None:
             with self.state.tx():
                 self.state.kv_set(f"partial:{pos.trade_id}", {"state": "skipped", "why": "min_qty"})
@@ -1707,11 +1737,20 @@ class Engine:
         cid = make_client_id(self.cfg.bot, "exit", pos.pair, pos.side, D, 1)
         req = OrderRequest(client_id=cid, pair=pos.pair, role="exit", order_side=order_side_for(pos.side, "exit"), qty=q,
                            trigger_price=None, reduce_only=True, leverage=None, signal_bar_close_ts=D,
-                           created_ts=self.clock.now())
+                           created_ts=self.clock.now(), partial=True)
         with self.state.tx():
-            self.state.kv_set(f"partial:{pos.trade_id}", {"state": "pending", "cid": cid, "qty": q})
+            self.state.kv_set(f"partial:{pos.trade_id}", {"state": "pending", "cid": cid, "qty": q, "n": n_try})
         out = self._submit_partial_order(pos, req)         # emir `orders` tablosuna yazilir (normal cikislarla ayni yol)
+        if not self.is_paper:
+            self._register(pos.trade_id)
+            self._drain_events()                           # canli: dolum olayi hemen islenir (pozisyon qty + stop kalan adede gore)
         if out.order.status == "rejected":
+            why = str(out.order.detail or "")
+            if not self.is_paper and why.startswith(_PARTIAL_TRANSIENT):
+                with self.state.tx():                       # gecici ret (emir borsada YOK): sonraki barda yeniden dene
+                    self.state.kv_set(f"partial:{pos.trade_id}", {"state": "retry", "n": n_try + 1, "d": iso_z(D), "why": why})
+                self._c["partial_retry_transient"] += 1
+                return
             with self.state.tx():
                 self.state.kv_set(f"partial:{pos.trade_id}", {"state": "skipped", "why": f"rejected:{out.order.detail}"})
             self._c["partial_skipped"] += 1
@@ -1729,10 +1768,63 @@ class Engine:
         with self.state.tx():
             self.state.insert_order(row)
         self.orders._put_meta(req.client_id, {"order_ts": now})        # noqa: SLF001
-        res = self.broker.market_order(req)
+        if self.is_paper:
+            res = self.broker.market_order(req)
+            return self.orders._apply_result(row, res, None)          # noqa: SLF001
+        try:                                                           # canli: POST'tan once kimlik kalici; kor yeniden gonderim YOK
+            res = self.broker.market_order(req)
+        except StateError:
+            raise
+        except Exception as e:  # noqa: BLE001 - belirsiz: emir borsada olabilir
+            log.warning("kismi emir belirsiz %s: %r", req.client_id, e)
+            res = None
+        if res is None or res.status == "unknown":
+            row = self.orders._upd(req.client_id, status="accepted", detail="partial_unverified")    # noqa: SLF001
+            return SubmitOutcome(False, "failed", row, None, "partial_unverified")   # `_partial_recover` sorgular
         return self.orders._apply_result(row, res, None)              # noqa: SLF001
 
-    def _partial_fill(self, pos: Position, fill, pk: dict) -> bool:
+    def _partial_recover(self, pos: Position, *, closing: bool = False) -> None:
+        """Canli: `partial:<id>` pending ve dolum olayi gelmediyse (belirsiz POST, yeniden baslatma) emri kimlikle sorgula.
+        Dolduysa dolum uydurulur (`_partial_fill`: adet/stop/durum); dolmadiysa atlandi isaretlenir. Ikinci emir GONDERILMEZ."""
+        pk = self.state.kv_get(f"partial:{pos.trade_id}")
+        if not (isinstance(pk, dict) and pk.get("state") == "pending" and pk.get("cid")):
+            return
+        cid = str(pk["cid"])
+        try:
+            bo = self.broker.query(pos.pair, cid)
+        except StateError:
+            raise
+        except Exception as e:  # noqa: BLE001
+            self._c["partial_recover_query_failed"] += 1
+            log.warning("kismi emir sorgulanamadi %s: %r", cid, e)
+            return
+        if bo is None:
+            key = f"partial_nf:{pos.trade_id}"
+            n = int(self.state.kv_get(key, 0) or 0) + 1
+            with self.state.tx():
+                self.state.kv_set(key, n)
+                if n >= 2:
+                    self.state.kv_set(f"partial:{pos.trade_id}", {"state": "skipped", "why": "not_found", "cid": cid})
+            if n >= 2:
+                self._c["partial_skipped"] += 1
+                self._mark_order(cid, "failed", "gone_on_query")
+            return
+        if bo.status == "new":
+            return
+        if bo.filled_qty and bo.filled_qty > 0 and bo.avg_price and bo.avg_price > 0:
+            fee = float(bo.filled_qty) * float(bo.avg_price) * self.cfg.cost.taker_fee      # gercek komisyon bilinmiyor: tahmin
+            self._c["partial_fee_estimated"] += 1
+            fill = Fill(client_id=cid, pair=pos.pair, role="exit", order_side=bo.order_side, qty=float(bo.filled_qty),
+                        price=float(bo.avg_price), fee=fee, ts=bo.updated_ts or self.clock.now(), reason="market")
+            if self._partial_fill(pos, fill, pk, resize=not closing):
+                self._c["partial_recovered"] += 1
+                return
+        with self.state.tx():
+            self.state.kv_set(f"partial:{pos.trade_id}", {"state": "skipped", "why": f"query:{bo.status}", "cid": cid})
+        self._c["partial_skipped"] += 1
+        self._mark_order(cid, "canceled" if bo.status != "rejected" else "rejected", f"partial_{bo.status}")
+
+    def _partial_fill(self, pos: Position, fill, pk: dict, *, resize: bool = True) -> bool:
         """Kismi cikis dolumu: pozisyon acik kalir (adet/marjin azalir), dolum `partial:<id>`'e yazilir, stop kalan adede
         gore yeniden kurulur. Defter tek cikis satiri yazar (kapanista karma fiyat; bkz. `_blend_closed`)."""
         if pk.get("state") != "pending" or fill.client_id != pk.get("cid"):
@@ -1749,7 +1841,7 @@ class Engine:
             self._mark_order(fill.client_id, "filled")           # `_duplicate_exit` ikinci teslimi gorur
         self._c["partial_fills"] += 1
         cur = self.state.get_position(pos.trade_id)
-        if cur is not None and cur.status == "open":
+        if resize and cur is not None and cur.status == "open":
             self._resize_stop(cur)
         return True
 
@@ -1764,6 +1856,8 @@ class Engine:
         out = om._submit(om._stop_request(pos, price, seq), seq, pos.trade_id)   # noqa: SLF001
         if not out.ok:
             self._c["partial_stop_resize_failed"] += 1
+            log.warning("kismi sonrasi stop kalan adede kurulamadi trade %s (%s): eski stop durur; mutabakat duzeltir",
+                        pos.trade_id, out.note)
             return
         om._pupd(pos.trade_id, stop_client_id=out.order.client_id)   # noqa: SLF001
         if old and old != out.order.client_id:
@@ -1773,6 +1867,11 @@ class Engine:
                 raise
             except Exception as e:  # noqa: BLE001
                 log.warning("eski stop iptal edilemedi %s: %r", old, e)
+            else:
+                if not self.is_paper:                              # canli: iptal edilen eski stop satiri `accepted` kalmaz
+                    r_old = self.state.get_order(old)
+                    if r_old is not None and r_old.status == "accepted":
+                        om._upd(old, status="canceled", detail="replaced_by_partial_resize")   # noqa: SLF001
 
     def _blend_closed(self, pos: Position, closed):
         """Kismi cikis yapilmis pozisyonun kapanisi: defter TEK cikis satiri tutar; cikis fiyati iki parcanin adet agirlikli
@@ -2168,6 +2267,10 @@ class Engine:
                 return
             cids = [r.client_id for r in self.state.orders_for_trade(trade_id)]
             reg(p.pair, p.entry_ts, tuple(cids))
+            rp = getattr(self.broker, "register_partial", None)       # kismi bacak kapanis olayindan dislanir (yeniden baslatmada da)
+            pk = self.state.kv_get(f"partial:{trade_id}")
+            if callable(rp) and isinstance(pk, dict) and pk.get("cid") and pk.get("state") in ("pending", "done"):
+                rp(p.pair, str(pk["cid"]))
         except StateError:
             raise
         except Exception as e:  # noqa: BLE001

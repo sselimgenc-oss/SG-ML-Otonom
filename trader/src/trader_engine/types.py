@@ -125,6 +125,7 @@ class OrderRequest:
     working_type: Literal["MARK_PRICE", "CONTRACT_PRICE"] = "MARK_PRICE"
     signal_bar_close_ts: datetime | None = None
     created_ts: datetime | None = None
+    partial: bool = False               # cikis kipleri (kismi kar alma): reduceOnly piyasa emri; pozisyonu KAPATMAZ, dolum olayi dogrudan emirden uretilir
 
 
 @dataclass(frozen=True)
