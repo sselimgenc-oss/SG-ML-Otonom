@@ -24,7 +24,6 @@ def arac():
     if _F is None:
         spec = importlib.util.spec_from_file_location("fetch_binance_vision", ROOT / "scripts" / "fetch_binance_vision.py")
         m = importlib.util.module_from_spec(spec)
-        sys.modules.setdefault("fetch_binance_vision", m)
         spec.loader.exec_module(m)
         _F = m
     return _F
