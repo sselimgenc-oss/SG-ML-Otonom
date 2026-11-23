@@ -12,6 +12,7 @@ from trader_core import ledger as L
 from trader_core import regime as R
 from trader_core import signals as S
 
+from .. import arm_guard as AG
 from ..bars import STARTUP_BARS, STARTUP_BARS_4H, WINDOW_4H, WINDOW_TRIGGER, tf_delta
 from .base import ParamSpec, StrategyContext, StrategyInfo, ExitPolicy
 
@@ -64,9 +65,8 @@ class PriceActionV1:
         params = S.SignalParams.from_mapping(ctx.params)
         trig = ctx.bars[ctx.tf]
         h4 = ctx.bars["4h"]
-        reg = R.classify_series(h4[_OHLC], params.regime_params())
-        aligned = R.align_to_base(reg, trig.index, 4)
-        sig = S.compute_signals(trig[_OHLC], aligned, params)
+        reg = AG.regime_series(h4, params.regime_params())     # olu (hacim 0, o=h=l=c) mumlar gosterge girdisinden cikar; kriptoda eski yol AYNEN
+        sig, _, _ = AG.core_signals(trig, reg, params)
         off = sig["setup"].notna() & ~sig["setup"].isin(list(self.setups_enabled))
         if bool(off.any()):
             sig.loc[off, "signal"] = False

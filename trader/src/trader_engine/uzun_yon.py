@@ -21,6 +21,8 @@ import pandas as pd
 
 from trader_core.indicators import ema as _ema
 
+from . import arm_guard as AG
+
 BOGA, AYI, YATAY, VERI_YOK = "boga", "ayi", "yatay", "veri_yok"
 SETTLE_SAAT = 8                  # gece yarisindan bu kadar sonra son tam gunun mumlari yerlesmis sayilir (onbellek sabitlenir)
 GERI_BAKIS_EK_GUN = 200          # min gerekenin uzerine okunan ek gun (EMA isinmasi)
@@ -30,6 +32,11 @@ def _gunluk(df, now: datetime) -> list[tuple[pd.Timestamp, pd.Timestamp, float]]
     """[(gun, gunun son 4h mumunun acilisi, gunluk kapanis)] eskiden yeniye; yalniz gun < bugun (UTC) ve kapanmis 4h mumlar."""
     if df is None or len(df) == 0 or "close" not in df.columns:
         return []
+    keep = AG.active_mask(df)                                        # olu (hacim 0, o=h=l=c) 4s mumlar: hafta sonu/tatil gunleri gunluk seriye girmez
+    if keep is not None:
+        df = df[keep]
+        if len(df) == 0:
+            return []
     c = df["close"].astype("float64")
     c = c[~c.index.duplicated(keep="last")].sort_index()
     c = c[c.index + timedelta(hours=4) <= now]                      # yalniz kapanmis 4h mumlar (cagiran zaten sinirlar; ikinci emniyet)
