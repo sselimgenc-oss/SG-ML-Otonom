@@ -53,3 +53,6 @@ kâğıt bot 44 enstrümanla çalışıyor (health.py:690 _c_open_price).
 2) Düzeltme: açık pozisyon çiftleri doğrudan DB'den sorgulansın (seans kapalı hisseler yine uyarı vermesin). Test önce.
 3) Asıl eksik: genel "1m mum bayat" kontrolü (health.py ~664 market_bars) de yalnız 10 coini izliyor; diğer 34 enstrümanın
    fiyatı kesilse alarm gelmez. Düzeltme 44'ün hepsini kapsasın; hisse/emtia seans dışındayken uyarı vermesin (session_tag).
+4) 23.11 sabah Telegram: "Açık işlemlerin kâr/zararı panelle tutmuyor". canli-durum 09:05Z: 8 açık pozisyonun hepsinde mark var,
+   mutabakat 10:34 TSİ "geçti". Motor 07:34Z (10:34 TSİ, oto-güncelleme) yeniden başlamış; ilk dakikalarda mark yok -> geçici uyarı şüphesi.
+   Kontrol: iki uyarı da yeniden başlatmaya denk mi? health _c_open_price'ta mutabakat'taki _yeni_basladi benzeri susturma yok.
