@@ -116,3 +116,10 @@ Kaynak: tur1_olcum raporu (kayıp kümeleri, yön denetimi), kâğıt defteri, m
 ## KULLANICI KARARI (23.11 akşam): Mühürlü dönem açılıyor
 - Kullanıcı: "aç". 2026-05-01 → 2026-11-01 kilitli dönemi artık eğitim ve analizde kullanılabilir. Bağımsız "görülmemiş veri" sınavı hakkından bilerek vazgeçildi.
 - Uygulama ayrı iş: önce tüm kilit noktaları (kod, test, CI adımı, mühür kontrolü) haritalanır, sonra kullanıcı onayıyla kaldırılır.
+
+## SON FAZ (23.11 kullanıcı kararı): "Daha güçlü model" — oyunlaştırmanın da ARKASINDA
+Yol haritasının en sonu; oyunlaştırma (yukarıda a) bundan ÖNCE gelir.
+- Kapsam: canlı/gece süzgecinde ağaç modeli (LightGBM) ya da büyük sinir ağı; büyük özellik paketi (v2); aileleri birleştiren tek büyük model.
+- Neden en sonda: az veride ezber (aile başına 10–20 işlemle eğitiliyor). Gerekli veri kabaca aile başına ~1000+ işlem (bu hızla 1–2 yıl) ya da aileleri birleştirme.
+- Bu süre boyunca değişmeyen: gece süzgeci basit (ridge lojistik) kalır; DL1 her sabah kendi sınavını dener (geçerse yayınlanır) — bu ayrı, otomatik ve sürer.
+- Açılış şartı: veri eşiği + walk-forward sınavı geçmek + kullanıcı onayı.
