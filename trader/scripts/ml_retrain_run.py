@@ -37,6 +37,21 @@ from trader_ml.pa_proposer import train as TR  # noqa: E402
 from trader_ml.setup_filter.train import LOCK_START  # noqa: E402
 
 
+def cf_satirlari_oku(cf_yolu) -> list[dict]:
+    """counterfactual.sqlite `cf_outcomes` (barrier, learner) -> [{decision_id, hyp_r_net, window_end_ts: datetime}] (salt okunur).
+    Depo yok/okunamiyor => [] (yalniz alinan islemlerle egit). `collect_rows` ile ayni sorgu."""
+    from trader_core import counterfactual as CF
+    if not cf_yolu or not os.path.exists(cf_yolu):
+        return []
+    try:
+        with CF.CounterfactualStore(cf_yolu, read_only=True) as st:
+            return [{"decision_id": int(r["decision_id"]), "hyp_r_net": float(r["hyp_r_net"]), "window_end_ts": L._parse_ts(r["window_end_ts"])}
+                    for r in st._db.execute("SELECT decision_id, hyp_r_net, window_end_ts FROM cf_outcomes WHERE bot=? AND method='barrier' "
+                                            "AND hyp_r_net IS NOT NULL ORDER BY decision_id", ("learner",))]
+    except (CF.CounterfactualError, ValueError):
+        return []
+
+
 def _resolve(p: str) -> str:
     q = Path(p)
     return str(q if q.is_absolute() else _HERE.parent / q)
@@ -200,7 +215,7 @@ def main(argv=None, *, now_fn=None, env=None) -> int:
         ortak: dict = {}
         try:   # 19.11: kagit ML filtresi (ortak_ogrenme) - kurulum basina >=10 kapanmis islem; hata digerlerini geri almaz
             from trader_engine import ogrenme_filtre as OF
-            ortak = OF.egit_hepsi(OF.adaylar_defterden(led, cf if os.path.exists(cf) else None, now), OF.model_dizini(lp), now, kollar=arms)
+            ortak = OF.egit_hepsi(OF.adaylar_defterden(led, cf_satirlari_oku(cf), now), OF.model_dizini(lp), now, kollar=arms)
         except Exception as e:  # noqa: BLE001
             ortak = {"durum": f"hata:{type(e).__name__}"}
             print(f"ortak filtre egitim hatasi: {type(e).__name__}: {e}", file=sys.stderr)

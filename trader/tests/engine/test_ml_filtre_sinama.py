@@ -6,6 +6,8 @@ from __future__ import annotations
 import dataclasses
 import json
 import sqlite3
+import sys
+from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
@@ -13,6 +15,9 @@ from ortak_ogrenme import filtre as PF
 from ortak_ogrenme.kayit import Aday
 from trader_core import counterfactual as CF
 from trader_engine import ogrenme_filtre as OF
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+import ml_retrain_run as R  # noqa: E402
 
 NOW = datetime(2026, 12, 1, 0, 0, 5, tzinfo=timezone.utc)
 T0 = datetime(2026, 11, 2, tzinfo=timezone.utc)
@@ -108,7 +113,7 @@ def test_c_counterfactual_egitime_girer_cift_sayim_kesim_ve_holdout(tmp_path):
         (5, 1.0, T0 + timedelta(hours=5) - timedelta(hours=10)),  # karardan ONCE 'kesinlesmis' -> disarida
         (7, 1.0, datetime(2026, 6, 2, tzinfo=timezone.utc)),      # holdout -> disarida
     ])
-    adaylar = OF.adaylar_defterden(_led(kararlar, [3]), cf, NOW)
+    adaylar = OF.adaylar_defterden(_led(kararlar, [3]), R.cf_satirlari_oku(cf), NOW)
     ids = sorted(a.id for a in adaylar)
     assert ids == ["103", "cf1", "cf2"]                           # 3: yalniz islem olarak; 4,5,7 yok
     cfs = [a for a in adaylar if a.id.startswith("cf")]
@@ -117,14 +122,14 @@ def test_c_counterfactual_egitime_girer_cift_sayim_kesim_ve_holdout(tmp_path):
     assert all(datetime.fromisoformat(a.cikis["kapanis"]) <= NOW for a in adaylar)
     # cf yolu yoksa yalniz islemler (eski davranis)
     assert [a.id for a in OF.adaylar_defterden(_led(kararlar, [3]))] == ["103"]
-    assert [a.id for a in OF.adaylar_defterden(_led(kararlar, [3]), tmp_path / "yok.sqlite", NOW)] == ["103"]
+    assert [a.id for a in OF.adaylar_defterden(_led(kararlar, [3]), R.cf_satirlari_oku(tmp_path / "yok.sqlite"), NOW)] == ["103"]
 
 
 def test_c2_counterfactual_ornekler_modeli_egitir(tmp_path):
     kararlar = [_dec(i) for i in range(1, 31)]
     cf = tmp_path / "cf.sqlite"
     _cf_depo(cf, [(i, 1.0 if i % 3 else -1.0, T0 + timedelta(hours=i + 2)) for i in range(1, 31)])
-    adaylar = OF.adaylar_defterden(_led(kararlar, []), cf, NOW)
+    adaylar = OF.adaylar_defterden(_led(kararlar, []), R.cf_satirlari_oku(cf), NOW)
     assert len(adaylar) == 30
     r = OF.egit_hepsi(adaylar, tmp_path / "m", NOW)
     assert r["aileler"]["T1"]["n"] == 30                          # yalniz counterfactual ornekler sayildi

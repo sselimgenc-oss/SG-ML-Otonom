@@ -265,11 +265,12 @@ def _oz_karar(d) -> dict[str, float]:
                       rh_touches=d.rh_touches, rl_touches=d.rl_touches, features=d.features)
 
 
-def adaylar_defterden(led, cf_yolu: str | os.PathLike | None = None, simdi: datetime | None = None) -> list:
+def adaylar_defterden(led, cf_satirlari=None, simdi: datetime | None = None) -> list:
     """Kapanmis kagit islemleri (+ varsa counterfactual) -> ortak_ogrenme Aday listesi (alindi=True, r = net R). Kilitle kesisen dusurulur.
     ts = karar mumunun kapanisi; ozellikler = karar anindaki ozellikler (girisle AYNI islev); cikis.kapanis = sonucun kesinlestigi an.
 
-    COUNTERFACTUAL (23.11 kullanici karari 4): `cf_yolu` (counterfactual.sqlite) verilirse suzgecin/kapilarin REDDETTIGI sinyallerin
+    COUNTERFACTUAL (23.11 kullanici karari 4): `cf_satirlari` (counterfactual.sqlite `cf_outcomes` barrier satirlari: {decision_id, hyp_r_net, window_end_ts: datetime}; okuma
+    `scripts/ml_retrain_run.cf_satirlari_oku`, motor core.counterfactual'e bagimli olmasin diye) verilirse suzgecin/kapilarin REDDETTIGI sinyallerin
     'alinsaydi' net R'si (method=barrier, `hyp_r_net`) de egitim ornegi olur; `trader_ml.setup_filter.train.collect_rows` ile ayni kaynak.
     Sizinti onlemi: yalniz karar anindan SONRA kesinlesmis (window_end > karar) ve kesim `simdi`den ONCE kapanmis (window_end <= simdi)
     sonuclar; kilit donemiyle kesisenler dusurulur. Ayni karar iki kez sayilmaz: kapanmis islemi olan karar icin counterfactual atlanir.
@@ -294,21 +295,13 @@ def adaylar_defterden(led, cf_yolu: str | os.PathLike | None = None, simdi: date
         out.append(Aday(id=str(t.trade_id), proje="ML", kurulum=d.arm_id, enstruman=d.pair, varlik_sinifi="kripto",
                         yon=d.side, ts=ts, alindi=True, r=float(t.r_multiple), rejim=d.regime, ozellikler=_oz_karar(d),
                         cikis={"kaynak": "islem", "kapanis": (bitis or ts).isoformat()}))
-    if cf_yolu is not None:
-        out.extend(_cf_adaylari(dec, trade_karar, cf_yolu, kesim, Aday))
+    if cf_satirlari:
+        out.extend(_cf_adaylari(dec, trade_karar, cf_satirlari, kesim, Aday))
     return out
 
 
-def _cf_adaylari(dec, trade_karar: set, cf_yolu, kesim: datetime, Aday) -> list:
-    from trader_core import counterfactual as CF
-    from trader_core import ledger as L
+def _cf_adaylari(dec, trade_karar: set, satirlar, kesim: datetime, Aday) -> list:
     out = []
-    try:
-        with CF.CounterfactualStore(cf_yolu, read_only=True) as st:
-            satirlar = list(st._db.execute("SELECT decision_id, hyp_r_net, window_end_ts FROM cf_outcomes WHERE bot=? AND method='barrier' "
-                                           "AND hyp_r_net IS NOT NULL ORDER BY decision_id", ("learner",)))
-    except CF.CounterfactualError:
-        return []                                                  # depo yok: yalniz alinan islemlerle egit
     for r in satirlar:
         did = int(r["decision_id"])
         d = dec.get(did)
@@ -316,13 +309,13 @@ def _cf_adaylari(dec, trade_karar: set, cf_yolu, kesim: datetime, Aday) -> list:
             continue
         try:
             r_net = float(r["hyp_r_net"])
-            bitis = L._parse_ts(r["window_end_ts"])
+            bitis = r["window_end_ts"]
             ts = _utc(d.bar_close_ts)
-        except (TypeError, ValueError):
+            bitis = None if bitis is None else _utc(bitis)
+        except (TypeError, ValueError, AttributeError):
             continue
         if bitis is None or not math.isfinite(r_net):
             continue
-        bitis = _utc(bitis)
         if bitis <= ts or bitis > kesim or _kilit_kesisir(ts, bitis):   # karardan sonra kesinlesmeli, kesimden once kapanmali, kilit disi
             continue
         out.append(Aday(id=f"cf{did}", proje="ML", kurulum=d.arm_id, enstruman=d.pair, varlik_sinifi="kripto", yon=d.side, ts=ts,
