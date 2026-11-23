@@ -5,7 +5,7 @@ iceri almaz (tests/test_veri_toplama.py bunu zorlar). Etiket/ton/kural YOKTUR; h
 Cozuculer CT projesinin `haber.py` sozlesmesinden uyarlandi (THIRD_PARTY_NOTICES.md); ag stdlib `urllib`, yeni bagimlilik yok.
 
 Depo (yalniz-ekleme JSONL; var/veri/haber/):
-  haber.jsonl : {"ts": yayin ms (yoksa alim ms), "alim": alim ms, "kaynak": ad, "baslik": ..., "baglanti": ..., "ozet": ...}
+  haber.jsonl : {"ts": yayin ms (yoksa alim ms), "alim": alim ms, "kaynak": ad, "kategori": kripto|hisse|emtia, "baslik": ..., "baglanti": ..., "ozet": ...}
   fng.jsonl   : {"ts": endeksin kendi zaman damgasi (ms), "alim": alim ms, "deger": 0-100, "sinif": ...}
 Tekillestirme: haber -> sha1(kaynak|baglanti veya baslik); fng -> ts. Var olan satir ASLA degistirilmez/silinmez.
 """
@@ -19,19 +19,36 @@ import re
 import time
 import xml.etree.ElementTree as ET
 from collections.abc import Callable
+from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any
 
 DUYGU_URL = "https://api.alternative.me/fng/?limit=10"
-KAYNAKLAR: dict[str, str] = {
-    "coindesk": "https://www.coindesk.com/arc/outboundfeeds/rss/",
-    "cointelegraph": "https://cointelegraph.com/rss",
-    "decrypt": "https://decrypt.co/feed",
-    "bitcoinmagazine": "https://bitcoinmagazine.com/.rss/full/",
-}
+# TEK LISTE: (ad, url, kategori). Kategori: kripto / hisse / emtia (KARAR-2). Yeni kaynak = bu listeye bir satir.
+# Hepsi anahtarsiz, https GET. Hisse/emtia kaynaklari genel piyasa/is bolumu beslemeleridir (21 hisse + 4 emtia icin tek tek beslemeye
+# gerek yok; hangi enstrumani ilgilendirdigine `haber_sinyal` modeli karar verir). Sartlar THIRD_PARTY_NOTICES.md'de.
+KAYNAK_LISTESI: tuple[tuple[str, str, str], ...] = (
+    ("coindesk", "https://www.coindesk.com/arc/outboundfeeds/rss/", "kripto"),
+    ("cointelegraph", "https://cointelegraph.com/rss", "kripto"),
+    ("decrypt", "https://decrypt.co/feed", "kripto"),
+    ("bitcoinmagazine", "https://bitcoinmagazine.com/.rss/full/", "kripto"),
+    ("cnbc_earnings", "https://www.cnbc.com/id/15839135/device/rss/rss.html", "hisse"),
+    ("cnbc_technology", "https://www.cnbc.com/id/19854910/device/rss/rss.html", "hisse"),
+    ("cnbc_finance", "https://www.cnbc.com/id/10000664/device/rss/rss.html", "hisse"),
+    ("marketwatch_top", "https://feeds.content.dowjones.io/public/rss/mw_topstories", "hisse"),
+    ("marketwatch_pulse", "https://feeds.content.dowjones.io/public/rss/mw_marketpulse", "hisse"),
+    ("nasdaq_markets", "https://www.nasdaq.com/feed/rssoutbound?category=Markets", "hisse"),
+    ("yahoo_finance", "https://finance.yahoo.com/news/rssindex", "hisse"),
+    ("oilprice", "https://oilprice.com/rss/main", "emtia"),
+    ("mining_com", "https://www.mining.com/feed/", "emtia"),
+    ("cnbc_energy", "https://www.cnbc.com/id/19836768/device/rss/rss.html", "emtia"),
+)
+KAYNAKLAR: dict[str, str] = {ad: url for ad, url, _ in KAYNAK_LISTESI}
+KATEGORI: dict[str, str] = {ad: kat for ad, _, kat in KAYNAK_LISTESI}
+KATEGORILER = ("kripto", "hisse", "emtia")
 ZAMAN_ASIMI_SN = 8
-TOPLAM_BUTCE_SN = 40
+TOPLAM_BUTCE_SN = 100
 MAX_BAYT = 2_000_000
 OZET_MAX = 500
 BASLIK_MAX = 300
@@ -89,27 +106,67 @@ def _temiz(s: str | None, n: int) -> str:
     return re.sub(r"\s+", " ", html.unescape(_ETIKET.sub(" ", s or ""))).strip()[:n]
 
 
-def rss_coz(icerik: Any, kaynak: str, alim_ms: int) -> list[dict]:
-    """RSS 2.0 -> ham ogeler. Tarih yoksa/bozuksa alim zamani kullanilir; baslik bos oge atilir. DTD/ENTITY reddedilir; bozuk XML -> []."""
+def _yerel(etiket: Any) -> str:
+    return etiket.rsplit("}", 1)[-1] if isinstance(etiket, str) else ""
+
+
+def _cocuk(oge: ET.Element, *adlar: str) -> ET.Element | None:
+    for c in oge:
+        if _yerel(c.tag) in adlar:
+            return c
+    return None
+
+
+def _baglanti(oge: ET.Element) -> str:
+    for c in oge:                                          # Atom: <link href=".." rel="alternate"/>; RSS: <link>metin</link>
+        if _yerel(c.tag) == "link":
+            h = (c.get("href") or "").strip()
+            if h and c.get("rel", "alternate") == "alternate":
+                return h[:500]
+            if (c.text or "").strip():
+                return c.text.strip()[:500]
+    return ""
+
+
+def _zaman_ms(oge: ET.Element, alim_ms: int) -> int:
+    for ad in ("pubDate", "published", "updated", "date"):
+        c = _cocuk(oge, ad)
+        v = ((c.text if c is not None else "") or "").strip()
+        if not v:
+            continue
+        try:
+            if ad in ("pubDate", "date") and not v[:4].isdigit():
+                t = parsedate_to_datetime(v)
+            else:
+                t = datetime.fromisoformat(v.replace("Z", "+00:00"))
+            if t.tzinfo is None:
+                t = t.replace(tzinfo=timezone.utc)
+            ms = int(t.timestamp() * 1000)
+            return ms if ms <= alim_ms + GELECEK_TOLERANS_MS else alim_ms
+        except (TypeError, ValueError):
+            continue
+    return alim_ms
+
+
+def rss_coz(icerik: Any, kaynak: str, alim_ms: int, kategori: str | None = None) -> list[dict]:
+    """RSS 2.0 ve Atom -> ham ogeler (+ `kategori`: kripto/hisse/emtia; verilmezse KATEGORI[kaynak], yoksa kripto).
+    Tarih yoksa/bozuksa alim zamani; baslik bos oge atilir. DTD/ENTITY reddedilir; bozuk XML -> []."""
     try:
         ham = icerik if isinstance(icerik, (bytes, bytearray)) else str(icerik).encode("utf-8")
         if b"<!DOCTYPE" in ham.upper() or b"<!ENTITY" in ham.upper():
             return []
+        kat = kategori or KATEGORI.get(kaynak, "kripto")
         out = []
-        for oge in ET.fromstring(ham).iter("item"):
-            baslik = _temiz(oge.findtext("title"), BASLIK_MAX)
+        for oge in ET.fromstring(ham).iter():
+            if _yerel(oge.tag) not in ("item", "entry"):
+                continue
+            t = _cocuk(oge, "title")
+            baslik = _temiz("".join(t.itertext()) if t is not None else "", BASLIK_MAX)
             if not baslik:
                 continue
-            ts = alim_ms
-            try:
-                t = int(parsedate_to_datetime((oge.findtext("pubDate") or "").strip()).timestamp() * 1000)
-                if t <= alim_ms + GELECEK_TOLERANS_MS:
-                    ts = t
-            except (TypeError, ValueError):
-                pass
-            r = {"ts": ts, "alim": alim_ms, "kaynak": kaynak, "baslik": baslik,
-                 "baglanti": (oge.findtext("link") or "").strip()[:500]}
-            d = oge.find("description")
+            r = {"ts": _zaman_ms(oge, alim_ms), "alim": alim_ms, "kaynak": kaynak, "kategori": kat, "baslik": baslik,
+                 "baglanti": _baglanti(oge)}
+            d = _cocuk(oge, "description", "summary", "content")
             ozet = _temiz("".join(d.itertext()) if d is not None else "", OZET_MAX)
             if ozet:
                 r["ozet"] = ozet
@@ -184,7 +241,7 @@ def topla(dizin: Path, alim_ms: int, gj: Getir | None = None, gm: Getir | None =
           kaynaklar: dict[str, str] | None = None, duygu_url: str = DUYGU_URL) -> dict:
     """Tum kaynaklari okur, yeni olanlari ekler. Kaynak hatasi yutulur (digerleri surer). Donus: {"haber","fng","hata"}."""
     gj, gm = gj or getir_json, gm or getir_metin
-    kaynaklar = KAYNAKLAR if kaynaklar is None else kaynaklar
+    kaynaklar = KAYNAKLAR if kaynaklar is None else kaynaklar        # KATEGORI.get(ad) yoksa rss_coz kripto varsayar
     bas = time.monotonic()
     ozet = {"haber": 0, "fng": 0, "hata": 0}
     if duygu_url:
@@ -197,7 +254,7 @@ def topla(dizin: Path, alim_ms: int, gj: Getir | None = None, gm: Getir | None =
             ozet["hata"] += 1
             continue
         try:
-            ozet["haber"] += haber_ekle(dizin, rss_coz(gm(url), ad, alim_ms))
+            ozet["haber"] += haber_ekle(dizin, rss_coz(gm(url), ad, alim_ms, KATEGORI.get(ad)))
         except Exception:  # noqa: BLE001
             ozet["hata"] += 1
     return ozet

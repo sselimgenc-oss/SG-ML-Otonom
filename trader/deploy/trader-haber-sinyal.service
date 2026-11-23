@@ -1,0 +1,29 @@
+[Unit]
+Description=Trader haber sinyali (Haiku 5.5 ile baslik puanlama -> var/learner/sinyal/haber_sinyal.json; haber_kolu butce payi; tek seferlik)
+Documentation=file:///opt/trader/docs/veri-toplama-spec.md
+After=network-online.target
+Wants=network-online.target
+OnFailure=trader-health-fail@%n.service
+
+[Service]
+Slice=trader.slice
+Type=oneshot
+User=trader
+Group=trader
+WorkingDirectory=/opt/trader
+# ANTHROPIC_API_KEY_HABER (yoksa dosya yenilenmez, cikis 0). Ham haber (var/veri/haber) SALT OKUNUR.
+EnvironmentFile=/etc/trader-lesson.env
+ExecStart=/usr/bin/python3 -I /opt/trader/scripts/haber_sinyal_run.py --var-dir /opt/trader/var
+TimeoutStartSec=300
+MemoryHigh=120M
+MemoryMax=150M
+CPUQuota=20%
+Nice=15
+IOSchedulingClass=idle
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+# Yazar: var/learner/sinyal (sinyal + durum) ve user_data (butce deposu: SQLite yan dosyalari dizinde).
+ReadWritePaths=/opt/trader/var/learner/sinyal /opt/trader/user_data
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6

@@ -41,7 +41,7 @@ def _betik(ad):
 def test_rss_ham_alanlar_ve_fng_cozumu():
     r = H.rss_coz(RSS, "cd", SIMDI)
     assert len(r) == 2                                              # bos baslik atilir
-    assert r[0] == {"ts": SIMDI - 2 * 3600_000, "alim": SIMDI, "kaynak": "cd", "baslik": "Bitcoin surges", "baglanti": "https://x/a", "ozet": "Ozet & yazi"}
+    assert r[0] == {"ts": SIMDI - 2 * 3600_000, "alim": SIMDI, "kaynak": "cd", "kategori": "kripto", "baslik": "Bitcoin surges", "baglanti": "https://x/a", "ozet": "Ozet & yazi"}
     assert r[1]["ts"] == SIMDI and "ozet" not in r[1]              # tarih bozuk -> alim zamani
     assert not any(k in r[0] for k in ("ton", "etiket", "duygu"))   # yalniz ham alanlar
     f = H.duygu_coz(FNG, SIMDI)
@@ -198,5 +198,52 @@ def test_motor_veri_dizinlerini_okumaz_ve_toplayicilari_almaz():
             assert not re.search(r"\bveri_haber\b|\bveri_piyasa\b|marketdata\.veri|import veri_", t), p.name
 
 
+def test_karar8_motor_yalniz_sinyal_dosyasini_okuyabilir():
+    """KARAR-8: motor ham haberi okumaz; ileride yalniz uretilmis sinyal dosyasi serbest. Yasak desen sinyal yolunu YAKALAMAZ, var/veri'yi yakalar."""
+    assert not _YASAK.search("var/learner/sinyal/haber_sinyal.json") and not _YASAK.search("haber_sinyal.json")
+    for kotu in ("var/veri/haber/haber.jsonl", "var/veri/haber", "haber.jsonl", "fng.jsonl", "veri_haber", "\"veri\" / \"haber\""):
+        assert _YASAK.search(kotu), kotu
+    spec = (ROOT / "docs" / "veri-toplama-spec.md").read_text(encoding="utf-8")
+    assert "KARAR-8" in spec and "var/learner/sinyal/haber_sinyal.json" in spec and "asla okumaz" in spec
+    for p in (ROOT / "src" / "trader_engine").rglob("*.py"):       # motor sinyal uretecini de ice almaz (HB1 kolu henuz yok)
+        assert "haber_sinyal" not in p.read_text(encoding="utf-8") or "var/learner/sinyal/haber_sinyal.json" in p.read_text(encoding="utf-8"), p.name
+
+
 def test_oi_toplayicisi_ve_veri_piyasa_ayri():
     assert "veri_piyasa" not in (ROOT / "src/trader_engine/marketdata/oi_collector.py").read_text(encoding="utf-8")
+
+
+# ---------------------------------------------------------------- hisse/emtia kaynaklari (KARAR-2)
+ATOM = b"""<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom"><title>f</title>
+<entry><title type="html">Nvidia beats &amp; raises</title><link rel="alternate" href="https://x/n"/><updated>2026-11-23T09:30:00Z</updated><summary>Ozet <b>x</b></summary></entry>
+<entry><title>Brent rises</title><link href="https://x/b"/><published>2026-11-23T11:00:00+00:00</published><content>c</content></entry>
+<entry><title></title><link href="https://x/e"/></entry>
+</feed>"""
+
+
+def test_atom_cozumu_ve_kategori_etiketi():
+    r = H.rss_coz(ATOM, "yahoo_finance", SIMDI)
+    assert [x["baslik"] for x in r] == ["Nvidia beats & raises", "Brent rises"]
+    assert r[0]["baglanti"] == "https://x/n" and r[0]["ts"] == SIMDI - 150 * 60_000 and r[0]["ozet"] == "Ozet x"
+    assert r[1]["ts"] == SIMDI - 3600_000 and r[1]["baglanti"] == "https://x/b"
+    assert {x["kategori"] for x in r} == {"hisse"}                          # kaynak adindan
+    assert H.rss_coz(RSS, "oilprice", SIMDI)[0]["kategori"] == "emtia"
+    assert H.rss_coz(RSS, "coindesk", SIMDI)[0]["kategori"] == "kripto"
+    assert H.rss_coz(RSS, "bilinmeyen", SIMDI, kategori="emtia")[0]["kategori"] == "emtia"
+    assert H.rss_coz(b"<feed xmlns='http://www.w3.org/2005/Atom'><entry>", "x", SIMDI) == []
+
+
+def test_kaynak_listesi_tutarli():
+    ad = [a for a, _, _ in H.KAYNAK_LISTESI]
+    assert len(ad) == len(set(ad)) and set(H.KATEGORI.values()) == set(H.KATEGORILER)
+    assert all(u.startswith("https://") for _, u, _ in H.KAYNAK_LISTESI)
+    assert H.KAYNAKLAR == {a: u for a, u, _ in H.KAYNAK_LISTESI} and all(H.KATEGORI[a] in H.KATEGORILER for a in ad)
+    assert {"hisse", "emtia", "kripto"} <= {k for _, _, k in H.KAYNAK_LISTESI}
+
+
+def test_topla_kategoriyi_yazar(tmp_path):
+    H.topla(tmp_path, SIMDI, lambda u: FNG, lambda u: ATOM if "oilprice" in u else RSS,
+            kaynaklar={"oilprice": "https://oilprice.com/rss/main", "coindesk": "https://c"})
+    k = {(r["kaynak"], r["kategori"]) for r in map(json.loads, (tmp_path / "haber.jsonl").read_text().splitlines())}
+    assert k == {("oilprice", "emtia"), ("coindesk", "kripto")}

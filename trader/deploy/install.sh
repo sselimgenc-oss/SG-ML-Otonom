@@ -658,6 +658,12 @@ safe_tree_path "$TRADER_DIR/var/durum"
 install -d -m 0750 -o "$TRADER_USER" -g "$TRADER_USER" "$TRADER_DIR/var/durum"
 enable_now trader-haber.timer          # veri toplama: ham haber + Fear&Greed (saatlik; var/veri/haber; yalniz https okuma)
 enable_now trader-piyasa-veri.timer    # veri toplama: OI/funding/long-short/taker (saatlik; var/veri/piyasa; herkese acik GET, anahtar yok)
+# Haber sinyali (ust lig §1; saatlik :08; MemoryMax=150M): ham haberi Haiku 5.5 ile puanlar, YALNIZ var/learner/sinyal/haber_sinyal.json yazar.
+# Anahtar ANTHROPIC_API_KEY_HABER (/etc/trader-lesson.env) yoksa dosya yenilenmez (zarari yok); yine de bildir.
+safe_tree_path "$TRADER_DIR/var/learner" "$TRADER_DIR/var/learner/sinyal"
+install -d -m 0750 -o "$TRADER_USER" -g "$TRADER_USER" "$TRADER_DIR/var/learner" "$TRADER_DIR/var/learner/sinyal"
+enable_now trader-haber-sinyal.timer
+if ! has_value /etc/trader-lesson.env ANTHROPIC_API_KEY_HABER; then MISSING+=("/etc/trader-lesson.env  -> ANTHROPIC_API_KEY_HABER (haber sinyali; yoksa var/learner/sinyal/haber_sinyal.json yenilenmez)"); fi
 enable_now trader-weekly-summary.timer
 # Faz 2a: kagit-geri test tutarlilik raporu (haftalik; yalniz bilgi). unit ReadWritePaths (namespace) icin dizinler ilk kurulumda olussun
 safe_tree_path "$TRADER_DIR/var/rapor" "$TRADER_DIR/var/rapor/tutarlilik" "$TRADER_DIR/var/durum"
@@ -744,7 +750,7 @@ else MISSING+=("/etc/trader-testnet.env  -> BINANCE_API_KEY ve BINANCE_API_SECRE
 # birimleri kalmamali (kaldirma yukarida yapildi; eski bir kopya kaldiysa burada gorunur).
 say "DD-12 zamanlayici denetimi"
 for t in trader-notes.timer trader-weekly-summary.timer trader-ml-retrain.timer trader-universe.timer \
-         trader-counterfactual@learner.timer trader-exit-counterfactual@learner.timer trader-tutarlilik.timer trader-mutabakat.timer trader-tur1-olcum.timer trader-yorumcu.timer trader-durum-yayin.timer trader-haber.timer trader-piyasa-veri.timer trader-bakim.timer trader-strateji-veri.timer; do
+         trader-counterfactual@learner.timer trader-exit-counterfactual@learner.timer trader-tutarlilik.timer trader-mutabakat.timer trader-tur1-olcum.timer trader-yorumcu.timer trader-durum-yayin.timer trader-haber.timer trader-haber-sinyal.timer trader-piyasa-veri.timer trader-bakim.timer trader-strateji-veri.timer; do
   if systemctl is-enabled --quiet "$t" 2>/dev/null; then echo "  etkin: $t"; else echo "UYARI: $t etkin degil (systemctl enable --now $t)"; fi
 done
 for u in trader-veto.service trader-veto.timer trader-engine@twin.service trader-engine-retry@twin.timer; do

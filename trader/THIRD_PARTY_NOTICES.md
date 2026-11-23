@@ -29,3 +29,9 @@
 ## CT haber/duygu çözücüleri (kullanıcının kendi projesi) — yalnız veri toplama
 - Kaynak: `copytrade/canli/haber.py` (CT projesi, kullanıcının kendi kodu; yalnız okunarak uyarlandı, çalıştırılmadı), 2026-11-19; 23 Kasım 2026'da yalnız VERİ TOPLAMA olarak yeniden eklendi (etiket/ton/kural yok; bkz. `docs/veri-toplama-spec.md`).
 - Uyarlanan: `src/trader_core/veri_haber.py` (`duygu_coz`, `rss_coz`; ağ `requests` yerine stdlib `urllib`). Kaynaklar (herkese açık, anahtarsız): alternative.me Fear & Greed, CoinDesk RSS, Cointelegraph RSS, Decrypt RSS (`decrypt.co/feed`), Bitcoin Magazine RSS (`bitcoinmagazine.com/.rss/full/`). Yalnız başlık/bağlantı/özet ham olarak saklanır; yeniden yayımlanmaz.
+
+## Hisse ve emtia haber beslemeleri (23 Kasım 2026; KARAR-2) — yalnız başlık okuma
+- Tek liste: `src/trader_core/veri_haber.py` `KAYNAK_LISTESI` (ad, url, kategori). Anahtarsız, herkese açık RSS; yalnız https GET, saatte bir, 8 sn zaman aşımı, kimlikli User-Agent (`trader-veri-haber/1`). Başlık/bağlantı/kısa özet saklanır; yeniden yayımlanmaz; yalnız başlık modele (Haiku 5.5) gider ve motor ham haberi okumaz. Kod kopyalanmadı (standart `xml.etree`).
+- hisse: CNBC Earnings `cnbc.com/id/15839135/device/rss/rss.html`, CNBC Technology `.../id/19854910/...`, CNBC Finance `.../id/10000664/...` (CNBC RSS Terms); MarketWatch/Dow Jones `feeds.content.dowjones.io/public/rss/mw_topstories` ve `mw_marketpulse`; Nasdaq `nasdaq.com/feed/rssoutbound?category=Markets`; Yahoo Finance `finance.yahoo.com/news/rssindex`.
+- emtia: OilPrice.com `oilprice.com/rss/main`; Mining.com `mining.com/feed/` (altın/gümüş/bakır); CNBC Energy `cnbc.com/id/19836768/device/rss/rss.html`.
+- Not: şartlar çevrimdışı yazıldı, kullanım koşulları kuruluma geçmeden her yayıncının sitesinde teyit edilmeli; bir yayıncı otomatik okumayı yasaklıyorsa ilgili satır listeden silinir (tek satır). URL'ler canlı doğrulanmadı; ölü/boş besleme yalnız `hata` sayacını artırır, diğerlerini durdurmaz.
