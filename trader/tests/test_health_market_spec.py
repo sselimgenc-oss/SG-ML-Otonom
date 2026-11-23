@@ -181,3 +181,76 @@ def test_runner_collect_and_state_delta(tmp_path):
 def test_loop_lag_already_covered_by_bot_loop_age():
     assert H.DEFAULT_CFG.loop_crit_s == 300 and H.DEFAULT_CFG.feed_status_crit_s == 180
     assert H.DEFAULT_CFG.market_bar_crit_s == 300 and H.DEFAULT_CFG.rules_warn_s == 86400
+
+
+# ---- 44 enstruman: yapilandirilmis (10) U feed-status listesi; seans kapali cift CRIT uretmez
+def _world44(tmp, extra, *, cfg_pairs=PAIRS, bar_age=30, stale=()):
+    var = make_world(tmp)
+    fs = json.loads((var / "feed-status.json").read_text())
+    fs["pairs"] = list(PAIRS) + list(extra)
+    (var / "feed-status.json").write_text(json.dumps(fs))
+    c = sqlite3.connect(var / "market.sqlite")
+    for p in extra:
+        age = 3600 * 5 if p in stale else bar_age
+        c.execute("INSERT INTO bars VALUES('last',?, '1m',?,1,1,1,1,1,0)", (p, _ms(NOW - timedelta(seconds=age))))
+    c.commit()
+    c.close()
+    return var
+
+
+def test_probe_union_configured_first_deduped(tmp_path):
+    var = _world44(tmp_path, ["HYPE/USDT", "btc/usdt:USDT", "NVDA/USDT"])
+    m = probe_market(db_path=str(var / "market.sqlite"), feed_status_path=str(var / "feed-status.json"), pairs=PAIRS)
+    assert m.pairs == ("BTC/USDT", "ETH/USDT", "HYPE/USDT", "NVDA/USDT")
+    assert "HYPE/USDT" in m.newest_bar_at
+
+
+def _eval(var, m_classes, now):
+    m = probe_market(db_path=str(var / "market.sqlite"), feed_status_path=str(var / "feed-status.json"), pairs=PAIRS,
+                     pair_classes=m_classes)
+    rep = H.evaluate(H.HealthSnapshot(now=now, market=m), H.HealthConfig(require_bots=("learner",)))
+    return {r.name: r for r in rep.results}["market_bar_age"]
+
+
+def test_stale_crypto_outside_base10_is_crit(tmp_path):
+    var = _world44(tmp_path, ["HYPE/USDT"], stale=("HYPE/USDT",))
+    x = _eval(var, {}, NOW)
+    assert x.status is Status.CRIT and "HYPE/USDT" in x.detail
+
+
+def test_closed_session_stock_and_commodity_no_crit(tmp_path):
+    sat = datetime(2026, 11, 21, 15, 0, tzinfo=timezone.utc)   # Cumartesi
+    var = _world44(tmp_path, ["NVDA/USDT", "XAU/USDT"], stale=("NVDA/USDT", "XAU/USDT"))
+    # kripto ciftlerin mumu taze olmali: make_world mumlari NOW'a gore; saati NOW'da tutup yalniz sinifi sinamak icin
+    # seans kontrolu zamana baglidir, bu yuzden tum veriyi cumartesiye kaydir.
+    c = sqlite3.connect(var / "market.sqlite")
+    c.execute("DELETE FROM bars WHERE pair IN ('BTC/USDT','ETH/USDT')")
+    for p in PAIRS:
+        c.execute("INSERT INTO bars VALUES('last',?, '1m',?,1,1,1,1,1,0)", (p, _ms(sat - timedelta(seconds=30))))
+    c.commit()
+    c.close()
+    x = _eval(var, {"NVDA/USDT": "hisse", "XAU/USDT": "emtia"}, sat)
+    assert x.status is Status.OK, x.detail
+
+
+def test_open_session_stale_stock_is_crit(tmp_path):
+    tue = datetime(2026, 11, 17, 16, 0, tzinfo=timezone.utc)   # Sali 11:00 NY: seans acik
+    assert NOW == datetime(2026, 11, 17, 12, 0, tzinfo=timezone.utc)
+    var = _world44(tmp_path, ["NVDA/USDT"], stale=("NVDA/USDT",))
+    c = sqlite3.connect(var / "market.sqlite")
+    c.execute("DELETE FROM bars WHERE pair IN ('BTC/USDT','ETH/USDT')")
+    for p in PAIRS:
+        c.execute("INSERT INTO bars VALUES('last',?, '1m',?,1,1,1,1,1,0)", (p, _ms(tue - timedelta(seconds=30))))
+    c.commit()
+    c.close()
+    x = _eval(var, {"NVDA/USDT": "hisse"}, tue)
+    assert x.status is Status.CRIT and "NVDA/USDT" in x.detail
+
+
+def test_runner_pair_classes_from_universe(tmp_path):
+    cd = tmp_path / "cfg"
+    cd.mkdir()
+    (cd / "universe.json").write_text(json.dumps({"stocks_ordered": ["NVDA/USDT"], "commodities": ["XAU/USDT"]}))
+    assert R.pair_classes({"ENGINE_CONFIG_DIR": str(cd)}) == {"NVDA/USDT": "hisse", "XAU/USDT": "emtia"}
+    assert R.pair_classes({"ENGINE_CONFIG_DIR": str(tmp_path / "yok")}) == {}
+    assert R.pair_classes({}) == {}

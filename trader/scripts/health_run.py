@@ -419,6 +419,26 @@ def market_pairs(env: dict) -> tuple[str, ...]:
     return ()
 
 
+def pair_classes(env: dict) -> dict:
+    """ENGINE_CONFIG_DIR/universe.json: stocks_ordered -> hisse, commodities -> emtia (digerleri kripto = 7/24, haritada yok).
+    Dosya yok/okunamaz -> {}."""
+    from trader_core.arm_time import CLASS_COMMODITY, CLASS_EQUITY   # noqa: PLC0415
+    cd = env.get("ENGINE_CONFIG_DIR")
+    if not cd:
+        return {}
+    try:
+        with open(os.path.join(cd, "universe.json"), encoding="utf-8") as f:
+            u = json.load(f)
+        out = {}
+        for key, cls in (("stocks_ordered", CLASS_EQUITY), ("commodities", CLASS_COMMODITY)):
+            lst = u.get(key)
+            if isinstance(lst, list):
+                out.update({str(p).strip().upper().split(":", 1)[0]: cls for p in lst if isinstance(p, str)})
+        return out
+    except (OSError, ValueError, AttributeError):
+        return {}
+
+
 def collect_market(env: dict, var_dir: str):
     """Opt-in: MARKET_DB yoksa None (piyasa denetimleri kapali). Salt okunur."""
     db = env.get("MARKET_DB")
@@ -427,7 +447,7 @@ def collect_market(env: dict, var_dir: str):
     from trader_core.market_probe import probe_market
     fs = env.get("MARKET_FEED_STATUS") or os.path.join(var_dir, "feed-status.json")
     try:
-        return probe_market(db_path=db, feed_status_path=fs, pairs=market_pairs(env),
+        return probe_market(db_path=db, feed_status_path=fs, pairs=market_pairs(env), pair_classes=pair_classes(env),
                             engine_status_paths={b: status_path(_bot_var(env, b, var_dir), b) for b in bots_from_env(env)})
     except Exception:  # noqa: BLE001
         return H.MarketProbe(feed_status_state="unreadable", db_state="unreadable")

@@ -201,7 +201,14 @@ def kos(root: Path, now: datetime, env, tg_baslangic: datetime | None = None) ->
     kontroller += M.kontrol_long_short(gorunen, kap["rows"], kap.get("n"), kap.get("net"))
     kontroller.append(M.kontrol_acik(len(acik), pano["acik"]["n"], pano["serit"].get("acik"),
                                      len(status.get("open_positions") or []) if status is not None else None))
-    kontroller.append(M.kontrol_acik_kz(status, pano["acik"]["rows"]))
+    kz = M.kontrol_acik_kz(status, pano["acik"]["rows"])
+    if kz.get("sonuc") == "kaldı":
+        # Yaris: motor pano okunduktan sonra yeni durum yazmis olabilir. Bir kez taze oku (once pano, sonra durum); ikinci de tutmazsa raporla.
+        pano2 = data.pano(BOT)
+        st2 = P.read_status(cfg.status_path, now)
+        if pano2.get("ok"):
+            kz = M.kontrol_acik_kz(st2["data"] if st2["state"] == "live" else None, pano2["acik"]["rows"])
+    kontroller.append(kz)
     kontroller.append(M.kontrol_limit(pano["serit"]["risk"].get("limit_orani"), ayar_orani(root / "config")))
     siniri = f"Panel 'tümü' listesi son {int(cfg.closed_limit)} kapanan işlemi gösterir; toplamlar tüm işlemleri kapsar."
     bilgi = [b for b in (M.bilgi_acik_kz(status),) if b]

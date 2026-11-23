@@ -475,3 +475,33 @@ def test_kod_surumu_release_yoksa_yola_duser(tmp_path):
     assert a == str(Path(R.__file__).resolve().parent.parent)
     (tmp_path / "r").write_text("COMMIT=\n", encoding="utf-8")
     assert R.kod_surumu({"MUTABAKAT_RELEASE_FILE": str(tmp_path / "r")}) == a
+
+
+def test_acik_kz_race_retry_passes_when_second_read_matches(env, monkeypatch):
+    _setup(env)
+    real, calls = M.kontrol_acik_kz, []
+
+    def fake(status, rows):
+        calls.append(1)
+        if len(calls) == 1:   # motor pano ile durum arasinda yeni durum yazdi
+            return M.kontrol("Açık K/Z fiyat kaynağı (panel = motor mark)", False, "Açık işlem kâr/zararı panelde farklı: #1 fark 0,03 $")
+        return real(status, rows)
+    monkeypatch.setattr(R.M, "kontrol_acik_kz", fake)
+    d = _run(env)
+    assert len(calls) == 2
+    kz = [k for k in d["kontroller"] if k["ad"].startswith("Açık K/Z fiyat")]
+    assert kz and kz[0]["sonuc"] == "geçti"
+
+
+def test_acik_kz_real_mismatch_still_reported_after_retry(env, monkeypatch):
+    _setup(env)
+    calls = []
+
+    def fake(status, rows):
+        calls.append(1)
+        return M.kontrol("Açık K/Z fiyat kaynağı (panel = motor mark)", False, "Açık işlem kâr/zararı panelde farklı: #1 fark 0,30 $")
+    monkeypatch.setattr(R.M, "kontrol_acik_kz", fake)
+    d = _run(env)
+    assert len(calls) == 2
+    kz = [k for k in d["kontroller"] if k["ad"].startswith("Açık K/Z fiyat")]
+    assert kz[0]["sonuc"] == "kaldı"

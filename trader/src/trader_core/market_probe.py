@@ -73,13 +73,16 @@ def _read_engine_counter(status_path, bot):
     return v if isinstance(v, int) and not isinstance(v, bool) and v >= 0 else None
 
 
-def probe_market(*, db_path: str, feed_status_path: str, pairs, engine_status_paths: dict | None = None) -> MarketProbe:
-    """pairs: yapilandirilmis ciftler (bos/None ise feed-status.json'daki liste kullanilir).
+def probe_market(*, db_path: str, feed_status_path: str, pairs, engine_status_paths: dict | None = None,
+                 pair_classes: dict | None = None) -> MarketProbe:
+    """pairs: yapilandirilmis ciftler; feed-status.json listesi ile birlesir (tekrarsiz, yapilandirilmis once).
+    pair_classes: cift -> varlik sinifi (seans kapaliyken mum beklenmez).
     engine_status_paths: bot -> status.json yolu (rules_missing sayaci icin)."""
     fs_state, fs_ts, fs_pairs = _read_feed_status(feed_status_path)
-    plist = tuple(dict.fromkeys(canon_pair(p) for p in (pairs or ()))) or fs_pairs
+    plist = tuple(dict.fromkeys([canon_pair(p) for p in (pairs or ())] + list(fs_pairs)))   # yapilandirilmis once, sonra feed'in gercek listesi
     counters = {b: _read_engine_counter(p, b) for b, p in (engine_status_paths or {}).items()}
-    base = dict(feed_status_state=fs_state, feed_status_at=fs_ts, pairs=plist, rules_missing=counters)
+    base = dict(feed_status_state=fs_state, feed_status_at=fs_ts, pairs=plist, rules_missing=counters,
+                pair_classes={canon_pair(k): v for k, v in (pair_classes or {}).items()})
     if not os.path.exists(db_path):
         return MarketProbe(db_state="missing", **base)
     newest, rules_count, fetched = {}, None, None

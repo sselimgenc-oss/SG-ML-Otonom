@@ -164,6 +164,7 @@ class MarketProbe:
     rules_count: int | None = None
     rules_fetched_at: datetime | None = None          # feed_meta.rules_fetched_at
     rules_missing: Mapping[str, int | None] = field(default_factory=dict)        # bot -> status counters.rules_missing
+    pair_classes: Mapping[str, str] = field(default_factory=dict)                # cift -> varlik sinifi (bilinmeyen = kripto, 7/24)
 
 
 @dataclass(frozen=True)
@@ -660,8 +661,17 @@ def _c_market_bars(snap, cfg):
         return bad
     if not m.pairs:
         return _unknown(name, "pairs_unknown", "yapilandirilmis cift listesi bilinmiyor")
+    from trader_core.arm_time import session_tag   # noqa: PLC0415
     stale, worst = [], 0.0
+    once = snap.now - timedelta(seconds=cfg.market_bar_crit_s)
     for p in m.pairs:
+        cls = m.pair_classes.get(p) or m.pair_classes.get(_canon(p))
+        if cls:
+            try:   # _c_open_price ile ayni kural: seans kapali (ya da esik oncesi kapali) cift icin mum beklenmez
+                if session_tag(cls, snap.now) != "open" or session_tag(cls, once) != "open":
+                    continue
+            except ValueError:
+                continue
         t = m.newest_bar_at.get(p)
         if t is None:
             stale.append(f"{p}: mum yok")
