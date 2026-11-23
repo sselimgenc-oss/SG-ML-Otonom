@@ -44,6 +44,16 @@ def sinif_fonksiyonu(paper_cfg: Path):
     return lambda pair: AG.asset_class(pair, cl)
 
 
+def masraf_ayari(root: Path, panel_engine_cfg: Path) -> dict | None:
+    """Rastgele rakibin masrafı için kâğıt motor ayarı: `config/engine.paper.json` (yoksa panelin engine_config'i); okunamazsa None (eski masraf)."""
+    for p in (root / "config" / "engine.paper.json", panel_engine_cfg):
+        try:
+            return json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+    return None
+
+
 def kos(root: Path, now: datetime, *, market: Path | None = None, runs: int = T.KARISTIRMA_SAYISI, b: int = T.RASTGELE_B) -> tuple[int, dict | None]:
     cfg = load_config(root / "config" / "panel.json")
     led_path = Path(cfg.ledger_path)
@@ -74,7 +84,8 @@ def kos(root: Path, now: datetime, *, market: Path | None = None, runs: int = T.
     try:
         if mp.exists():
             mumlar = T.MumDeposu(mp)
-        d = T.rapor(trades, decisions, mumlar, kasa0=ws, now=now, models_dir=root / "var" / "learner" / "models", b=b, runs=runs)
+        d = T.rapor(trades, decisions, mumlar, kasa0=ws, now=now, models_dir=led_path.parent / "models", b=b, runs=runs,
+                    maliyet_cfg=masraf_ayari(root, Path(cfg.engine_config)))
     finally:
         if mumlar is not None:
             mumlar.close()

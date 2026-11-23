@@ -27,9 +27,9 @@ def atr_onceki(mum: dict, giris_ms: list[int], periyot: int = 14) -> list[float]
     return out
 
 
-def k2_toplam(gruplar: dict, gercek: float, b: int, seed: int, alt_sinir_ms: int) -> dict:
+def k2_toplam(gruplar: dict, gercek: float, b: int, seed: int, alt_sinir_ms: int, maliyet_fn=None) -> dict:
     """gruplar: {(pair, tf, parca): (mum, [(giris_ms, yon, stop_carpan, tutma), ...])}. Mevcut `k2_testi` ile iki asamali test.
-    -> {'sim': dizi, 'p', 'asama'}."""
+    maliyet_fn: pair -> K2.K2Maliyet (verilmezse k2 varsayilani). -> {'sim': dizi, 'p', 'asama'}."""
     son: dict = {}
     cf = {k: cerceve(v[0]) for k, v in gruplar.items()}
 
@@ -39,7 +39,8 @@ def k2_toplam(gruplar: dict, gercek: float, b: int, seed: int, alt_sinir_ms: int
             tab = pd.DataFrame({"giris_zamani": [pd.Timestamp(g, unit="ms", tz="UTC") for g, *_ in sat],
                                 "yon": [s[1] for s in sat], "stop_carpan": [s[2] for s in sat], "tutma": [s[3] for s in sat]})
             alt = pd.Timestamp(alt_sinir_ms, unit="ms", tz="UTC") if key[2] == "sonra" else None
-            tot += K2.k2_simule(tab, cf[key], n_sim, tohum + 7919 * k, alt_sinir=alt)["toplam_r"]
+            kw = {} if maliyet_fn is None else {"maliyet": maliyet_fn(key[0])}
+            tot += K2.k2_simule(tab, cf[key], n_sim, tohum + 7919 * k, alt_sinir=alt, **kw)["toplam_r"]
         son["sim"] = tot
         return tot
     test = K2.k2_testi(gercek, simule, seed, b1=min(500, b), b2=b)

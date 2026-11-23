@@ -31,9 +31,10 @@ SISTEM = """Sen kıdemli bir kantitatif trading araştırmacısısın. Sana bir 
 BİZİM BOT: Binance USDT-M vadeli, kâğıt (canlı = kâğıtla birebir hazır). 19 kripto (7/24) + 21 ABD hissesi + 4 emtia (seanslı).
 8 kural tabanlı price-action stratejisi (trend kırılımı, iki bacaklı geri çekilme, sıkışma kırılımı, kırılım yeniden testi, sahte kırılım
 dönüşü, trend geri çekilmesi, aralık kenarı, M1 LLM adayı) x 4 zaman dilimi (15m/1h/4h/1d) = 32 kol. Aday sinyaller kurulum ailesi
-başına gradient-boosting sınıflandırıcıyla süzülür (kazanır/kaybeder; üçlü bariyer etiketi; özellikler: ATR oranı, rejim, stop/ATR, R:R,
-range kenar mesafesi, 1h/4h/1d EMA eğimi ve volatilite, saat/gün, son getiriler; v2 paketi: hacim, mum şekli, BTC rejimi, fonlama — kapalı).
-Gece yeniden eğitim, kol başına en az 10 işlem. Doğrulama: purge+embargo walk-forward, deflated Sharpe/PBO, deneme kaydı; holdout mühürlü.
+başına ridge lojistik regresyonla süzülür (canlı gece süzgeci; etiket: gerçekleşen işlemin R > 0 olması; yalnız alınan işlemlerden öğrenir;
+özellikler: ATR oranı, rejim, stop/ATR, R:R, range kenar mesafesi, yön, seans, varlık sınıfı; v2 paketi: hacim, mum şekli, BTC rejimi, fonlama — kapalı).
+Gece yeniden eğitim, kurulum ailesi başına en az 10 işlem; gece süzgeci görülmemiş veride sınanmadan devreye girer. Gradient boosting ve üçlü bariyer
+etiketi yalnız araştırma tarafındadır (canlı süzgeçte yok). Araştırma tarafı doğrulaması: purge+embargo walk-forward, deflated Sharpe/PBO, deneme kaydı; holdout mühürlü.
 Risk: işlem başına %1, açık risk %24, günlük %8, ana paradan %15 kilit.
 Az veri: şu an ~55 kâğıt işlem (41'i short — yön yoğunlaşması).
 
