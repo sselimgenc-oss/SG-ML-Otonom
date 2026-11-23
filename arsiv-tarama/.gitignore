@@ -1,0 +1,4 @@
+__pycache__/
+*.jsonl
+batch_durum.json
+taranmis_ocr_yok.txt
