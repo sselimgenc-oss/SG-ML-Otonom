@@ -155,3 +155,10 @@ Okuması: Üç sınır (yön, bağlılık, büyüklük) birlikte kârlı dönemd
 **KARAR 3 — Kayıp freni:** N = 5 mi, 4 mü, 3 mü? Günlük yarı-limit %4 ve "ilk kârlı kapanışta / ertesi gün kalkar" kuralı kabul mü? (Önerim: **N = 5, %4, kalkış kuralı kabul**)
 
 **KARAR 4 — Toplam büyüklük tavanı:** 5 kat mı, 3 kat mı, 2,5 kat mı? (Önerim: **3 kat**)
+
+## KULLANICI KARARI (23.11) — eşikler KİLİTLİ (testten önce)
+1. Aynı yön: max_same_dir_risk 0,06 (en fazla 6 aynı yön pozisyon).
+2. Korelasyon: 30 gün 1s getiri korelasyonu ≥ 0,7 aynı grup (yedek: sabit kümeler); grup başına yön başına en fazla 4.
+3. Kayıp freni: 5 ardışık kayıp ya da günlük zarar %4 → risk yarıya; ilk kazançlı kapanışta ya da yeni UTC gününde kalkar.
+4. Toplam büyüklük tavanı: tüm pozisyonların toplam nominali ≤ 3 × kasa.
+Kâğıt ve canlıya birlikte (canlı = kâğıt). Uygulama işi ayrıca onaylanacak.
