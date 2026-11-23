@@ -2,20 +2,20 @@
   "sema": "ortak.gunluk_ozet.v1",
   "proje": "ML",
   "mod": "kagit",
-  "uretim": "2026-11-23T03:04:49Z",
+  "uretim": "2026-11-23T04:01:55Z",
   "gun": "2026-11-23",
   "kasa": {
     "baslangic": 1000.0,
-    "simdi": 1047.47,
-    "gun_pnl": -31.91,
-    "toplam_pnl": 47.47,
-    "zirveden_dusus_yuzde": 9.67
+    "simdi": 1039.25,
+    "gun_pnl": -40.13,
+    "toplam_pnl": 39.25,
+    "zirveden_dusus_yuzde": 10.38
   },
   "islem": {
-    "gun_acilan": 5,
-    "gun_kapanan": 4,
-    "kazanan": 1,
-    "kaybeden": 3,
+    "gun_acilan": 7,
+    "gun_kapanan": 6,
+    "kazanan": 2,
+    "kaybeden": 4,
     "acik_pozisyon": 8,
     "alinmayan_sinyal": 0
   },
@@ -34,9 +34,9 @@
     },
     {
       "ad": "TF1",
-      "gun_pnl": 0.0,
-      "toplam_pnl": 12.66,
-      "islem": 2
+      "gun_pnl": -10.07,
+      "toplam_pnl": 2.59,
+      "islem": 3
     },
     {
       "ad": "S1",
@@ -60,7 +60,7 @@
       "ad": "M1",
       "gun_pnl": 0.0,
       "toplam_pnl": -18.17,
-      "islem": 8
+      "islem": 9
     },
     {
       "ad": "F1",
@@ -83,11 +83,11 @@
     "durdu_mu": false
   },
   "saglik": {
-    "son_nabiz": "2026-11-23T03:02:59Z",
+    "son_nabiz": "2026-11-23T03:58:03Z",
     "hata_sayisi_gun": 2
   },
   "notlar": [
-    "ML filtresi: 1 kurulumda aktif, bugün 6 giriş atlandı",
+    "ML filtresi: 1 kurulumda aktif, bugün 8 giriş atlandı",
     "en iyi kurulum: T1"
   ]
 }
