@@ -47,6 +47,7 @@ def tablolar():
 
 
 # ------------------------------------------------------------------ tablo kurucu
+@pytest.mark.usefixtures("kilitli_donem")
 def test_tablo_kurucu_sayilar_kodla_ve_kilitli_donem_elenir():
     t = tablolar()
     assert t["tarih"] == "2026-11-24" and t["kilitli_donem_atilan_islem"] == 1 and t["toplam_kapanmis_islem"] == 45
@@ -218,6 +219,7 @@ def test_motor_yorumcu_dizinini_okumaz_ve_derse_bagli_degil():
     assert "open(" not in mod and "write_text" not in mod and "sqlite3" not in mod       # saf hesap: dosya acmaz
 
 
+@pytest.mark.usefixtures("kilitli_donem")
 def test_kilitli_donem_okunmaz():
     mod = (ROOT / "src" / "trader_reports" / "yorumcu.py").read_text(encoding="utf-8")
     assert "holdout_filtrele" in mod and "2026-05-01" not in mod and "HOLDOUT" not in mod.replace("(HOLDOUT)", "")

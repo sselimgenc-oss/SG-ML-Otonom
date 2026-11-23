@@ -134,6 +134,22 @@ def test_horizon_rows_are_censored_and_counted(tmp_path, monkeypatch):
 
 
 # ---------------------------------------------------------------------------- kilitli donem (test 3)
+# 23.11.2026 kullanici karari: varsayilan kilit ACIK (EC.KILIT_ACIK). Asagidaki "kilitli donem" mekanizma testleri, kilit KAPALI
+# bayragiyla (fixture) ayni mekanizmanin hala dogru calistigini sinar; acik davranis test_acik_kilitte_* ile sinanir.
+@pytest.fixture
+def kilitli(monkeypatch):
+    monkeypatch.setattr(EC, "KILIT_ACIK", False)
+
+
+def test_acik_kilitte_varsayilan_pencere_yok():
+    hs, he = EC.to_ms(EC.HOLDOUT_START), EC.to_ms(EC.HOLDOUT_END)
+    assert EC.KILIT_ACIK is True
+    assert EC.holdout_hit(hs, he) is False and EC.holdout_hit(hs - 5, hs + 5) is False
+    assert EC._split_ranges(hs - 5, he + 5) == [(hs - 5, he + 5)]
+    assert EC.holdout_hit(hs, he, (EC.HOLDOUT_START, EC.HOLDOUT_END)) is True      # acik `holdout` argumani yine uygulanir
+
+
+@pytest.mark.usefixtures("kilitli")
 def test_holdout_window_rule_dates():
     d = lambda y, m, dd: EC.to_ms(datetime(y, m, dd, tzinfo=timezone.utc))           # noqa: E731
     def hit(entry):
@@ -144,6 +160,7 @@ def test_holdout_window_rule_dates():
     assert hit(d(2026, 7, 1)) is True and hit(d(2025, 6, 1)) is False
 
 
+@pytest.mark.usefixtures("kilitli")
 def test_holdout_trade_never_reads_market_or_ledger_rows(tmp_path):
     mk = market()
     r = go(tmp_path, [trade(entry_ts=datetime(2026, 12, 20, tzinfo=timezone.utc), exit_ts=datetime(2026, 12, 25, tzinfo=timezone.utc))],
@@ -151,6 +168,7 @@ def test_holdout_trade_never_reads_market_or_ledger_rows(tmp_path):
     assert (r.holdout_skipped, r.computed) == (1, 0) and mk.calls == []         # ne mum ne funding sorgusu
 
 
+@pytest.mark.usefixtures("kilitli")
 def test_sql_never_touches_holdout_range(tmp_path):
     db = tmp_path / "m.sqlite"
     entry = datetime(2026, 12, 21, tzinfo=timezone.utc)
@@ -173,6 +191,7 @@ def test_sql_never_touches_holdout_range(tmp_path):
     ms.close()
 
 
+@pytest.mark.usefixtures("kilitli")
 def test_split_ranges():
     hs, he = EC.to_ms(EC.HOLDOUT_START), EC.to_ms(EC.HOLDOUT_END)
     assert EC._split_ranges(hs - 5, he + 5) == [(hs - 5, hs), (he, he + 5)]
@@ -255,6 +274,7 @@ def test_parity_stats_thresholds(tmp_path):
 
 
 # ---------------------------------------------------------------------------- backtest kaynagi (yalniz gelistirme): kilitli donem bolme
+@pytest.mark.usefixtures("kilitli")
 def test_feather_source_never_returns_rows_inside_holdout(tmp_path, monkeypatch):
     import numpy as np
     src = EC.FeatherSource(tmp_path)

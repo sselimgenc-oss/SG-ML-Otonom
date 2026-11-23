@@ -73,6 +73,22 @@ def test_upsert_idempotent_and_merges_endpoints(tmp_path):
     assert C.last_ts(db, "BTC/USDT", "oi") == NOW and C.last_ts(db, "BTC/USDT", "taker") is None
 
 
+# 23.11.2026 kullanici karari: kilit ACIK (C.KILIT_ACIK). Kilit mekanizmasi testleri bayragi kapatarak (fixture) eski davranisi sinar.
+@pytest.fixture
+def kilitli(monkeypatch):
+    monkeypatch.setattr(C, "KILIT_ACIK", False)
+
+
+def test_acik_kilitte_pencere_bolunmez_ve_satir_yazilir(tmp_path):
+    H0, H1 = C.HOLDOUT_START_MS, C.HOLDOUT_END_MS
+    assert C.KILIT_ACIK is True and not C.in_holdout(H0)
+    assert C.clip_windows(H0 - 10 * C.PERIOD_MS, H1 + 10 * C.PERIOD_MS) == [(H0 - 10 * C.PERIOD_MS, H1 + 10 * C.PERIOD_MS)]
+    assert C.clip_windows(H0 + 1, H1 - 1) == [(H0 + 1, H1 - 1)]
+    db = _db(tmp_path)
+    assert C.upsert(db, "BTC/USDT", [{"ts": H0 + C.PERIOD_MS, "oi": 1.0}, {"ts": H1, "oi": 2.0}], 1) == 2
+
+
+@pytest.mark.usefixtures("kilitli")
 def test_holdout_guard_windows_and_upsert(tmp_path):
     H0, H1 = C.HOLDOUT_START_MS, C.HOLDOUT_END_MS
     assert C.clip_windows(H0 - 10 * C.PERIOD_MS, H1 + 10 * C.PERIOD_MS) == [(H0 - 10 * C.PERIOD_MS, H0 - 1), (H1, H1 + 10 * C.PERIOD_MS)]
@@ -126,6 +142,7 @@ def test_gap_backfill_paginates_and_is_resumable(tmp_path):
     assert st.rows == 1201
 
 
+@pytest.mark.usefixtures("kilitli")
 def test_first_run_limited_to_lookback_and_never_requests_holdout(tmp_path):
     db = _db(tmp_path)
     calls: list = []
@@ -191,7 +208,7 @@ def test_script_main_end_to_end_with_fake_client(tmp_path):
     assert rc == 0 and len(calls) >= 5
     assert {p for p, _ in calls} == {v[0] for v in C.ENDPOINTS.values()}
     n = sqlite3.connect(db).execute("SELECT COUNT(*) FROM positioning_5m").fetchone()[0]
-    assert 1400 < n < 2000          # 30 gun geri kilitli doneme dusuyor: yalniz kilitli donem sonrasi (~5 gun)
+    assert 8000 < n < 9000          # kilit ACIK (23.11.2026): 30 gunluk geri pencere (~8640 satir) kilitli doneme dusse de tam yazilir
     pairs, mdb = RUN.load_pairs_and_db(ROOT / "config")
     assert len(pairs) == 10 and mdb.endswith("trader/var/market.sqlite")
 

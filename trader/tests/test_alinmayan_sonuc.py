@@ -47,11 +47,13 @@ def test_sayim_isabet_neden_kirilimi():
     assert t["tablolar_cozulmedi"] == {"max_positions": 1, "flat_bar": 1}                # cozum yok = uydurma yok, cozulmedi
     allz = {r["etiket"]: r["n"] for r in t["tum_zamanlar"]["neden"]}
     assert allz == {"max_positions": 2, "cluster_cap": 1, "ml_filter": 2, "alınan işlemler": 3}
-    assert t["tum_zamanlar_cozulmedi"] == {"max_positions": 1, "flat_bar": 1}      # id 8 kilitli donemde (25 gun once): sayilmaz
+    assert t["tum_zamanlar_cozulmedi"] == {"max_positions": 1, "flat_bar": 2}      # id 8 (25 gun once, 2026-10-25) kilit ACIK: artik sayilir
 
 
-def test_kilitli_donem_cozulmedi_sayilmaz():
+def test_acik_kilitte_kilitli_donem_cozulmedi_sayilir(monkeypatch):
     kilit = {"id": 99, "skip_reason": "flat_bar", "ts": CF.HOLDOUT_START + timedelta(days=3)}
+    assert AS.topla([], [kilit], [], NOW)["tum_zamanlar_cozulmedi"] == {"flat_bar": 1}      # 23.11.2026: kilit acik
+    monkeypatch.setattr(CF, "KILIT_ACIK", False)                                           # kapali kilit: eski davranis
     assert AS.topla([], [kilit], [], NOW)["tum_zamanlar_cozulmedi"] == {}
 
 

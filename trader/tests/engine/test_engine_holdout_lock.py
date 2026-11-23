@@ -70,3 +70,16 @@ def test_kapali_kilitte_eski_davranis(monkeypatch):
     for s, e in ((_d(2026, 4, 1), _d(2026, 5, 1)), (_d(2026, 11, 1), _d(2026, 11, 2))):
         with pytest.raises(_Touched):
             _engine("backtest").run_range(s, e)
+
+
+def test_kilit_bayragi_kopyalari_esit():
+    """Tek anahtar: trader_engine.holdout.KILIT_ACIK ile katman geregi kopya bayraklar (core, ml, ledger) ayni degerde."""
+    from trader_core import counterfactual, exit_counterfactual, strateji_veri
+    from trader_core.ledger import Ledger
+    from trader_ml import config
+    from trader_ml import guards as mlg
+    from trader_ml.setup_filter import train
+    v = H.KILIT_ACIK
+    assert counterfactual.KILIT_ACIK is v and exit_counterfactual.KILIT_ACIK is v and strateji_veri.KILIT_ACIK is v
+    assert Ledger.FAMILY_KILIT_ACIK is v and config.KILIT_ACIK is v and mlg.KILIT_ACIK is v and train.KILIT_ACIK is v
+    assert (config.HOLDOUT_START.to_pydatetime(), config.HOLDOUT_END.to_pydatetime()) == H.HOLDOUT == Ledger.FAMILY_HOLDOUT
