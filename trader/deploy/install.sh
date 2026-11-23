@@ -666,6 +666,8 @@ enable_now trader-tutarlilik.timer
 # Islem mutabakati (motor = panel = Telegram; gunluk 04:40 UTC + her kurulum sonrasi; yalniz bilgi). Cikti var/durum (yukarida olusur);
 # outbox yazimi icin var/telegram da unit ReadWritePaths'inde (yoksa '-' ile atlanir)
 enable_now trader-mutabakat.timer
+# Tur 1 olcum raporu (gunluk 05:10 UTC, gece islerinden sonra; yalniz bilgi, botu degistirmez). Cikti var/durum; durum-yayin ml/ altina yayimlar
+enable_now trader-tur1-olcum.timer
 # Canli durum yayini (saatlik; repo dali canli-durum, klasor ml/): yalniz SSH deploy anahtariyla; anahtar yoksa birim sessizce atlar.
 # Anahtar/known_hosts yeri: /var/lib/trader-durum-yayin/.ssh (StateDirectory). Kurulum adimlari: docs/sunucu-kurulum.md 'Canli durum dali'
 enable_now trader-durum-yayin.timer
@@ -736,7 +738,7 @@ else MISSING+=("/etc/trader-testnet.env  -> BINANCE_API_KEY ve BINANCE_API_SECRE
 # birimleri kalmamali (kaldirma yukarida yapildi; eski bir kopya kaldiysa burada gorunur).
 say "DD-12 zamanlayici denetimi"
 for t in trader-notes.timer trader-weekly-summary.timer trader-ml-retrain.timer trader-universe.timer \
-         trader-counterfactual@learner.timer trader-exit-counterfactual@learner.timer trader-tutarlilik.timer trader-mutabakat.timer trader-durum-yayin.timer trader-haber.timer trader-piyasa-veri.timer trader-bakim.timer trader-strateji-veri.timer; do
+         trader-counterfactual@learner.timer trader-exit-counterfactual@learner.timer trader-tutarlilik.timer trader-mutabakat.timer trader-tur1-olcum.timer trader-durum-yayin.timer trader-haber.timer trader-piyasa-veri.timer trader-bakim.timer trader-strateji-veri.timer; do
   if systemctl is-enabled --quiet "$t" 2>/dev/null; then echo "  etkin: $t"; else echo "UYARI: $t etkin degil (systemctl enable --now $t)"; fi
 done
 for u in trader-veto.service trader-veto.timer trader-engine@twin.service trader-engine-retry@twin.timer; do

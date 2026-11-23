@@ -133,6 +133,7 @@ def test_every_unit_handled_by_install():
                         "trader-panel-publish.service", "trader-engine-retry@.service", "trader-counterfactual@.service", "trader-exit-counterfactual@.service",
                         "trader-oi.service", "trader-haber.service", "trader-piyasa-veri.service", "trader-drift@.service", "trader-notes.service", "trader-weekly-summary.service", "trader-ml-retrain.service", "trader-universe.service",
                         "trader-tutarlilik.service",  # Faz 2a: haftalik tutarlilik raporu (zamanlayici etkinlestirilir; servis tetiklenir)
+                        "trader-tur1-olcum.service",  # tur 1 olcum raporu: gunluk zamanlayici etkinlestirilir; servis tetiklenir
                         "trader-mutabakat.service",  # islem mutabakati: gunluk zamanlayici etkinlestirilir; servis ayrica kurulum sonrasi tetiklenir
                         "trader-strateji-veri.service",  # strateji verisi: kurulum sonrasi tek seferlik sessiz Telegram belgesi (zamanlayici 6 saatte bir dosyayi yeniler; install.sh servisi ayrica kurulum sonrasi tetikler)
                         "trader-durum-yayin.service",  # canli durum yayini: saatlik zamanlayici etkinlestirilir; servis tetiklenir

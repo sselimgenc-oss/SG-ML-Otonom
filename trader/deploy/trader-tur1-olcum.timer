@@ -1,0 +1,10 @@
+[Unit]
+Description=Trader tur 1 olcum raporu zamanlayicisi (her gun 05:10 UTC = 08:10 TSI; gece islerinden sonra)
+
+[Timer]
+OnCalendar=*-*-* 05:10:00 UTC
+Persistent=true
+RandomizedDelaySec=60
+
+[Install]
+WantedBy=timers.target
