@@ -18,7 +18,7 @@ from trader_core import risk as K
 from trader_core import veto
 from trader_core.signals import SignalParams
 
-from .bars import arm_is_tf_close, arm_tf_delta, floor_tf, is_tf_close, tf_delta
+from .bars import arm_floor_tf, arm_is_tf_close, arm_tf_delta, floor_tf, is_tf_close, tf_delta
 from .brokers.base import Broker
 from .clock import Clock
 from .config import EngineConfig
@@ -175,6 +175,7 @@ class Engine:
         if self._multi_tf and getattr(signals, "position_fn", False) is None:
             signals.position_fn = self._position_for_arms       # type: ignore[attr-defined]
         self._params_map: dict | None = None
+        self._exit_seen: dict[int, datetime] = {}                 # canli telafi: trade_id -> en son degerlendirilen TF siniri (bellek)
         self._mode_flags: dict[str, int] = {}                  # etkin defter surumunun cikis kipi bayraklari (exit_breakeven/exit_partial)
         if cfg.mode == "live" and cfg.exit_modes:               # 23.11 kullanici karari: canli = kagit; borsada basa-bas/kismi = FAZ 2
             log.warning("cikis modlari canlida faz 2: exit_modes yapilandirmada var ama canlida YOK SAYILIR (basa-bas/kismi kapanis yok)")
@@ -527,6 +528,19 @@ class Engine:
             log.critical("kademe adimi hatasi: %r", e)
 
     def _ml_status(self, now: datetime) -> dict | None:
+        if self.cfg.mode == "live" and self.cfg.ml_mode == "active":
+            # 23.11: canlida ML filtresi gecerli degilse girisler kapali (gate fail-closed); health bunu ml_no_model/ml_expired CRIT olarak gorur
+            flt = getattr(self.gate, "ml_filtre", None)
+            try:
+                from . import ogrenme_filtre as _OF
+                aileler = {a for a in (_OF.aile_of(x) for x in (self.cfg.arms or ())) if a}
+                st, err, exp = (flt.saglik(now, aileler) if flt is not None
+                                else ("no_model", "ML filtresi kurulamadi/kapali", None))
+            except Exception as e:  # noqa: BLE001
+                st, err, exp = "no_model", f"{type(e).__name__}: {e}", None
+            return {"mode": "active", "state": st, "model_id": "ortak_filtre", "threshold": None,
+                    "expires_at": None if exp is None else exp.isoformat(), "error": err, "features": "v1",
+                    "v2_error": None, "v2_errors": 0, "entries_blocked": st != "ok"}
         f = getattr(self.signals, "ml_status", None)
         m = f(now) if callable(f) else None
         if m is not None and getattr(self.strategy, "fail_open", False):
@@ -1582,6 +1596,17 @@ class Engine:
                 log.warning("golge satiri yazilamadi (%s %s): %r", pair, c.block, e)
 
     # ------------------------------------------------------------------ cikislar (kapisiz)
+    def _catchup_boundary(self, pos: Position, D: datetime) -> datetime | None:
+        """Canli telafi: pozisyonun TF'sinin D'den onceki son kapanis siniri B; yalniz canli (gercek broker), giristen SONRA ve daha once
+        degerlendirilmediyse. Aksi None. (Bellek: yeniden baslatmada ilk adimda bir kez telafi edilir.)"""
+        if self.is_paper or self.cfg.mode != "live":
+            return None
+        B = arm_floor_tf(D, pos.trigger_tf)
+        if B >= D or B <= pos.signal_bar_close_ts:
+            return None
+        last = self._exit_seen.get(pos.trade_id)
+        return B if (last is None or B > last) else None
+
     def _vet(self, pos: Position, dec):
         if dec.kind == "exit" and dec.reason not in _REASONS:
             log.critical("gecersiz cikis nedeni %r (trade %s): force_exit", dec.reason, pos.trade_id)
@@ -1596,17 +1621,31 @@ class Engine:
 
     def _exits(self, D: datetime, frames: Mapping[str, SignalFrame]) -> None:
         policy = self.strategy.exit_policy()
-        for pos in self.state.open_positions():
+        opens = self.state.open_positions()
+        seen = self._exit_seen
+        for k in [k for k in seen if k not in {p.trade_id for p in opens}]:
+            seen.pop(k, None)
+        for pos in opens:
             if pos.status != "open":
                 continue
+            Dx = D
             if self._multi_tf and not arm_is_tf_close(D, pos.trigger_tf):
-                continue                                        # WP-11: cikis yalniz pozisyonun KENDI zaman dilimi kapaninca degerlendirilir
-            fr = frames.get(pos.pair)
+                # WP-11: cikis yalniz pozisyonun KENDI zaman dilimi kapaninca degerlendirilir. 23.11 (canli): kacirilan sinir icin
+                # telafi: canlida kacan karar barlari yeniden oynatilmaz, bu yuzden o TF kapanisi hic gelmezse pozisyon yalniz borsa
+                # stopuyla kalirdi. Son kapanmis TF barinin siniri (D'den onceki) daha once degerlendirilmediyse simdi degerlendirilir.
+                Dx = self._catchup_boundary(pos, D)
+                if Dx is None:
+                    continue
+                self._c["exit_catchup"] += 1
+                fr = self.signals.frame(pos.pair, Dx, self._frame_params(), self._version_id)   # cikis baglami Dx icin kurulur (giris YOK)
+            else:
+                fr = frames.get(pos.pair)
             if fr is None or fr.status != "ok":
                 self._c["exit_data_gap"] += 1
                 continue
+            seen[pos.trade_id] = Dx
             try:
-                ctx = self.signals.exit_context(pos.pair, pos, D)
+                ctx = self.signals.exit_context(pos.pair, pos, Dx)
                 if self._multi_tf and ctx is None:              # baglam yok (kendi tf verisi bosluklu): zorla cikis DEGIL, atla
                     self._c["exit_data_gap"] += 1
                     continue
@@ -1616,21 +1655,21 @@ class Engine:
                     dec = apply_exit_modes(pos, ctx, dec, modes)
                 dec = self._vet(pos, dec)
                 if dec.kind == "exit":
-                    self._remember_dec_price(pos, D, getattr(ctx, "last_close", None))
-                    self._submit_exit(pos, dec.reason, D, quote=True)
+                    self._remember_dec_price(pos, Dx, getattr(ctx, "last_close", None))
+                    self._submit_exit(pos, dec.reason, Dx, quote=True)
                 elif dec.kind == "stop_update":
                     out = self.orders.replace_stop(pos, dec.new_stop)
                     if out.note == "would_trigger":
                         cur = self.state.get_position(pos.trade_id) or pos
                         if cur.status == "open":
-                            self._remember_dec_price(cur, D, getattr(ctx, "last_close", None))
-                            self._submit_exit(cur, "trail_stop", D, quote=True)
+                            self._remember_dec_price(cur, Dx, getattr(ctx, "last_close", None))
+                            self._submit_exit(cur, "trail_stop", Dx, quote=True)
                     elif out.ok and not self.is_paper:
                         self._register(pos.trade_id)
                 if modes is not None and modes.partial and dec.kind != "exit":
                     cur = self.state.get_position(pos.trade_id)
                     if cur is not None and cur.status == "open":
-                        self._maybe_partial(cur, ctx, modes, D)
+                        self._maybe_partial(cur, ctx, modes, Dx)
             except StateError:
                 raise
             except Exception as e:  # noqa: BLE001
@@ -2286,7 +2325,7 @@ def _build_live_broker(cfg: EngineConfig, clock: Clock | None, env: Mapping[str,
                             recv_window_ms=cfg.live.recv_window_ms, conditional_mode=cfg.live.conditional_mode,
                             ban_guard=guard)
     broker = LiveBroker(cfg.live, cfg.mode, cfg.leverage, cfg.pairs, rest, clk, cfg.cost.taker_fee, environ=env,
-                        contract_types=cfg.contract_types)
+                        contract_types=cfg.contract_types, optional_pairs=cfg.optional_pairs)
     broker.startup_check()
     return broker
 

@@ -585,3 +585,5 @@ Kullanıcı veri akışı / listenKey / WebSocket; limit giriş ve bekleyen giri
 - **O-3 (mentor):** gölge koşunun belleği. 2 GB sunucuda üçüncü motor süreci ≈ 300 MB ister; yetmezse gölge koşu yalnız tatbikat günlerinde çalıştırılır ve D-9 ölçütü "toplam ≥ 7 gün" olarak yeniden yazılır (mentor kararı).
 - **O-4 (mentor):** motorun anlık Telegram uyarısı. Bu şartname alarmları `status.json` + sağlık denetçisi üzerinden verir; `naked` alarmı için denetçi aralığı ≤ 60 sn olmalıdır (WP-B8'de ölçülür; değilse motorun bildirim kuyruğuna doğrudan yazması ayrı karar).
 - **O-5 (bilgi):** `telegram-spec.md` karar 1 ve §5 `/durdur` satırı, `05` §4.1 kapı sırası, `05` §7 (canlı tablo artık burada), `05` §8.2 (`status.json` ekleri) ve `00-index.md` birim tablosu bu belgeye göre güncellenmelidir; bu belge onları değiştirmedi.
+
+> 23.11 (canli = kagit): %1 (K2) baslangic icin `capital init` TAZE bir kademe gunlugunda calistirilmalidir (initial satiri `start_step=2` yazar); mevcut `risk_ladder.jsonl` K0 (%0,5) olarak kalir.

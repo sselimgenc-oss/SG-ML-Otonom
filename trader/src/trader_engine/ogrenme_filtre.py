@@ -193,6 +193,32 @@ class FiltreDeposu:
             log.warning("ML filtre hatasi (%s), giris serbest: %s: %s", arm, type(e).__name__, e)
             return Karar(True, None, "hata")
 
+    def saglik(self, simdi: datetime, aileler) -> tuple[str, str | None, datetime | None]:
+        """Canli saglik (status.json ml -> health): (durum, hata, en erken son_kullanma). durum: ok | no_model | expired.
+        ok: istenen ailelerden en az biri gecerli ve suresi dolmamis paket tasiyor. Salt okunur."""
+        if self._mod is None:
+            return "no_model", "ogrenme_filtre paketi yok ya da filtre kapali", None
+        if not self.klasor.is_dir():
+            return "no_model", f"model dizini yok/okunamiyor: {self.klasor}", None
+        exp: list[datetime] = []
+        var = False
+        for a in sorted(set(aileler)):
+            try:
+                var = var or self._yol(aile_kimligi(a)).exists()
+            except (OSError, ValueError):
+                pass
+            p = self._aile_paketi(a, simdi)
+            if p is not None:
+                try:
+                    exp.append(_utc(datetime.fromisoformat(p["meta"]["son_kullanma"])))
+                except Exception:  # noqa: BLE001
+                    pass
+        if exp:
+            return "ok", None, min(exp)
+        if var:
+            return "expired", "paketler gecersiz/suresi dolmus/bozuk", None
+        return "no_model", "gecerli aile paketi yok", None
+
     def aktif_kurulumlar(self, simdi: datetime) -> list[str]:
         """Aktif AILE paketlerinin kimlikleri (`aile:M1`...). Eski kol paketleri sayilmaz."""
         if self._mod is None or not self.klasor.is_dir():

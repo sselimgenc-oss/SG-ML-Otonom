@@ -139,6 +139,8 @@ def test_canli_etiket_kurali_kagit_gibi_calisir(mk):
     # 23.11 kullanici karari: canli = kagit (rejim etiketi kurali canlida da girisi atlatir)
     e = mk()
     e.g.cfg = dataclasses.replace(CFG, mode="live")
+    from trader_engine import ogrenme_filtre as OF
+    e.g.ml_filtre = type("F", (), {"karar": lambda self, arm, oz, simdi: OF.Karar(True, 0.9, "ok")})()   # canli: filtre gecerli (yoksa fail-closed)
     o = _go(e, regime="trend_down", side="long")
     assert o.action == "skip" and o.code == "etiket_rejim"
 
