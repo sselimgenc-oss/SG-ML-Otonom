@@ -505,3 +505,40 @@ def test_price_action_v1_4h_kripto_ayni_hisse_olu_mumsuz(stock):
     full, _, _ = AG.core_signals(f4, AG.regime_series(f4, sp.regime_params()), sp)
     np.testing.assert_allclose(full["atr_tf"].to_numpy()[keep], clean_core["atr_tf"].to_numpy(), rtol=1e-12, equal_nan=True)   # ATR: yalniz dolu mumlardan
     assert len(o2) == len(f1)
+
+
+def test_live_window_sonuc_ipucuna_ve_cagri_gecmisine_bagli_degil(clean_hint):
+    """Eski gecmis yakin pencereden daha oluyse (Fable bulgusu): ilk/ikinci/ucuncu cagri ayni pencereyi vermeli (yeniden baslatma ==
+    kararli durum == geri test baslangici)."""
+    idx = pd.date_range("2024-01-01", periods=20000, freq="1h", tz="UTC")
+    rng = np.random.default_rng(7)
+    live = np.where(np.arange(len(idx)) >= len(idx) - 1500, rng.random(len(idx)) < 0.5, rng.random(len(idx)) < 0.2)
+    c = 100 + np.cumsum(rng.normal(0, 1, len(idx)))
+    df = pd.DataFrame({"open": c, "high": np.where(live, c + 1, c), "low": np.where(live, c - 1, c), "close": c,
+                       "volume": np.where(live, 5.0, 0.0)}, index=idx)
+
+    def fetch(m):
+        return df.iloc[-m:], m > len(df)
+    out = [SR._live_window(fetch, 1500, ("X", "1h")) for _ in range(3)]
+    for o in out[1:]:
+        pd.testing.assert_frame_equal(o, out[0])
+    keep = SR.AG.active_mask(out[0])
+    assert int(keep.sum()) == 1500
+
+
+def test_derin_4s_doldurma_eski_depo_bir_kez(tmp_path):
+    """Eski depo 4s'i sigsa (1500 ile kurulmus) yeni derinlige bir kez indirilir; isaret konunca tekrar denenmez."""
+    from tests.engine.test_engine_01_spec import BTC, T_START, make_env
+    e = make_env(tmp_path, T_START, backfill={"1m": 120, "15m": 8, "1h": 6, "4h": 4}, pairs=(BTC,))
+    e.feed.start()
+    assert len(e.store.query_range("last", BTC, "4h", 0, 10**15)) == 4
+    e.cfg = type(e.cfg)(**{**e.cfg.__dict__, "backfill_bars": {"1m": 120, "15m": 8, "1h": 6, "4h": 10}})
+    e.feed.cfg = e.cfg
+    e.feed.backfill()
+    assert len(e.store.query_range("last", BTC, "4h", 0, 10**15)) == 10
+    assert e.store.meta_get(f"derin:{BTC}:4h:last") == "10"
+    first = min(int(b.open_ts.timestamp() * 1000) for b in e.store.query_range("last", BTC, "4h", 0, 10**15))
+    n = len(e.srv.kline_calls("4h"))
+    e.feed.backfill()
+    yeni = e.srv.kline_calls("4h")[n:]
+    assert all(int(c[1].get("startTime", 0)) > first for c in yeni)   # isaretli: eski kisim yeniden istenmez

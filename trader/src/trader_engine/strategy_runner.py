@@ -95,14 +95,15 @@ _LIVE_FRAC: dict[tuple[str, str], float] = {}     # (cift, tf) -> son gozlenen d
 
 
 def _live_window(fetch, n: int, key: tuple[str, str], cap_mult: int = _WIDEN_MAX) -> pd.DataFrame:
-    """Son `n` DOLU bari (+ aralarindaki olu mumlari) dondurur. `fetch(m)` en cok `m` son birimi verir. Okuma sayisi: en cok 2 (ilk okuma
-    + tek yeniden okuma). Ilk okuma boyu: o cift/tf icin daha once gozlenen dolu orandan (`_LIVE_FRAC`; yoksa/kriptoda n); yeniden
+    """Son `n` DOLU bari (+ aralarindaki olu mumlari) dondurur. `fetch(m) -> (tablo, bitti)` en cok `m` son birimi verir; `bitti` = depodaki gecmis
+    tukendi (ham satir sayisina gore; 1g'de delikli gun atilsa da dogru). Okuma: ilk + tek yeniden okuma, gerekirse tavana kadar ucuncu
+    okuma => sonuc yalniz (depo, D, n, tavan)'in fonksiyonu. Ilk okuma boyu: o cift/tf icin daha once gozlenen dolu orandan (`_LIVE_FRAC`; yoksa/kriptoda n); yeniden
     okuma boyu: gozlenen orandan (+pay). Sonuc ilk okuma boyuna BAGLI DEGIL (tail_active ayni son n dolu bari verir) => canli/geri test
     ayni. Gecmis yetmezse (depo bitti) ya da tavana (`cap_mult` x n) varildiysa n'den AZ dolu bar donebilir: bilincli, hata degil."""
     cap = n * cap_mult
     hint = _LIVE_FRAC.get(key, 1.0)
     m = n if hint >= 1.0 else min(cap, int(math.ceil(n / hint * 1.1)) + 32)
-    df = fetch(m)
+    df, ex = fetch(m)
     keep = AG.active_mask(df)
     if keep is None:
         if len(df):
@@ -111,11 +112,14 @@ def _live_window(fetch, n: int, key: tuple[str, str], cap_mult: int = _WIDEN_MAX
     got = int(keep.sum())
     if len(df):
         _LIVE_FRAC[key] = max(got, 1) / len(df)
-    if got >= n or len(df) < m or m >= cap:                  # yeterli / magazadaki tum gecmis okundu / tavan
+    if got >= n or ex or m >= cap:                          # yeterli / magazadaki tum gecmis okundu / tavan
         return AG.tail_active(df, n)
     m2 = min(cap, int(math.ceil(n * len(df) / max(got, 1) * _RETRY_MARGIN)) + 32)
     if m2 > m:
-        df = fetch(m2)
+        df, ex = fetch(m2)
+        keep = AG.active_mask(df)
+        if keep is not None and int(keep.sum()) < n and not ex and m2 < cap:
+            df, _ = fetch(cap)                  # eski gecmis daha olu: tavana kadar oku (sonuc okuma gecmisine/ipucuna BAGLI OLMASIN)
     return AG.tail_active(df, n)
 
 
@@ -123,14 +127,19 @@ def _bars_window(view: MarketView, pair: str, tf: str, D: datetime, n: int) -> p
     """`view.bars(n)` ile ayni, ama pencere n DOLU bar sayar: olu mum (hacim 0, o=h=l=c) olan seansli enstrumanda pencereyi genisletip
     son n dolu bari (+ aralarindaki olu mumlari) dondurur. Olu mum yoksa tam olarak `view.bars(pair, tf, D, n)` (kripto: degismez). Boylece
     EMA/ATR tohum etkisi 7/24 enstrumanla ayni mertebede kalir ve canli pencere kesiti tum gecmis (geri test) hesabiyla ayni degeri verir."""
-    return _live_window(lambda m: view.bars(pair, tf, D, m), n, (pair, tf))
+    def fetch(m: int):
+        df = view.bars(pair, tf, D, m)
+        return df, len(df) < m
+    return _live_window(fetch, n, (pair, tf))
 
 
 def _bars_1d(view: MarketView, pair: str, D: datetime, n: int) -> pd.DataFrame:
     """Son `n` DOLU 1g bar: 4s barlardan (UTC gunu = 6 x 4s) toplanir; 1g penceresi 4s penceresinden (WINDOW_ARM['4h']) BAGIMSIZ ve daha
     uzundur (EMA(50) tohum etkisi <= 1e-9 icin ~600 gun): 4s okumasi yalniz bu yolda buyur. Depoda daha az gecmis varsa var olan kullanilir."""
-    def fetch(m: int) -> pd.DataFrame:
-        return aggregate_4h_to_1d(view.bars(pair, "4h", D, BARS_PER_DAY_4H * m + BARS_PER_DAY_4H - 1))   # +5: bas kismi gun atilsa da m tam gun
+    def fetch(m: int):
+        k = BARS_PER_DAY_4H * m + BARS_PER_DAY_4H - 1                  # +5: bas kismi gun atilsa da m tam gun
+        h4 = view.bars(pair, "4h", D, k)
+        return aggregate_4h_to_1d(h4), len(h4) < k
     return _live_window(fetch, n, (pair, "1d"), _WIDEN_MAX_1D)
 
 
