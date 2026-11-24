@@ -11,9 +11,7 @@ Giris (long; short aynasi), hepsi birlikte:
      ise aday yok (normal akis ~52 dk);
   4) son kapanmis 1s mum sinyal yonunde kapanmis (long: close > open; short: close < open).
 Stop = giris -/+ 1,5 ATR, hedef = giris +/- 3 ATR (M1 ile ayni), zaman stopu 24 mum (ortak kural). Zaman dilimi yalniz 1s.
-Kapsam: dosyadaki enstrumanlar (43: kripto + hisse + emtia); seans kurallari mevcut altyapidan gelir.
-ML aile suzgeci: HB1 yeni ailedir, az veride paket olmaz; kagitta paket yok = serbest (canlida ml_mode=active iken paket yoksa giris
-kapisi gates.py'de kapali tutulur; burada degistirilmez)."""
+Kapsam: dosyadaki enstrumanlar (43: kripto + hisse + emtia); seans kurallari mevcut altyapidan gelir."""
 from __future__ import annotations
 
 import json
@@ -46,7 +44,6 @@ log = logging.getLogger("trader.hb1")
 SETUP = "HB1"
 TIMEFRAMES = ("1h",)
 CORE = False
-ML_SCORED = False
 EXIT_MODE = "target"
 PRIORITY = 92                            # M1 (90) ile ayni mumda cakisirsa M1 kazanir; DL1 icin 95 ayrilmis
 FEATURES = {"hb1_body": "body_ratio", "hb1_wick": "wick_ratio", "hb1_rr": "rr"}

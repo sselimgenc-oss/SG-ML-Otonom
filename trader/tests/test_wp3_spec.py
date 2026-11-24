@@ -1863,24 +1863,10 @@ def _ledger_pair(tmp_path):
     return paths
 
 
-def test_T1_frozen_corpus_reader_is_blind_to_new_data(tmp_path):
-    import importlib.util
-    spec = importlib.util.spec_from_file_location("wp3_ml_build", TRADER / "research" / "ml_build_candidates.py")
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules["wp3_ml_build"] = mod
-    spec.loader.exec_module(mod)
-    a, b = _ledger_pair(tmp_path)
-    (da, ta), (db, tb) = mod.read_ledger(a), mod.read_ledger(b)
-    assert da.equals(db) and ta.equals(tb) and len(da) > 0 and len(ta) > 0
-
-
-# 23.11.2026 kullanici karari (kilit acildi): scripts/build_corpus_v2.py, research/ml_build_candidates.py, trader_ml/guards.py,
-# trader_ml/config.py ve trader_engine/holdout.py KILIT_ACIK icin bilerek degistirildi; A1 blob esitligi artik bunlar icin aranmaz
-# (bunlarin sha'lari corpus_v2.manifest.json code_sha256'da yenilendi). Digerleri donuk kalir.
-FROZEN = ["src/trader_ml/features.py",
-          "src/trader_ml/features_v2.py", "src/trader_ml/labels.py",
-          "src/trader_core/ml_features.py", "src/trader_core/ml_features_v2.py",
-          "src/trader_core/signals.py", "src/trader_core/regime.py", "src/trader_core/indicators.py"]
+# 23.11.2026 kullanici karari (kilit acildi): trader_ml/guards.py, trader_ml/config.py ve trader_engine/holdout.py KILIT_ACIK icin
+# bilerek degistirildi; A1 blob esitligi artik bunlar icin aranmaz. 24.11 kullanici karari: ML filtreleri silindi (trader_ml/features*,
+# labels, trader_core/ml_features* kodla birlikte gitti). Digerleri donuk kalir.
+FROZEN = ["src/trader_core/signals.py", "src/trader_core/regime.py", "src/trader_core/indicators.py"]
 
 
 def test_T1_frozen_files_blob_hashes_unchanged():
@@ -1930,10 +1916,8 @@ def test_T3_static_name_isolation():
             if any(n in text for n in names):
                 hits.add(str(p.relative_to(TRADER)))
     assert hits <= allowed, sorted(hits - allowed)
-    forbidden = ["src/trader_core/lesson.py", "src/trader_core/drift_monitor.py", "src/trader_core/health.py",
-                 "scripts/build_corpus_v2.py", "research/ml_build_candidates.py"]
+    forbidden = ["src/trader_core/lesson.py", "src/trader_core/drift_monitor.py", "src/trader_core/health.py"]
     forbidden += [str(p.relative_to(TRADER)) for p in (TRADER / "src" / "trader_ml").rglob("*.py")]
-    forbidden += [str(p.relative_to(TRADER)) for p in (TRADER / "scripts").glob("build_corpus_v2*.py")]
     assert not (set(forbidden) & hits)
 
 

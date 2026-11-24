@@ -3,8 +3,7 @@
 
   python research/pbo_sinif.py   # research/holdout/pbo_sinif_ozet.json + docs/ml/pbo-raporu.md "Varlik sinifi dokumu" bolumu (seed sabit)
 
-Kurulumlar: T1, R1 (arm_harness 4s+1g izgarasi, on-kayitli; cift basina yeniden kosulur, sinifa toplanir), ML r02 / r03 (ml1-r02-long-ctx-1r,
-ml1-r03-long-regime8: ML-1 uzun-yon filtre tarifleri; research/ml/{r02,r03}/oof_predictions.parquet, model x esik). Kol / agirlik / config / motor degismez.
+Kurulumlar: T1, R1 (arm_harness 4s+1g izgarasi, on-kayitli; cift basina yeniden kosulur, sinifa toplanir). Kol / agirlik / config / motor degismez.
 Sinif kaynagi: config/engine.paper.json `clusters` (kripto_buyuk+kripto_diger = kripto 20, hisse = 20, metal+enerji_sanayi = emtia 4).
 
 ON-YAZILI KURAL (sonuclar gorulmeden once yazildi; sonradan secilmez):
@@ -43,7 +42,6 @@ _spec.loader.exec_module(PR)
 SEED = 0
 MAX_COMB = 2000
 SETUPS = ("T1", "R1")
-ML_KEYS = ("r02", "r03")
 CLASSES = ("kripto", "hisse", "emtia")
 CONFIG = ROOT / "config" / "engine.paper.json"
 ARM_DIR = ROOT / "research" / "arm_series"
@@ -127,23 +125,6 @@ def harness_by_class(setup_list, pairs_cls: dict[str, str], history_dir: Path = 
     return out, whole, pairs, missing
 
 
-def ml_by_class(key: str, ml_dir: Path = PR.ML_DIR) -> dict[str, pd.DataFrame]:
-    """OOF'taki ciftler 'BTC/USDT:USDT' -> 'BTC/USDT' ile sinifa atanir; OOF'ta olmayan sinif icin matris yok."""
-    p = Path(ml_dir) / key / "oof_predictions.parquet"
-    pc = pair_classes()
-    oof = pd.read_parquet(p)
-    base = oof["pair"].astype(str).str.replace(r":.*$", "", regex=True)
-    cls = base.map(pc)
-    if cls.isna().any():
-        raise ValueError(f"OOF'ta siniflandirilamayan cift: {sorted(set(base[cls.isna()]))}")
-    res = {}
-    for c in CLASSES:
-        sub = oof[(cls == c).to_numpy()]
-        sub_taken = sub[sub["taken"].astype(bool)]
-        res[c] = PR.ml_matrix(sub, ["p_logistic", "p_lgbm"]) if len(sub_taken) else pd.DataFrame()
-    return res, {c: sorted(set(base[(cls == c)])) for c in CLASSES}
-
-
 def build(workers: int = 4) -> dict:
     pcls = pair_classes()
     end = (pd.Timestamp(HOLDOUT[0]) - pd.Timedelta(days=1)).floor("D")
@@ -162,35 +143,17 @@ def build(workers: int = 4) -> dict:
                  "cift_sayisi": len(cp), "veri_olan_cift": len(cp), "ciftler": cp}
             r.update(class_stats(M, end, ntr))
             rows.append(r)
-    oof_pairs = {}
-    for k in ML_KEYS:
-        p = PR.ML_DIR / k / "oof_predictions.parquet"
-        if not p.exists():
-            for c in CLASSES:
-                rows.append({"kurulum": f"ML {k}", "sinif": c, "durum": "uretilemedi", "neden": "oof_predictions.parquet yok", "n_yapilandirma": 0, "T": 0})
-            continue
-        mats, oof_pairs[k] = ml_by_class(k)
-        for c in CLASSES:
-            M = mats[c]
-            r = {"kurulum": f"ML {k}", "sinif": c, "kaynak": f"research/ml/{k}/oof_predictions.parquet ({PR.ML_RECIPES[k]}; model x esik)",
-                 "ciftler": oof_pairs[k][c], "cift_sayisi": len(oof_pairs[k][c])}
-            if M.shape[1] == 0:
-                r.update(durum="uretilemedi", n_yapilandirma=0, T=0,
-                         neden=f"OOF yalniz {sum(len(v) for v in oof_pairs[k].values())} kripto cift icerir; bu sinifta cift/alinan satir yok (ML-1 egitim korpusu bu sinifi kapsamadi)")
-            else:
-                r.update(class_stats(M, M.index.max()))
-            rows.append(r)
     ledger = {}
     ozet = ROOT / "research" / "holdout" / "pbo_ozet.json"
     if ozet.exists():
         for f in json.loads(ozet.read_text(encoding="utf-8"))["aileler"]:
-            if f["aile"] in ("Kural T1", "Kural R1", "ML r02", "ML r03"):
+            if f["aile"] in ("Kural T1", "Kural R1"):
                 ledger[f["aile"]] = {k: f.get(k) for k in ("n_yapilandirma", "T", "pbo", "dsr", "medyan_oos_goreli_sira")}
     return {"parametreler": {"seed": SEED, "max_combinations": MAX_COMB, "kural": RULE_TEXT, "holdout_oncesi_sinir": HOLDOUT[0].strftime("%Y-%m-%d"),
                              "izgara_sha256": H.grid_sha()},
             "siniflar": {c: [p for p in pcls if pcls[p] == c] for c in CLASSES}, "sinif_kaynagi": "config/engine.paper.json clusters",
             "gecmisi_olmayan_ciftler": missing, "satirlar": rows, "tutarlilik_arm_series": cons,
-            "defter_ve_ml_sinif_ustu_onceki_sonuc": ledger}
+            "defter_sinif_ustu_onceki_sonuc": ledger}
 
 
 # ------------------------------------------------------------------------------------- cikti
@@ -203,9 +166,7 @@ def render_section(res: dict) -> str:
     L = [SECTION, "",
          "Yalniz olcum: kol ayari, agirlik, config ve motor degismedi; karar kapisi degildir. Uretim: `python research/pbo_sinif.py` (`pbo_rapor.py` dosyayi bastan yazar; bu komut ondan SONRA kosulur) "
          f"(seed {P['seed']}, tek komut; holdout {P['holdout_oncesi_sinir']} oncesi). Kural ve sinif tablosu asagida; hepsi sonuc gorulmeden once betiğe yazildi.", "",
-         "**Ne olduklari.** `T1` / `R1`: kagit kural ailesi kurulumlari (trend / aralik). `r02` ve `r03`: R1 ailesi degil, ML-1 uzun-yon filtre tarifleri — "
-         "`ml1-r02-long-ctx-1r` (lojistik + LightGBM, 40 ozellik, 1R/72 mum etiketi) ve `ml1-r03-long-regime8` (ayni, 8 ozellik, sig LightGBM); "
-         "`docs/ml/r02-r03-on-kayit.md`, `research/ml/{r02,r03}/`, `research/ml_trial_registry.csv`. Ikisi de kapida RED (r02: IC rho -0,034).", "",
+         "**Ne olduklari.** `T1` / `R1`: kagit kural ailesi kurulumlari (trend / aralik).", "",
          "**Sinif kaynagi** (`config/engine.paper.json` `clusters`): "
          + "; ".join(f"{c} {len(res['siniflar'][c])} cift ({', '.join(p.split('/')[0] for p in res['siniflar'][c])})" for c in CLASSES) + ".",
          f"Tarihsel mumu olmayan {len(res['gecmisi_olmayan_ciftler'])} hisse cifti kapsam disi: {', '.join(p.split('/')[0] for p in res['gecmisi_olmayan_ciftler'])}.", "",

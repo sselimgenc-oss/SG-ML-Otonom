@@ -1,7 +1,5 @@
-"""ML fazi egitim hatti (ML-0c, tasarim: otonom-trading-arastirma/ml-faz-tasarimi.md v2).
+"""M1 gece egitimi ve DL1 egitim yardimcilari (motordan `trader_engine` ve cekirdekten `trader_core` AYRI paket).
 
-Motordan (trader_engine) ve cekirdekten (trader_core) AYRI paket. Egitim/arastirma tarafi
-lightgbm kullanabilir (yalniz bu pakette, `requirements-ml.txt`); `treeeval` ise yalniz numpy'a
-baglidir ve motor tarafinda lightgbm'siz model calistirir. Kilitli donem (2026-05 -> 2026-10)
-hicbir kod yolunda okunmaz (`guards`).
+`pa_proposer`: M1 onerici egitimi (numpy ridge lojistik; kilit donemi yapisal reddi). `walkforward`: purged walk-forward izgarasi
+(DL1 egitimi). Kilitli donem (2026-05 -> 2026-10) kilit kapaliyken hicbir kod yolunda okunmaz (`guards`).
 """

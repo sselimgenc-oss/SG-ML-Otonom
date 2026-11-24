@@ -24,7 +24,7 @@
 - `hesaplar`: kurulum başına (setup, örn. `PA1`, `M1`, `T1`) `{ad, gun_pnl, toplam_pnl, islem}`. `islem` toplam kapanmış işlem sayısıdır. Liste `toplam_pnl` değerine göre azalan sıradadır.
 - `ogrenme`:
   - `aktif_ders`, `yeni_ders` (o gün eklenen), `emekli_ders` (o gün emekli edilen).
-  - `filtre_aktif`: setup_filter modeli yüklüyse `true`.
+  - `filtre_aktif`: şema anahtarı korunur; ML filtreleri 24.11'de silindiği için her zaman `null` (kaynak yok).
 - `rejim`: BTC/USDT 4h rejim etiketi, `rejim_yayini` ile aynı hesap.
 - `drift_uyari`: drift izleyicisinde açık uyarı varsa `true`, yoksa `false`, kaynak yoksa `null`.
 - `limitler`:

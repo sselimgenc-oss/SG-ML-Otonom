@@ -96,12 +96,6 @@ def test_non_trading_crypto_skipped_and_top_n():
     assert len(out) == 20 and "C0/USDT" not in out and out[0] == "C1/USDT"
 
 
-def test_pinned_ml_pairs_kept_within_count():
-    cands = [{"pair": f"C{i}/USDT", "score": float(100 - i), "trading": True} for i in range(25)]
-    out = U.select_crypto(cands, exclude_bases=[], n=20, pinned=["C24/USDT"])
-    assert out[0] == "C24/USDT" and len(out) == 20
-
-
 def test_select_stocks_uses_backup_when_not_trading():
     ordered = ["A/USDT", "B/USDT", "C/USDT", "D/USDT"]
     assert U.select_stocks(ordered, ["A/USDT", "C/USDT", "D/USDT"], n=2) == ["A/USDT", "C/USDT"]
@@ -153,7 +147,7 @@ def test_volume_fallback_ranks_by_quote_volume(env):
     _market(var, _all_trading(), vols)
     doc, rep = UR.build(cfg, var, None, NOW)
     assert rep["source"] == "volume_fallback"
-    assert "XMR/USDT" in rep["crypto"]   # XMR: en yuksek hacim (19 Kasim: r03 emekli, ml_pairs bos => BTC artik sabit degil)
+    assert "XMR/USDT" in rep["crypto"]   # XMR: en yuksek hacim (BTC artik sabit degil)
     assert len(rep["crypto"]) == 20
 
 

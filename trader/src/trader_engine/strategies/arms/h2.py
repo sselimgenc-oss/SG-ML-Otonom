@@ -18,7 +18,6 @@ from . import _pa as P
 SETUP = "H2"
 TIMEFRAMES = ("15m", "1h", "4h", "1d")
 CORE = False
-ML_SCORED = False
 EXIT_MODE = "trail"
 PRIORITY = 50
 # defter anahtari -> tasiyici sutun; EMA20 -> ema_value, derinlik -> edge_dist_atr, pb_bars -> wick_ratio, bacak farki -> pullback_ema

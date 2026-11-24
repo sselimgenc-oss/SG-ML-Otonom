@@ -52,17 +52,18 @@ COMMODITY4 = METAL | ENERJI
 CAPS = {"kripto_buyuk": 6, "kripto_diger": 9, "hisse": 8, "hisse_teknoloji": 5, "metal": 3, "enerji_sanayi": 3}   # 20 Kasim: kagit tavanlari gevsetildi
 
 PINNED_SHA = {
-    "engine.base.json": "ba218ea0404803c9e5af7ffbd276fad79b6d0af714c94150172f7d56e674c328",   # WP-06a: yalniz veto_config yolu
+    "engine.base.json": "aa364bad7141613cf8d2e7898343079a2a6e15f89b31b462d15113fc97e89eb0",   # WP-06a: yalniz veto_config yolu; 24.11 kullanici karari: ML filtreleri silindi (ml_mode/ml_model_path kalkti)
     "engine.learner.json": "30ca2842c40cacafbf6cdd90c9e6f1f54fc62b9a9ec913476d1399ac5352cb12",
     "engine.testnet.json": "54247bbd4d0fcea5eda5add465809938178ec4a1decf7f61cb9aa838daa4e952",
-    "engine.live.json": "17485ca7b75bfbd1eb6e97df988b0eae4e412acea1638a416edeec2b7aeb94fb",   # 24.11 kullanici karari: ML filtreleri kapali (ml_mode off)
+    "engine.live.json": "ed401594ffe5b77359ce67d727ed40a7460321a9cd326fef8a8dd57c4dc384b6",   # 24.11 kullanici karari: ML filtreleri silindi
 }
 # 23.11 kullanici karari: canli = kagit. engine.live.json'a eklenen kagit sistem anahtarlari (+ pairs yerine kagit evreni).
-LIVE_PAPER_SYSTEM_KEYS = {"veto_mode", "pairs", "optional_pairs", "strategy", "arms", "arm_max_positions", "ml_mode", "shadow_blocks",
+LIVE_PAPER_SYSTEM_KEYS = {"veto_mode", "pairs", "optional_pairs", "strategy", "arms", "arm_max_positions", "shadow_blocks",
                           "exit_modes", "max_positions", "target_trade_risk", "risk", "clusters", "etiket_kurallari",
                           "flat_bar_guard", "contract_types", "cost_overrides",
                           "korelasyon", "kayip_freni", "toplam_buyukluk_kat",   # 23.11 kullanici karari: asama B esikleri
                           "uzun_yon"}   # 23.11 kullanici karari: fikir 7 uzun donem yon kapisi
+ML_KEYS_REMOVED = {"ml_mode", "ml_model_path", "ml_features", "ml_experimental", "ml_pairs"}   # 24.11 kullanici karari: ML filtreleri silindi
 UNIT_SHA = {
     "trader-engine-testnet.service": "c753d965c4b8e4a239f6ca44fa83a17e3824ed501583aadc8c7a21c27c5ac07d",
     "trader-engine-live.service": "c847990df3760c790df8418b771679f59a4256d0c902b9d6d990a23a55474549",   # 23.11 kullanici karari: canli = kagit (MemoryMax 750M, MemoryHigh 600M)
@@ -153,6 +154,9 @@ def test_dt1_katmansiz_yukleme_onceki_engineconfig_ile_esit(baseline, envname):
     cur = _cur_dump(envname)
     old = baseline["cfg"][str(envname)]
     for k, v in old["cfg"].items():
+        if k in ML_KEYS_REMOVED:                           # 24.11 kullanici karari: ML filtreleri silindi; ML anahtarlari EngineConfig'ten kalkti
+            assert k not in cur["cfg"], k
+            continue
         if envname == "live" and k in LIVE_PAPER_SYSTEM_KEYS:   # 23.11 kullanici karari: canli = kagit (parite testi: test_canli_kagit_parite.py)
             continue
         if envname == "testnet" and k == "veto_mode":      # tek beklenen fark: testnet veto kaldirildi (off)
@@ -181,7 +185,6 @@ def test_dt1_katmansiz_yukleme_onceki_engineconfig_ile_esit(baseline, envname):
 def test_dt1_katmansiz_yukleme_hala_10_cift_ve_paper_degil_katman():
     cfg = load_cli_config(CONFIG, "learner", None)
     assert len(cfg.pairs) == 10 and cfg.bot == "learner" and cfg.mode == "paper"
-    assert cfg.ml_mode == "off"
     assert cfg.shadow_blocks == ("regime", "r1_disabled", "same_bar_reentry", "tf_15m")
 
 
@@ -193,6 +196,7 @@ def test_dt1_dt13_config_dosyalari_degismedi(name):
     head = _git_show(f"config/{name}")
     if name == "engine.base.json":      # DD-12 WP-06a: config/veto.json -> config/veto.live.json (testnet/canli veto yapilandirmasi); baska fark yok
         head = head.replace(b'"config/veto.json"', b'"config/veto.live.json"')
+        head = head.replace(b'  "ml_mode": "off",\n  "ml_model_path": null,\n', b"", 1)      # 24.11 kullanici karari: ML filtreleri silindi
     if name == "engine.testnet.json":   # DD-12 QC: LLM veto kaldirildi, testnet veto_mode "off"; baska fark yok
         head = head.replace(b'  "mode": "testnet",\n', b'  "mode": "testnet",\n  "veto_mode": "off",\n', 1)
     if name in ("engine.testnet.json", "engine.live.json"):   # 22.11: kendi "pairs" satiri (kill_file'dan once); baska fark yok
@@ -254,11 +258,8 @@ def test_dt2_paper_44_cift_taban_10_ust_kumesi():
     assert len(set(bases) - STOCKS20 - COMMODITY4) == 19          # 19 kripto   # 23.11 kullanici karari: TON cikarildi (SETTLING)
 
 
-def test_dt2_paper_ml_kapali_golgesiz_16_pozisyon():
-    # 19 Kasim: r03 kagitta emekli (kullanici karari)
+def test_dt2_paper_golgeli_24_pozisyon():
     cfg = _paper()
-    assert cfg.ml_mode == "off"  # 24.11 kullanici karari: ML filtreleri (v1, v2, kurulum filtresi) kapali; canli = kagit
-    assert cfg.ml_experimental is False and cfg.ml_model_path is None and cfg.ml_pairs == ()
     assert cfg.shadow_blocks == ("regime", "r1_disabled", "same_bar_reentry", "tf_15m")      # 19.11 (kagitta her sey acik): golge karar satirlari acik (karar yolunu etkilemez)
     assert cfg.exit_modes == {"default": {"breakeven": {"trigger_r": 1.0, "offset_bps": cfg.exit_modes["default"]["breakeven"]["offset_bps"]},
                               "partial": {"trigger_r": 1.5, "frac": 0.5}}}      # 19.11: cikis kipleri kagitta ACIK (spec varsayilanlari)
@@ -266,11 +267,14 @@ def test_dt2_paper_ml_kapali_golgesiz_16_pozisyon():
     assert cfg.target_trade_risk == 0.01                           # islem basi %1
 
 
-def test_dt2_paper_ml_pairs_kaldirildi():
-    # 19 Kasim: r03 kagitta emekli (kullanici karari); paper katmaninda ml_pairs anahtari yok
+def test_dt2_ml_anahtarlari_silindi(tmp_path):
+    # 24.11 kullanici karari: ML filtreleri (v1, v2, kurulum filtresi) silindi; ML yapilandirma anahtarlari artik bilinmeyen anahtardir
     cfg = _paper()
-    assert cfg.ml_pairs == ()
-    assert "ml_pairs" not in _paper_raw()
+    assert not any(hasattr(cfg, k) for k in ML_KEYS_REMOVED)
+    assert not ML_KEYS_REMOVED & set(_paper_raw())
+    for k in sorted(ML_KEYS_REMOVED):
+        with pytest.raises(ConfigError):
+            _load_overlay(_write(tmp_path, f"{k}.json", {**_paper_raw(), k: "off" if k == "ml_mode" else None}))
 
 
 def test_dt2_paper_optional_pairs_hisse_emtia_24():
@@ -315,12 +319,11 @@ def test_dt2_paper_flat_bar_ve_contract_types():
 
 def test_dt2_paper_yeni_anahtar_ham_json_listesi():
     raw = _paper_raw()
-    for k in ("pairs", "optional_pairs", "strategy", "ml_mode", "shadow_blocks", "max_positions", "risk", "clusters",
+    for k in ("pairs", "optional_pairs", "strategy", "shadow_blocks", "max_positions", "risk", "clusters",
               "flat_bar_guard", "contract_types", "cost_overrides"):
         assert k in raw, k
-    # 19 Kasim: r03 kagitta emekli (kullanici karari)
-    assert not {"ml_pairs", "ml_features", "ml_model_path", "ml_experimental"} & set(raw)
-    assert raw["shadow_blocks"] == ["regime", "r1_disabled", "same_bar_reentry", "tf_15m"] and raw["max_positions"] == 24 and raw["ml_mode"] == "off"
+    assert not ML_KEYS_REMOVED & set(raw)
+    assert raw["shadow_blocks"] == ["regime", "r1_disabled", "same_bar_reentry", "tf_15m"] and raw["max_positions"] == 24
 
 
 # --------------------------------------------------------------------------- D-T2 (yalniz --env paper)
@@ -328,16 +331,15 @@ def test_dt2_paper_katmani_yalniz_env_paper_ile_uygulanir():
     plain = load_cli_config(CONFIG, "learner", None)
     paper = load_cli_config(CONFIG, "learner", "paper")
     assert len(plain.pairs) == 10 and len(paper.pairs) == 43   # 23.11 kullanici karari: TON cikarildi (SETTLING)
-    assert plain.ml_mode == "off" and paper.ml_mode == "off"  # 24.11 kullanici karari: ML filtreleri (v1, v2, kurulum filtresi) kapali; canli = kagit
     assert plain.shadow_blocks != () and paper.shadow_blocks == plain.shadow_blocks      # 19.11: kagitta golge satirlar acik
     assert plain.exit_modes == {} and paper.exit_modes != {}
     for env in ("testnet", "live"):
         c = load_cli_config(CONFIG, "learner", env)
         if env == "live":       # 23.11 kullanici karari: canli = kagit (paper'in 43 cifti, ML aktif, kumeler/tavanlar)
-            assert c.mode == "live" and list(c.pairs) == list(paper.pairs) and len(c.pairs) == 43 and c.ml_mode == "off"
+            assert c.mode == "live" and list(c.pairs) == list(paper.pairs) and len(c.pairs) == 43
             assert c.max_positions == paper.max_positions
             continue
-        assert c.mode == env and list(c.pairs) == ENV_PAIRS[env] and c.ml_mode == "off"
+        assert c.mode == env and list(c.pairs) == ENV_PAIRS[env]
         assert getattr(c, "max_positions", None) in (None, 0, 1)   # yeni alan varsayilan (kapali) kalir
 
 
@@ -387,14 +389,13 @@ def test_dt2_paper_kopyasi_kontrol_yuklenir(tmp_path):
     assert len(cfg.pairs) == 43   # 23.11 kullanici karari: TON cikarildi (SETTLING)
 
 
-@pytest.mark.parametrize("which", ["cluster", "ml_pairs", "optional_pairs"])
+@pytest.mark.parametrize("which", ["cluster", "optional_pairs"])
 def test_dt2_pairs_disi_cift_hata(tmp_path, which):
     raw = copy.deepcopy(_paper_raw())
     ghost = "ZZZZ/USDT"
     if which == "cluster":
         _inject_cluster_pair(raw, ghost)
     else:
-        # 19 Kasim: paper katmaninda ml_pairs kalmadi; dogrulama intenti icin kendi ml_pairs'ini kurar
         base = raw.get(which, ["BTC/USDT"])
         raw[which] = list(base) + [ghost]
     with pytest.raises(ConfigError):
@@ -403,7 +404,6 @@ def test_dt2_pairs_disi_cift_hata(tmp_path, which):
 
 NEW_KEYS = {
     "max_positions": 16,
-    "ml_pairs": ["BTC/USDT"],
     "optional_pairs": ["ETH/USDT"],
     "clusters": {"k": {"pairs": ["BTC/USDT"], "max": 1}},
     "risk": {"max_open_risk": 0.12, "max_same_dir_risk": 0.08, "daily_max_loss": 0.08},

@@ -168,30 +168,11 @@ def test_canli_sarti_tek_rejim_ve_masraf():
 
 
 # ---------------------------------------------------------------- bolum 5
-def test_yon_denetimi_ve_ml_filtre(tmp_path):
+def test_yon_denetimi():
     ts = trades_mix(20)
-    dec = [{"id": i, "side": "long", "skip_reason": "ml_filter", "final_action": "skipped", "bar_close_ts": iso(T0 + 50 * H)} for i in range(3)]
-    dec += [{"id": 10 + i, "side": "long", "skip_reason": None, "final_action": "entered", "bar_close_ts": iso(T0 + 50 * H)} for i in range(1)]
-    dec += [{"id": 20, "side": "short", "skip_reason": "stop_width", "final_action": "skipped", "bar_close_ts": iso(T0 + 50 * H)}]
-    md = tmp_path / "models"
-    md.mkdir()
-    feats = ["f_a", T.SIDE_FEATURE, "f_b"]
-    (md / "x.json").write_text(json.dumps({"meta": {"features": feats}, "model": {"kind": "logistic", "coef": [1.0, -3.0, 0.0]}}))
-    (md / "y.json").write_text(json.dumps({"meta": {"features": ["f_a"]}, "model": {"kind": "logistic", "coef": [1.0]}}))
-    d = T.yon_denetimi(ts, dec, md)
+    d = T.yon_denetimi(ts)
     assert {r["anahtar"] for r in d["yon"]} == {"long", "short"} and sum(r["n"] for r in d["yon"]) == 20
-    assert d["ml_filtre"]["long"]["red_orani"] == pytest.approx(0.75) and d["ml_filtre"]["short"]["ml_reddi"] == 0
-    assert d["ml_filtre"]["long"]["etiket"] == T.YETERSIZ
-    p = {x["paket"]: x for x in d["yon_ozelligi"]["paketler"]}
-    assert p["x.json"]["onem_payi"] == pytest.approx(0.75) and p["x.json"]["sira"] == 1
-    assert p["y.json"]["durum"] == "ozellik_listede_yok"
-    assert T.yon_ozelligi_onemi(None)["durum"] == "paket_dizini_yok"
-
-
-def test_lgbm_onemi():
-    tree = {"tree_structure": {"split_feature": 1, "split_gain": 4.0, "left_child": {"leaf_value": 0.1},
-                               "right_child": {"split_feature": 0, "split_gain": 1.0, "left_child": {"leaf_value": 0}, "right_child": {"leaf_value": 1}}}}
-    assert T._lgbm_onem({"tree_info": [tree]}, 1, 2) == (0.5, 0.8)
+    assert "ml_filtre" not in d and "yon_ozelligi" not in d                      # 24.11: ML filtreleri silindi
 
 
 # ---------------------------------------------------------------- bolum 6

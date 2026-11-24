@@ -98,10 +98,6 @@ class EngineConfig:
     kill_file: str
     strategy: str = "price_action_v1"
     target_trade_risk: float = LOCKED_CFG.target_trade_risk
-    ml_mode: Literal["off", "shadow", "active"] = "off"      # 05 §13.4a; yalniz price_action_v1_ml okur
-    ml_model_path: str | None = None                          # model paketi (JSON); off iken okunmaz
-    ml_features: Literal["v1", "r02", "r03"] = "v1"           # ML-G5 bayragi: v1 = bugunku ozellikler (varsayilan, degismez); r02/r03 = v2 motor baglami
-    ml_experimental: bool = False                             # ML golge deneyi (G-1): yalniz paper+shadow; kapidan gecmemis paketi golgede yukler
     pause_file: str = "shared/PAUSE"                          # 11 §3.1: gercek yol f"{pause_file}.{bot}"
     startup_wait_s: float = 600.0                             # paper acilis kapisi: kural+taze 1m veri icin azami bekleme
     leverage: int = LOCKED_CFG.min_leverage                   # 11 §3.1: [min_leverage, max_leverage]
@@ -112,7 +108,6 @@ class EngineConfig:
     # --- DD-12 WP-01 (yalniz mode="paper"; varsayilanlar = onceki davranis) ---
     optional_pairs: tuple[str, ...] = ()                      # hisse/emtia: kural/veri gelmezse yalniz o cift bekler (pairs icinde)
     retired_pairs: tuple[str, ...] = ()                       # DD-12 WP-18: evrenden cikmis, acik pozisyonu tutulan ciftler (pairs icinde); yeni giris YOK
-    ml_pairs: tuple[str, ...] = ()                            # ML suzgecinin puanladigi evren (pairs icinde); bos = kisit yok
     max_positions: int | None = None                          # hesap geneli eszamanli pozisyon tavani (None = tavan yok)
     risk: Mapping[str, float] = dataclasses.field(default_factory=dict)          # 4.1 paper: target_trade_risk/max_open_risk/max_same_dir_risk/daily_max_loss
     clusters: Mapping[str, ClusterSpec] = dataclasses.field(default_factory=dict)  # 4.1 kume tavanlari (seanssiz), pairs sirasi korunur
@@ -162,12 +157,12 @@ _TOP_KEYS = {f.name for f in dataclasses.fields(EngineConfig)}
 _NUM = ("wallet_start", "stale_factor", "loop_sleep_s", "bar_wait_s", "minute_wait_s",
         "reconcile_open_s", "reconcile_flat_s", "start_delay_s")
 _STR = ("var_dir", "market_db", "history_dir", "veto_config", "kill_file")
-_OPTIONAL_KEYS = {"strategy", "target_trade_risk", "ml_mode", "ml_model_path", "ml_features", "ml_experimental", "startup_wait_s", "pause_file",
+_OPTIONAL_KEYS = {"strategy", "target_trade_risk", "startup_wait_s", "pause_file",
                   "leverage", "live", "ladder_follow", "shadow_blocks", "mtm_marks",
-                  "optional_pairs", "retired_pairs", "ml_pairs", "max_positions", "risk", "clusters", "flat_bar_guard", "contract_types",
+                  "optional_pairs", "retired_pairs", "max_positions", "risk", "clusters", "flat_bar_guard", "contract_types",
                   "cost_overrides", "arms", "arm_max_positions", "exit_modes", "etiket_kurallari",
                   "korelasyon", "kayip_freni", "toplam_buyukluk_kat", "uzun_yon"}
-_PAPER_ONLY_KEYS = ("optional_pairs", "ml_pairs", "max_positions", "risk", "clusters", "flat_bar_guard", "contract_types",
+_PAPER_ONLY_KEYS = ("optional_pairs", "max_positions", "risk", "clusters", "flat_bar_guard", "contract_types",
                     "cost_overrides", "arms", "arm_max_positions", "korelasyon", "kayip_freni", "toplam_buyukluk_kat", "uzun_yon")
 _LIVE_KEYS = {f.name for f in dataclasses.fields(LiveSettings)}
 _STRATEGY_RE = re.compile(r"[a-z][a-z0-9_]{0,39}")
@@ -529,15 +524,6 @@ def _validate(raw: Mapping[str, Any]) -> EngineConfig:
     strategy = raw.get("strategy", "price_action_v1")
     if not isinstance(strategy, str) or not _STRATEGY_RE.fullmatch(strategy):
         raise ConfigError(f"strategy gecersiz (^[a-z][a-z0-9_]{{0,39}}$): {strategy!r}")
-    ml_mode = _choice("ml_mode", raw.get("ml_mode", "off"), ("off", "shadow", "active"))
-    ml_features = _choice("ml_features", raw.get("ml_features", "v1"), ("v1", "r02", "r03"))
-    ml_experimental = _bool("ml_experimental", raw.get("ml_experimental", False))
-    # DD-12: kagit ML etkin (active) yalniz `ml_pairs` verilmis (paper katmani) yapilandirmada deneysel paketi yukleyebilir
-    if ml_experimental and not (mode == "paper" and (ml_mode == "shadow" or (ml_mode == "active" and raw.get("ml_pairs")))):
-        raise ConfigError(f"ml_experimental yalniz paper+shadow (mode={mode!r}, ml_mode={ml_mode!r})")
-    ml_path = raw.get("ml_model_path")
-    if ml_path is not None and (not isinstance(ml_path, str) or not ml_path):
-        raise ConfigError("ml_model_path bos olmayan str ya da null olmali")
     pause_file = raw.get("pause_file", "shared/PAUSE")
     if not isinstance(pause_file, str) or not pause_file:
         raise ConfigError("pause_file bos olmayan str olmali")
@@ -556,7 +542,6 @@ def _validate(raw: Mapping[str, Any]) -> EngineConfig:
     pairs_set = pairs
     optional_pairs = _pair_subset("optional_pairs", raw.get("optional_pairs", ()), pairs_set)
     retired_pairs = _pair_subset("retired_pairs", raw.get("retired_pairs", ()), pairs_set)
-    ml_pairs = _pair_subset("ml_pairs", raw.get("ml_pairs", ()), pairs_set)
     max_positions = raw.get("max_positions")
     if max_positions is not None:
         max_positions = _int("max_positions", max_positions, 1, 1000)
@@ -601,7 +586,7 @@ def _validate(raw: Mapping[str, Any]) -> EngineConfig:
     if mode not in ("paper", "backtest", "live") and exit_modes:   # 23.11 kullanici karari: canli = kagit (canli motor da uygular)
         raise ConfigError(f"exit_modes yalniz mode='paper'/'backtest'/'live' ile verilebilir (mode={mode!r})")
     if mode not in ("paper", "live"):                         # 23.11 kullanici karari: canli = kagit
-        given = {"optional_pairs": optional_pairs, "ml_pairs": ml_pairs, "max_positions": max_positions, "risk": risk_raw,
+        given = {"optional_pairs": optional_pairs, "max_positions": max_positions, "risk": risk_raw,
                  "clusters": clusters, "flat_bar_guard": flat_bar_guard, "cost_overrides": cost_overrides,
                  "contract_types": contract_types, "arms": arms, "arm_max_positions": arm_caps,
                  "korelasyon": korelasyon, "kayip_freni": kayip_freni, "toplam_buyukluk_kat": toplam_buyukluk_kat,
@@ -641,11 +626,10 @@ def _validate(raw: Mapping[str, Any]) -> EngineConfig:
         bar_wait_s=nums["bar_wait_s"], minute_wait_s=nums["minute_wait_s"],
         reconcile_open_s=nums["reconcile_open_s"], reconcile_flat_s=nums["reconcile_flat_s"],
         start_delay_s=nums["start_delay_s"], strategy=strategy,
-        target_trade_risk=float(ttr), ml_mode=ml_mode, ml_model_path=ml_path, ml_features=ml_features,  # type: ignore[arg-type]
-        ml_experimental=ml_experimental,
+        target_trade_risk=float(ttr),
         startup_wait_s=startup_wait, pause_file=pause_file, leverage=lev, live=live, ladder_follow=ladder_follow,
         shadow_blocks=shadow_blocks, mtm_marks=mtm_marks,
-        optional_pairs=optional_pairs, retired_pairs=retired_pairs, ml_pairs=ml_pairs, max_positions=max_positions,
+        optional_pairs=optional_pairs, retired_pairs=retired_pairs, max_positions=max_positions,
         risk=risk_raw, clusters=clusters,
         flat_bar_guard=flat_bar_guard, contract_types=contract_types, cost_overrides=cost_overrides,
         arms=arms, arm_max_positions=arm_caps, exit_modes=exit_modes, etiket_kurallari=etiket_kurallari,
@@ -689,7 +673,7 @@ UNIVERSE_FILE = Path("var") / "universe" / "paper_pairs.json"   # DD-12 WP-16: a
 def apply_universe_overlay(raw: Mapping[str, Any], universe_path: Any) -> dict[str, Any]:
     """DD-12 WP-16 (D-T28): `universe_path` varsa VE mode == 'paper' ise pairs/optional_pairs yerine kaplama dosyasini koyar.
     testnet/live/backtest bu dosyayi HIC okumaz. Dosya bozuk/gecersizse ConfigError (sessiz geri donus yok). Kaplama
-    cikarilan ciftleri kume uyelerinden ve cost_overrides'tan temizler; ml_pairs listesi korunur (dogrulama yakalar)."""
+    cikarilan ciftleri kume uyelerinden ve cost_overrides'tan temizler."""
     if universe_path is None or raw.get("mode") != "paper":
         return dict(raw)
     p = Path(universe_path)

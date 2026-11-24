@@ -8,12 +8,10 @@ Az islemde hicbir bolum kesinlik taklit etmez: her bolum n verir ve `yetersiz or
 """
 from __future__ import annotations
 
-import json
 import math
 import warnings
 from collections import defaultdict
 from datetime import datetime, timezone
-from pathlib import Path
 
 import numpy as np
 
@@ -44,9 +42,6 @@ KUME_MIN_ISLEM = 3           # Bir kumede bundan az kayip varsa "az ornek" notu.
 SEED = 20261123              # Tum rastgelelik bu tohumdan turetilir.
 
 TF_MS = {"15m": 900_000, "1h": 3_600_000, "4h": 14_400_000, "1d": 86_400_000}   # 1d: market.sqlite 4s mumlarından kurulur (tam 6 mumlu UTC günü)
-SIDE_FEATURE = "f_side_sign"                      # araştırma paketi: meta.features içinde
-SIDE_FEATURES = ("f_side_sign", "side_long")      # canlı aile paketi: meta.ozellikler içinde "side_long"
-FEATURE_KEYS = ("features", "ozellikler")         # paket şeması: araştırma = features, canlı aile (ortak_ogrenme) = ozellikler
 YETERSIZ = "yetersiz örnek"
 
 
@@ -81,7 +76,7 @@ def trade_dict(t, dec, asset_of) -> dict:
             "entry_price": _f(g("entry_price")), "exit_price": _f(g("exit_price")), "qty": _f(g("qty")),
             "planned_entry": _f(g("planned_entry")), "planned_stop": _f(g("planned_stop")), "planned_risk": pr,
             "gross_pnl": _f(g("gross_pnl")), "pnl": _f(g("realized_pnl")), "net_r": _f(g("r_multiple")),
-            "mfe_r": _f(g("mfe_r")), "mae_r": _f(g("mae_r")), "bars_held": g("bars_held"), "ml_score": _f(dg("ml_score"))}
+            "mfe_r": _f(g("mfe_r")), "mae_r": _f(g("mae_r")), "bars_held": g("bars_held")}
 
 
 def decision_dict(d, asset_of) -> dict:
@@ -90,7 +85,7 @@ def decision_dict(d, asset_of) -> dict:
     b = b if isinstance(b, str) else b.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
     arm = g("arm_id") or f"{g('setup')}@{g('trigger_tf') or '1h'}"
     return {"id": g("id"), "pair": g("pair"), "side": g("side"), "arm": arm, "regime": g("regime"), "asset": asset_of(g("pair")),
-            "bar_close_ts": b, "final_action": g("final_action"), "skip_reason": g("skip_reason"), "ml_score": _f(g("ml_score"))}
+            "bar_close_ts": b, "final_action": g("final_action"), "skip_reason": g("skip_reason")}
 
 
 def holdout_filtrele(trades: list[dict], decisions: list[dict]) -> tuple[list[dict], list[dict], int]:
@@ -503,82 +498,12 @@ def _kirilim(trades, keyf) -> list[dict]:
     return [{"anahtar": list(k) if isinstance(k, tuple) else k, **ozet(v)} for k, v in sorted(g.items(), key=lambda kv: str(kv[0]))]
 
 
-def ml_filtre_yon(decisions) -> dict:
-    out = {}
-    for side in ("long", "short"):
-        ds = [d for d in decisions if d["side"] == side]
-        red = sum(1 for d in ds if d["skip_reason"] == "ml_filter")
-        gir = sum(1 for d in ds if d["final_action"] == "entered")
-        n = red + gir
-        out[side] = {"ml_reddi": red, "girildi": gir, "n": n, "red_orani": (red / n) if n else None, "etiket": etiket(n)}
-    return out
-
-
-def _lgbm_onem(model: dict, idx: int, nf: int) -> tuple[float, float]:
-    cnt, gain = np.zeros(nf), np.zeros(nf)
-    for tr in model.get("tree_info", []):
-        st = [tr["tree_structure"]]
-        while st:
-            nd = st.pop()
-            if "split_feature" in nd:
-                cnt[nd["split_feature"]] += 1
-                gain[nd["split_feature"]] += float(nd.get("split_gain", 0.0))
-                st += [nd["left_child"], nd["right_child"]]
-    return (float(cnt[idx] / cnt.sum()) if cnt.sum() else 0.0, float(gain[idx] / gain.sum()) if gain.sum() else 0.0)
-
-
-def yon_ozelligi_onemi(models_dir) -> dict:
-    """Model paketleri yön özelliğinin önemini açığa çıkarıyorsa raporlar. İki şema desteklenir: araştırma paketi
-    (`meta.features`, `f_side_sign`) ve canlı aile paketi (`meta.ozellikler`, `side_long`; `paket/ortak_ogrenme/filtre.py`).
-    Lojistik -> |katsayı| payı (katsayılar standartlaştırılmış özellik üzerinedir, iki şemada da öyle saklanır);
-    lgbm -> bölme sayısı/kazanç payı. Okunamayan paket atlanmaz: `okunamadi` satırı olarak yazılır. Eski kol paketleri
-    (`eski_kol/` klasörü, canlıda kullanılmaz) taranmaz."""
-    p = Path(models_dir) if models_dir else None
-    if p is None or not p.is_dir():
-        return {"durum": "paket_dizini_yok", "paketler": []}
-    rows = []
-    for f in sorted(p.rglob("*.json")):
-        if "eski_kol" in f.parts:
-            continue
-        try:
-            pkg = json.loads(f.read_text(encoding="utf-8"))
-            meta, m = pkg["meta"], pkg["model"]
-            sema = next(k for k in FEATURE_KEYS if isinstance(meta.get(k), list))
-            feats = list(meta[sema])
-        except (OSError, ValueError, KeyError, TypeError, StopIteration, AttributeError):
-            continue
-        ad = next((a for a in SIDE_FEATURES if a in feats), None)
-        if ad is None:
-            rows.append({"paket": f.name, "durum": "ozellik_listede_yok", "sema": sema})
-            continue
-        i = feats.index(ad)
-        if m.get("kind") == "logistic":
-            try:
-                c = np.abs(np.asarray(m["coef"], float))
-                if len(c) != len(feats):
-                    raise ValueError
-            except (KeyError, TypeError, ValueError):
-                rows.append({"paket": f.name, "durum": "katsayi_bozuk", "sema": sema})
-                continue
-            rows.append({"paket": f.name, "tur": "logistic", "sema": sema, "ozellik": ad,
-                         "onem_payi": float(c[i] / c.sum()) if c.sum() else 0.0,
-                         "katsayi": float(m["coef"][i]), "sira": int(1 + (c > c[i]).sum()), "ozellik_sayisi": len(feats)})
-        elif m.get("kind") == "lgbm":
-            sc, kz = _lgbm_onem(m, i, len(feats))
-            rows.append({"paket": f.name, "tur": "lgbm", "sema": sema, "ozellik": ad, "bolme_payi": sc, "kazanc_payi": kz,
-                         "ozellik_sayisi": len(feats)})
-        else:
-            rows.append({"paket": f.name, "durum": "bilinmeyen_tur", "sema": sema})
-    return {"durum": "ok" if rows else "paket_yok", "paketler": rows}
-
-
-def yon_denetimi(trades, decisions, models_dir=None) -> dict:
+def yon_denetimi(trades) -> dict:
     return {"n": len(trades), "etiket": etiket(len(trades)),
             "yon": _kirilim(trades, lambda t: t["side"]),
             "yon_rejim": _kirilim(trades, lambda t: (t["side"], t["regime"])),
             "yon_varlik_sinifi": _kirilim(trades, lambda t: (t["side"], t["asset"])),
-            "yon_kol": _kirilim(trades, lambda t: (t["side"], t["arm"])),
-            "ml_filtre": ml_filtre_yon(decisions), "yon_ozelligi": yon_ozelligi_onemi(models_dir)}
+            "yon_kol": _kirilim(trades, lambda t: (t["side"], t["arm"]))}
 
 
 # ----------------------------------------------------------------------------- 6) kayip kumeleri
@@ -805,29 +730,9 @@ def toparlanma(trades, kasa0: float) -> dict:
             "kasa_son": eq, "kasa_zirve": zirve}
 
 
-def puan_kalibrasyonu(trades, kenar: int = 10) -> dict:
-    """Fikir 6: süzgeç (ML) puanı kalibrasyonu: puan dilimi -> gerçekleşen kazanma oranı (net R > 0), n ile. Puanı olmayan işlem (süzgeç yoktu)
-    dışarıda; hiç puan yoksa 'veri yok'. Dilim genişliği 1/kenar; dilimde n < 10 ise 'az örnek'."""
-    pu = [t for t in trades if t.get("ml_score") is not None]
-    out = {"n": len(trades), "n_puanli": len(pu), "n_puansiz": len(trades) - len(pu), "etiket": etiket(len(pu))}
-    if not pu:
-        return {**out, "durum": "veri_yok", "dilimler": []}
-    rows = []
-    for k in range(kenar):
-        lo, hi = k / kenar, (k + 1) / kenar
-        ds = [t for t in pu if lo <= t["ml_score"] < hi or (k == kenar - 1 and t["ml_score"] == 1.0)]
-        if not ds:
-            continue
-        w = sum(1 for t in ds if t["net_r"] > 0)
-        rows.append({"dilim": [lo, hi], "n": len(ds), "kazanma_orani": w / len(ds), "ort_puan": toplam(t["ml_score"] for t in ds) / len(ds),
-                     "not": "az örnek" if len(ds) < 10 else None})
-    return {**out, "durum": "ok", "dilimler": rows}
-
-
 def ek_bolumler(trades, kasa0: float) -> dict:
     return {"baslangic_dusus": baslangic_en_kotu_dusus(trades, kasa0), "kosu_testi": kosu_testi(trades),
-            "tf_masraf": tf_masraf_tablosu(trades), "verimlilik": verimlilik(trades), "toparlanma": toparlanma(trades, kasa0),
-            "puan_kalibrasyonu": puan_kalibrasyonu(trades)}
+            "tf_masraf": tf_masraf_tablosu(trades), "verimlilik": verimlilik(trades), "toparlanma": toparlanma(trades, kasa0)}
 
 
 # ----------------------------------------------------------------------------- ana akis
@@ -848,7 +753,7 @@ def ust_lig(trades) -> dict:
     return out
 
 
-def rapor(trades_raw, decisions_raw, mumlar, *, kasa0: float, now: datetime, models_dir=None, b: int = RASTGELE_B,
+def rapor(trades_raw, decisions_raw, mumlar, *, kasa0: float, now: datetime, b: int = RASTGELE_B,
           runs: int = KARISTIRMA_SAYISI, seed: int = SEED, maliyet_cfg: dict | None = None) -> dict:
     trades, decisions, kilit = holdout_filtrele(trades_raw, decisions_raw)
     rakip = rakip_kiyasi(trades, mumlar, b, seed, maliyet_cfg, kasa0)
@@ -859,7 +764,7 @@ def rapor(trades_raw, decisions_raw, mumlar, *, kasa0: float, now: datetime, mod
             "bolumler": {"rakip_kiyasi": rakip, "dayaniklilik": dayan,
                          "sans_kuyruk": sans,
                          "canli_sartlari": canli_sartlari(trades, rakip, dayan, sans),
-                         "yon_denetimi": yon_denetimi(trades, decisions, models_dir),
+                         "yon_denetimi": yon_denetimi(trades),
                          "kayip_kumeleri": kayip_kumeleri(trades)},
             "ek_bolumler": ek_bolumler(trades, kasa0)}
 
@@ -909,14 +814,6 @@ def _render_ek(E) -> list[str]:
         L.append(f"- Şu an: " + (f"zirvenin altında, {t['simdi']['islem']} işlem, {t['simdi']['gun']:.1f} gündür" if t["su_an_dususte"] else "zirvede"))
     else:
         L.append("- veri yok")
-    c = E["puan_kalibrasyonu"]
-    L += ["", f"## 12. Süzgeç puanı kalibrasyonu (n={c['n_puanli']} puanlı / {c['n']} işlem)" + (f" ({YETERSIZ})" if c["etiket"] else "")]
-    if c["durum"] == "ok":
-        for r in c["dilimler"]:
-            L.append(f"- puan {r['dilim'][0]:.1f}–{r['dilim'][1]:.1f}: n={r['n']}, ort puan {r['ort_puan']:.2f}, gerçekleşen kazanma {_yz(r['kazanma_orani'], 0)}"
-                     + (f" ({r['not']})" if r["not"] else ""))
-    else:
-        L.append("- veri yok (puanlı işlem yok)")
     return L
 
 
@@ -980,10 +877,6 @@ def render_md(d: dict) -> str:
     L += ["", "## 5. Yön denetimi" + (f" ({YETERSIZ})" if yd["etiket"] else "")]
     for r in yd["yon"]:
         L.append(f"- {r['anahtar']}: n={r['n']}, net {_r(r['toplam'])} R")
-    for s, v in yd["ml_filtre"].items():
-        L.append(f"- ML filtre {s}: ret {v['ml_reddi']} / girildi {v['girildi']}, ret oranı {_r(v['red_orani'], 2)}")
-    yo = yd["yon_ozelligi"]
-    L.append(f"- Yön özelliği (f_side_sign / side_long) önemi: {yo['durum']}; " + ("; ".join(f"{p['paket']}: {p.get('onem_payi', p.get('kazanc_payi', p.get('durum')))}" for p in yo["paketler"][:5]) or "paket yok"))
     kk = B["kayip_kumeleri"]
     L += ["", "## 6. Kayıp kümeleri" + (f" ({YETERSIZ})" if kk["etiket"] else ""), f"- {kk['n_kayip']} kayıp / {kk['n_islem']} işlem, {kk['kume_sayisi']} küme"]
     for r in kk["sayiya_gore"][:5]:

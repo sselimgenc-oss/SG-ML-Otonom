@@ -125,7 +125,7 @@ def kos(root: Path, now: datetime, *, env=None, market: Path | None = None, runs
     try:
         if mp.exists():
             mumlar = T.MumDeposu(mp)
-        d = T.rapor(trades, decisions, mumlar, kasa0=ws, now=now, models_dir=led_path.parent / "models", b=b, runs=runs,
+        d = T.rapor(trades, decisions, mumlar, kasa0=ws, now=now, b=b, runs=runs,
                     maliyet_cfg=masraf_ayari(root, Path(cfg.engine_config)))
     finally:
         if mumlar is not None:

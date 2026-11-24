@@ -292,10 +292,6 @@ class StatusWriter:
         ids = [p.trade_id for p in f["open_positions"] if p.status in ("open", "closing")]
         blocked = f["entries_blocked_reason"]
         gate_code = f["gate_code"]
-        ml = f.get("ml")
-        ml_blocked = bool(ml and ml.get("entries_blocked"))          # active + model yok/suresi dolmus: giris yok (fail-closed)
-        if ml_blocked and gate_code == "ok":
-            gate_code = "ml_" + str(ml["state"])
         sok = self._toplu_sok(engine, pos, f["equity"]) if f["equity"] is not None else None
         return {
             "schema": SCHEMA, "bot": self.cfg.bot, "mode": self.cfg.mode, "pid": os.getpid(),
@@ -303,16 +299,15 @@ class StatusWriter:
             "last_decision_bar_close": _z(f["last_decision_close"]), "last_candle_open": _z(f["last_candle_open"]),
             "trigger_tf": f["tf"], "param_version_id": f["param_version_id"], "ayar_surumu": self._ayar_sha(),
             "strategy": {"name": f["strategy_name"], "version": f["strategy_version"]},
-            "entries_open": bool(f["entries_open"]) and not ml_blocked, "gate": {"ok": gate_code == "ok", "code": gate_code},
+            "entries_open": bool(f["entries_open"]), "gate": {"ok": gate_code == "ok", "code": gate_code},
             "kill": bool(f["kill"]), "kill_state": f["kill_state"], "entries_blocked_reason": blocked,
             "entries_blocked_reasons": list(f.get("entries_blocked_reasons") or ([blocked] if blocked else [])),   # DD-2: eklemeli
             "dry_run": self.cfg.mode != "live", "wallet": f["wallet"], "equity": f["equity"], "account_stale": bool(f.get("account_stale", False)),
             **({"equity_last": f["equity_last"], "account_at": _z(f["account_at"])} if f.get("equity_last") is not None else {}),
             "day_start_equity": f["day_start_equity"],
-            "open_positions": pos, "unrealized_pnl_usd": unreal_total, "mark_ts": mark_ts, "open_trade_ids": ids, "counters": f["counters"], "ml": ml,
+            "open_positions": pos, "unrealized_pnl_usd": unreal_total, "mark_ts": mark_ts, "open_trade_ids": ids, "counters": f["counters"],
             **({"records": f["records"]} if f.get("records") is not None else {}),   # WP-3 9.3: yalniz kayit sayaclari
             **({"cluster_counts": f["cluster_counts"]} if f.get("cluster_counts") is not None else {}),   # DD-12 WP-05 (yalniz kagit)
-            **({"ml_filtre": f["ml_filtre"]} if f.get("ml_filtre") is not None else {}),   # 19.11: kagit ML filtresi ozeti
             **({"etiket_kurallari": f["etiket_kurallari"]} if f.get("etiket_kurallari") is not None else {}),   # 20 Kasim: etiket kurallari
             **({"pause": f["pause"]} if f.get("pause") is not None else {}),
             **({"risk_ladder": f["risk_ladder"]} if f.get("risk_ladder") is not None else {}),   # 12 §10

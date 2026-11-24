@@ -157,14 +157,14 @@ def test_arms_off_yok_iken_taze_sunucu_acik_varsayar_ve_cokmez(tmp_path):
         e.close()
 
 
-# ---------------------------------------------------------------- pano: ders, ML, seans, varlık kırılımı
-def test_pano_ders_freni_ve_ml_etkisi_alanlari_var(tmp_path):
+# ---------------------------------------------------------------- pano: ders, M1, seans, varlık kırılımı
+def test_pano_ders_freni_ve_m1_alanlari_var(tmp_path):
     e = Env(tmp_path)
     r = Running(e, cache_s=0)
     try:
         api = _api_text(r)
         assert re.search(r"brake|fren", api, re.IGNORECASE), "ders freni durumu panelde yok"
-        assert re.search(r"\bml\b|setup_filter|süzgeç|suzgec|filter", api, re.IGNORECASE), "ML etkisi panelde yok"
+        assert re.search(r"\bm1\b", api, re.IGNORECASE), "M1 sayilari panelde yok"
     finally:
         r.stop()
         e.close()

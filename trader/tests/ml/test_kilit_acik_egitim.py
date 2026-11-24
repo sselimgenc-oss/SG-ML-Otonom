@@ -1,7 +1,7 @@
-"""Kilit ACIK (23.11.2026 kullanici karari): kurulum suzgeci egitimi kilitli donem satirlarini reddetmez/dusurmez."""
+"""Kilit ACIK (23.11.2026 kullanici karari): M1 egitimi kilitli donem satirlarini reddetmez/dusurmez."""
 from datetime import datetime, timezone
 
-from trader_ml.setup_filter import train as T
+from trader_ml.pa_proposer import train as T
 
 UTC = timezone.utc
 

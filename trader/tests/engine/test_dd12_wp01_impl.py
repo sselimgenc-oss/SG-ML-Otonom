@@ -38,11 +38,9 @@ def test_paper_config_shape():
     assert c.mode == "paper" and c.bot == "learner" and len(c.pairs) == 43   # 23.11 kullanici karari: TON cikarildi (SETTLING)
     assert set(json.loads((CFG / "engine.base.json").read_text())["pairs"]) <= set(c.pairs)
     assert len(c.optional_pairs) == 24 and set(c.optional_pairs) <= set(c.pairs)
-    assert c.max_positions == 24 and c.ml_mode == "off" and c.shadow_blocks == ("regime", "r1_disabled", "same_bar_reentry", "tf_15m")
-    # 19 Kasim: r03 kagitta emekli (kullanici karari)
-    assert c.ml_features == "v1" and c.ml_experimental is False and c.ml_pairs == () and c.ml_model_path is None
+    assert c.max_positions == 24 and c.shadow_blocks == ("regime", "r1_disabled", "same_bar_reentry", "tf_15m")
     raw_paper = json.loads((CFG / "engine.paper.json").read_text())
-    assert not {"ml_pairs", "ml_features", "ml_model_path", "ml_experimental"} & set(raw_paper)
+    assert not {"ml_mode", "ml_pairs", "ml_features", "ml_model_path", "ml_experimental"} & set(raw_paper)   # 24.11: ML filtreleri silindi
     assert [s.max_positions for s in c.clusters.values()] == [6, 9, 8, 5, 3, 3]
     assert [len(s.pairs) for s in c.clusters.values()] == [5, 14, 20, 12, 2, 2]   # 23.11 kullanici karari: TON cikarildi (SETTLING)
     assert c.flat_bar_guard is True and "TRADIFI_PERPETUAL" in c.contract_types
@@ -88,7 +86,7 @@ def test_locked_defaults_bit_identical():
 @pytest.mark.parametrize("mode", ["testnet", "backtest"])      # 23.11 kullanici karari: canli = kagit (canli bu anahtarlari kabul eder)
 @pytest.mark.parametrize("key,val", [
     ("risk", {"max_open_risk": 0.12}), ("max_positions", 16), ("flat_bar_guard", True),
-    ("contract_types", ["TRADIFI_PERPETUAL"]), ("optional_pairs", ["BTC/USDT"]), ("ml_pairs", ["BTC/USDT"]),
+    ("contract_types", ["TRADIFI_PERPETUAL"]), ("optional_pairs", ["BTC/USDT"]),
     ("clusters", {"x": {"pairs": ["BTC/USDT"], "max_positions": 1}}),
     ("cost_overrides", {"BTC/USDT": {"open": {"slip_entry_bps": 1.0}}}),
 ])
@@ -99,7 +97,7 @@ def test_new_keys_rejected_outside_paper(tmp_path, mode, key, val):
 
 
 @pytest.mark.parametrize("key,val", [
-    ("optional_pairs", ["NVDA/USDT"]), ("ml_pairs", ["NVDA/USDT"]),
+    ("optional_pairs", ["NVDA/USDT"]),
     ("clusters", {"x": {"pairs": ["NVDA/USDT"], "max_positions": 1}}),
     ("cost_overrides", {"NVDA/USDT": {"open": {"slip_entry_bps": 1.0}}}),
     ("max_positions", 0), ("max_positions", True),
@@ -138,13 +136,14 @@ def test_apply_overrides_roundtrip_and_lock():
         apply_overrides(c, mode="testnet")
 
 
-def test_ml_experimental_active_needs_ml_pairs(tmp_path):
-    with pytest.raises(ConfigError, match="paper\\+shadow"):
-        _load(tmp_path, _raw("paper", ml_mode="active", ml_experimental=True))
+def test_ml_anahtarlari_bilinmeyen_anahtar(tmp_path):
+    for k, v in (("ml_mode", "off"), ("ml_model_path", None), ("ml_features", "v1"), ("ml_experimental", False), ("ml_pairs", [])):
+        with pytest.raises(ConfigError, match="bilinmeyen anahtar"):
+            _load(tmp_path, _raw("paper", **{k: v}))
 
 
 def test_dataclass_fields_have_defaults():
     c = load_cli_config(CFG, "learner", None)
     names = {f.name for f in dataclasses.fields(c)}
-    assert {"optional_pairs", "ml_pairs", "max_positions", "risk", "clusters", "flat_bar_guard",
+    assert {"optional_pairs", "max_positions", "risk", "clusters", "flat_bar_guard",
             "contract_types", "cost_overrides"} <= names

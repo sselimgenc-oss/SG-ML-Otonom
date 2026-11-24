@@ -26,7 +26,7 @@ from trader_ml.pa_proposer import features as PF  # noqa: E402
 from trader_ml.pa_proposer import labels as LB  # noqa: E402
 from trader_ml.pa_proposer import package as PK  # noqa: E402
 from trader_ml.pa_proposer import train as TR  # noqa: E402
-from trader_ml.setup_filter.train import LOCK_END, LOCK_START  # noqa: E402
+from trader_ml.pa_proposer.train import LOCK_END, LOCK_START  # noqa: E402
 
 TF_DELTA = {"15m": timedelta(minutes=15), "1h": timedelta(hours=1), "4h": timedelta(hours=4), "1d": timedelta(days=1)}
 

@@ -255,19 +255,17 @@ def test_window_reset_on_activation():
 
 
 def test_window_reset_on_strategy_change_detected_across_runs():
-    st1 = {"schema": "engine-status/1", "bot": "learner", "mode": "paper", "strategy": {"name": "a", "version": "1"}, "ml": {"mode": "off"}}
+    st1 = {"schema": "engine-status/1", "bot": "learner", "mode": "paper", "strategy": {"name": "a", "version": "1"}}
     res1, s1 = run(status=st1)
     st2 = dict(st1, strategy={"name": "a", "version": "2"})
     data = {"trades": [], "decisions": [], "activations": []}
     res2, s2 = D.evaluate(data, st2, s1, NOW, bot="learner", mode="paper")
     assert res2["window"]["start"] == z(NOW) and res1["window"]["start"] is None
-    # off <-> shadow pencereyi sifirlamaz
-    st3 = dict(st1, ml={"mode": "shadow"})
+    # 24.11: ML filtreleri silindi; durum dosyasindaki (eski) `ml` blogu pencereyi sifirlamaz, anahtar soneki sabit kalir
+    st3 = dict(st1, ml={"mode": "active", "model_id": "m1"})
     res3, _ = D.evaluate(data, st3, s1, NOW, bot="learner", mode="paper")
     assert res3["window"]["start"] is None
-    st4 = dict(st1, ml={"mode": "active", "model_id": "m1"})
-    res4, _ = D.evaluate(data, st4, s1, NOW, bot="learner", mode="paper")
-    assert res4["window"]["start"] == z(NOW)
+    assert s1["window"]["status_key"] == "a@1|ml=inactive"
 
 
 def test_bad_row_skipped():

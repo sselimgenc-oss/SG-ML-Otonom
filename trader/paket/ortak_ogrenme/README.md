@@ -1,7 +1,7 @@
 # ortak_ogrenme (SURUM 1.2.1)
 
 Ortak öğrenme paketi: aday kaydı (`Aday`), kodla yazılan işlem notu (`notlar.not_yaz`) ve aday ders yaşam döngüsü
-(`ders`). Parça 1 yalnız Python 3.11+ standart kütüphane kullanır; parça 2'de yalnız `filtre.py` numpy ister. `trader_core` / `trader_engine` / `trader_ml` içe aktarılmaz.
+(`ders`). Yalnız Python 3.11+ standart kütüphane kullanılır (ortak filtre modülü `filtre.py` 24.11'de kaldırıldı). `trader_core` / `trader_engine` / `trader_ml` içe aktarılmaz.
 Paket yalnız puan, rapor ve etiket üretir; hiçbir işlemi engellemez. Spec: `docs/standart/ortak-ogrenme-paketi-spec.md`.
 
 ## Kopyalama
@@ -52,7 +52,7 @@ def adaya_cevir(islem, karar):
   Eşdeğerlik testlerinde iki taraf da açıkça aynı değerle çağrılır.
 - Durum dosyası (`gece_adimi`) atomik yazılır; bozuk veya eksik dosya boş durum sayılır.
 
-## Parça 2: karne, sanal kasa, drift, ortak filtre
+## Parça 2: karne, sanal kasa, drift
 
 Girdi her yerde `Aday` listesidir. Paket yine yalnız puan ve rapor üretir; bir işlemi engelleyip engellemediği
 adaptörün kararıdır.
@@ -71,26 +71,10 @@ adaptörün kararıdır.
 - `kurulum_drift(adaylar)`: alınmış ve R'si bilinen adaylar üzerinden kurulum başına CUSUM. `durum` alanı son
   alarmdan beri 30 işlemden az geçtiyse `uyari`, değilse `normal` olur.
 
-### `filtre.py` (numpy: yalnız bu modül)
-
-- `egit(kurulum, adaylar, *, olusturma, kilit, azami)`: ridge lojistik regresyon (Newton/IRLS; ML
-  `fit_logistic` ile sayısal olarak aynı). Yalnız alınmış ve R'si bilinen adaylar kullanılır, etiket `r > 0`,
-  eşik `0.9 x taban oran`. Veri yoksa ya da tek sınıf varsa `None` döner.
-- Kilit aralıkları (holdout): `kilit=[(baslangic, bitis), ...]` içindeki `ts` değerine sahip satırlar eğitimden
-  yapısal olarak düşer ve `meta.kilit_dusen` ile sayılır. Bu bir karar değil, eğitim veri kümesinin kuralıdır.
-- `kaydet(paket, klasor)`: `<kurulum>.json` dosyasını atomik yazar, öncekini `<kurulum>.prev.json` yapar. Yazmadan
-  önce gidiş-dönüş doğrulaması yapar. Son kullanma denetlenmez, çünkü kayıt bir kullanım değildir.
-- `yukle(yol_ya_da_sozluk, *, simdi, sure_kontrol)`: model hash'i, özellik hash'i, paket sürümü ve son kullanma
-  (olusturma + 21 gün) denetlenir. Hata durumunda `PaketHatasi` (ValueError alt sınıfı) fırlatılır.
-- `puan(paket, ozellikler)`: standardizasyon, sigmoid (z, [-35, 35] aralığında kırpılır). Eksik ya da sayı olmayan
-  özellik modeldeki `fill` değeriyle doldurulur. Sonuç her zaman `[0, 1]` aralığındadır.
-
 ### Parça 2 eşdeğerlik testleri
 
 `tests/paket/test_ortak_ogrenme_parca2_parity.py`: `karne` / `sanal_kasa` ↔ `arm_scorecard` / `arm_virtual_bankroll`
-(alan adı eşlemesiyle), `fit_logistic` ↔ `setup_filter.train.fit_logistic` (NaN dahil), `cusum` ↔ `cusum_replay`,
-`puan` ↔ `TreeModel` lojistik tahmini. Filtre paketi için gidiş-dönüş, hash ve süre denetimleri ile kilit düşürme
-testleri de burada.
+(alan adı eşlemesiyle), `cusum` ↔ `cusum_replay`.
 
 ## Parça 3: Telegram çekirdeği (`telegram_cekirdek.py`, standart kütüphane)
 

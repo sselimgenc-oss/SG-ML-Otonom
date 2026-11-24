@@ -36,7 +36,6 @@ from . import _pa as P
 SETUP = "M1"
 TIMEFRAMES = ("1h", "4h", "15m", "1d")   # spec: 1s ilk; her zaman dilimi kendi paketi (M1@<tf>.json); paket yoksa aday yok
 CORE = False
-ML_SCORED = False
 EXIT_MODE = "target"
 PRIORITY = 90
 FEATURES = {"m1_body": "body_ratio", "m1_wick": "wick_ratio", "m1_rr": "rr"}

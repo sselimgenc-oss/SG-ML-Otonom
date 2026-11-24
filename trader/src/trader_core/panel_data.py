@@ -35,7 +35,7 @@ CLOSED_MAX = L.Ledger.LIST_CLOSED_MAX
 # status.json'dan panele gecen alanlar (05 §8.2); baska alan gecmez
 STATUS_FIELDS = ("mode", "dry_run", "kill", "kill_state", "entries_open", "entries_blocked_reason", "loop_at",
                  "started_at", "equity", "day_start_equity", "wallet", "counters", "param_version_id", "strategy",
-                 "trigger_tf", "open_positions", "unrealized_pnl_usd", "mark_ts", "ml_filtre", "dayaniklilik")
+                 "trigger_tf", "open_positions", "unrealized_pnl_usd", "mark_ts", "dayaniklilik")
 
 
 class SectionError(Exception):
@@ -524,7 +524,6 @@ def _ledger_learning(ledger_path: str, now: datetime, paper_config=None) -> dict
         d = by_id.get(c["decision_id"])
         c["session"] = (d.session_tag if d is not None else None) or "open"
         c["skip_reason"] = d.skip_reason if d is not None else None
-        c["ml_score"] = d.ml_score if d is not None else None
     sc = CF.arm_scorecard(cands, arms=arms, closed=closed)
     scorecard = [{"arm": a, "candidates": b["candidates"], "taken": b["taken"], "resolved": b["resolved"],
                   "mean_r_taken": b["mean_r_taken"], "mean_r_taken_cf": b["mean_r_taken_cf"], "state": b["state"],
@@ -536,13 +535,8 @@ def _ledger_learning(ledger_path: str, now: datetime, paper_config=None) -> dict
               "brake_events": len(brake_ev), "brake_active": bool(brake), "effect": effect,
               "closed_arms": sorted(closed),
               "events": [{"at": fmt_z(a.activated_at), "kind": a.kind, "reason": a.reason} for a in les[:10]]}
-    ml_elim = [c for c in cands if c["skip_reason"] == "ml_filter"]
-    ml_pass = [c for c in cands if c["ml_score"] is not None and c["skip_reason"] != "ml_filter"]
-    m1 = [c for c in cands if str(c["arm_id"]).startswith("M1@")]
-    ml_r = [c["r"] for c in ml_elim if c["r"] is not None]
-    ml = {"eliminated": len(ml_elim), "passed": len(ml_pass),
-          "effect_r": round(-math.fsum(ml_r), 4) if ml_r else None,
-          "m1_candidates": len(m1), "m1_taken": sum(1 for c in m1 if c["taken"])}
+    m1_c = [c for c in cands if str(c["arm_id"]).startswith("M1@")]
+    m1 = {"candidates": len(m1_c), "taken": sum(1 for c in m1_c if c["taken"])}
     sessions: dict[str, dict] = {}
     for s_ in ("open", "closed", "weekend"):
         cs_s = [c for c in cands if c["session"] == s_]
@@ -558,7 +552,7 @@ def _ledger_learning(ledger_path: str, now: datetime, paper_config=None) -> dict
         open_arm[a] = open_arm.get(a, 0) + 1
         for k in clusters_of_pair(t.pair, paper_config):
             open_cluster[k] = open_cluster.get(k, 0) + 1
-    return {"scorecard": scorecard, "lesson": lesson, "ml": ml, "sessions": sessions, "asset_class": asset_cls,
+    return {"scorecard": scorecard, "lesson": lesson, "m1": m1, "sessions": sessions, "asset_class": asset_cls,
             "open": {"total": len(open_trades), "by_arm": dict(sorted(open_arm.items())),
                      "by_cluster": dict(sorted(open_cluster.items()))},
             "trades_closed": len(trades), "decisions": len(decisions)}
@@ -570,7 +564,7 @@ def learning_view(ledger_path: str, budget_config: str, now: datetime, *, paper_
     out: dict[str, Any] = {"ledger_error": None}
     empty = {"scorecard": [], "lesson": {"applied": 0, "rollbacks": 0, "brake_events": 0, "brake_active": False,
                                          "effect": None, "closed_arms": [], "events": []},
-             "ml": {"eliminated": 0, "passed": 0, "effect_r": None, "m1_candidates": 0, "m1_taken": 0},
+             "m1": {"candidates": 0, "taken": 0},
              "sessions": {}, "asset_class": {}, "open": {"total": 0, "by_arm": {}, "by_cluster": {}},
              "trades_closed": 0, "decisions": 0}
     try:

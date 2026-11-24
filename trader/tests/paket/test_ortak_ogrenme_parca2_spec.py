@@ -1,24 +1,18 @@
 """Ortak öğrenme paketi parça 2 belirtiminden türetilmiş testler.
 
-Kapsam: karne + sanal kasa (karne.py), ortak filtre ve paket (filtre.py),
-CUSUM drift (drift.py). Testler yalnız belirtime göre yazıldı.
+Kapsam: karne + sanal kasa (karne.py), CUSUM drift (drift.py). Testler yalnız belirtime göre yazıldı.
 """
 
 from __future__ import annotations
 
-import copy
-import hashlib
-import json
 from datetime import datetime, timedelta, timezone
 
-import numpy as np
 import pytest
 
-from ortak_ogrenme import kayit, karne, filtre, drift
+from ortak_ogrenme import kayit, karne, drift
 
 UTC = timezone.utc
 BASLANGIC = datetime(2026, 1, 1, tzinfo=UTC)
-OLUS = datetime(2026, 11, 19, 12, 0, tzinfo=UTC)
 
 
 def aday(i, *, r=None, alindi=True, kurulum="T1@1h", sinif="kripto",
@@ -35,43 +29,6 @@ def aday(i, *, r=None, alindi=True, kurulum="T1@1h", sinif="kripto",
         r=r,
         ozellikler=dict(ozellikler) if ozellikler is not None else {},
     )
-
-
-def _sha(metin: str) -> str:
-    return hashlib.sha256(metin.encode("utf-8")).hexdigest()
-
-
-def egitim_verisi(n=40, kurulum="T1@1h"):
-    """Özellik x ile sonuç birbirine bağlı, iki sınıflı, alındı işlemler."""
-    out = []
-    for i in range(n):
-        kazanc = i % 2 == 0
-        x = (1.0 + 0.01 * i) if kazanc else (-1.0 - 0.01 * i)
-        out.append(aday(i, r=1.0 if kazanc else -1.0, kurulum=kurulum,
-                        ozellikler={"x": x}))
-    return out
-
-
-def _ilk_sayi_artir(obj) -> bool:
-    """Bir JSON yapısındaki ilk sayısal yaprağı artırır (kurcalama simülasyonu)."""
-    def sayi(v):
-        return isinstance(v, (int, float)) and not isinstance(v, bool)
-
-    if isinstance(obj, dict):
-        for k in list(obj):
-            if sayi(obj[k]):
-                obj[k] = obj[k] + 1.0
-                return True
-            if _ilk_sayi_artir(obj[k]):
-                return True
-    elif isinstance(obj, list):
-        for idx, v in enumerate(obj):
-            if sayi(v):
-                obj[idx] = v + 1.0
-                return True
-            if _ilk_sayi_artir(v):
-                return True
-    return False
 
 
 # --------------------------------------------------------------------------
@@ -240,228 +197,6 @@ def test_sanal_kasa_alinan_ve_tum_ayrimi():
 def test_sanal_kasa_gecersiz_parametre(kwargs):
     with pytest.raises(ValueError):
         karne.sanal_kasa([aday(0, r=1.0)], **kwargs)
-
-
-# --------------------------------------------------------------------------
-# filtre: özellik adları, matris
-# --------------------------------------------------------------------------
-
-def test_ozellik_adlari_sirali_birlesim_sayi_olmayanlar_yok():
-    adaylar = [
-        aday(0, ozellikler={"rr": 2.0, "atr_ratio": 1.1, "etiket": "metin"}),
-        aday(1, ozellikler={"stop_dist_atr": 2, "rr": 3.0, "bos": None}),
-    ]
-    assert filtre.ozellik_adlari(adaylar) == ["atr_ratio", "rr", "stop_dist_atr"]
-
-
-def test_matris_eksik_ve_sayi_olmayan_nan():
-    adaylar = [
-        aday(0, ozellikler={"a": 1.0}),
-        aday(1, ozellikler={"b": "x", "a": None}),
-    ]
-    m = filtre.matris(["a", "b"], adaylar)
-    assert isinstance(m, np.ndarray)
-    assert m.shape == (2, 2)
-    assert m[0, 0] == pytest.approx(1.0)
-    assert np.isnan(m[0, 1])
-    assert np.isnan(m[1, 0])
-    assert np.isnan(m[1, 1])
-
-
-# --------------------------------------------------------------------------
-# filtre.egit
-# --------------------------------------------------------------------------
-
-def test_egit_yalniz_alindi_ve_r_olanlar():
-    adaylar = egitim_verisi(40)
-    adaylar += [aday(100 + i, r=1.0, alindi=False, ozellikler={"x": 5.0})
-                for i in range(10)]           # alınmamış: dışarıda
-    adaylar += [aday(200 + i, r=None, alindi=True, ozellikler={"x": -5.0})
-                for i in range(5)]            # r yok: dışarıda
-    paket = filtre.egit("T1@1h", adaylar, olusturma=OLUS)
-
-    assert paket is not None
-    assert paket["meta"]["n_egitim"] == 40
-    assert paket["meta"]["n_pozitif"] == 20
-
-
-def test_egit_kilit_araligi_dusurur_ve_sayar():
-    adaylar = egitim_verisi(40)
-    kilit = [(BASLANGIC + timedelta(hours=10, minutes=30),
-              BASLANGIC + timedelta(hours=19, minutes=30))]
-    paket = filtre.egit("T1@1h", adaylar, olusturma=OLUS, kilit=kilit)
-
-    # saat 11..19 arasındaki 9 satır düşer, sınırlar belirsiz değil
-    assert paket["meta"]["kilit_dusen"] == 9
-    assert paket["meta"]["n_egitim"] == 31
-
-
-def test_egit_azami_son_satirlari_tutar():
-    etiketler = [1.0] * 7 + [-1.0, 1.0, -1.0]   # son 3: -1, +1, -1
-    adaylar = [aday(i, r=r, ozellikler={"x": float(i)})
-               for i, r in enumerate(etiketler)]
-    paket = filtre.egit("T1@1h", list(reversed(adaylar)), olusturma=OLUS, azami=3)
-
-    assert paket["meta"]["n_egitim"] == 3
-    assert paket["meta"]["n_pozitif"] == 1
-
-
-def test_egit_veri_yok_ya_da_tek_sinif_none():
-    assert filtre.egit("T1@1h", [], olusturma=OLUS) is None
-    tek_negatif = [aday(i, r=-1.0, ozellikler={"x": float(i)}) for i in range(30)]
-    assert filtre.egit("T1@1h", tek_negatif, olusturma=OLUS) is None
-    tek_pozitif = [aday(i, r=1.0, ozellikler={"x": float(i)}) for i in range(30)]
-    assert filtre.egit("T1@1h", tek_pozitif, olusturma=OLUS) is None
-    hic_alinmamis = [aday(i, r=1.0, alindi=False, ozellikler={"x": float(i)})
-                     for i in range(30)]
-    assert filtre.egit("T1@1h", hic_alinmamis, olusturma=OLUS) is None
-
-
-def test_egit_r_sifir_etiket_negatif():
-    adaylar = egitim_verisi(40)
-    adaylar += [aday(300 + i, r=0.0, ozellikler={"x": 0.5}) for i in range(10)]
-    paket = filtre.egit("T1@1h", adaylar, olusturma=OLUS)
-    assert paket["meta"]["n_pozitif"] == 20      # r=0 pozitif sayılmaz
-
-
-def test_egit_esik_taban_orani_ile_iliskili():
-    adaylar = egitim_verisi(40)
-    # daha az pozitif: 10 ekstra negatif
-    adaylar += [aday(400 + i, r=-1.0, ozellikler={"x": -2.0}) for i in range(10)]
-    paket = filtre.egit("T1@1h", adaylar, olusturma=OLUS)
-    meta = paket["meta"]
-    assert meta["taban_oran"] == pytest.approx(meta["n_pozitif"] / meta["n_egitim"])
-    assert paket["esik"] == pytest.approx(0.9 * meta["taban_oran"])
-
-
-def test_egit_paket_ve_meta_alanlari():
-    adaylar = egitim_verisi(40)
-    paket = filtre.egit("T1@1h", adaylar, olusturma=OLUS)
-
-    assert set(paket) >= {"meta", "model", "esik"}
-    meta = paket["meta"]
-    assert set(meta) >= {"paket_surumu", "tur", "kurulum", "olusturma",
-                         "son_kullanma", "ozellikler", "ozellik_hash",
-                         "n_egitim", "n_pozitif", "taban_oran",
-                         "kilit_dusen", "model_hash"}
-    assert meta["paket_surumu"] == 1
-    assert meta["tur"] == "ortak_filtre"
-    assert meta["kurulum"] == "T1@1h"
-    assert datetime.fromisoformat(meta["olusturma"]) == OLUS
-    assert datetime.fromisoformat(meta["son_kullanma"]) == OLUS + timedelta(days=21)
-    assert list(meta["ozellikler"]) == ["x"]
-    assert meta["ozellik_hash"] == _sha("\n".join(meta["ozellikler"]))
-    assert meta["kilit_dusen"] == 0
-
-
-def test_egit_model_hash_kanonik_json():
-    adaylar = egitim_verisi(40)
-    paket = filtre.egit("T1@1h", adaylar, olusturma=OLUS)
-    kanonik = json.dumps({"model": paket["model"], "esik": paket["esik"]},
-                         sort_keys=True, separators=(",", ":"))
-    assert paket["meta"]["model_hash"] == _sha(kanonik)
-
-
-# --------------------------------------------------------------------------
-# filtre.kaydet / yukle
-# --------------------------------------------------------------------------
-
-def test_kaydet_yukle_gidis_donus(tmp_path):
-    paket = filtre.egit("T1@1h", egitim_verisi(40), olusturma=OLUS)
-    yol = filtre.kaydet(paket, tmp_path)
-
-    assert yol.name == "T1@1h.json"
-    yuklenen = filtre.yukle(str(yol), simdi=OLUS + timedelta(days=1))
-    assert yuklenen["esik"] == paket["esik"]
-    assert yuklenen["meta"]["model_hash"] == paket["meta"]["model_hash"]
-    for x in (1.0, -1.0, 0.0):
-        assert filtre.puan(yuklenen, {"x": x}) == pytest.approx(
-            filtre.puan(paket, {"x": x}))
-
-
-def test_yukle_sozluk_kabul_eder():
-    paket = filtre.egit("T1@1h", egitim_verisi(40), olusturma=OLUS)
-    yuklenen = filtre.yukle(copy.deepcopy(paket), simdi=OLUS + timedelta(days=1))
-    assert yuklenen["meta"]["model_hash"] == paket["meta"]["model_hash"]
-
-
-def test_kaydet_ikinci_kayitta_prev_dosyasi(tmp_path):
-    ilk = filtre.egit("T1@1h", egitim_verisi(40), olusturma=OLUS)
-    filtre.kaydet(ilk, tmp_path)
-
-    farkli = [aday(i, r=(1.0 if i % 3 else -1.0), ozellikler={"x": float(i % 5)})
-              for i in range(40)]
-    ikinci = filtre.egit("T1@1h", farkli, olusturma=OLUS + timedelta(hours=1))
-    assert ikinci["meta"]["model_hash"] != ilk["meta"]["model_hash"]
-    yol = filtre.kaydet(ikinci, tmp_path)
-
-    prev = tmp_path / "T1@1h.prev.json"
-    assert prev.exists()
-    onceki = filtre.yukle(str(prev), sure_kontrol=False)
-    assert onceki["meta"]["model_hash"] == ilk["meta"]["model_hash"]
-    guncel = filtre.yukle(str(yol), simdi=OLUS + timedelta(days=1))
-    assert guncel["meta"]["model_hash"] == ikinci["meta"]["model_hash"]
-
-
-def test_yukle_kurcalanmis_model_paket_hatasi(tmp_path):
-    paket = filtre.egit("T1@1h", egitim_verisi(40), olusturma=OLUS)
-    yol = filtre.kaydet(paket, tmp_path)
-
-    veri = json.loads(yol.read_text(encoding="utf-8"))
-    assert _ilk_sayi_artir(veri["model"])
-    yol.write_text(json.dumps(veri), encoding="utf-8")
-
-    with pytest.raises(filtre.PaketHatasi):
-        filtre.yukle(str(yol), simdi=OLUS + timedelta(days=1))
-
-
-def test_yukle_suresi_dolmus_paket_hatasi_ama_kontrolsuz_yuklenir(tmp_path):
-    paket = filtre.egit("T1@1h", egitim_verisi(40), olusturma=OLUS)
-    yol = filtre.kaydet(paket, tmp_path)
-
-    gecmis = OLUS + timedelta(days=21, seconds=1)
-    with pytest.raises(filtre.PaketHatasi):
-        filtre.yukle(str(yol), simdi=gecmis)
-
-    yuklenen = filtre.yukle(str(yol), simdi=gecmis, sure_kontrol=False)
-    assert yuklenen["meta"]["model_hash"] == paket["meta"]["model_hash"]
-
-
-@pytest.mark.parametrize("kurulum, beklenen", [
-    ("BTC/USDT 1h", "BTC_USDT_1h.json"),
-    ("T1@1h", "T1@1h.json"),
-])
-def test_kaydet_guvenli_ad(tmp_path, kurulum, beklenen):
-    paket = filtre.egit("T1@1h", egitim_verisi(40), olusturma=OLUS)
-    paket = copy.deepcopy(paket)
-    paket["meta"]["kurulum"] = kurulum
-    yol = filtre.kaydet(paket, tmp_path)
-    assert yol.name == beklenen
-
-
-@pytest.mark.parametrize("kurulum", [".gizli", "..", ""])
-def test_kaydet_nokta_veya_bos_ad_value_error(tmp_path, kurulum):
-    paket = copy.deepcopy(filtre.egit("T1@1h", egitim_verisi(40), olusturma=OLUS))
-    paket["meta"]["kurulum"] = kurulum
-    with pytest.raises(ValueError):
-        filtre.kaydet(paket, tmp_path)
-
-
-# --------------------------------------------------------------------------
-# filtre.puan
-# --------------------------------------------------------------------------
-
-def test_puan_aralik_ve_eksik_ozellik():
-    paket = filtre.egit("T1@1h", egitim_verisi(40), olusturma=OLUS)
-    for ozellikler in ({"x": 1.0}, {"x": -1.0}, {"x": 1e6}, {}):
-        p = filtre.puan(paket, ozellikler)
-        assert isinstance(p, float)
-        assert 0.0 <= p <= 1.0
-
-
-def test_puan_kazanca_iliskili_ozellik_daha_yuksek():
-    paket = filtre.egit("T1@1h", egitim_verisi(40), olusturma=OLUS)
-    assert filtre.puan(paket, {"x": 1.0}) > filtre.puan(paket, {"x": -1.0})
 
 
 # --------------------------------------------------------------------------

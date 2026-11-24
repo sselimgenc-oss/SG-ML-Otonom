@@ -8,7 +8,6 @@ Kurulum dosyasi sozlesmesi (modul seviyesi):
   TIMEFRAMES: tuple[str, ...]  desteklenen zaman dilimleri (alt kume: 15m, 1h, 4h, 1d)
   CORE: bool                   True: sinyali `signals.compute_signals` ortak tablosundan satir secerek verir (T1/R1); lab bu
                                kurulumlarin tablosunu zaman dilimi basina TEK hesapla toplu uretir
-  ML_SCORED: bool              True: 1s adaylari r03 suzgecinden gecer (yalniz `ml_pairs`; digerleri puansiz gecer, WP-10'a kadar)
   compute(inp: ArmInput) -> DataFrame   SIGNAL_COLUMNS sutunlu, `inp.trig.index` indeksli tablo; kurulumun olmayan satirlarinda signal=False
   EXIT_MODE: str               "trail" (iz suren stop + rejim cikisi; T1 yolu) | "target" (hedef + zaman durdurma; R1 yolu);
                                position_manager cikisi bu kipe gore secer (kurulum adina gore degil) (DD-12 WP-12a, K-7 madde 1)

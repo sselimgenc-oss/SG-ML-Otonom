@@ -40,7 +40,6 @@ from .reconcile import Reconciler, ReconcileReport
 from .state import OrderRow, StateStore, iso_z
 from .status import StatusWriter
 from .strategies.base import Strategy, StrategyError
-from .strategies.price_action_v1_ml import load_engine_model
 from .strategies.registry import check_param_keys, get_strategy, make_label, parse_label
 from .arm_quarantine import ArmQuarantine, KV_KEY as QUARANTINE_KV, take_release_request
 from .tur_koruyucu import TurKoruyucu
@@ -73,7 +72,7 @@ _GATE_QUOTE_MAX_AGE_S = 5.0   # D17 sorgusunun `order_quote` icin yeniden kullan
 TESTNET_PRICE_DIVERGENCE_MAX = 0.005
 # DD-6 (D1): `opening` + borsada pozisyon gorulurse protect_first en sik bu aralikla
 OPENING_PROTECT_MIN_GAP_S = 5.0
-PAPER_SYSTEM_MODES = ("paper", "live")           # 23.11 kullanici karari: canli = kagit (ayni strateji/kapi/ML/kume/risk sistemi)
+PAPER_SYSTEM_MODES = ("paper", "live")           # 23.11 kullanici karari: canli = kagit (ayni strateji/kapi/kume/risk sistemi)
 FEED_MODES = ("paper", "testnet", "live")        # 11 §6.1: "feed'li canli dongu" (benzetimli broker ayrimi: is_paper)
 _BROKER_REASONS = ("exchange_auth", "exchange_unknown_code", "working_type_unverified", "exchange_unreachable",
                    "exchange_rate_limited")
@@ -163,13 +162,6 @@ class Engine:
                 self.gate.uzun_yon.bars_fn = lambda p, tf, until, n: self.view.bars(p, tf, until, n)
             if cfg.etiket_kurallari:                                    # rejim etiketi kurali (sabit; girisi yalniz atlatabilir; docs/etiket-kurallari-spec.md)
                 self.gate.etiket_cfg = cfg.etiket_kurallari
-            if cfg.ml_mode == "active":                                 # 19.11 kullanici karari: kagitta ML filtresi AKTIF (girisi atlatabilir)
-                try:
-                    from . import ogrenme_filtre as _OF
-                    if not _OF.kapali():
-                        self.gate.ml_filtre = _OF.FiltreDeposu(_OF.model_dizini_cfg(cfg))   # canli: kagidin model dizini (YALNIZ OKUR)
-                except Exception as e:  # noqa: BLE001 - filtre kurulamazsa motor filtresiz surer
-                    log.warning("ML filtresi kurulamadi, filtre YOK: %s: %s", type(e).__name__, e)
         self.reconciler = reconciler if reconciler is not None else self._make_reconciler()
         if getattr(signals, "last_exit_fn", False) is None:
             signals.last_exit_fn = self._last_exit            # type: ignore[attr-defined]
@@ -424,8 +416,6 @@ class Engine:
             "day_start_equity": ds if ds is not None else (acct.equity if acct else None), "open_positions": self.state.open_positions(),
             "counters": {"rules_missing": 0, "data_stale": 0, **self.counters()}, "last_minute_ts": self._last_minute,
             "last_decision_close": self._last_decision, "last_candle_open": cand,
-            "ml": self._ml_status(now),
-            "ml_filtre": self._ml_filtre_status(now),
             "etiket_kurallari": self._etiket_status(),
             "cluster_counts": self.cluster_counts(),
             "last_marks": dict(self._last_marks),
@@ -531,37 +521,6 @@ class Engine:
         except Exception as e:  # noqa: BLE001
             self._c["ladder_errors"] += 1
             log.critical("kademe adimi hatasi: %r", e)
-
-    def _ml_status(self, now: datetime) -> dict | None:
-        if self.cfg.mode == "live" and self.cfg.ml_mode == "active":
-            # 23.11: canlida ML filtresi gecerli degilse girisler kapali (gate fail-closed); health bunu ml_no_model/ml_expired CRIT olarak gorur
-            flt = getattr(self.gate, "ml_filtre", None)
-            try:
-                from . import ogrenme_filtre as _OF
-                aileler = {a for a in (_OF.aile_of(x) for x in (self.cfg.arms or ())) if a}
-                st, err, exp = (flt.saglik(now, aileler) if flt is not None
-                                else ("no_model", "ML filtresi kurulamadi/kapali", None))
-            except Exception as e:  # noqa: BLE001
-                st, err, exp = "no_model", f"{type(e).__name__}: {e}", None
-            return {"mode": "active", "state": st, "model_id": "ortak_filtre", "threshold": None,
-                    "expires_at": None if exp is None else exp.isoformat(), "error": err, "features": "v1",
-                    "v2_error": None, "v2_errors": 0, "entries_blocked": st != "ok"}
-        f = getattr(self.signals, "ml_status", None)
-        m = f(now) if callable(f) else None
-        if m is not None and getattr(self.strategy, "fail_open", False):
-            m = {**m, "entries_blocked": False, "pass_through": True}      # DD-12 spec 5: model yok => aday gecer (`ml_no_model`)
-        return m
-
-    def _ml_filtre_status(self, now: datetime) -> dict | None:
-        flt = getattr(self.gate, "ml_filtre", None)
-        if flt is None:
-            return None
-        try:
-            c = self.gate.counters
-            return {"aktif_kurulum": flt.aktif_kol_sayisi(now), "aktif_aile": flt.aktif_aileler(now), "atladi": int(c.get("ml_filtre_atladi", 0)),
-                    "gecti": int(c.get("ml_filtre_gecti", 0)), "calisiyor": bool(flt.calisiyor)}
-        except Exception:  # noqa: BLE001
-            return None
 
     def _etiket_status(self) -> dict | None:
         """status.json `etiket_kurallari`: sabit kural icin atlama ve veri-yok sayaclari. Yalniz kagit + yapilandirilmissa."""
@@ -2506,14 +2465,7 @@ def build_engine(cfg: EngineConfig, *, clock: Clock | None = None, view: MarketV
     if live_mode and broker is None:
         from .config import load_keys
         load_keys(env)                               # ConfigError("keys_missing: ...") aynen (11 §3.2)
-    strategy = get_strategy(cfg.strategy, mode=cfg.mode, ml_mode=cfg.ml_mode, arms=cfg.arms or None)
-    if cfg.mode in PAPER_SYSTEM_MODES and cfg.ml_mode == "active" and not cfg.ml_model_path and not cfg.ml_pairs \
-            and hasattr(strategy, "set_ml_mode"):
-        strategy.set_ml_mode("off")      # 19.11: model yolu yok; ML etkinligi kurulum filtresiyle (EntryGate.ml_filtre). Eski yol sessiz ve saglik alarmsiz
-    if cfg.mode in PAPER_SYSTEM_MODES and hasattr(strategy, "fail_open"):    # 23.11 kullanici karari: canli = kagit
-        strategy.fail_open = True                               # DD-12 spec 5 / D-T8: kagitta model yok => aday GECER (`ml_no_model`)
-    if cfg.mode in PAPER_SYSTEM_MODES and cfg.ml_pairs and hasattr(strategy, "set_ml_universe"):
-        strategy.set_ml_universe(cfg.ml_pairs)                  # DD-12 spec 5.1: r03 yalniz ml_pairs'i puanlar/eler
+    strategy = get_strategy(cfg.strategy, mode=cfg.mode, arms=cfg.arms or None)
     clock = clock or SystemClock()
     view = view or StoreSource(cfg.market_db)
     if live_mode:
@@ -2584,33 +2536,9 @@ def _assemble_engine(cfg: EngineConfig, clock: Clock, view: MarketView, broker: 
     pause = EntryPause(f"{cfg.pause_file}.{cfg.bot}", clock, audit_path=cfg.path("pause_audit.jsonl"), bot=cfg.bot)
     status = StatusWriter(cfg.status_path, clock, cfg)
     ladder = _build_ladder(cfg, clock, pause, broker, led)
-    ml_model, ml_error = None, None
-    ml_v2 = None
-    ml_ctx_pairs = list(cfg.ml_pairs) if (cfg.mode == "paper" and cfg.ml_pairs) else list(cfg.pairs)   # DD-12: r03 baglami 10 cift
-    paper_active = cfg.mode == "paper" and bool(cfg.ml_pairs)
-    v2_on = getattr(strategy, "ml_mode", "off") != "off" and cfg.ml_features != "v1"     # ML-G5 bayragi (varsayilan kapali)
-    if getattr(strategy, "ml_mode", "off") != "off":
-        if v2_on:
-            from trader_core.ml_live_v2 import RECIPE_NAMES, LiveContextV2, funding_frame_from_points
-            ml_model, ml_error = load_engine_model(cfg.ml_model_path, strategy.ml_mode, clock.now(),
-                                                   expected_features=RECIPE_NAMES[cfg.ml_features],
-                                                   experimental=cfg.ml_experimental, paper_active=paper_active)
-            # >= 200 gun kapanmis 1s mum (r02/r03 1g baglam): cift basina 5000 mum tutulur (~2 MB / 10 cift); ilk karar adiminda yuklenir
-            ml_v2 = LiveContextV2(
-                cfg.ml_features, ml_ctx_pairs,
-                lambda p, D, n: view.bars(p, "1h", D, n),
-                lambda p, a, b: funding_frame_from_points(view.funding(p, a, b)))
-            try:
-                ml_v2.refresh(clock.now())                # baslangic yuklemesi (best-effort; karar adiminda yeniden denenir)
-            except Exception as e:  # noqa: BLE001
-                log.warning("ML v2 baslangic gecmisi yuklenemedi: %s: %s", type(e).__name__, e)
-        else:
-            ml_model, ml_error = load_engine_model(cfg.ml_model_path, strategy.ml_mode, clock.now(),
-                                                   experimental=cfg.ml_experimental, paper_active=paper_active)
     sig_cls = signal_source_class(strategy)
     extra = {"quarantine": ArmQuarantine(now_fn=clock.now)} if sig_cls is MultiArmSignalSource else {}
-    signals = sig_cls(view, strategy, strict=False, ml_model=ml_model, ml_error=ml_error,
-                      ml_v2=ml_v2, pairs=ml_ctx_pairs if ml_v2 is not None else None, **extra)
+    signals = sig_cls(view, strategy, strict=False, **extra)
     if live_broker_new:
         _check_rules_drift(broker, view, cfg)
     return Engine(cfg, clock=clock, view=view, broker=broker, ledger=led, state=state, signals=signals,

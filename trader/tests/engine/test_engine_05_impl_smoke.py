@@ -40,7 +40,7 @@ def test_registry_examples():
     s = get_strategy("price_action_v1")
     assert (s.info.name, s.info.version, s.info.setups) == ("price_action_v1", "1b.0", ("T1",))
     assert s.info.paper_allowed is True and s.exit_policy() is None
-    assert list_strategies() == ("price_action_v1", "price_action_v1_full", "price_action_v1_ml", "price_action_v1_full_ml", "price_action_lab_ml")
+    assert list_strategies() == ("price_action_v1", "price_action_v1_full", "price_action_lab_ml")
     for bad in ("../../evil", "a.b", "", "PriceAction"):
         with pytest.raises(StrategyError) as e:
             get_strategy(bad)

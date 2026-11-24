@@ -6,12 +6,9 @@ Kurulum = `strategies/arms/<kod>.py` dosyasi; kimlik `arm_id = <KURULUM>@<zaman 
 
 Karar adimi 15 dakikadir (`decision_tf`); her adimda YALNIZ kapanan zaman dilimlerinin kurulumlari hesaplanir (D-T16).
 1g bar = UTC gununun 6 x 4s'i (bars.aggregate_4h_to_1d). Ortak `compute_signals` tablosu zaman dilimi basina bir kez hesaplanir
-ve T1/R1 gibi CORE kurulumlar bu tablodan satir secer. ML (r03, `ml_pairs`) yalniz 1s CORE adaylarina uygulanir
-(`PriceActionV1Ml` sarmalayicisi; D-T18: yalniz T1@1h + R1@1h ile `price_action_v1_full_ml` ile ayni cikti); diger zaman
-dilimleri/kurulumlar puansiz gecer (WP-10'a kadar). Strateji yalniz aday uretir: boyut, emir, defter, kapi onun isi degildir."""
+ve T1/R1 gibi CORE kurulumlar bu tablodan satir secer. Strateji yalniz aday uretir: boyut, emir, defter, kapi onun isi degildir."""
 from __future__ import annotations
 
-import dataclasses
 import logging
 from collections import Counter
 from collections.abc import Mapping, Sequence
@@ -26,7 +23,6 @@ from ..bars import (ARM_TFS, MIN_CONTIG_ARM, STARTUP_BARS_ARM, WINDOW_ARM, arm_t
 from .arms import ArmError, ArmInput, find_arm, make_arm_id, mask_to_setups, parse_arm_id
 from .base import ExitPolicy, StrategyContext, StrategyError, StrategyInfo
 from .price_action_v1 import _REENTRY_BLOCK, _param_specs
-from .price_action_v1_ml import PriceActionV1Ml
 
 log = logging.getLogger("engine.strategy.lab")
 
@@ -35,34 +31,6 @@ VERSION = "1.0-lab1"
 DECISION_TF = "15m"
 DEFAULT_ARMS = ("T1@1h", "R1@1h")            # D-T18: price_action_v1_full ile esdeger varsayilan
 CORE_KEY = "core"                             # CORE kurulumlarin birlesik tablosunun anahtari (digerleri kurulum kodu)
-
-
-class _CoreInner:
-    """`PriceActionV1Ml` sarmalayicisinin ictigi strateji (PriceActionV1 benzeri): 1s CORE kurulumlarinin birlesik tablosu."""
-
-    def __init__(self, lab: "PriceActionLab") -> None:
-        self.lab = lab
-        self.counters = lab.counters
-
-    @property
-    def info(self) -> StrategyInfo:
-        return self.lab.info
-
-    @property
-    def setups_enabled(self) -> tuple[str, ...]:
-        return self.lab.info.setups
-
-    def validate_params(self, m: Mapping) -> Mapping:
-        return self.lab.validate_params(m)
-
-    def exit_policy(self) -> ExitPolicy | None:
-        return None
-
-    def compute(self, ctx: StrategyContext) -> pd.DataFrame:
-        return self.lab.core_group_table(ctx)
-
-    def post_filter(self, row: pd.Series, ctx: StrategyContext) -> pd.Series:
-        return self.lab.reentry_filter(row, ctx)
 
 
 class PriceActionLab:
@@ -79,9 +47,6 @@ class PriceActionLab:
         self._core_c: tuple[pd.DataFrame, pd.DataFrame] | None = None     # (dolu satirlarin tablosu, dolu tetik) - olu mum yoksa ikisi de tam
         self._reg_cache: dict[str, tuple] = {}                  # cift -> (son 4s acilis, rejim parametreleri, uzunluk, rejim tablosu); tek giris/cift
         self.info = self._make_info(())
-        self._inner = _CoreInner(self)
-        self._ml = PriceActionV1Ml(self._inner, name=NAME, version=VERSION, fail_open=True)
-        self._ml.ml_block = False                           # 19 Kasim (sahip karari): kagitta ML hicbir adayi elemez, yalniz puanlar
         self.set_arms(arms)
 
     # ------------------------------------------------------------------ kurulum kumesi
@@ -114,8 +79,6 @@ class PriceActionLab:
         self._enabled = enabled
         self._arm_ids = tuple(ids)
         self.info = self._make_info(tuple(setups))
-        if hasattr(self, "_ml"):
-            self._ml.info = dataclasses.replace(self.info)
 
     @property
     def arm_ids(self) -> tuple[str, ...]:
@@ -130,33 +93,6 @@ class PriceActionLab:
     def label(self) -> str:
         return f"strategy:{self.info.name}@{self.info.version}"
 
-    # ------------------------------------------------------------------ ML (yalniz 1s CORE adaylari)
-    @property
-    def ml_mode(self) -> str:
-        return self._ml.ml_mode
-
-    def set_ml_mode(self, mode: str) -> None:
-        self._ml.set_ml_mode(mode)
-
-    @property
-    def ml_universe(self):
-        return self._ml.ml_universe
-
-    def set_ml_universe(self, pairs) -> None:
-        self._ml.set_ml_universe(pairs)
-
-    @property
-    def fail_open(self) -> bool:
-        return self._ml.fail_open
-
-    @fail_open.setter
-    def fail_open(self, v: bool) -> None:
-        self._ml.fail_open = bool(v)
-
-    def native_candidate(self, ctx: StrategyContext) -> dict | None:
-        """ML-G5 birinci gecis: 1s CORE kurulumlarinin ML'siz adayi (ctx.tf == '1h')."""
-        return self._ml.native_candidate(ctx)
-
     # ------------------------------------------------------------------ protokol
     def validate_params(self, m: Mapping) -> Mapping:
         p = S.SignalParams.from_mapping(m)
@@ -168,11 +104,11 @@ class PriceActionLab:
         return None
 
     def compute(self, ctx: StrategyContext) -> pd.DataFrame:
-        """Protokol uyumu: ctx.tf'nin CORE tablosu (1s: ML etiketli). Bilesik hesap `compute_tf` ile yapilir."""
-        return self._ml.compute(ctx) if ctx.tf == "1h" else self.core_group_table(ctx)
+        """Protokol uyumu: ctx.tf'nin CORE tablosu. Bilesik hesap `compute_tf` ile yapilir."""
+        return self.core_group_table(ctx)
 
     def post_filter(self, row: pd.Series, ctx: StrategyContext) -> pd.Series:
-        return self._ml.post_filter(row, ctx) if ctx.tf == "1h" else self.reentry_filter(row, ctx)
+        return self.reentry_filter(row, ctx)
 
     # ------------------------------------------------------------------ hesap
     def _regime(self, pair: str, h4: pd.DataFrame, params: S.SignalParams) -> pd.DataFrame:

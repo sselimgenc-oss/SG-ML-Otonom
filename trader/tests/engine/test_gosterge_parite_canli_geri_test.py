@@ -177,7 +177,7 @@ def test_delikli_hisse_ayni_veri_bosluk_durumu(uzun):
 def _full_tables(view, lab, pair, tf, end):
     h4 = view.bars(pair, "4h", end, None)
     trig = h4 if tf == "4h" else (aggregate_4h_to_1d(h4) if tf == "1d" else view.bars(pair, tf, end, None))
-    ctx = StrategyContext(pair=pair, D=end, tf=tf, params=_params(), bars={tf: trig, "4h": h4}, last_exit=None, model=None)
+    ctx = StrategyContext(pair=pair, D=end, tf=tf, params=_params(), bars={tf: trig, "4h": h4}, last_exit=None)
     return trig, lab.compute_tf(ctx)
 
 

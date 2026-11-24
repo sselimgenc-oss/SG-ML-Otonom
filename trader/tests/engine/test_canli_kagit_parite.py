@@ -1,5 +1,5 @@
 """23.11 kullanici karari: canli = kagit. Canli motor kagitla AYNI ticaret sistemini calistirir (canli cikis kipleri de kagitla ayni: basa-bas stop tasima + kismi kar alma).
-Parite (config), canli risk sinirlari, %1 kademe baslangici, ML model yolu, genis sozlesme turleri, testnet tarafsizligi."""
+Parite (config), canli risk sinirlari, %1 kademe baslangici, genis sozlesme turleri, testnet tarafsizligi."""
 from __future__ import annotations
 
 import json
@@ -11,7 +11,6 @@ import test_engine_live_spec as LS
 from trader_core import exit_modes as XM
 from trader_core import risk as K
 from trader_core import risk_ladder as RL
-from trader_engine import ogrenme_filtre as OF
 from trader_engine.config import ConfigError, load_cli_config, load_engine_config
 from trader_engine.engine import build_engine
 
@@ -50,7 +49,7 @@ def test_parite_canliya_ozgu_anahtarlar_canlida_kalir():
 
 def test_canli_ml_stratejisi_ve_43_cift_yuklenir():
     live, paper = load_cli_config(CONFIG, "learner", "live"), load_cli_config(CONFIG, "learner", "paper")
-    assert live.mode == "live" and live.strategy == "price_action_lab_ml" and live.ml_mode == "off"
+    assert live.mode == "live" and live.strategy == "price_action_lab_ml"
     assert live.veto_mode == "off"
     assert len(live.pairs) == 43 and "TON/USDT" not in live.pairs and list(live.pairs) == list(paper.pairs)
     assert len(live.optional_pairs) == 24 and set(live.optional_pairs) <= set(live.pairs)   # eski hisse verisi acilisi bloklamaz
@@ -106,12 +105,12 @@ def test_canli_gunluk_zarar_kagit_kurali_acik_risk_dahil_degil():
 
 
 def test_testnet_ve_geri_test_kagit_anahtarlarini_reddeder(tmp_path):
-    ml = {"strategy": "price_action_lab_ml", "ml_mode": "active", "max_positions": 24, "risk": {"max_open_risk": 0.24},
+    ml = {"strategy": "price_action_lab_ml", "max_positions": 24, "risk": {"max_open_risk": 0.24},
           "clusters": {"k": {"pairs": ["BTC/USDT"], "max_positions": 1}}, "flat_bar_guard": True,
           "contract_types": ["PERPETUAL"], "optional_pairs": ["BTC/USDT"], "etiket_kurallari": {"rejim": {"acik": True}}}
     testnet = _j("engine.testnet.json")
     for k, v in ml.items():
-        if k in ("strategy", "ml_mode"):
+        if k == "strategy":
             continue
         p = tmp_path / f"t_{k}.json"
         p.write_text(json.dumps({**testnet, k: v}))
@@ -188,24 +187,10 @@ def test_cli_capital_init_canlida_k2_testnette_k0(tmp_path):
         assert rc is None and log.state().step == want
 
 
-# ----------------------------------------------------------------------------------------------- ML model yolu
-def test_canli_ml_model_yolu_kagidin_dizinine_cozulur_salt_okunur(tmp_path):
-    cfg = LS.make_live_cfg(tmp_path, mode="live")                    # var_dir = <tmp>/var-live
-    paper = tmp_path / "var" / "learner" / "models" / "ortak_filtre"
-    assert OF.model_dizini_cfg(cfg) == paper
-    assert not paper.exists()                                         # cozumleme hicbir sey olusturmaz (salt okunur)
-    (tmp_path / "p").mkdir()
-    pc = LS.make_live_cfg(tmp_path / "p", mode="testnet")
-    assert OF.model_dizini_cfg(pc) == OF.model_dizini(pc.ledger_path)     # testnet degismedi
-    # eksik paket / dizin => fail-open
-    dep = OF.FiltreDeposu(OF.model_dizini_cfg(cfg))
-    assert dep.karar("M1@1h", {}, NOW).izin is True
-
-
 # ----------------------------------------------------------------------------------------------- motor kablolamasi
 def _live_engine(tmp_path, **over):
     paper = load_cli_config(CONFIG, "learner", "paper")
-    base_over = dict(strategy="price_action_lab_ml", ml_mode="active", veto_mode="off", target_trade_risk=0.01,
+    base_over = dict(strategy="price_action_lab_ml", veto_mode="off", target_trade_risk=0.01,
                      risk={"max_open_risk": 0.24, "max_same_dir_risk": 0.16, "daily_max_loss": 0.08},
                      arms=list(paper.arms), arm_max_positions=dict(paper.arm_max_positions), max_positions=24,
                      flat_bar_guard=True, contract_types=["PERPETUAL", "TRADIFI_PERPETUAL"],
@@ -222,11 +207,8 @@ def test_canli_motor_kagit_yollarini_kurar_ve_exit_modes_uygulanir(tmp_path):
     cfg, eng = _live_engine(tmp_path)
     try:
         assert eng.strategy.info.name == "price_action_lab_ml"
-        assert getattr(eng.strategy, "fail_open", None) is True          # model yok => aday gecer (canli sifir giris yapmaz)
         assert callable(eng.gate.arms_off)
         assert eng.gate.etiket_cfg                                         # rejim etiketi kurali baglandi
-        assert eng.gate.ml_filtre is not None
-        assert Path(eng.gate.ml_filtre.klasor) == tmp_path / "var" / "learner" / "models" / "ortak_filtre"
         assert eng.cluster_counts() is None or "clusters" in eng.cluster_counts()
         # exit_modes: canlida kagitla ayni cozumlenir (istisna yok)
         pos = type("P", (), {"setup": "T1", "trigger_tf": "1h"})

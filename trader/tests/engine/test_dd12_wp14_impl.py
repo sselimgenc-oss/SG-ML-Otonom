@@ -19,7 +19,7 @@ from trader_ml.pa_proposer import features as PF
 from trader_ml.pa_proposer import labels as LB
 from trader_ml.pa_proposer import package as PK
 from trader_ml.pa_proposer import train as TR
-from trader_ml.setup_filter.train import LockWindowError
+from trader_ml.pa_proposer.train import LockWindowError
 
 # 23.11.2026 kullanici karari: kilit ACIK. Bu dosya kilit mekanizmasini sinar -> kilit KAPALI bayragiyla (conftest.egitim_kilitli); acik davranis tests/ml/test_kilit_acik_egitim.py.
 pytestmark = pytest.mark.usefixtures("egitim_kilitli")

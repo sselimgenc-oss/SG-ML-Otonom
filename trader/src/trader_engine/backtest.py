@@ -417,11 +417,7 @@ class BacktestRunner:
             check_holdout(s.start, end)          # mode="paper" ile kosuldugu icin motorun kendi kilidi (run_range) devre disi: burada zorunlu
         cfg = self.build_config(out_dir if envm else None)
         if envm:
-            strategy = get_strategy(cfg.strategy, mode=cfg.mode, ml_mode=cfg.ml_mode, arms=cfg.arms or None)   # build_engine ile ayni
-            if hasattr(strategy, "fail_open"):
-                strategy.fail_open = True
-            if cfg.ml_pairs and hasattr(strategy, "set_ml_universe"):
-                strategy.set_ml_universe(cfg.ml_pairs)
+            strategy = get_strategy(cfg.strategy, mode=cfg.mode, arms=cfg.arms or None)   # build_engine ile ayni
         else:
             strategy = get_strategy(s.strategy, mode="backtest")
         if s.fill_model == "legacy_compat" and s.strategy != "price_action_v1_full":
@@ -450,7 +446,7 @@ class BacktestRunner:
             ledger.close()
             raise BacktestArgError("bad_params", f"ledger parametre: {e}") from e
         if envm:                                            # kagitla ayni kaynak (bilesik strateji -> MultiArmSignalSource; strict=False)
-            signals = signal_source_class(strategy)(view, strategy, strict=False, ml_model=None, ml_error=None)
+            signals = signal_source_class(strategy)(view, strategy, strict=False)
         else:
             signals = PrecomputedSignalSource(raw, strategy, pairs=cfg.pairs, tf=tf, params=params, version_id=version_id,
                                               end=end, strict=True)

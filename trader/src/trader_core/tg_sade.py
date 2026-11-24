@@ -368,11 +368,6 @@ _SAGLIK_EK: dict[str, tuple[str, str | None]] = {
     "account_mode_unknown": ("Hesap ayarı bilgisi okunamıyor", None),
     "live_paths_mismatch": ("Canlı bot ayar yolları tutarsız", "Kurulumun yeniden çalıştırılması gerekiyor; bana haber ver."),
     # yapay zeka / egitim / davranis
-    "ml_shadow_down": ("Gölgedeki model çalışmıyor", None), "ml_expiring_7d": ("Modelin süresi 7 gün içinde doluyor", None),
-    "ml_expiring_3d": ("Modelin süresi 3 gün içinde doluyor", None),
-    "ml_restart_needed": ("Yeni model hazır ama devrede değil", None),
-    "ml_stale_data": ("Yeni model eski veriyle üretilmiş", None), "ml_file_invalid": ("Model dosyası okunamıyor", None),
-    "ml_score_errors": ("Model bazı fırsatları puanlayamıyor", None), "ml_status_unreadable": ("Model durumu okunamıyor", None),
     "drift_alert": ("Bot beklenenden farklı davranıyor", None), "drift_missing": ("Davranış izleyicisi çalışmıyor", None),
     "drift_stale": ("Davranış izleyicisi çalışmıyor", None), "drift_unreadable": ("Davranış izleyicisi çalışmıyor", None),
 }
@@ -381,7 +376,7 @@ _SAGLIK_EK_AD: dict[str, str] = {   # kod taninmazsa kontrol adinin (":bot" once
     "api_reachable": "Bot yanıt vermiyor", "bot_loop_age": "Bot döngüsü durmuş görünüyor", "ledger_write_age": "Kayıt defterine uzun süredir yazılmadı",
     "ledger_gate": "Kayıt sistemi giriş kapısı kapalı", "spool_corrupt": "Deftere yazılamayan bozuk kayıt var",
     "rules_coverage": "Borsa kuralları eksik", "rules_age": "Borsa kuralları eski", "rules_missing": "Bazı paritelerin borsa kuralı eksik",
-    "ml_package": "Yapay zekâ modeli sorunlu", "drift_monitor": "Bot beklenenden farklı davranıyor",
+    "drift_monitor": "Bot beklenenden farklı davranıyor",
     "account_mode": "Hesap ayarı bilgisi sorunlu", "exchange_reachable": "Borsaya ulaşılamıyor", "pause_audit": "Duraklatma kaydı tutarsız",
     "risk_ladder": "Risk kademesi sorunlu", "budget_status": "Yapay zekâ bütçesi sorunlu", "live_paths": "Canlı bot ayar yolları tutarsız",
 }
@@ -406,8 +401,7 @@ def saglik_cumlesi(name: Any, code: Any) -> tuple[str, str | None]:
 
 # bu kodlar/adlar kullaniciya hic gitmez (yapabilecegi bir sey yok ya da isleme etkisi yok)
 _SUSTUR = frozenset({
-    "ml_shadow_down", "ml_expiring_7d", "ml_expiring_3d", "ml_restart_needed", "ml_stale_data", "ml_file_invalid",
-    "ml_score_errors", "drift_missing", "drift_stale", "drift_unreadable", "drift_monitor", "drift_unknown",
+    "drift_missing", "drift_stale", "drift_unreadable", "drift_monitor", "drift_unknown",
     "heartbeat_send_failed", "pa_proposer_stale", "pa_proposer_missing", "tutarlilik_sapma",
     "state_reset", "rules_age", "rules_coverage", "rules_missing", "swap", "memory", "ledger_write_age", "ledger_gate",
     "pause_audit", "risk_ladder", "exchange_ban_file_corrupt", "account_mode_unverified", "account_mode_unknown",

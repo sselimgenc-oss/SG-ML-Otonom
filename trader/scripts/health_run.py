@@ -556,44 +556,9 @@ def make_notifier(name: str, environ=None):
     raise ValueError("bilinmeyen NOTIFIER")
 
 
-# --------------------------------------------------------------------------- ML paketi (docs/saglik-spec.md 16)
-ML_PKG_MAX_BYTES = 32 * 1024 * 1024
-ML_EXPIRY_DAYS = 21      # trader_core.ml_package.MODEL_EXPIRY_DAYS; o modul numpy gerektirir, burada icer aktarilmaz
-_ML_STATES = ("off", "ok", "no_model", "expired")
-
-
+# --------------------------------------------------------------------------- ortak okuma yardimcilari
 def _int_or_none(v):
     return v if isinstance(v, int) and not isinstance(v, bool) and v >= 0 else None
-
-
-def probe_ml_status(path: str, bot: str, now: datetime):
-    """status.json `ml` blogu -> dict(present, mode, state, model_id, expires_at, error, score_errors).
-    present=None: status okunamadi/bozuk (UNKNOWN); present=False: dosya var ama blok yok (ML'siz strateji)."""
-    bos = {"present": None, "mode": None, "state": None, "model_id": None, "expires_at": None, "error": None,
-           "score_errors": None}
-    try:
-        with open(path, "rb") as f:
-            raw = f.read(STATUS_MAX_BYTES + 1)
-        if len(raw) > STATUS_MAX_BYTES:
-            return bos
-        d = json.loads(raw.decode("utf-8"))
-    except (OSError, ValueError, UnicodeDecodeError):
-        return bos
-    if not isinstance(d, dict) or d.get("schema") != STATUS_SCHEMA or d.get("bot") != bot:
-        return bos
-    ml = d.get("ml")
-    if ml is None:
-        return {**bos, "present": False}
-    if not isinstance(ml, dict):
-        return {**bos, "present": True, "mode": "?"}     # bozuk blok -> ml_status_invalid
-    cnt = d.get("counters") if isinstance(d.get("counters"), dict) else {}
-    a, b = _int_or_none(cnt.get("ml_score_errors", 0)), _int_or_none(ml.get("v2_errors", 0))
-    err = ml.get("error")
-    return {"present": True, "mode": ml.get("mode") if isinstance(ml.get("mode"), str) else "?",
-            "state": ml.get("state") if isinstance(ml.get("state"), str) else "?",
-            "model_id": ml.get("model_id") if isinstance(ml.get("model_id"), str) else None,
-            "expires_at": _parse_dt_utc(ml.get("expires_at")), "error": err if isinstance(err, str) else None,
-            "score_errors": None if a is None or b is None else a + b}
 
 
 def _parse_dt_utc(s):
@@ -605,85 +570,6 @@ def _parse_dt_utc(s):
     except ValueError:
         return None
     return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
-
-
-def ml_model_path(env: dict, bot: str) -> str | None:
-    """ML_MODEL_PATH_<BOT>; yoksa ENGINE_CONFIG_DIR/engine.base.json + engine.<bot>.json birlesiminin `ml_model_path`."""
-    v = (env.get(f"ML_MODEL_PATH_{bot.upper()}") or "").strip()
-    if v:
-        return v
-    cd = env.get("ENGINE_CONFIG_DIR")
-    if not cd:
-        return None
-    path = None
-    for fn in ("engine.base.json", f"engine.{bot}.json"):
-        try:
-            with open(os.path.join(cd, fn), encoding="utf-8") as f:
-                d = json.load(f)
-            if isinstance(d, dict) and "ml_model_path" in d:
-                path = d["ml_model_path"]
-        except (OSError, ValueError):
-            continue
-    return path if isinstance(path, str) and path.strip() else None
-
-
-def read_package_meta(path: str | None) -> dict:
-    """Diskteki paketin meta'sini salt okunur okur (model govdesi dogrulanmaz). -> MlProbe `file_*` alanlari.
-    expires_at = min(meta.expires_at, created_at + 21 gun); tz'siz zaman UTC; > 32 MB -> unreadable."""
-    if not path:
-        return {"file_state": "not_configured"}
-    try:
-        with open(path, "rb") as f:
-            raw = f.read(ML_PKG_MAX_BYTES + 1)
-    except FileNotFoundError:
-        return {"file_state": "missing"}
-    except OSError:
-        return {"file_state": "unreadable"}
-    try:
-        if len(raw) > ML_PKG_MAX_BYTES:
-            raise ValueError("buyuk")
-        meta = json.loads(raw.decode("utf-8"))["meta"]
-        created = _parse_dt_utc(meta["created_at"])
-        exp = _parse_dt_utc(meta["expires_at"])
-        mh = meta["model_hash"]
-        if created is None or exp is None or not isinstance(mh, str) or not mh \
-                or not isinstance(meta["gate_passed"], bool):
-            raise ValueError("meta")   # zorunlu alanlar: created_at, expires_at, model_hash, gate_passed (version motorda istege bagli)
-        exp = min(exp, created + timedelta(days=ML_EXPIRY_DAYS))
-        tw = meta.get("train_window")
-        snap_at = _parse_dt_utc(meta.get("data_snapshot_at"))
-        train_end = snap_at or _parse_dt_utc(tw.get("end") if isinstance(tw, dict) else None)
-        dh = meta.get("data_hash")
-        return {"file_state": "ok", "file_model_id": f"{meta.get('version', '?')}@{mh[:12]}",
-                "file_created_at": created, "file_expires_at": exp,
-                "file_data_hash": dh if isinstance(dh, str) else None, "file_train_end": train_end,
-                "file_gate_passed": meta.get("gate_passed") if isinstance(meta.get("gate_passed"), bool) else None,
-                "file_user_approved": meta.get("user_approved") if isinstance(meta.get("user_approved"), bool) else None}
-    except (ValueError, KeyError, TypeError, AttributeError, UnicodeDecodeError):
-        return {"file_state": "unreadable"}
-
-
-def _iso_or_none(dt):
-    return H._iso(dt) if isinstance(dt, datetime) else None
-
-
-def ml_stale_update(prev: dict | None, f: dict) -> tuple[dict, bool]:
-    """16.4 `ml_seen[bot]` karsilastirmasi -> (yeni ml_seen kaydi, stale)."""
-    rec = {"model_id": f.get("file_model_id"), "created_at": _iso_or_none(f.get("file_created_at")),
-           "data_hash": f.get("file_data_hash"), "train_end": _iso_or_none(f.get("file_train_end")), "stale": False}
-    if not isinstance(prev, dict) or not prev.get("model_id"):
-        return rec, False                                    # 1: taban
-    if f.get("file_model_id") == prev.get("model_id"):
-        return {**prev}, bool(prev.get("stale"))             # 2: degisiklik yok, bayrak korunur
-    p_created, p_end = H._from_iso(prev.get("created_at")), H._from_iso(prev.get("train_end"))
-    created, end = f.get("file_created_at"), f.get("file_train_end")
-    if p_created is not None and created is not None and created <= p_created:
-        rec["stale"] = True                                  # 4: daha eski paket konmus
-        return rec, True
-    stale = bool(prev.get("data_hash") and f.get("file_data_hash") == prev.get("data_hash")
-                 and end is not None and p_end is not None and end <= p_end)   # 3
-    rec["stale"] = stale
-    return rec, stale
 
 
 PA_PROPOSER_MAX_AGE_DAYS = 8     # DD-12 WP-14 (spec 5.3): M1 paketi 8 gunden eskiyse uyar (sonra expiry 21 gun)
@@ -810,32 +696,6 @@ def tutarlilik_alerts(env: dict, now: datetime, durum_dir: str | None = None) ->
                     f"Haftalik tutarlilik raporu uyari verdi ({str(donem.get('bas', '?'))[:10]} .. {str(donem.get('bit', '?'))[:10]}): "
                     + ("; ".join(why) if why else "ayrinti var/rapor/tutarlilik/ altinda") + ". Yalniz bilgi; motor etkilenmez.",
                     "tutarlilik|sapma", now)]
-
-
-def collect_ml(env: dict, state: dict, now: datetime, var_dir: str, api_bots):
-    """Opt-in (15 kalibi: yapilandirma varligi): bir bot icin model paketi yolu (ML_MODEL_PATH_<BOT> ya da
-    engine config `ml_model_path`) VAR ya da status.json `ml` blogu dict ve mode != "off" ise acik; aksi None -> ml_package kontrolu uretilmez. Durum yazimi `run_once` icinde."""
-    def _ml_on(b):
-        if ml_model_path(env, b):
-            return True
-        # yol yok ama motor ML'i acik bildiriyor (active + ml_model_path=null -> no_model): fail-open olmasin
-        st = probe_ml_status(status_path(_bot_var(env, b, env["ENGINE_VAR_DIR"]), b), b, now)
-        return st["present"] is True and st["mode"] != "off"
-    if not any(_ml_on(b) for b in api_bots):
-        return None
-    seen_prev = state.get("ml_seen") if isinstance(state.get("ml_seen"), dict) else {}
-    probes = {}
-    for bot in api_bots:
-        try:
-            st = probe_ml_status(status_path(_bot_var(env, bot, var_dir), bot), bot, now)
-            f = read_package_meta(ml_model_path(env, bot))
-            fs = False
-            if f.get("file_state") == "ok":
-                _rec, fs = ml_stale_update(seen_prev.get(bot), f)
-            probes[bot] = H.MlProbe(**st, **f, file_stale=fs)
-        except Exception:  # noqa: BLE001
-            probes[bot] = H.MlProbe()
-    return probes
 
 
 DRIFT_SCHEMA = "drift/1"
@@ -1033,15 +893,13 @@ def collect(env: dict, state: dict, now: datetime, *, deadline: float = 0.0) -> 
     except Exception:  # noqa: BLE001
         pass
     market = collect_market(env, var_dir)
-    ml = collect_ml(env, state, now, var_dir, bots_from_env(env))
-    prev_scores = state.get("ml_score_errors") if isinstance(state.get("ml_score_errors"), dict) else {}
     prev_am = {}
     for b, v in (state.get("account_mode") if isinstance(state.get("account_mode"), dict) else {}).items():
         if isinstance(v, (list, tuple)) and len(v) == 2 and all(_int_or_none(x) is not None for x in v):
             prev_am[b] = (v[0], v[1])
     return H.HealthSnapshot(
         prev_account_mode=prev_am, live_path_issues=live_path_issues,
-        drift=collect_drift(env, var_dir), ml=ml, haber_sinyal=probe_haber_sinyal(var_dir), dl1_paket=(probe_dl1_paket(env) if dl1_kolda(env) else None), prev_ml_score_errors={b: v for b, v in prev_scores.items() if _int_or_none(v) is not None},
+        drift=collect_drift(env, var_dir), haber_sinyal=probe_haber_sinyal(var_dir), dl1_paket=(probe_dl1_paket(env) if dl1_kolda(env) else None),
         market=market, bans=collect_bans(env, var_dir), prev_rules_missing=dict(state.get("rules_missing", {})),
         now=now, timeframe_s=tf_s, api=api, ledger=ledger, disk_free_bytes=free, mem_available_bytes=mem,
         swap_total_bytes=swap_t, swap_used_bytes=swap_u, containers=containers,
@@ -1117,18 +975,6 @@ def run_once(env: dict, *, now: datetime | None = None, state_path=None, notifie
         rm = dict(state.get("rules_missing", {}))
         rm.update({b: v for b, v in snap.market.rules_missing.items() if v is not None})
         new_state["rules_missing"] = rm
-
-    if snap.ml is not None:   # ML: onceki tur bilgisi (16.4 ml_seen, 16.3 satir 13 taban)
-        seen, scores = dict(state.get("ml_seen") or {}), dict(state.get("ml_score_errors") or {})
-        for b, mp in snap.ml.items():
-            if mp.file_state == "ok":
-                seen[b], _ = ml_stale_update(seen.get(b), {
-                    "file_model_id": mp.file_model_id, "file_created_at": mp.file_created_at,
-                    "file_data_hash": mp.file_data_hash, "file_train_end": mp.file_train_end})
-                seen[b]["stale"] = mp.file_stale
-            if mp.score_errors is not None:
-                scores[b] = mp.score_errors
-        new_state["ml_seen"], new_state["ml_score_errors"] = seen, scores
 
     am_state = dict(state.get("account_mode") if isinstance(state.get("account_mode"), dict) else {})
     for b, ap in snap.api.items():               # DD-9 §8.1: onceki tur sayaclari (None saklanmaz)

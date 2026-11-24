@@ -1,6 +1,6 @@
 # Aile bazli ML filtresi (kagit) - spec
 
-Durum: AKTIF (yalniz kagit). Kod: `src/trader_engine/ogrenme_filtre.py`; gece egitimi: `scripts/ml_retrain_run.py`.
+Durum: SILINDI (24.11 kullanici karari; kod kaldirildi, belge tarihce). Eski kod: `src/trader_engine/ogrenme_filtre.py`; gece egitimi: `scripts/ml_retrain_run.py` (artik yalniz M1).
 
 ## Sorun
 Eski filtre kol (arm_id = `<kurulum>@<tf>`) basina modeldi ve kol kapanmis islem >= 10 olunca devreye giriyordu; az islemli kollar

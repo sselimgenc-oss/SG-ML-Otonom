@@ -15,7 +15,6 @@ from . import _pa as P
 SETUP = "B1"
 TIMEFRAMES = ("15m", "1h", "4h", "1d")
 CORE = False
-ML_SCORED = False
 EXIT_MODE = "target"
 PRIORITY = 40
 # defter anahtari -> tasiyici sutun; level -> ema_value (fiyat), retest_depth_atr -> wick_ratio, bars_since_brk -> pullback_ema

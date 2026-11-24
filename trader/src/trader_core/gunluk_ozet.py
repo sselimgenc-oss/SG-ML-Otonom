@@ -1,7 +1,7 @@
 """ML gunluk ozet yayini (`ortak.gunluk_ozet.v1`; belirtim: docs/standart/gunluk-ozet-v1-spec.md).
 
 Yalniz KAGIT botun ozetini raporlar; motor/kapi/risk davranisi degismez. Kaynaklar salt okunur acilir; mevcut okuyucular
-yeniden kullanilir (panel_data, counterfactual, ledger, ml_package, rejim_yayini, drift/health dosyalari).
+yeniden kullanilir (panel_data, counterfactual, ledger, rejim_yayini, drift/health dosyalari).
 
 - `uret(girdi, now)`: SAF (ag yok, dosya yok); bilinmeyen alan `None`, hicbir alan atlanmaz.
 - `girdi_oku(config_dir, env, environ, now)`: gercek kaynaklari okur; her kaynak bagimsiz, okunamayan -> None.
@@ -44,7 +44,6 @@ class Girdi:
     kurulumlar: Sequence[str] = ()              # yapilandirilmis kurulum kimlikleri (arm_id)
     alinmayan_sinyal: int | None = None         # gunluk sayi (zaten gun icin hesaplanmis)
     aktivasyonlar: Sequence[Any] | None = None  # ActivationEvent benzeri: kind, actor, activated_at
-    filtre_aktif: bool | None = None
     rejim: str | None = None
     drift_uyari: bool | None = None
     gunluk_kayip_yuzde: float | None = None
@@ -180,7 +179,8 @@ def uret(g: Girdi, now: datetime) -> dict[str, Any]:
             "alinmayan_sinyal": g.alinmayan_sinyal,
         },
         "hesaplar": hesaplar,
-        "ogrenme": {"aktif_ders": aktif, "yeni_ders": yeni, "emekli_ders": emekli, "filtre_aktif": g.filtre_aktif},
+        "ogrenme": {"aktif_ders": aktif, "yeni_ders": yeni, "emekli_ders": emekli,
+                     "filtre_aktif": None},   # v1 sema anahtari korunur: ML filtreleri 24.11'de silindi (kaynak yok => hep null)
         "rejim": g.rejim,
         "drift_uyari": g.drift_uyari,
         "limitler": {"gunluk_kayip_yuzde": _r2(g.gunluk_kayip_yuzde), "kaldirac_tavan": _r2(g.kaldirac_tavan),
@@ -271,53 +271,6 @@ def _drift(yol: Path, now: datetime) -> bool | None:
         return None
 
 
-def _filtre(kok: Path, ledger_dir: Path, now: datetime) -> bool | None:
-    """Kurulum suzgeci / M1 paketlerinden en az biri gecerli (hash + sure) yuklenebiliyor mu."""
-    from trader_core.ml_package import PackageSet
-    adaylar = [(ledger_dir / "models" / "setup_filter", ()),
-               (ledger_dir / "models" / "pa_proposer", (kok / "models" / "pa_proposer",))]
-    gordu = False
-    for d, yedek in adaylar:
-        if not d.is_dir() and not any(Path(y).is_dir() for y in yedek):
-            continue
-        gordu = True
-        try:
-            ps = PackageSet(d, fallback_dirs=yedek)
-            if ps.reload(now=now)["loaded"]:
-                return True
-        except Exception:  # noqa: BLE001
-            return None
-    return False if gordu else None
-
-
-def _ortak_filtre(kok: Path, ledger_dir: Path, now: datetime) -> list[str] | None:
-    """Kagit ML filtresi (ortak_ogrenme; 19.11): gecerli (hash + sure) ve >= 10 islemle egitilmis kurulumlarin listesi.
-    Dizin ya da paket yoksa None (bilgi yok). Hata -> None."""
-    d = ledger_dir / "models" / "ortak_filtre"
-    if not d.is_dir():
-        return None
-    try:
-        try:
-            from ortak_ogrenme import filtre
-        except ImportError:
-            import sys
-            sys.path.insert(0, str(kok / "paket"))
-            from ortak_ogrenme import filtre
-        out = []
-        for p in sorted(d.glob("*.json")):
-            if p.name.endswith(".prev.json") or p.name.startswith("."):
-                continue
-            try:
-                pk = filtre.yukle(p, simdi=now)
-            except ValueError:
-                continue
-            if int(pk["meta"].get("n_egitim", 0)) >= 10:
-                out.append(str(pk["meta"]["kurulum"]))
-        return out
-    except Exception:  # noqa: BLE001
-        return None
-
-
 def _saglik(yol: Path, now: datetime) -> tuple[str | None, int | None]:
     try:
         st = _json(yol)
@@ -379,7 +332,6 @@ def girdi_oku(config_dir: str | os.PathLike, env: str, environ: Mapping[str, str
     ldir = ledger_yol.parent
     _, a, b = gun_sinirlari(now)
     g = Girdi(notlar=[])
-    ml_atlanan = None
     ws = cfg.get("wallet_start")
     g.wallet_start = float(ws) if isinstance(ws, (int, float)) and not isinstance(ws, bool) else None
     g.gunluk_kayip_yuzde, g.kaldirac_tavan = _limitler(cfg)
@@ -393,8 +345,6 @@ def girdi_oku(config_dir: str | os.PathLike, env: str, environ: Mapping[str, str
             g.acik = led.list_open_trades()
             g.aktivasyonlar = led.list_activations()
             decisions = led.list_decisions()
-            ml_atlanan = sum(1 for d in decisions if getattr(d, "skip_reason", None) == "ml_filter"
-                             and _icinde(getattr(d, "bar_close_ts", None), a, b))
         finally:
             led.close()
         cf_yol = ldir / "counterfactual.sqlite"
@@ -407,11 +357,6 @@ def girdi_oku(config_dir: str | os.PathLike, env: str, environ: Mapping[str, str
     except Exception:  # noqa: BLE001 - defter okunamadi: ilgili alanlar null
         g.notlar.append("defter okunamadi")
     g.alinmayan_sinyal = _cf_gunluk(ldir / "counterfactual.sqlite", a, b)
-    g.filtre_aktif = _filtre(kok, ldir, now)
-    ortak = _ortak_filtre(kok, ldir, now)
-    if ortak is not None:
-        g.filtre_aktif = bool(ortak) or bool(g.filtre_aktif)
-        g.notlar.insert(0, f"ML filtresi: {len(ortak)} kurulumda aktif, bugün {int(ml_atlanan or 0)} giriş atlandı")
     g.rejim = _rejim(cfg, cdir, kok, now)
     if g.rejim is None:
         g.notlar.append("rejim verisi yok")

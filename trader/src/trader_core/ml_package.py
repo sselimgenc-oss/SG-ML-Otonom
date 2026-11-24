@@ -1,8 +1,7 @@
-"""Model paketi okuyucu (ML-0a, 19a): motor tarafi. Yalniz stdlib + numpy; trader_ml/lightgbm/sklearn/scipy yok.
+"""Model paketi okuyucu (M1 paketleri): motor tarafi. Yalniz stdlib + numpy; trader_ml/lightgbm/sklearn/scipy yok.
 
-`load_package` kurali trader_ml.package ile AYNIDIR (oradan buraya tasindi, geri-export edilir): kapidan gecmemis
-(`meta.gate_passed` True degil) ya da esiksiz paket REDDEDILIR; hash'ler tutmali; 21 gunu asan paket REDDEDILIR.
-`MlModelView` motorun stratejiye verdigi SALT OKUNUR bag lam alanidir (05 §13.2 `StrategyContext.model`)."""
+`load_package`: kapidan gecmemis (`meta.gate_passed` True degil) ya da esiksiz paket REDDEDILIR; hash'ler tutmali; 21 gunu asan
+paket REDDEDILIR. `MlModelView` paketten yuklenmis SALT OKUNUR modeldir (`PackageSet.view`)."""
 from __future__ import annotations
 
 import hashlib
@@ -87,7 +86,6 @@ class MlModelView:
     expires_at: datetime
     user_approved: bool
     _tree: TreeModel = field(repr=False, compare=False)
-    experimental: bool = False                    # golge deneyi: kapidan gecmemis paket (yalniz shadow); log/gerekcede ml_exp=1
 
     def expired(self, now: datetime) -> bool:
         return now >= self.expires_at
@@ -97,52 +95,22 @@ class MlModelView:
         return self._tree.predict_proba(X)
 
 
-def view_from_package(pkg: dict, *, experimental: bool = False) -> MlModelView:
+def view_from_package(pkg: dict) -> MlModelView:
     meta = pkg["meta"]
     thr = pkg["threshold"]
     return MlModelView(
         model_id=f"{meta.get('version', '?')}@{meta['model_hash'][:12]}", threshold=0.5 if thr is None else float(thr),
         features=tuple(meta["features"]), expires_at=expires_at(pkg), user_approved=meta.get("user_approved") is True,
-        _tree=TreeModel(pkg["model"], pkg["calibration"]),
-        experimental=experimental)
-
-
-def load_model_view(path: str | Path | dict, *, expected_features, ml_mode: str,
-                    now: datetime | None = None, experimental: bool = False) -> MlModelView:
-    """Motor yukleyicisi: `load_package` (kapi + hash + 21 gun) + ozellik listesi canli ozellik ureticisiyle ayni olmali.
-    `active` modu ayrica kullanici onayi ister (`meta.user_approved is True`); yoksa PackageError (19a).
-    `experimental=True` yalniz `ml_mode == "shadow"` ile (aksi ValueError); kapi denetimi atlanir, hash + 21 gun kalir."""
-    if experimental and ml_mode != "shadow":
-        raise ValueError(f"experimental yalniz ml_mode='shadow' ile gecerli (ml_mode={ml_mode!r})")
-    pkg = load_package(path, now=now, require_gate=not experimental)
-    if list(pkg["meta"]["features"]) != list(expected_features):
-        raise PackageError("model ozellik listesi canli ozellik ureticisiyle ayni degil")
-    view = view_from_package(pkg, experimental=experimental)
-    if ml_mode == "active" and not view.user_approved:
-        raise PackageError("active modu icin model kullanici onayli degil (meta.user_approved)")
-    return view
-
-
-_ML_P = re.compile(r"(?:^|\|)ml:p=([0-9]+(?:\.[0-9]+)?)\|")
-
-
-def ml_score_from_reasons(reasons: str | None) -> float | None:
-    """Strateji -> motor kanali (05 §13.4a): `reasons` basindaki `ml:p=0.412300|` etiketi; yok/aralik disi -> None."""
-    m = _ML_P.search(reasons or "")
-    if m is None:
-        return None
-    v = float(m.group(1))
-    return v if 0.0 <= v <= 1.0 else None
+        _tree=TreeModel(pkg["model"], pkg["calibration"]))
 
 
 # ---------------------------------------------------------------------------------------------------------------------
 # DD-12 WP-10: CELI PAKET (arm_id basina) + SICAK YUKLEME. Motor API'si:
 #   ps = PackageSet(models_dir)                 # models_dir/<guvenli_arm_id>.json ; <...>.prev.json yedektir (yuklenmez)
 #   ps.reload(now=...)        -> {"loaded": [...], "removed": [...], "rejected": {arm: neden}}   (bar kapanisinda cagir; dosya
-#                                degismediyse (mtime_ns, size) ucuz atlanir; bozuk/suresi dolmus paket YALNIZ o kolu `ml_no_model` yapar,
+#                                degismediyse (mtime_ns, size) ucuz atlanir; bozuk/suresi dolmus paket YALNIZ o kolu paketsiz birakir,
 #                                oncekini silmez ama suresi dolmussa kullanmaz; motor hic durmaz)
-#   ps.decide(arm_id, fdict, now=...) -> SetupDecision(passed, score, code)   # code: "ok" | "ml_below_threshold" | "ml_no_model"
-# `ml_no_model` => aday GECER (esiksiz kural, spec 5); puan yok. Puan > esik kosulu: score >= threshold gecer.
+#   ps.view(arm_id)           -> MlModelView | None   (puan: view.score(X); paket yoksa None)
 # `paper_only` paketler (meta.paper_only) yalniz `allow_paper_only=True` ile yuklenir (testnet/canliya kapidan gecmemis model yuklenmez).
 # ---------------------------------------------------------------------------------------------------------------------
 def safe_arm_name(arm_id: str) -> str:
@@ -150,13 +118,6 @@ def safe_arm_name(arm_id: str) -> str:
     if not s or s.startswith("."):
         raise ValueError(f"gecersiz arm_id: {arm_id!r}")
     return s
-
-
-@dataclass(frozen=True)
-class SetupDecision:
-    passed: bool
-    score: float | None
-    code: str
 
 
 class PackageSet:
@@ -221,16 +182,3 @@ class PackageSet:
     @staticmethod
     def _file_of(arm_id: str) -> str:
         return safe_arm_name(arm_id) + ".json"
-
-    def decide(self, arm_id: str, fdict, *, now: datetime | None = None) -> SetupDecision:
-        """Tek adayin kararini ver. Paket yok/suresi dolmus/ozellik hatasi -> (True, None, "ml_no_model")."""
-        v = self._views.get(arm_id)
-        now = now or datetime.now(timezone.utc)
-        if v is None or v.expired(now):
-            return SetupDecision(True, None, "ml_no_model")
-        try:
-            from .ml_live_v2 import setup_feature_vector
-            p = float(v.score(setup_feature_vector(v.features, fdict))[0])
-        except (ValueError, KeyError, TypeError):
-            return SetupDecision(True, None, "ml_no_model")
-        return SetupDecision(p >= v.threshold, p, "ok" if p >= v.threshold else "ml_below_threshold")

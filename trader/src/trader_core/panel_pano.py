@@ -20,8 +20,7 @@ from . import tg_sade as TS
 
 TR = P.TR
 MIN_ORAN = 5            # kazanma orani / ort. kazanc-kayip icin asgari kapanan islem
-MIN_ETKI = 10           # ders / ML katkisi icin asgari sonuclu karar
-MIN_ISABET = 10         # ML isabeti icin asgari sonuclu tahmin
+MIN_ETKI = 10           # ders katkisi icin asgari sonuclu karar
 
 REJIM_TR = {"range": "yatay piyasa", "trend": "trend", "trending": "trend", "ranging": "yatay piyasa"}
 # giris kapisi / duraklatma kodu -> kisa sade neden (ham kod gosterilmez)
@@ -310,12 +309,10 @@ def kz_view(ctx: Ctx, start: float | None, now: datetime, curve: Mapping | None,
 
 
 # ----------------------------------------------------------------------------- ogrenme (ders + ML)
-MIN_KOL_ISLEM = 10      # motorun ogrenme_filtre.MIN_ISLEM ile ayni; esitligi tests/test_panel_pano.py denetler (core -> engine bagimliligi yok)
 
 
 # ----- ortak durum sozlugu (OZET / OGRENME / Telegram ayni metni kullanir)
 DURUM_ETKILIYOR = "Açık, işlemleri etkiliyor"
-DURUM_MODEL_BEKLENIYOR = "Açık, model bekleniyor"
 DURUM_KAPALI = "Kapalı"
 
 
@@ -323,21 +320,13 @@ def durum_veri_birikiyor(x: int, y: int | None = None) -> str:
     return f"Açık, veri birikiyor ({x}/{y})" if y else "Açık, veri birikiyor"
 
 
-def ogrenme_durumu(calisiyor: bool, etkili: bool, x: int = 0, y: int | None = None, model_bekliyor: bool = False,
-                   kol: tuple[int, int] | None = None) -> tuple[str, str]:
-    """(metin, renk): kapali = gri; etkiliyor = yesil; veri birikiyor / model bekleniyor = sari (kirmizi degil)."""
+def ogrenme_durumu(calisiyor: bool, etkili: bool, x: int = 0, y: int | None = None) -> tuple[str, str]:
+    """(metin, renk): kapali = gri; etkiliyor = yesil; veri birikiyor = sari (kirmizi degil)."""
     if not calisiyor:
         return DURUM_KAPALI, "gri"
     if etkili:
-        return DURUM_ETKILIYOR + (f" · {kol[0]}/{kol[1]} kol" if kol else ""), "yesil"
-    if model_bekliyor:
-        return DURUM_MODEL_BEKLENIYOR, "sari"
+        return DURUM_ETKILIYOR, "yesil"
     return durum_veri_birikiyor(x, y), "sari"
-
-
-def min_kol_islem() -> int:
-    """Kol basina ML filtresi icin asgari kapanmis islem (motor sabitiyle esit; testle sabitlenir)."""
-    return MIN_KOL_ISLEM
 
 
 def katki_olculemedi(n: int) -> dict:
@@ -416,111 +405,6 @@ def ders_view(path: str, ctx: Ctx, now: datetime, status_live: bool) -> dict | N
             "son5": satirlar if len(satirlar) > 1 else []}           # tek ders: "Son dersler" listesi tekrar olur
 
 
-def _ml_paketleri(ledger_path: str, now: datetime) -> tuple[int, int, datetime | None, set]:
-    """(gecerli paket sayisi, toplam egitim ornegi, son egitim zamani) — `<defter dizini>/models/ortak_filtre/*.json` meta."""
-    klasor = Path(ledger_path).parent / "models" / "ortak_filtre"
-    n_paket = n_ornek = 0
-    son: datetime | None = None
-    kur: set = set()
-    if not klasor.is_dir():
-        return 0, 0, None, kur
-    for p in sorted(klasor.glob("*.json")):
-        if p.name.endswith(".prev.json") or p.name.startswith("."):
-            continue
-        try:
-            meta = json.loads(p.read_text(encoding="utf-8"))["meta"]
-            sk = P.parse_z(str(meta.get("son_kullanma")))
-            if sk is not None and sk <= now:
-                continue
-            n_paket += 1
-            kur.add(str(meta.get("kurulum")))
-            n_ornek += int(meta.get("n_egitim") or 0)
-            ol = P.parse_z(str(meta.get("olusturma") or meta.get("created_at") or ""))
-            if ol is None:
-                ol = datetime.fromtimestamp(p.stat().st_mtime, tz=P.UTC)
-            son = ol if son is None or ol > son else son
-        except Exception:  # noqa: BLE001
-            continue
-    return n_paket, n_ornek, son, kur
-
-
-def ml_view(path: str, ctx: Ctx, now: datetime, ml_filtre: Mapping | None) -> dict | None:
-    from . import counterfactual as CF  # noqa: PLC0415
-    cf_path = Path(path).parent / "counterfactual.sqlite"
-    try:
-        cf_rows = CF.arm_rows(cf_path, "learner") if cf_path.exists() else []
-    except Exception:  # noqa: BLE001
-        cf_rows = []
-    r_taken = {t.decision_id: t.r_multiple for t in ctx.closed if t.r_multiple is not None}
-    r_cf = {row["decision_id"]: row["hyp_r_net"] for row in cf_rows}
-    pnl_of = {t.decision_id: t.realized_pnl for t in ctx.closed}
-    skorlu = [d for d in ctx.decisions if d.ml_score is not None or d.skip_reason == "ml_filter"]
-    n_paket, n_ornek, son_egitim, paket_kur = _ml_paketleri(path, now)
-    if isinstance(ml_filtre, Mapping):
-        acik = bool(ml_filtre.get("calisiyor"))          # kapali YALNIZ filtre gercekten calismiyorsa
-        kolsay = int(ml_filtre.get("aktif_kurulum") or 0)
-    else:
-        acik, kolsay = n_paket > 0, n_paket
-    arm_of = lambda d: getattr(d, "arm_id", None) or f"{d.setup}@{d.trigger_tf}"  # noqa: E731
-    en_az = min_kol_islem()
-    cfg_kollar = list(P.paper_maps()[0])
-    tum = cfg_kollar or sorted({arm_of(d) for d in ctx.decisions if d.final_action == "entered"})    # payda: kagit ayarindaki kol listesi
-    kapali = {}
-    for t in ctx.closed:
-        dd = ctx.dec.get(t.decision_id)
-        if dd is not None:
-            kapali[arm_of(dd)] = kapali.get(arm_of(dd), 0) + 1
-    kapsam = None
-    if acik and tum:
-        aktif = [a for a in tum if a in paket_kur] if paket_kur else []
-        kalan = [a for a in tum if a not in aktif]
-        kismen = sorted(((a, kapali.get(a, 0)) for a in kalan if kapali.get(a, 0) > 0), key=lambda x: -x[1])
-        kapsam = {"aktif": len(aktif), "toplam": len(tum), "en_az": en_az,
-                  "eksik": [{"kol": TS.kol_adi(a), "n": n, "en_az": en_az} for a, n in kismen[:6]],
-                  "eksik_fazla": max(len(kismen) - 6, 0), "bos": sum(1 for a in kalan if kapali.get(a, 0) == 0)}
-        en_cok = max(kapali.values(), default=0)
-        durum, renk = ogrenme_durumu(True, bool(aktif), min(en_cok, en_az), en_az, model_bekliyor=en_cok >= en_az,
-                                     kol=(len(aktif), len(tum)))
-    else:
-        en_cok = max(kapali.values(), default=0)
-        durum, renk = ogrenme_durumu(acik, kolsay > 0, min(en_cok, en_az), en_az, model_bekliyor=en_cok >= en_az)
-
-    def sonuc_r(d):
-        return r_taken.get(d.id) if d.final_action == "entered" else r_cf.get(d.id)
-    # isabet: gecirdi & kazandi ya da eledi & kaybederdi
-    sonuclu = sorted((d for d in skorlu if sonuc_r(d) is not None), key=lambda d: d.bar_close_ts)[-20:]
-    if len(sonuclu) >= MIN_ISABET:
-        tutan = sum(1 for d in sonuclu if (sonuc_r(d) > 0) == (d.skip_reason != "ml_filter"))
-        isabet = {"tutan": tutan, "n": len(sonuclu)}
-    else:
-        isabet = olculemedi(len(sonuclu), MIN_ISABET, "tahmin")
-    d7 = now - timedelta(days=7)
-    son7 = [d for d in skorlu if d.bar_close_ts >= d7]
-    onay = sum(1 for d in son7 if d.final_action == "entered")
-    ret = sum(1 for d in son7 if d.skip_reason == "ml_filter")
-    d30 = now - timedelta(days=30)
-    elenen = [sonuc_r(d) for d in skorlu if d.skip_reason == "ml_filter" and d.bar_close_ts >= d30 and sonuc_r(d) is not None]
-    r2usd = _usd_per_r([t for t in ctx.closed if t.exit_ts and t.exit_ts >= d30] or ctx.closed)
-    if len(elenen) >= MIN_ETKI and r2usd:
-        katki = {"usd": -math.fsum(float(r) for r in elenen) * r2usd, "yaklasik": True, "n": len(elenen)}
-    else:
-        katki = katki_olculemedi(len(elenen))
-    son5 = []
-    for d in sorted(skorlu, key=lambda d: d.bar_close_ts, reverse=True)[:5]:
-        alindi = d.final_action == "entered"
-        r = sonuc_r(d)
-        pn = None
-        if alindi:
-            pn = pnl_of.get(d.id)
-            sonuc = "" if pn is not None else "açık"
-        else:
-            sonuc = "alsaydı kazanırdı" if (r is not None and r > 0) else ("alsaydı kaybederdi" if r is not None else "sonuç bekleniyor")
-        son5.append({"coin": TS.coin(d.pair), "tarih": tsi_kisa(d.bar_close_ts), "karar": "Aldı" if alindi else "Almadı",
-                     "puan": d.ml_score, "sonuc": sonuc, "kz": pn})
-    return {"durum": durum, "renk": renk, "kapsam": kapsam, "isabet": isabet, "onay_7g": onay, "ret_7g": ret, "katki": katki,
-            "egitim": ({"tarih": tsi_gun(son_egitim), "ornek": n_ornek} if son_egitim else None), "son5": son5}
-
-
 def kucultme_view(ledger_path: str, bot: str) -> dict | None:
     """OGRENME sekmesi 'Kademeli kucultme' karti (docs/motor/kademeli-kucultme-spec.md): boyutu kucultulen kollar
     (carpan, son 5/10 net R). Kucultulen kol yoksa ya da okunamazsa None (kart gizlenir)."""
@@ -581,7 +465,7 @@ def mutabakat_view(path: str) -> dict | None:
 
 
 def teknik_view(*, health: Mapping | None, risk_rows: list | None, budget: Mapping | None, tut: Mapping | None,
-                pbo: Mapping | None, ctx: Ctx | None, ml_filtre: Mapping | None, ders: Mapping | None,
+                pbo: Mapping | None, ctx: Ctx | None, ders: Mapping | None,
                 mutabakat: Mapping | None = None, dayaniklilik: Mapping | None = None) -> dict:
     out: dict[str, Any] = {}
     if isinstance(dayaniklilik, Mapping):
@@ -614,9 +498,6 @@ def teknik_view(*, health: Mapping | None, risk_rows: list | None, budget: Mappi
     if risk_rows:
         out["limitler"] = [{"ad": r["label"], "kullanilan": r["used"], "limit": r["limit"], "yuzde": r["pct"]} for r in risk_rows]
     kap = []
-    if isinstance(ml_filtre, Mapping):
-        kap.append({"ad": "Yapay zekâ filtresi", "ok": bool(ml_filtre.get("calisiyor")),
-                    "not": f"{int(ml_filtre.get('aktif_kurulum') or 0)} kolda aktif"})
     if ders:
         kap.append({"ad": "Ders freni", "ok": "freni" not in str(ders.get("durum")), "not": str(ders.get("durum"))})
     if kap:
@@ -666,17 +547,11 @@ def _problem(saglik: Mapping | None, state: str, risk: Mapping, budget: Mapping 
     return {"renk": "yesil", "metin": "Sistem sağlıklı"}
 
 
-def kismi_durum(ders: Mapping | None, ml: Mapping | None) -> list[str]:
+def kismi_durum(ders: Mapping | None) -> list[str]:
     """Sistem calisiyor ama tam degil: sade cumleler (bos = her sey tam)."""
     out = []
     if ders and ders.get("renk") == "kirmizi":
         out.append("ders işlemleri etkilemiyor")
-    if ml and ml.get("kapsam") and ml["kapsam"]["aktif"] < ml["kapsam"]["toplam"]:
-        k = ml["kapsam"]
-        if k["aktif"] == 0 and ml.get("durum"):
-            out.append(f"Makine öğrenmesi: {ml['durum']}")
-            return out
-        out.append(f"ML {k['aktif']}/{k['toplam']} kolda çalışıyor, diğerlerinde yeterli işlem yok (en az {k['en_az']})")
     return out
 
 

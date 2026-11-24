@@ -8,7 +8,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 ENGINE = "src/trader_engine"
 CORE = "src/trader_core"
-CORE_ALLOWED = {"risk", "signals", "regime", "indicators", "ledger", "veto", "config_loader", "ml_package", "ml_features", "ml_live_v2",
+CORE_ALLOWED = {"risk", "signals", "regime", "indicators", "ledger", "veto", "config_loader", "ml_package", "ml_live_v2",
                 "risk_ladder", "ban_store", "proc_guard", "universe", "arm_time", "pa_features", "exit_modes", "etiket_kurallari", "kol_kucultme", "giris_izi", "kayip_freni"}   # 23.11 kullanici karari: asama B esikleri (kayip_freni: saf, stdlib; yalniz gates.py)   # M1 (DD-12 WP-14): pa_features (numpy-only) canli ozellik tanimi; trader_ml.pa_proposer.features geri-export eder   # DD-12 WP-13: arm_time (saf, stdlib) kurulum zaman dilimi/seans; bars.py ve arm_guard.py yeniden kullanir   # DD-12 WP-16: universe (saf, stdlib) yalniz config.py kagit kaplamasi   # DD-9: proc_guard (yalniz stdlib/ctypes; cli._cmd_run testnet/live)   # cikis kipleri (1b): exit_modes (saf, stdlib) basa-bas/kismi kar hesabi; motor (config.py, position_manager.py, engine.py) ve karsi-olgu oynatimi AYNI islevleri cagirir   # kademeli kucultme: kol_kucultme (saf, stdlib) yalniz gates.py; # haber etiketi: haber (saf, stdlib) yalniz kayit; gates.py/engine.py okur   # DD-7: yalniz stdlib'li ban dosyasi (ban_store); 12 (RK-1): kademe sabitleri/katlama; yalniz ladder.py (ve cli.py) kullanir
 CORE_NAME_ALLOWED = {"config_loader": {"deep_merge"}}
 LEAVES = {"types", "errors", "numeric", "clock", "bars", "fileio", "config", "holdout"}

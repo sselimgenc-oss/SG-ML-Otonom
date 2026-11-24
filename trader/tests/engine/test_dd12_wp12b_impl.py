@@ -81,7 +81,7 @@ def test_contract_fields(setup):
     A.validate_arm(mod, setup)                         # EXIT_MODE, PRIORITY, FEATURES (WP-12a sozlesmesi)
     assert mod.SETUP == setup
     assert mod.TIMEFRAMES == ("15m", "1h", "4h", "1d")
-    assert mod.CORE is False and mod.ML_SCORED is False
+    assert mod.CORE is False
     assert len(mod.FEATURES) <= A.MAX_FEATURES
 
 

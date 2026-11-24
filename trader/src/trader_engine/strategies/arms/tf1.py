@@ -16,7 +16,6 @@ from . import _pa as P
 SETUP = "TF1"
 TIMEFRAMES = ("15m", "1h", "4h", "1d")
 CORE = False
-ML_SCORED = False
 EXIT_MODE = "trail"
 PRIORITY = 30
 # defter anahtari -> tasiyici sutun (SIGNAL_COLUMNS); tamsayi tasiyici yalniz pullback_ema

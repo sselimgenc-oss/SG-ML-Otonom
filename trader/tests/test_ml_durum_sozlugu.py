@@ -1,4 +1,4 @@
-"""ML/Ders/Etiket ortak durum sozlugu + sahipsiz karar duzeltmesi + OZET'te iki ogrenme karti."""
+"""Ders/Etiket ortak durum sozlugu + sahipsiz karar duzeltmesi + OZET'te ders karti (24.11: makine ogrenmesi karti silindi)."""
 from __future__ import annotations
 
 import sys
@@ -16,30 +16,15 @@ from test_ledger_spec import clock, dbpath, led, lp  # noqa: E402,F401  (fikstü
 
 def test_vocabulary_strings_and_colours():
     assert PP.ogrenme_durumu(True, True) == ("Açık, işlemleri etkiliyor", "yesil")
-    assert PP.ogrenme_durumu(True, True, kol=(2, 34)) == ("Açık, işlemleri etkiliyor · 2/34 kol", "yesil")
     assert PP.ogrenme_durumu(True, False, 6, 10) == ("Açık, veri birikiyor (6/10)", "sari")
-    assert PP.ogrenme_durumu(True, False, 10, 10, model_bekliyor=True) == ("Açık, model bekleniyor", "sari")
     assert PP.ogrenme_durumu(False, False, 6, 10) == ("Kapalı", "gri")
 
 
-def test_ml_running_without_packages_is_not_kapali():
-    ctx = SimpleNamespace(decisions=[], closed=[], dec={})
-    ml = PP.ml_view("/nonexistent/x/ledger.sqlite", ctx, T.BASE, {"calisiyor": True, "aktif_kurulum": 0})
-    assert ml["durum"].startswith("Açık, veri birikiyor (0/10)") and ml["renk"] == "sari"
-    kapali = PP.ml_view("/nonexistent/x/ledger.sqlite", ctx, T.BASE, {"calisiyor": False, "aktif_kurulum": 0})
-    assert kapali["durum"] == "Kapalı" and kapali["renk"] == "gri"
-
-
-def test_kismi_durum_uses_vocabulary_when_no_arm_active():
-    ml = {"durum": "Açık, veri birikiyor (6/10)", "kapsam": {"aktif": 0, "toplam": 34, "en_az": 10, "eksik": []}}
-    assert PP.kismi_durum(None, ml) == ["Makine öğrenmesi: Açık, veri birikiyor (6/10)"]
-
-
-def test_ozet_always_has_ders_then_ml_cards():
+def test_ozet_always_has_ders_card_and_no_ml_card():
     js = (ROOT / "src/trader_panel/static/panel.js").read_text(encoding="utf-8")
     ozet = js.split("function tabOzet")[1].split("function isikKart")[0]
-    assert ozet.index("'Ders öğrenmesi'") < ozet.index("'Makine öğrenmesi'")
-    assert "if (p.ders)" not in ozet and "if (p.ml)" not in ozet
+    assert "'Ders öğrenmesi'" in ozet and "'Makine öğrenmesi'" not in js
+    assert "if (p.ders)" not in ozet and "p.ml" not in js
     assert "Henüz ders yok" in ozet and "Son 7 günde değiştirdiği işlem" in ozet
 
 

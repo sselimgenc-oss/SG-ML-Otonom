@@ -1,4 +1,4 @@
-"""DD-12 WP-05 uygulayici duman testleri: strateji (T1+R1 + r03 evreni), acilis kapisi, seansa gore kayma, kagit broker
+"""DD-12 WP-05 uygulayici duman testleri: acilis kapisi, seansa gore kayma, kagit broker
 sicrama, status kume sayilari ve sentetik veriyle uctan uca kagit motoru (4 cift, 1 hisse isteğe bagli + bosluklu)."""
 from __future__ import annotations
 
@@ -19,84 +19,11 @@ from trader_engine.clock import SimClock
 from trader_engine.config import CostModel, apply_overrides, load_cli_config
 from trader_engine.errors import EngineExit
 from trader_engine.marketdata.sources import HistoricalSource
-from trader_engine.strategies.price_action_v1_ml import load_engine_model, make_v1_full_ml, make_v1b_ml
-from trader_engine.strategies.registry import get_strategy
 from trader_engine.types import MinuteBar, OrderRequest, SymbolRules
 
 ROOT = Path(__file__).resolve().parents[2]
 UTC = timezone.utc
 PAPER = load_cli_config(ROOT / "config", "learner", "paper")
-# 19 Kasim: r03 kagitta emekli (kullanici karari). r03 kod yolu (evren filtresi, uctan uca) eski paper ML anahtarlariyla
-# PAPER_R03 uzerinden test edilir; kagit yapilandirmasinin kendisi artik ML kapali.
-R03_PAIRS = ("BTC/USDT", "ETH/USDT", "BNB/USDT", "SOL/USDT", "XRP/USDT", "DOGE/USDT", "ADA/USDT", "TRX/USDT",
-             "LINK/USDT", "AVAX/USDT")
-PAPER_R03 = apply_overrides(PAPER, ml_mode="active", ml_features="r03", ml_experimental=True, ml_pairs=R03_PAIRS,
-                            ml_model_path=str(ROOT / "models/ml1-r03.json"))
-
-
-# --------------------------------------------------------------------------- strateji
-def _row(signal=True, p=None):
-    reasons = ("" if p is None else f"ml:p={p:.6f}|ml_exp=1|") + "T1|"
-    return pd.Series({"signal": signal, "side": "long", "setup": "T1", "planned_entry": 100.0, "planned_stop": 99.0,
-                      "planned_target": 102.0, "skip_reason": None, "reasons": reasons})
-
-
-def _ctx(pair, model="m"):
-    mv = SimpleNamespace(threshold=0.5, expired=lambda D: False) if model == "m" else model
-    return SimpleNamespace(pair=pair, D=datetime(2026, 11, 5, tzinfo=UTC), tf="1h", last_exit=None, model=mv)
-
-
-def test_registry_full_ml_info():
-    s = get_strategy("price_action_v1_full_ml", mode="paper", ml_mode="active")
-    assert s.info.name == "price_action_v1_full_ml" and s.info.paper_allowed
-    assert s.info.setups == ("T1", "R1") and s.ml_mode == "active" and s.fail_open
-    assert PAPER.strategy == "price_action_lab_ml" and PAPER.ml_mode == "active"      # 19.11: r03 kagitta emekli; ML etkinligi kurulum filtresinde (kullanici karari)
-    assert PAPER_R03.ml_mode == "active" and PAPER_R03.ml_features == "r03"
-
-
-def test_universe_filter_and_no_model_passthrough():
-    s = make_v1_full_ml()
-    s.set_ml_mode("active")
-    s.set_ml_universe(PAPER_R03.ml_pairs)
-    # evren ici, esik alti -> elenir
-    r = s.post_filter(_row(p=0.1), _ctx("BTC/USDT"))
-    assert not r["signal"] and r["skip_reason"] == "ml_filter"
-    # evren ici, esik ustu -> gecer
-    assert s.post_filter(_row(p=0.9), _ctx("BTC/USDT"))["signal"]
-    # evren disi: puanlanmaz, elenmez (puan olsa bile)
-    r = s.post_filter(_row(p=None), _ctx("NVDA/USDT"))
-    assert r["signal"] and s.counters["ml_out_of_universe"] == 1
-    # model yok -> ml_no_model, aday gecer
-    r = s.post_filter(_row(), _ctx("BTC/USDT", model=None))
-    assert r["signal"] and s.counters["ml_no_model"] == 1
-    # eski strateji (fail-closed) degismedi
-    old = make_v1b_ml()
-    old.set_ml_mode("active")
-    assert not old.post_filter(_row(), _ctx("BTC/USDT", model=None))["signal"]
-
-
-def test_out_of_universe_not_scored():
-    s = make_v1_full_ml()
-    s.set_ml_mode("active")
-    s.set_ml_universe(["BTC/USDT"])
-    calls = []
-    s._inner.compute = lambda ctx: pd.DataFrame(  # type: ignore[method-assign]
-        {"signal": [True], "reasons": ["T1|"]}, index=pd.DatetimeIndex([ctx.D - timedelta(hours=1)]))
-    model = SimpleNamespace(threshold=0.5, expired=lambda D: False, features=("a",), experimental=True,
-                            score=lambda X: calls.append(1) or np.array([0.9]))
-    ctx = SimpleNamespace(pair="NVDA/USDT", D=datetime(2026, 11, 5, tzinfo=UTC), model=model, ml_v2=None)
-    out = s.compute(ctx)
-    assert not calls and "ml:p=" not in out["reasons"].iloc[0]
-
-
-def test_paper_active_loader_bypasses_gate(tmp_path):
-    from trader_core.ml_live_v2 import RECIPE_NAMES
-    now = datetime(2026, 11, 20, tzinfo=UTC)
-    v, err = load_engine_model(str(ROOT / "models/ml1-r03.json"), "active", now, RECIPE_NAMES["r03"], experimental=True)
-    assert v is None and err                                    # eski yol: deneysel yalniz shadow
-    v, err = load_engine_model(str(ROOT / "models/ml1-r03.json"), "active", now, RECIPE_NAMES["r03"], experimental=True,
-                               paper_active=True)
-    assert err is None and v is not None and v.experimental
 
 
 # --------------------------------------------------------------------------- acilis kapisi (D-T5)
@@ -281,10 +208,10 @@ def _cfg(tmp: Path, pairs):
                 "hisse": {"pairs": ["NVDA/USDT"], "max_positions": 5},
                 "hisse_teknoloji": {"pairs": ["NVDA/USDT"], "max_positions": 3}}
     return apply_overrides(
-        PAPER_R03, pairs=tuple(pairs), optional_pairs=("NVDA/USDT",), ml_pairs=("BTC/USDT", "ETH/USDT"),
+        PAPER, pairs=tuple(pairs), optional_pairs=("NVDA/USDT",),
         clusters=clusters, cost_overrides={"NVDA/USDT": PAPER.cost_overrides["NVDA/USDT"]},
         var_dir=str(tmp / "var"), kill_file=str(tmp / "KILL"), pause_file=str(tmp / "PAUSE"),
-        veto_config=str(ROOT / "config/veto.live.json"), ml_model_path=str(ROOT / "models/ml1-r03.json"),
+        veto_config=str(ROOT / "config/veto.live.json"),
         market_db=str(tmp / "m.sqlite"), history_dir=str(tmp / "h"),
         cost=dict(fill_model="native", granularity="15m", trigger_source="last"))
 
@@ -301,10 +228,6 @@ def test_end_to_end_paper(tmp_path, hist):
     eng.run_range(START, END)
     c = eng.counters()
     assert c["decisions"] > 50 and c.get("callback_errors", 0) == 0
-    # r03 baglami yalniz ml_pairs; evren
-    assert eng.signals.pairs == ["BTC/USDT", "ETH/USDT"] and s.ml_universe == frozenset(["BTC/USDT", "ETH/USDT"])
-    ml = eng._ml_status(END)
-    assert ml["mode"] == "active" and ml["state"] == "ok" and ml["entries_blocked"] is False
     # 23.11.2026 kilit acik: 15 dk golge adaylari artik kilit bitisini beklemez -> kagit kosusunda golge satir yazilabilir (eskiden 0); hata olmamali
     assert eng._rec["shadow"]["rows"] >= 0 and eng._rec["shadow"]["errors"] == 0 and eng._rec["shadow"]["tf15_holdout_wait"] == 0
     # defter: session_tag her karar satirinda gecerli; kripto 'open'
@@ -316,14 +239,13 @@ def test_end_to_end_paper(tmp_path, hist):
     assert rows, "en az bir aday karari bekleniyor"
     assert all(r["session_tag"] in ("open", "closed", "weekend") for r in rows)
     assert all(r["session_tag"] == "open" for r in rows if r["pair"] != "NVDA/USDT")
-    assert all(r["skip_reason"] != "ml_filter" for r in rows if r["pair"] not in ("BTC/USDT", "ETH/USDT"))
     # status.json: kume sayilari
     eng.status.write(eng, force=True)
     st = json.loads(Path(eng.cfg.status_path).read_text())
     cc = st["cluster_counts"]
     assert cc["account"]["max"] == 24 and set(cc["clusters"]) >= {"kripto_buyuk", "hisse", "hisse_teknoloji"}
     assert cc["account"]["open"] == len(eng.state.open_positions())
-    assert st["ml"]["entries_blocked"] is False and st["gate"]["ok"]
+    assert st["gate"]["ok"]
     # D-T12: ayni durum/defter yeni cift (XRP) ile yeniden acilir; pozisyon, imlec ve parametre surumu korunur
     before = {"pos": [p.trade_id for p in eng.state.open_positions()], "ver": eng._version_id,
               "cur": eng.state.get_cursor("BTC/USDT", "minute")}

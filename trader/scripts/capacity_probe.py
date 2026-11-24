@@ -81,7 +81,7 @@ def _cfg(work: Path, hist: Path):
     cfg0 = load_cli_config(ROOT / "config", "learner", "paper")
     return apply_overrides(
         cfg0, var_dir=str(work / "var"), kill_file=str(work / "KILL"), pause_file=str(work / "PAUSE"),
-        veto_config=str(ROOT / "config/veto.live.json"), ml_model_path=str(ROOT / "models/ml1-r03.json"),
+        veto_config=str(ROOT / "config/veto.live.json"),
         market_db=str(work / "m.sqlite"), history_dir=str(hist),
         cost=dict(fill_model="native", granularity="15m", trigger_source="last"))
 
@@ -152,7 +152,7 @@ def child(work: Path, hist: Path, steps: int, out: Path) -> None:
         "decisions": int(c.get("decisions", 0)), "rss_mb": rss, "rss_peak_mb": round(rss_mb(), 1),
         "per_step_s": {k: {"n": len(v), "median": round(sorted(v)[len(v) // 2], 3) if v else None,
                            "max": round(max(v), 3) if v else None} for k, v in times.items()},
-        "ml_model": {"mode": cfg.ml_mode, "arms_with_m1": [a for a in cfg.arms if a.startswith("M1@")]},
+        "arms_with_m1": [a for a in cfg.arms if a.startswith("M1@")],
     }
     out.write_text(json.dumps(res, sort_keys=True), encoding="utf-8")
     eng.shutdown("capacity_probe") if hasattr(eng, "shutdown") else None

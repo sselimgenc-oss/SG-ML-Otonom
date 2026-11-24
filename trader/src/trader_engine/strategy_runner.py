@@ -15,7 +15,6 @@ import numpy as np
 import pandas as pd
 
 from trader_core import ledger as L
-from trader_core.ml_package import MlModelView, ml_score_from_reasons
 from trader_core.signals import SignalParams
 
 from . import arm_guard as AG
@@ -32,7 +31,7 @@ from .vol_tahmin import vol_ozellikleri
 
 log = logging.getLogger("engine.runner")
 _OHLC = ["open", "high", "low", "close"]
-_FILTERED_SKIPS = ("stop_width", "rr_below_min", "ml_filter")   # gates._FILTERED_SKIPS ile ayni (kaydedilen elenmis adaylar)
+_FILTERED_SKIPS = ("stop_width", "rr_below_min")   # gates._FILTERED_SKIPS ile ayni (kaydedilen elenmis adaylar)
 
 
 @dataclass(frozen=True)
@@ -64,7 +63,6 @@ class SignalRow:
     pullback_ema: int
     reasons: str
     param_version_id: int
-    ml_score: float | None = None          # ML-0a: reasons'taki `ml:p=` etiketinden; ML'siz stratejide None
     arm_id: str | None = None              # DD-12 WP-11: bilesik strateji satiri `<kurulum>@<tf>`; tekli stratejide None
     tf: str | None = None                  # DD-12 WP-11: satirin tetik zaman dilimi; tekli stratejide None (bar suresinden bulunur)
     vol_tahmin: float | None = None        # fikir 10: GJR oynaklik tahmini / ATR oynakligi (yalniz gece suzgecinin ek ozelligi)
@@ -185,7 +183,6 @@ def _to_row(pair: str, open_ts: datetime, close_ts: datetime, r: pd.Series, vers
         rh_touches=_int0(r["rh_touches"]), rl_touches=_int0(r["rl_touches"]), ema_value=_opt(r["ema_value"]),
         body_ratio=_opt(r["body_ratio"]), wick_ratio=_opt(r["wick_ratio"]), edge_dist_atr=_opt(r["edge_dist_atr"]),
         pullback_ema=_int0(r["pullback_ema"]), reasons=_text(r["reasons"], "") or "", param_version_id=int(version_id),
-        ml_score=ml_score_from_reasons(_text(r["reasons"], "")),
         vol_tahmin=vf.get("vol_tahmin"), vol_asim=vf.get("vol_asim"))
 
 
@@ -200,61 +197,16 @@ class WindowedSignalSource:
 
     def __init__(self, view: MarketView, strategy: Strategy, *, strict: bool = False,
                  last_exit_fn: Callable[[str, datetime], tuple[datetime, str] | None] | None = None,
-                 ml_model: MlModelView | None = None, ml_error: str | None = None,
-                 ml_v2=None, pairs: Sequence[str] | None = None) -> None:
+                 pairs: Sequence[str] | None = None) -> None:
         self.view = view
         self.strategy = strategy
         self.strict = strict
         self.last_exit_fn = last_exit_fn
-        self.ml_model = ml_model            # 05 §13.2: stratejiye ctx.model olarak SALT OKUNUR verilir
-        self.ml_error = ml_error
         self.counters: Counter = Counter()
         self._cache: dict[tuple[str, datetime, int], SignalFrame] = {}
         self._latest: dict[tuple[str, datetime], SignalFrame] = {}
         self._cache_d: datetime | None = None
-        # ML-G5 (bayrakli, varsayilan None): r02/r03 canli ozellikleri; iki gecisli (once TUM ciftlerin yerel adaylari, sonra ozellik)
-        self.ml_v2 = ml_v2                  # trader_core.ml_live_v2.LiveContextV2 | None
-        self.pairs = list(pairs) if pairs is not None else []
-        self._bar_feats = None
-        self._gathered: dict[str, tuple] = {}
-        self._last_v2_error: str | None = None
-
-    # ------------------------------------------------------------------ ml v2 ilk gecis
-    def _v2_active(self) -> bool:
-        return (self.ml_v2 is not None and self.ml_model is not None and bool(self.pairs)
-                and getattr(self.strategy, "ml_mode", "off") != "off" and hasattr(self.strategy, "native_candidate"))
-
-    def _v2_prepass(self, D: datetime, params: Mapping[str, object]) -> None:
-        """Birinci gecis: tum ciftlerin yerel adaylari (ML'siz) -> ikinci gecis: ozellikler (ayni-mum sayisi tum ciftlerde)."""
-        from trader_core.ml_live_v2 import BarFeatures
-        self._gathered = {}
-        try:
-            if str(params["trigger_tf"]) != "1h":     # v2 ozellikleri 1s mumlar uzerine kurulu (G5 fix 4a)
-                raise ValueError(f"ML v2 yalniz trigger_tf='1h' ile calisir (verilen: {params['trigger_tf']!r})")
-            rows = []
-            for pair in self.pairs:
-                g = self._gather(pair, D, params)
-                self._gathered[pair] = g
-                if g[2] is not None:                                   # veri yok/delik: _build ayni nedenle ok olmaz
-                    continue
-                tf = str(params["trigger_tf"])
-                c = self.strategy.native_candidate(
-                    StrategyContext(pair=pair, D=D, tf=tf, params=params, bars=g[0], last_exit=None, model=None))
-                if c is not None:
-                    rows.append({"pair": pair, **c})
-            cands = pd.DataFrame(rows, columns=["pair", "side", "planned_entry", "planned_stop"])
-            self._bar_feats = self.ml_v2.features_for_bar(D, cands)
-        except Exception as e:  # noqa: BLE001 - ozellik uretilemedi: aday puansiz kalir (active: elenir, shadow: gecer)
-            self.counters["ml_v2_errors"] += 1
-            self._last_v2_error = f"{D.isoformat()} {type(e).__name__}: {e}"
-            log.error("ML v2 ozellik hatasi %s: %s: %s", D.isoformat(), type(e).__name__, e)
-            self._bar_feats = BarFeatures(D=D, recipe=getattr(self.ml_v2, "recipe", "?"), error=f"{type(e).__name__}: {e}")
-        finally:                                        # ctx sayaclari (ml_v2_ctx_gaps, ml_v2_funding_stale, ...) status'a akar
-            for k, v in getattr(self.ml_v2, "counters", {}).items():
-                self.counters[k] = v
-
-    def _prepass_due(self, D: datetime) -> bool:
-        return True                                     # tekli strateji: her karar adiminda (tetik tf = 1s)
+        self.pairs = list(pairs) if pairs is not None else []        # taranacak ciftler (biliniyorsa 1g tur ozeti tur biter bitmez yazilir)
 
     def _new_step(self, D: datetime) -> None:
         return None
@@ -265,11 +217,7 @@ class WindowedSignalSource:
             self._cache.clear()
             self._latest.clear()
             self._cache_d = D
-            self._bar_feats = None
-            self._gathered = {}
             self._new_step(D)
-            if self._v2_active() and self._prepass_due(D):
-                self._v2_prepass(D, _params_map(params))
         key = (pair, D, int(version_id))
         hit = self._cache.get(key)
         if hit is not None:
@@ -285,7 +233,7 @@ class WindowedSignalSource:
         return SignalFrame(pair=pair, status=status, detail=detail, last=None, table=None)  # type: ignore[arg-type]
 
     def _gather(self, pair: str, D: datetime, params: Mapping[str, object]):
-        """Yan etkisiz pencere toplama -> (bars, trig, None) ya da (None, None, (durum, ayrinti)). `_build` ile ML v2 ilk gecisi paylasir."""
+        """Yan etkisiz pencere toplama -> (bars, trig, None) ya da (None, None, (durum, ayrinti))."""
         info = self.strategy.info
         tf = str(params["trigger_tf"])
         if tf not in info.allowed_trigger_tfs:
@@ -312,16 +260,14 @@ class WindowedSignalSource:
             tf = str(params["trigger_tf"])
             if tf not in info.allowed_trigger_tfs:
                 raise StrategyError("bad_table", f"trigger_tf izinli degil: {tf}")
-            bars, trig, bad = self._gathered.get(pair) or self._gather(pair, D, params)
+            bars, trig, bad = self._gather(pair, D, params)
             if bad is not None:
                 return self._bad(pair, bad[0], bad[1])
-            ctx = StrategyContext(pair=pair, D=D, tf=tf, params=params, bars=bars, last_exit=None, model=self.ml_model,
-                                  ml_v2=self._bar_feats)
+            ctx = StrategyContext(pair=pair, D=D, tf=tf, params=params, bars=bars, last_exit=None)
             sig = self.strategy.compute(ctx)
             validate_table(sig, info, trig.index)
             last_exit = self.last_exit_fn(pair, D) if self.last_exit_fn is not None else None
-            fctx = StrategyContext(pair=pair, D=D, tf=tf, params=params, bars=bars, last_exit=last_exit,
-                                   model=self.ml_model, ml_v2=self._bar_feats)
+            fctx = StrategyContext(pair=pair, D=D, tf=tf, params=params, bars=bars, last_exit=last_exit)
             last_row = self.strategy.post_filter(sig.iloc[-1], fctx)
             validate_row(last_row, info)
             if bool(last_row["signal"]) and not bool(sig.iloc[-1]["signal"]):
@@ -348,28 +294,6 @@ class WindowedSignalSource:
             self.counters["callback_errors"] += 1
             return self._bad(pair, "error", f"{type(e).__name__}: {e}", error=True)
 
-    # ------------------------------------------------------------------ ml durumu (status.json / kapi gorunurlugu)
-    def ml_status(self, now: datetime) -> dict | None:
-        """ML'siz strateji -> None. state: off | ok | no_model | expired (active iken no_model/expired => giris yok)."""
-        mode = getattr(self.strategy, "ml_mode", None)
-        if mode is None:
-            return None
-        m = self.ml_model
-        if mode == "off":
-            state = "off"
-        elif m is None:
-            state = "no_model"
-        elif m.expired(now):
-            state = "expired"
-        else:
-            state = "ok"
-        return {"mode": mode, "state": state, "model_id": None if m is None else m.model_id,
-                "threshold": None if m is None else m.threshold,
-                "expires_at": None if m is None else m.expires_at.isoformat(), "error": self.ml_error,
-                "features": "v1" if self.ml_v2 is None else getattr(self.ml_v2, "recipe", "v2"),
-                "v2_error": self._last_v2_error, "v2_errors": int(self.counters.get("ml_v2_errors", 0)),
-                "entries_blocked": mode == "active" and state in ("no_model", "expired")}
-
     # ------------------------------------------------------------------ exit_context
     def exit_context(self, pair: str, pos: Position, D: datetime) -> ExitContext | None:
         fr = self._latest.get((pair, D))
@@ -388,7 +312,7 @@ class MultiArmSignalSource(WindowedSignalSource):
     hesaplar (D-T16). Cift basina tek `SignalFrame`: `last` = oncelikli aday (buyuk zaman dilimi; sinyal > elenmis > diger),
     `extras` = diger kurulum adaylari (sinyal ise motor `arm_conflict` yazar). `table` YOKTUR (bellek): acik pozisyonun cikis
     baglami (kendi zaman dilimi kapandiginda) kucuk bir gorunum olarak tutulur. Bellek: adimlar arasi yalniz cift basina
-    rejim tablosu (lab._reg_cache) ve ML pencereleri; tablolar adim sonunda atilir."""
+    rejim tablosu (lab._reg_cache); tablolar adim sonunda atilir."""
 
     def __init__(self, *a, position_fn=None, quarantine=None, **k) -> None:
         super().__init__(*a, **k)
@@ -409,9 +333,6 @@ class MultiArmSignalSource(WindowedSignalSource):
         d, n, m = self._d1
         self._d1 = None
         log.info("1d tarama: %d cift, %d aday (%s)", n, m, d.isoformat())
-
-    def _prepass_due(self, D: datetime) -> bool:
-        return "1h" in arm_closing_tfs(D)               # ML v2 ozellikleri 1s mumlara kuruludur: yalniz saat basi
 
     def _new_step(self, D: datetime) -> None:
         self._exit_views.clear()
@@ -470,11 +391,11 @@ class MultiArmSignalSource(WindowedSignalSource):
         tfs = [tf for tf in ARM_TFS if tf in closing and (lab.arms_at(tf) or tf == pos_tf)]
         if not tfs:
             return SignalFrame(pair=pair, status="ok", detail="no_arm_closed", last=None, table=None)
-        # 4s (rejim kaynagi + 4s/1g tetigi): 1s ML on-gecisi veri topladiysa yeniden kullanilir
+        # 4s (rejim kaynagi + 4s/1g tetigi): 1s penceresi toplandiysa 4s oradan alinir
         h4 = None
         g = None
         if "1h" in tfs:
-            g = self._gathered.get(pair) or self._gather(pair, D, params)
+            g = self._gather(pair, D, params)
             if g[2] is None:
                 h4 = g[0]["4h"]
         if h4 is None:
@@ -501,10 +422,8 @@ class MultiArmSignalSource(WindowedSignalSource):
                     continue
             bars = {tf: trig, "4h": h4}
             le = self.last_exit_fn(pair, D, tf) if self.last_exit_fn is not None else None
-            ctx = StrategyContext(pair=pair, D=D, tf=tf, params=params, bars=bars, last_exit=None, model=self.ml_model,
-                                  ml_v2=self._bar_feats if tf == "1h" else None)
-            fctx = StrategyContext(pair=pair, D=D, tf=tf, params=params, bars=bars, last_exit=le, model=self.ml_model,
-                                   ml_v2=self._bar_feats if tf == "1h" else None)
+            ctx = StrategyContext(pair=pair, D=D, tf=tf, params=params, bars=bars, last_exit=None)
+            fctx = StrategyContext(pair=pair, D=D, tf=tf, params=params, bars=bars, last_exit=le)
             info = lab.info
             q = self.quarantine
             hooks = {}

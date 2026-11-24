@@ -128,7 +128,7 @@ def test_discovery_finds_new_setups_and_contract_fields():
     assert A.exit_mode("ZZ") is None
     for name in ("TF1", "B1"):
         m = mods[name]
-        assert m.CORE is False and m.ML_SCORED is False
+        assert m.CORE is False
         assert tuple(m.TIMEFRAMES) == ("15m", "1h", "4h", "1d")
         assert 1 <= len(m.FEATURES) <= 6
         assert set(m.FEATURES.values()) <= set(A.CARRIERS)

@@ -1,5 +1,7 @@
 # Ortak öğrenme paketi — parça 2: karne + sanal kasa, ortak filtre (ridge-lojistik) + paket, drift (CUSUM)
 
+> **[24 Kasım 2026]** `filtre.py` (ortak filtre) silindi (kullanıcı kararı: ML filtreleri kaldırıldı); `karne.py` ve `drift.py` geçerlidir. §2 ve filtre testleri yalnız tarihçedir.
+
 Parça 1 ile aynı paket (`trader/paket/ortak_ogrenme/`), sürüm `1.1.0`. Girdi her yerde parça 1'in `kayit.Aday` nesneleri. İlke aynı: **yalnız puan/rapor**; engelleme kararı adaptörün.
 Bağımlılık: `karne.py` ve `drift.py` yalnız standart kütüphane; `filtre.py` **numpy** ister (içe aktarma yalnız bu modülde).
 

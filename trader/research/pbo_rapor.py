@@ -4,8 +4,7 @@
   python research/pbo_rapor.py            # docs/ml/pbo-raporu.md + research/holdout/pbo_ozet.json yeniden yazilir (seed sabit)
 
 Aday kumesi: (a) kagit kural ailesi kurulumlari (config/engine.paper.json `arms`) - var/backtests/*/trades.csv defterlerinden
-kurulum (T1, R1) basina gunluk R serisi; (b) ML filtre tarifleri (research/ml/{19c,r02,r03}/oof_predictions.parquet):
-yapilandirma = model x esik (trader_ml.gate.pbo_for deseni). (c) hafif donanim serileri (research/arm_harness.py -> research/arm_series/*.parquet): defteri olmayan kurulumlarin
+kurulum (T1, R1) basina gunluk R serisi; (b) hafif donanim serileri (research/arm_harness.py -> research/arm_series/*.parquet): defteri olmayan kurulumlarin
 (T1/R1 4s+1g, TF1, B1, H2, S1, F1 tum zaman dilimleri, M1@1h egitim-disi donem) holdout oncesi tarihsel barlardan uretilmis gunluk R serileri;
 yapilandirma = zaman dilimi x on-kayitli parametre varyanti x maliyet. Defteri/denemesi olmayan aileler raporda "eksik" yazilir; uydurulmaz.
 Yalniz 2026-05-01 oncesi veri; her okumada check_holdout cagrilir ve kilitli donemle kesisen satirlar dusurulur.
@@ -29,14 +28,11 @@ from trader_engine.holdout import HOLDOUT, check_holdout  # noqa: E402
 N_SPLITS = 16
 MAX_COMB = 2000
 SEED = 0
-THRESHOLDS = (0.45, 0.50, 0.55, 0.60, 0.65, 0.70)      # trader_ml.gate.pbo_for ile ayni izgara
 BT_DIR = ROOT / "var" / "backtests"
-ML_DIR = ROOT / "research" / "ml"
 ARMS_CONFIG = ROOT / "config" / "engine.paper.json"
 ARM_DIR = ROOT / "research" / "arm_series"
 OUT_MD = ROOT / "docs" / "ml" / "pbo-raporu.md"
 OUT_JSON = ROOT / "research" / "holdout" / "pbo_ozet.json"
-ML_RECIPES = {"19c": "ml1-r01-v1b-native33 (19c)", "r02": "ml1-r02-long-ctx-1r", "r03": "ml1-r03-long-regime8"}
 RULE_WINDOW = (pd.Timestamp("2024-11-01", tz="UTC"), pd.Timestamp("2025-11-01", tz="UTC"))   # IS kosularinin donemi (holdout oncesi)
 PBO_LOW = 0.5
 ARMS_SEEN: set[str] = set()      # defteri olan kurulum@tf (meta.trigger_tf)
@@ -65,21 +61,6 @@ def family_stats(M: pd.DataFrame, *, n_trials_total: int | None = None) -> dict:
                dsr=float(dsr) if np.isfinite(dsr) else None,
                yorum="asiri uyum riski dusuk-orta" if res.pbo < PBO_LOW else "asiri uyum riski yuksek")
     return out
-
-
-def ml_matrix(oof: pd.DataFrame, pcols: list[str]) -> pd.DataFrame:
-    """trader_ml.gate.pbo_for ile ayni kurulum: yapilandirma = model x esik; satir = gun (alinan islemlerin gunluk net R toplami)."""
-    U = oof[oof["taken"].astype(bool)]
-    if len(U) == 0:
-        return pd.DataFrame()
-    check_holdout(U["ts"].min().to_pydatetime(), (U["ts"].max() + pd.Timedelta(days=1)).to_pydatetime())
-    days = pd.date_range(U["ts"].min().floor("D"), U["ts"].max().floor("D"), freq="D")
-    cols = {}
-    for pc in pcols:
-        for th in THRESHOLDS:
-            s = U["net_r"].where(U[pc] >= th, 0.0).groupby(U["ts"].dt.floor("D")).sum()
-            cols[f"{pc}@{th:.2f}"] = s.reindex(days, fill_value=0.0).to_numpy()
-    return pd.DataFrame(cols, index=days)
 
 
 def rule_series(trades: pd.DataFrame, window: tuple[pd.Timestamp, pd.Timestamp]) -> dict[str, pd.Series]:
@@ -159,7 +140,7 @@ def load_arm_series(arm_dir: Path) -> tuple[dict[str, pd.DataFrame], dict]:
     return out, meta
 
 
-def build(bt_dir: Path = BT_DIR, ml_dir: Path = ML_DIR, arms: list[str] | None = None, arm_dir: Path | None = None) -> dict:
+def build(bt_dir: Path = BT_DIR, arms: list[str] | None = None, arm_dir: Path | None = None) -> dict:
     arms = arms if arms is not None else arms_from_config()
     ARMS_SEEN.clear()
     HARNESS_SEEN.clear()
@@ -172,19 +153,6 @@ def build(bt_dir: Path = BT_DIR, ml_dir: Path = ML_DIR, arms: list[str] | None =
         r.update(family_stats(M))
         fams.append(r)
         parts_all.append(M)
-    for key, name in ML_RECIPES.items():
-        p = Path(ml_dir) / key / "oof_predictions.parquet"
-        if not p.exists():
-            fams.append({"aile": f"ML {key}", "tur": "ml", "kaynak": str(p.relative_to(ROOT)) if p.is_relative_to(ROOT) else str(p),
-                         "durum": "eksik", "neden": "oof_predictions.parquet yok"})
-            continue
-        oof = pd.read_parquet(p)
-        M = ml_matrix(oof, ["p_logistic", "p_lgbm"])
-        r = {"aile": f"ML {key}", "tur": "ml", "kaynak": f"research/ml/{key}/oof_predictions.parquet ({name}; model x esik)"}
-        r.update(family_stats(M) if M.shape[1] else {"durum": "eksik", "neden": "alinan satir yok", "n_yapilandirma": 0, "T": 0})
-        fams.append(r)
-        if M.shape[1]:
-            parts_all.append(M.rename(columns=lambda c, k=key: f"{k}:{c}"))
     harness_meta: dict = {}
     if arm_dir is not None:
         series, harness_meta = load_arm_series(arm_dir)
@@ -207,7 +175,7 @@ def build(bt_dir: Path = BT_DIR, ml_dir: Path = ML_DIR, arms: list[str] | None =
     excl = harness_meta.get("dislanan", {})
     arm_rows = [{"kurulum": a, "kayit": "var" if a in ARMS_SEEN else ("harness" if a in HARNESS_SEEN else "yok"),
                  **({"neden": excl[a]} if a in excl and a not in ARMS_SEEN and a not in HARNESS_SEEN else {})} for a in arms]
-    return {"parametreler": {"n_splits": N_SPLITS, "max_combinations": MAX_COMB, "seed": SEED, "esikler": list(THRESHOLDS),
+    return {"parametreler": {"n_splits": N_SPLITS, "max_combinations": MAX_COMB, "seed": SEED,
                              "holdout_oncesi_sinir": HOLDOUT[0].strftime("%Y-%m-%d")},
             "aileler": fams, "kurulumlar": arm_rows, "atlanan_defterler": skipped, "harness": harness_meta}
 
@@ -256,7 +224,6 @@ def render_md(res: dict) -> str:
           "yapilandirma icin, o ailedeki tum yapilandirma sayisiyla (elenenler ve sabit sutunlar dahil) hesaplanir. Yillik SR = gunluk SR x sqrt(365).",
           "", "## 2. Yontem", "",
           f"- `trader_core.stats.pbo_cscv`, `n_splits={P['n_splits']}`, `max_combinations={P['max_combinations']}`, `seed={P['seed']}`, olcut Sharpe; "
-          "`trader_ml.gate.pbo_for` deseni (ML ailelerinde yapilandirma = model x esik, satir = gun, deger = alinan islemlerin gunluk net R toplami).",
           "- Kural ailelerinde yapilandirma = bir deneme kosusundaki kurulumun (T1, R1) gunluk R toplami (cikis gunune gore); kosular maliyet kolu, "
           "dolum modeli ve tetik zaman dilimi bakimindan farklidir. Ortak pencere IS 2024-11-01..2025-10-31 (365 gun, islemsiz gun = 0).",
           "- Hafif donanim aileleri (`Kural X (harness)`, `ML M1@1h (egitim-disi)`): yapilandirma = zaman dilimi x on-kayitli parametre varyanti x maliyet "
@@ -270,8 +237,8 @@ def render_md(res: dict) -> str:
           "karistirir; sonuc yalniz kaba bir ust-kume gostergesidir.", "", "## 3. Deneme kaynaklari", "",
           "| Aile | Kaynak |", "|---|---|"]
     L += [f"| {f['aile']} | {f.get('kaynak', '')} |" for f in res["aileler"]]
-    L += ["", "Kayit dosyalari (`research/trial_registry.csv`, `research/ml_trial_registry.csv`, `research/runs/*.json`) yalniz toplu istatistik tasir "
-          "(gunluk getiri serisi yok); gunluk seriler `var/backtests/*/trades.csv` defterlerinden, ML `oof_predictions.parquet` dosyalarindan ve "
+    L += ["", "Kayit dosyalari (`research/trial_registry.csv`, `research/runs/*.json`) yalniz toplu istatistik tasir "
+          "(gunluk getiri serisi yok); gunluk seriler `var/backtests/*/trades.csv` defterlerinden ve "
           "(defteri olmayan kurulumlar icin) `research/arm_harness.py` hafif donanim serilerinden (`research/arm_series/`) uretildi. "
           "Tam motor backtesti (`backtest --env paper`) kosulmadi.", "", "## 4. Eksik kalan aileler", ""]
     miss = [a for a in res["kurulumlar"] if a["kayit"] == "yok"]

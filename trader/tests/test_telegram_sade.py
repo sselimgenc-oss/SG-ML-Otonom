@@ -386,19 +386,15 @@ def test_ayni_dakikadaki_acilislar_tek_mesaj():
     assert "ve 5 işlem daha" in buyuk
 
 
-def test_gunluk_ozet_ders_ve_model_satirlari(tmp_path):
+def test_gunluk_ozet_ders_satiri_model_satiri_yok(tmp_path):
     sp = tmp_path / "status.json"
     mkledger(tmp_path / "l.sqlite", "learner", [])
-    def yaz(ml):
-        sp.write_text(json.dumps({"mode": "paper", "equity": 1000.0, "day_start_equity": 1000.0, "entries_open": True,
-                                  "open_positions": [], "loop_at": NOW.strftime("%Y-%m-%dT%H:%M:%SZ"), "ml": ml}))
+    sp.write_text(json.dumps({"mode": "paper", "equity": 1000.0, "day_start_equity": 1000.0, "entries_open": True,
+                              "open_positions": [], "loop_at": NOW.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                              "ml": {"mode": "active", "state": "ok", "expires_at": "2026-12-30T00:00:00Z"}}))   # eski blok: gorunmez
     cfg = T.TelegramConfig("1:t", 5, str(tmp_path), "", str(sp), ledger_path=str(tmp_path / "l.sqlite"))
-    yaz({"mode": "active", "state": "ok", "expires_at": "2026-12-30T00:00:00Z"})
     r = T.build_report(cfg, NOW, DAY)
-    assert "Dersler: bugün 0 uygulandı, 0 geri alındı · işlemlere etkili" in r and "Model: güncel, işlemlere etkili" in r
-    yaz({"mode": "active", "state": "expired", "expires_at": None})
-    r = T.build_report(cfg, NOW, DAY)
-    assert "Model süresi doldu, kararlar kuralla veriliyor" in r
+    assert "Dersler: bugün 0 uygulandı, 0 geri alındı · işlemlere etkili" in r and "Model:" not in r
     ok_form(r, TS.MAX_SATIR_OZET)
 
 

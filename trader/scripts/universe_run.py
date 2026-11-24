@@ -83,8 +83,7 @@ def build(config_dir: Path, var_dir: Path, marketcap: Path | None, now: datetime
     else:
         source = "volume_fallback"
         cands = volume_candidates(market_db, trading)
-    ml_pairs = list(paper.get("ml_pairs", []))
-    crypto = U.select_crypto(cands, exclude_bases=cfg["exclude_bases"], n=int(cfg["n_crypto"]), pinned=ml_pairs)
+    crypto = U.select_crypto(cands, exclude_bases=cfg["exclude_bases"], n=int(cfg["n_crypto"]))
     stocks = U.select_stocks(cfg["stocks_ordered"], trading, n=int(cfg["n_stocks"]))
     comm = list(cfg["commodities"])
     cur = var_dir / "universe" / "paper_pairs.json"

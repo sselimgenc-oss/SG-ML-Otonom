@@ -30,7 +30,6 @@ log = logging.getLogger("trader.dl1")
 SETUP = "DL1"
 TIMEFRAMES = ("1h",)
 CORE = False
-ML_SCORED = False
 EXIT_MODE = "target"
 PRIORITY = 95                            # M1 (90) ve HB1 (92) ile ayni mumda cakisirsa onlar kazanir
 FEATURES = {"dl1_body": "body_ratio", "dl1_wick": "wick_ratio", "dl1_rr": "rr"}

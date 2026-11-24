@@ -15,7 +15,7 @@ import pytest
 
 from trader_core import universe as U
 from trader_engine.config import load_engine_config
-from trader_ml.setup_filter.train import LOCK_END, LOCK_START
+from trader_ml.pa_proposer.train import LOCK_END, LOCK_START
 
 ROOT = Path(__file__).resolve().parents[2]
 UTC = timezone.utc
@@ -113,23 +113,16 @@ def test_no_forbidden_imports_in_new_code():
 
 
 FROZEN_SHA256 = {
-    "scripts/build_corpus_v2.py": "e90edfd61f8699219e073abee9d503385d11af81ce7dec45d25c2cb669006e05",
-    "research/ml_build_candidates.py": "9f8ed639b2f86c7fa71e6c9acb7c354e0bf7517185cc23c74ac8e20cce146049",
-    "src/trader_ml/features.py": "3f0b679a11dbbedcc2c2eb6a461f1e2320a524a751b26fac8b5fa40584a1fef1",
-    "src/trader_ml/features_v2.py": "a97911aa7394440efd967ef2b339488c4d8523ec70ea97c23b58671814557680",
-    "src/trader_ml/labels.py": "2d610c156c873a8360237e3867f39b1e14898ab8cb70d9210262547962b56ec6",
-    "src/trader_ml/guards.py": "bd26701b9829016968104d2daabfbfddf849630a301479285079f4e471fe7e21",
-    "src/trader_ml/config.py": "d3874aab56c93682f25ee31fb3c0bac7db0aaae1b3fade7d16b3b6b17f2d1c53",
-    "src/trader_core/ml_features.py": "bd7ef1f716265805ab1000735f0228555f999279d83c89117000cc3a07f98102",
-    "src/trader_core/ml_features_v2.py": "5c8130d6cf890edbf771a31f65e481e227bea2a38e6488746964ad3b84bcbcde",
+    "src/trader_ml/guards.py": "3aa38a4c9ac1d4484c854c9566dd19c99c5a5bceb0b0addc3161b420c41bfb32",   # 24.11 kullanici karari: ML filtreleri silindi (kullanilmayan clip_to_train_window kalkti)
+    "src/trader_ml/config.py": "bcd786bfa6ae7c116813c00c0fe9cc881f79727ce1d32d25701be0d3b3c27fc5",   # 24.11 kullanici karari: ML filtreleri silindi (yalniz kilit + walk-forward sabitleri kaldi)
     "src/trader_core/signals.py": "cd748923487db52ef0c29014c9454cbf97d967a96cc5745167e4417844ff52af",
     "src/trader_core/regime.py": "1c68c7624ad39cc9ef883fd5e2953acc1ed26dfb03513b55e1b19413303d7ecf",
     "src/trader_core/indicators.py": "aa4c6e4c5b19ad26eb6ee0be5f604f439a09310f931fd6ba3d7d475b533a4e4c",
     "src/trader_engine/holdout.py": "c03925100fe903bf11bb4fcb692cf27255a138220be552bee9b6ffae28fec475",
-    "config/engine.base.json": "ba218ea0404803c9e5af7ffbd276fad79b6d0af714c94150172f7d56e674c328",
+    "config/engine.base.json": "aa364bad7141613cf8d2e7898343079a2a6e15f89b31b462d15113fc97e89eb0",   # 24.11 kullanici karari: ML filtreleri silindi (ml_mode/ml_model_path anahtarlari kalkti)
     "config/engine.learner.json": "30ca2842c40cacafbf6cdd90c9e6f1f54fc62b9a9ec913476d1399ac5352cb12",
     "config/engine.testnet.json": "54247bbd4d0fcea5eda5add465809938178ec4a1decf7f61cb9aa838daa4e952",
-    "config/engine.live.json": "17485ca7b75bfbd1eb6e97df988b0eae4e412acea1638a416edeec2b7aeb94fb",   # 24.11 kullanici karari: ML filtreleri kapali (ml_mode off); onceki 23.11 asama B + uzun_yon + HB1 (canli = kagit)
+    "config/engine.live.json": "ed401594ffe5b77359ce67d727ed40a7460321a9cd326fef8a8dd57c4dc384b6",   # 24.11 kullanici karari: ML filtreleri silindi; onceki 23.11 asama B + uzun_yon + HB1 (canli = kagit)
     "src/trader_engine/order_manager.py": "1a8a93daf39dabacd62356fb59a3a09d87634fe6a7ada7afa94171d100605077",
     "research/s2_run.py": "66710418f9be36225b757f9d4a1158b1e9093db5f7df131572c639e3958b21a7",
 }
@@ -266,20 +259,17 @@ def test_paper_records_in_lock_window_are_dropped():
     assert len(kept) == 1 and dropped == 2 and kept[0]["r"] == -1.0
 
 
-def test_m1_nightly_keeps_setup_filter_row_on_m1_error(tmp_path, monkeypatch):
-    """M1 hatasi kurulum suzgeci modellerini ve defter satirini geri almaz; cikis 3."""
+def test_m1_nightly_hatasinda_cikis_3_ve_csv_yazilir(tmp_path, monkeypatch):
+    """M1 hatasi paper_models.csv dosyasini yine olusturur; cikis 3 (saglik gorunurlugu)."""
     import ml_retrain_run as R
     from trader_core import ledger as L
-    led = _StubLedger()
     monkeypatch.setattr(R, "m1_nightly", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("m1 boom")))
     monkeypatch.setattr(L, "open_ledger", lambda *a, **k: SimpleNamespace(close=lambda: None))
-    monkeypatch.setattr(R.T, "collect_rows", lambda led, cf: [])
-    monkeypatch.setattr(R.T, "train_all", lambda rows, created_at, max_rows: ({}, {"lock_dropped": 0}))
-    rc = R.main(["--once", "--ledger", str(tmp_path / "x.sqlite"), "--models-dir", str(tmp_path / "sf"),
+    rc = R.main(["--once", "--ledger", str(tmp_path / "x.sqlite"),
                  "--m1-models-dir", str(tmp_path / "m1"), "--paper-models-csv", str(tmp_path / "p.csv")],
                 now_fn=lambda: datetime(2026, 11, 19, tzinfo=UTC))
     assert rc == 3
-    assert (tmp_path / "p.csv").read_text(encoding="utf-8").splitlines()[1].startswith("setup_filter_nightly_")
+    assert (tmp_path / "p.csv").read_text(encoding="utf-8").splitlines() == ["ad,sinif,tarif,veri_penceresi,commit,sha256,tarih"]
 
 
 # ---- (d) kurulum, birimler, sunucu belgesi --------------------------------------------------------------------------

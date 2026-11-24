@@ -486,7 +486,7 @@ def test_h11_end_to_end_smoke(ws):
 
 # ------------------------------------------------------------------ H-12
 def test_h12_static_registry_unchanged():
-    assert REG.list_strategies() == ("price_action_v1", "price_action_v1_full", "price_action_v1_ml", "price_action_v1_full_ml", "price_action_lab_ml")
+    assert REG.list_strategies() == ("price_action_v1", "price_action_v1_full", "price_action_lab_ml")
     assert "price_action_v1_4h" not in REG._FACTORIES
     with pytest.raises(StrategyError) as e:
         REG.get_strategy("price_action_v1_4h")
@@ -501,4 +501,4 @@ def test_h12_registered_at_runtime_only(monkeypatch):
         REG.get_strategy("price_action_v1_4h", mode="paper")
     assert e.value.code == "paper_not_allowed"
     monkeypatch.undo()
-    assert REG.list_strategies() == ("price_action_v1", "price_action_v1_full", "price_action_v1_ml", "price_action_v1_full_ml", "price_action_lab_ml")
+    assert REG.list_strategies() == ("price_action_v1", "price_action_v1_full", "price_action_lab_ml")
