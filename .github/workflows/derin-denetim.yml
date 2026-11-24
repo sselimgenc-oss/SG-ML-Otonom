@@ -5,6 +5,11 @@ name: derin-denetim
 
 on:
   workflow_dispatch:
+    inputs:
+      model:
+        description: "Tarama modeli (claude-haiku-5-5 / claude-sonnet-5-5)"
+        required: false
+        default: claude-haiku-5-5
 
 permissions:
   contents: read
@@ -86,6 +91,7 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY_DENETIM }}
           ALAN_ID: ${{ matrix.alan.id }}
+          TARAMA_MODEL: ${{ inputs.model }}
           ALAN_AD: ${{ matrix.alan.ad }}
           DOSYALAR: ${{ matrix.alan.dosyalar }}
         run: python .github/denetim/tara.py
@@ -141,6 +147,7 @@ jobs:
             git checkout --orphan denetim-raporlari
             git rm -rfq .
           fi
+          tarih="$tarih-${{ inputs.model }}"
           mkdir -p "denetim/$tarih"
           cp /tmp/rapor.md "denetim/$tarih/rapor.md"
           cp /tmp/bulgular/*.json "denetim/$tarih/" 2>/dev/null || true

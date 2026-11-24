@@ -1,4 +1,4 @@
-"""Derin denetim, tarama adimi (Haiku). Bir alani salt okuma araclariyla tarar, bulgulari bulgu-<alan>.json'a yazar.
+"""Derin denetim, tarama adimi (varsayilan Haiku; TARAMA_MODEL ile Sonnet). Bir alani salt okuma araclariyla tarar, bulgulari bulgu-<alan>.json'a yazar.
 
 Ortam: ALAN_ID, ALAN_AD, DOSYALAR (bosluklu liste), ANTHROPIC_API_KEY. Kod degistirmez (yalniz Read/Grep/Glob).
 """
@@ -38,7 +38,7 @@ CIKTI: Son mesajinda YALNIZ su JSON'u yaz (baska metin yok):
 
 
 async def main() -> None:
-    opts = ClaudeAgentOptions(model="claude-haiku-5-5", allowed_tools=["Read", "Grep", "Glob"], max_turns=80, cwd=".")
+    opts = ClaudeAgentOptions(model=os.environ.get("TARAMA_MODEL") or "claude-haiku-5-5", allowed_tools=["Read", "Grep", "Glob"], max_turns=80, cwd=".")
     son = ""
     maliyet = None
     async for m in query(prompt=PROMPT, options=opts):
