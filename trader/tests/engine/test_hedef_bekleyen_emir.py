@@ -190,23 +190,70 @@ def test_bar_close_modunda_hedef_eski_yolla_piyasada_kapanir(tmp_path):
     env.close()
 
 
+def test_hedef_girisle_ayni_anda_asilmissa_piyasada_target_cikisi(tmp_path):
+    """Bekleyen emir semantigi: hedef zaten asilmis (would_trigger) => hemen tetiklenir: piyasada `target` cikisi (kagit = canli)."""
+    env = renv(tmp_path)
+    p = open_r1(env, target=99.0)                                           # long hedef mark'in (100) altinda
+    assert env.engine.counters()["target_instant_exit"] == 1
+    assert env.state.kv_get(f"target:{p.trade_id}")["state"] == "hit"
+    env.step(T0 + M1, pairs=(BTC,), price=100.0)
+    t = trade(env, p.trade_id)
+    assert t.exit_reason == "target" and t.planned_exit == 99.0
+    assert [o.status for o in broker_orders(env, "stop")] == ["canceled"]
+    env.close()
+
+
 def test_hedef_kurulamazsa_bar_close_yedegi_calisir(tmp_path):
-    """Hedef zaten asilmis (kagit: would_trigger reddi): durum `failed`, pozisyon kapanmaz, hedef bar kapanisinda piyasada denetlenir."""
+    """Gecici/kalici red (would_trigger DEGIL): durum `failed` (n=1), pozisyon kapanmaz, hedef bar kapanisinda piyasada denetlenir."""
     import numpy as np
 
     from trader_engine.position_manager import ExitContext
+    from trader_engine.types import OrderResult
     env = renv(tmp_path)
-    p = open_r1(env, target=99.0)                                           # long hedef mark'in (100) altinda: reddedilir
-    assert broker_orders(env, "target") == [] or all(o.status != "new" for o in broker_orders(env, "target"))
-    assert env.state.kv_get(f"target:{p.trade_id}")["state"] == "failed"
+    env.broker.place_target = lambda req: OrderResult(status="rejected", client_id=req.client_id, reason="fault_injected",
+                                                       ts=env.clock.now())
+    p = open_r1(env)
+    assert [o for o in broker_orders(env, "target") if o.status == "new"] == []
+    tk = env.state.kv_get(f"target:{p.trade_id}")
+    assert tk["state"] == "failed" and tk["n"] == 1
     assert env.state.get_position(p.trade_id).status == "open"
     D1 = T0 + H
     flat(env, T0 + M1, D1)
-    env.src.ctx[(BTC, D1)] = ExitContext(bar_close_ts=D1, highs=np.array([101.0]), lows=np.array([99.5]), atrs=np.array([1.0]),
-                                         regime_last="trend_up", last_close=100.0, n_closed=1)
+    env.src.ctx[(BTC, D1)] = ExitContext(bar_close_ts=D1, highs=np.array([105.0]), lows=np.array([99.5]), atrs=np.array([1.0]),
+                                         regime_last="trend_up", last_close=104.5, n_closed=1)
     env.decide(D1)
-    env.step(D1, pairs=(BTC,), price=100.0)
+    env.step(D1, pairs=(BTC,), price=104.5)
     assert trade(env, p.trade_id).exit_reason == "target"
+    env.close()
+
+
+def test_kagit_hedef_dolumu_last_fiyat_yolunu_asamaz(tmp_path):
+    """Tetik mark ile; mark yuksek hedefe degdi ama last high hedefin altinda: dolum min(hedef, last_high) (muhafazakar)."""
+    from trader_engine.types import MinuteBar
+    env = renv(tmp_path)
+    p = open_r1(env)
+    flat(env, T0 + M1, T0 + 5 * M1)
+    ts = T0 + 5 * M1
+    env.set_clock(ts + M1)
+    from trader_engine.marketdata.sources import MinuteStep
+    bar = MinuteBar(BTC, ts, 60, 101.0, 103.5, 100.5, 101.0, 101.0, 105.0, 100.5, 101.0, 1.0)     # last_h 103.5 < hedef 104 <= mark_h 105
+    env.engine.process_step(MinuteStep(ts, {BTC: bar}))
+    t = trade(env, p.trade_id)
+    assert t.exit_reason == "target"
+    assert t.exit_price == pytest.approx(103.5 * (1 - 2e-4), abs=0.05) and t.exit_price < TARGET
+    env.close()
+
+
+def test_basabas_would_trigger_ayni_adimda_pozisyon_kapaniyorsa_adim_biter(tmp_path):
+    """15 dk adiminda basa-bas stopu zaten asilmis (would_trigger): piyasa cikisi tek kez; ikinci cikis/stop yok."""
+    env = renv(tmp_path, modes={"default": {"breakeven": True}}, multi=True)
+    p = env.open_pos(BTC, T0, setup="T1", entry=100.0, stop=98.0, tf="1d")
+    flat(env, T0 + M1, T0 + 10 * M1, price=103.0)
+    flat(env, T0 + 10 * M1, T0 + 15 * M1, price=99.5)                               # en iyi uc 103, son fiyat basa-bas stopunun altinda
+    env.decide(T0 + M15)
+    assert env.state.get_position(p.trade_id).status in ("closing", "closed")
+    exits = [r for r in env.state.orders_for_trade(p.trade_id) if r.role == "exit"]
+    assert len(exits) == 1
     env.close()
 
 

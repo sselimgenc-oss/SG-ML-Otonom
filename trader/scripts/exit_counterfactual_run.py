@@ -319,7 +319,7 @@ def main(argv=None, *, now_fn=None) -> int:
            "base_parity_median_abs_r": par["median_abs_r"] if par else None, "parity_mean_r": par["mean_r"] if par else None,
            "reason_match_rate": par["reason_match_rate"] if par else None, "parity_n": par["n"] if par else 0,
            "parity_status": par["status"] if par else "parity_unknown",
-           "modes": {"registry_id": EC.MODES_REGISTRY_ID, "version": EC.MODES_VERSION,
+           "modes": {"registry_id": EC.MODES_REGISTRY_ID, "version": EC.modes_version_for(_target_mode(_resolve(args.base_config), _resolve(args.paper_config))),
                      "status": "ok" if modes_registered else "unregistered", **vars(mr)}}
     if runs:
         out["backtest_runs_skipped_holdout"] = bt_skipped

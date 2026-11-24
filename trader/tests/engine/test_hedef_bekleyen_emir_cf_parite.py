@@ -142,3 +142,52 @@ def test_motor_ve_oynatim_kismi_ayni_anda_ve_fiyatta(tmp_path):
     assert datetime.fromisoformat(pk["ts"].replace("Z", "+00:00")) == ENGINE_T0 + M15M       # replay ile ayni: 1. 15 dk kapanisindan sonraki ilk dakika
     assert pk["price"] == pytest.approx(rep.partial_price, abs=0.1)
     env.close()
+
+
+# ----------------------------------------------------------------------------------------------- en iyi uc: last serisi; surum secimi
+def test_step_15m_en_iyi_uc_last_serisinden_stop_vurusu_markta():
+    """Mark serisinde tepe yok (101), last serisinde 103 (+1,5R): basa-bas yalniz last serisi verilirse tetiklenir (motor mfe/mae = last)."""
+    hours = [(100, 101, 99, 99.5), (99.5, 99.5, 99.5, 99.5)]
+    h1, m15 = build(hours, atr=2.0)
+    m15[T0_MS + M15] = (100, 101, 100, 100.5)                     # mark: tepe yalniz 101
+    m15[T0_MS + 2 * M15] = (100.5, 100.5, 99, 99)
+    last = dict(m15)
+    last[T0_MS + M15] = (100, 103, 100, 100.5)                    # last: tepe 103
+    kw = dict(side="long", entry_price=100.0, initial_stop=98.0, entry_ms=T0_MS, trail_atr=3.0, h1=h1, m15=m15, now_ms=NOW_MS,
+              slip_exit_bps=0.0, slip_stop_bps=0.0, modes=BE, step_15m=True)
+    plain = EC.replay_trail(**kw)
+    with_last = EC.replay_trail(**kw, m15_best=last)
+    assert plain.exit_price != pytest.approx(100.15) and with_last.exit_price == pytest.approx(100.0 * 1.0015)
+    assert with_last.reason == "trail_stop" and with_last.exit_ms == T0_MS + 2 * M15
+
+
+def test_okuyucu_surumu_aktif_target_mode_a_gore_secer(tmp_path):
+    import json
+
+    import exit_cf_support as S
+    cfgd = tmp_path / "cfg"
+    cfgd.mkdir()
+    (cfgd / "engine.base.json").write_text(json.dumps({"target_mode": "bar_close"}))
+    assert EC.modes_version_from_config(cfgd) == EC.MODES_VERSION
+    (cfgd / "engine.paper.json").write_text(json.dumps({"target_mode": "resting"}))
+    assert EC.modes_version_from_config(cfgd) == EC.MODES_VERSION_15M
+    assert EC.modes_version_from_config(tmp_path / "yok") is None
+    store = EC.ExitCfStore(str(tmp_path / "cf.sqlite"))
+    now = datetime(2025, 6, 1, tzinfo=timezone.utc)
+    try:
+        rows = []
+        for tid, ver, on_r in ((1, EC.MODES_VERSION, 0.5), (2, EC.MODES_VERSION_15M, 0.9)):
+            for var, net in (("off", 0.0), ("breakeven", on_r), ("partial", on_r)):
+                r = EC._mrow(S.trade(trade_id=tid), "learner", var, 3.0, now, "last", {}, T0_MS, None, None, "stop", None, ver)   # noqa: SLF001
+                r.update(net_r=net, window_end_ts="2025-01-10T00:00:00.000Z", censored=0)
+                rows.append(r)
+        assert store.insert_modes(rows) == 6
+    finally:
+        store.close()
+    db = str(tmp_path / "cf.sqlite")
+    v2 = EC.deltas_modes(db, "learner", now=now, days=300, mode="breakeven", version=EC.MODES_VERSION)
+    v3 = EC.deltas_modes(db, "learner", now=now, days=300, mode="breakeven", version=EC.MODES_VERSION_15M)
+    legacy = EC.deltas_modes(db, "learner", now=now, days=300, mode="breakeven")            # surum verilmezse: eski yol (MAX)
+    assert [r["trade_id"] for r in v2] == [1] and [r["trade_id"] for r in v3] == [2]
+    assert [r["trade_id"] for r in legacy] == [2]
+    assert EC.modes_version_for("resting") == 3 and EC.modes_version_for("bar_close") == 2

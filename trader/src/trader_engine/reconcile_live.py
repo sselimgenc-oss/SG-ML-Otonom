@@ -33,6 +33,7 @@ log = logging.getLogger("engine.reconcile_live")
 LATE_FILL_WINDOW = timedelta(hours=24)
 EXIT_UNRESOLVED_CRIT_S = 600.0
 ENTRY_DRIFT = 0.001
+TARGET_RETRY_MAX = 3          # 24.11: bekleyen hedef kurulumu icin mutabakat deneme siniri (gecici hata); asilinca bar_close yedegi kalici
 _BLOCK_ORDER = ("reconcile_unknown_position", "reconcile_state_orphan", "reconcile_foreign_order",
                 "reconcile_account_mode_drift", "reconcile_ledger_orphan", "stop_failed", "exit_unknown")
 _LIVE_AUTO = _AUTO_CLEAR + ("reconcile_",)
@@ -541,6 +542,8 @@ class LiveReconciler(Reconciler):
                    and self._row_trade(o.client_id) == sp.trade_id]
         untracked = [o for o in orders_open if o.role == "stop" and o.pair == sp.pair
                      and not self.state.get_order(o.client_id)]
+        stale = [o for o in orders_open if o.role == "stop" and o.pair == sp.pair
+                 and self.state.get_order(o.client_id) is not None and self._row_trade(o.client_id) != sp.trade_id]
         qty = self._floor(bp.qty, step)                 # borsa miktari adimin tam kati olmali (asagi)
         if skip_requantity and sp.qty is not None:
             qty = self._floor(min(bp.qty, sp.qty), step)  # fazla miktar (L2): stop YALNIZ bizim (state) miktarimiz icin
@@ -550,8 +553,11 @@ class LiveReconciler(Reconciler):
                 self.counters["stops_reinstalled"] += 1
                 finds.append(f"no_stop:{sp.trade_id}")
             self._cancel_untracked(untracked, acts, finds, keep_if=not ok)
+            if ok:
+                self._cancel_stale(stale, acts, finds, "stale_stop")
             return
         self._cancel_untracked(untracked, acts, finds)
+        self._cancel_stale(stale, acts, finds, "stale_stop")
         if protect_only:
             return
         # L7: en siki kalir
@@ -605,9 +611,13 @@ class LiveReconciler(Reconciler):
         mine = [o for o in orders_open if o.role == "target" and o.pair == cur.pair]
         untracked = [o for o in mine if not self.state.get_order(o.client_id)]
         tracked = [o for o in mine if self._row_trade(o.client_id) == cur.trade_id]
+        stale = [o for o in mine if self.state.get_order(o.client_id) is not None and self._row_trade(o.client_id) != cur.trade_id]
         for o in untracked:
             finds.append(f"untracked_target:{o.client_id}")
             self._cancel(o.pair, o.client_id, acts, f"untracked_target_canceled:{o.client_id}")
+        for o in stale:                                    # baska (kapanmis) islemin hedefi: yeni pozisyonu kapatabilir
+            finds.append(f"stale_target:{o.client_id}")
+            self._cancel(o.pair, o.client_id, acts, f"stale_target_canceled:{o.client_id}")
         qty = self._floor(bp.qty, step)
         if skip_requantity and cur.qty is not None:
             qty = self._floor(min(bp.qty, cur.qty), step)
@@ -615,11 +625,24 @@ class LiveReconciler(Reconciler):
         tk = tk if isinstance(tk, dict) else None
         state = None if tk is None else tk.get("state")
         if not tracked:
-            if state == "failed":
-                return                                     # kurulamamisti: bar_close yedegi calisir; her turda denemeyiz
+            n = int(tk.get("n", 0) or 0) if tk is not None else 0
+            if state == "hit":
+                return                                     # hedef zaten asilmisti: piyasa cikisi verildi
+            if state == "failed" and n >= TARGET_RETRY_MAX:
+                return                                     # sinir doldu: bar_close yedegi kalici; her turda denemeyiz
             if state == "active":
                 finds.append(f"no_target:{cur.trade_id}")  # borsada kayip (iptal/suresi doldu): yeniden kur
-            self._reinstall_target(cur, qty, now, acts, finds, why="missing", replace_ids=())
+                old = str(tk.get("cid") or "")
+                orow = self.state.get_order(old) if old else None
+                if orow is not None and orow.status == "accepted":
+                    self.orders._upd(old, status="canceled", detail="gone_on_exchange")   # noqa: SLF001
+            res = self._reinstall_target(cur, qty, now, acts, finds, why="missing", replace_ids=())
+            if res == "would_trigger":
+                self._target_instant(cur, qty, now, acts, finds)
+            elif res == "failed":
+                with self.state.tx():                      # gecici hata: sinirli yeniden deneme; sinirda bar_close yedegi
+                    self.state.kv_set(f"target:{cur.trade_id}", {"state": "failed", "cid": None, "seq": (tk or {}).get("seq", 0),
+                                                                 "why": "reconcile_failed", "n": n + 1})
             return
         kept = max(tracked, key=lambda o: (self.state.get_order(o.client_id).seq if self.state.get_order(o.client_id) else -1))
         for o in tracked:
@@ -634,12 +657,29 @@ class LiveReconciler(Reconciler):
             acts.append(f"target_adopted:{cur.trade_id}")
         if not skip_requantity and abs(kept.qty - bp.qty) >= step / 2:
             finds.append(f"target_qty_mismatch:{cur.trade_id}")
-            self._reinstall_target(cur, qty, now, acts, finds, why="requantity", replace_ids=(kept.client_id,))
+            res = self._reinstall_target(cur, qty, now, acts, finds, why="requantity", replace_ids=(kept.client_id,))
+            if res == "would_trigger":
+                self._target_instant(cur, qty, now, acts, finds)
 
-    def _reinstall_target(self, sp: Position, qty: float, now, acts, finds, *, why: str, replace_ids) -> bool:
-        """Yeni seq ile hedef kur (borsa adedi); eskiler yenisi KABUL EDILDIKTEN sonra iptal. Basarisizsa eskiler kalir, piyasa cikisi YOK."""
+    def _target_instant(self, sp: Position, qty: float, now, acts, finds) -> None:
+        """Hedef borsada kayip/uyumsuz ve fiyat hedefi zaten asmis (`would_trigger`): bekleyen emir semantigi = tetiklenmis; piyasada
+        `target` cikisi (kagit = canli). Kalan hedef/stop emirleri kapanista iptal edilir."""
+        cur = self.state.get_position(sp.trade_id) or sp
+        if cur.status != "open":
+            return
+        with self.state.tx():
+            self.state.kv_set(f"target:{sp.trade_id}", {"state": "hit", "cid": None, "seq": 0, "why": "would_trigger_reconcile", "n": 0})
+        finds.append(f"target_beyond_market:{sp.trade_id}")
+        log.warning("mutabakat: hedef asilmis trade %s: piyasada target cikisi", sp.trade_id)
+        self.orders.market_exit(replace(cur, qty=qty), "target", now)
+        acts.append(f"target_market_exit:{sp.trade_id}")
+        self.counters["target_instant_exit"] += 1
+
+    def _reinstall_target(self, sp: Position, qty: float, now, acts, finds, *, why: str, replace_ids) -> str:
+        """Yeni seq ile hedef kur (borsa adedi); eskiler yenisi KABUL EDILDIKTEN sonra iptal. Doner: "ok" | "would_trigger" | "failed".
+        Basarisizsa eskiler kalir; piyasa cikisini cagiran verir (yalniz would_trigger)."""
         if not qty > 0:
-            return False
+            return "failed"
         om = self.orders
         seq = om.next_target_seq(sp)
         try:
@@ -648,14 +688,16 @@ class LiveReconciler(Reconciler):
             raise
         except Exception as e:  # noqa: BLE001
             log.warning("mutabakat: hedef kurulamadi trade %s (%s): %r", sp.trade_id, why, e)
-            return False
+            return "failed"
+        if out is not None and not out.ok and out.note == "would_trigger":
+            return "would_trigger"
         if out is None or not out.ok:
             log.warning("mutabakat: hedef yeniden kurulamadi trade %s (%s): %s", sp.trade_id, why, None if out is None else out.note)
             self.counters["target_reinstall_failed"] += 1
-            return False
+            return "failed"
         with self.state.tx():
             self.state.kv_set(f"target:{sp.trade_id}", {"state": "active", "cid": out.order.client_id, "seq": out.order.seq,
-                                                        "why": f"reconcile_{why}"})
+                                                        "why": f"reconcile_{why}", "n": 0})
         acts.append(f"target_installed:{sp.trade_id}")
         self.counters["targets_reinstalled"] += 1
         for cid in replace_ids:
@@ -669,7 +711,7 @@ class LiveReconciler(Reconciler):
                 raise
             except Exception as e:  # noqa: BLE001
                 log.warning("register_position basarisiz %s: %r", sp.pair, e)
-        return True
+        return "ok"
 
     def _row_trade(self, cid: str):
         r = self.state.get_order(cid)
@@ -732,6 +774,13 @@ class LiveReconciler(Reconciler):
             raise
         except Exception as e:  # noqa: BLE001
             log.warning("iptal basarisiz %s: %r", cid, e)
+
+    def _cancel_stale(self, stale: list[BrokerOrder], acts, finds, tag: str) -> None:
+        """Baska (kapanmis) islemin acik koruyucu emri ayni ciftte yeni pozisyonu kapatabilir: iptal."""
+        for o in stale:
+            log.critical("mutabakat: baska islemin acik emri %s (%s) iptal ediliyor", o.client_id, tag)
+            finds.append(f"{tag}:{o.client_id}")
+            self._cancel(o.pair, o.client_id, acts, f"{tag}_canceled:{o.client_id}")
 
     def _cancel_untracked(self, untracked: list[BrokerOrder], acts, finds, keep_if: bool = False) -> None:
         if keep_if:

@@ -17,6 +17,7 @@ import json
 import math
 import os
 import sqlite3
+from pathlib import Path
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -73,6 +74,23 @@ class ExitCfError(Exception):
     def __init__(self, message: str, code: str = "error"):
         super().__init__(message)
         self.code = code
+
+
+def modes_version_for(target_mode: str | None) -> int:
+    """24.11: aktif `target_mode`un cikis kipi kaniti surumu: "resting" -> `MODES_VERSION_15M`, digerleri -> `MODES_VERSION`."""
+    return MODES_VERSION_15M if target_mode == "resting" else MODES_VERSION
+
+
+def modes_version_from_config(config_dir=None) -> int | None:
+    """Kagit motorunun yapilandirmasindan (taban + kagit katmani) aktif kanit surumu; okunamazsa None (okuyucu MAX(version)'a duser)."""
+    d = Path(config_dir) if config_dir is not None else Path(__file__).resolve().parents[2] / "config"
+    mode = None
+    for name in ("engine.base.json", "engine.paper.json"):
+        try:
+            mode = json.loads((d / name).read_text(encoding="utf-8")).get("target_mode", mode)
+        except (OSError, ValueError):
+            continue
+    return None if mode is None else modes_version_for(mode)
 
 
 def registry_row() -> dict:
@@ -210,7 +228,8 @@ def _slip(price: float, side: str, bps: float) -> float:
 def replay_trail(*, side: str, entry_price: float, initial_stop: float, entry_ms: int, trail_atr: float, h1: H1Series,
                  m15: Mapping[int, tuple], now_ms: int, slip_exit_bps: float, slip_stop_bps: float,
                  max_bars: int | None = None, modes: XM.ExitModes | None = None, qty: float | None = None,
-                 lot_rules: tuple[float, float, float] | None = None, step_15m: bool = False) -> ReplayResult:
+                 lot_rules: tuple[float, float, float] | None = None, step_15m: bool = False,
+                 m15_best: Mapping[int, tuple] | None = None) -> ReplayResult:
     """T1 cikisini (position_manager.evaluate_exit sirasi) 1h kapanislarinda + 15 dk stop vurusuyla oynatir.
 
     `h1`: ms/o/h/l/c/atr/regime (acilis zamani sirali, bosluksuz olmali); `m15`: {acilis_ms: (o,h,l,c)} tetik serisi.
@@ -230,7 +249,8 @@ def replay_trail(*, side: str, entry_price: float, initial_stop: float, entry_ms
     mfe/mae) bakilir: basa-bas stopu bir sonraki 15 dk mumundan itibaren gecerli (acilis zaten asmissa would_trigger -> trail_stop
     piyasa), kismi bir sonraki 15 dk mumunun acilisinda dolar (min notional icin son kapanis = o 15 dk mumunun kapanisi). Iz suren stop,
     rejim cikisi ve ufuk 1h kapanisinda KALIR (motor: kendi tf kapanisi); iz stopu basa-bas stopuyla birlestirilmez (motorda
-    borsa stopu en siki olandir: `cur` yalniz sikilasir)."""
+    borsa stopu en siki olandir: `cur` yalniz sikilasir). `m15_best` ({acilis_ms: (o,h,l,c)}; yalniz step_15m): basa-bas/kismi tetiginin
+    en iyi ucu icin `last` fiyat serisi (motor: 1 dk last mfe/mae); stop vurusu `m15` (tetik kaynagi, mark) uzerinde KALIR. Yoksa `m15`."""
     from trader_core import signals as S          # tembel: pandas yalniz oynatimda yuklenir
     max_bars = MAX_BARS if max_bars is None else max_bars
 
@@ -269,6 +289,7 @@ def replay_trail(*, side: str, entry_price: float, initial_stop: float, entry_ms
     part_done: tuple[int, float, float] | None = None
     part_frac = float(modes.pt_frac) if modes is not None else 0.0   # kapanacak oran (adet yuvarlamasiyla ayarlanabilir)
     part_tried = False                   # motor kismiyi bir kez dener (done | skipped): tekrar yok
+    best_l = entry_price                 # step_15m: basa-bas/kismi tetigi icin en iyi uc (last serisi)
     best_h1 = -math.inf if side == "long" else math.inf     # kapanmis 1h mumlarin en iyi ucu (giris mumu dahil; motor ctx ile ayni)
 
     def mfe_r() -> float | None:
@@ -311,14 +332,16 @@ def replay_trail(*, side: str, entry_price: float, initial_stop: float, entry_ms
                 return fin(ReplayResult("ok", reason, b, _slip(base, side, slip_stop_bps), k + 1, mfe_r()))
             if step_15m and modes is not None:
                 nb = b + M15_MS                                   # motorun 15 dk karar adimi: bu mum kapandi, emirler sonraki mumun acilisinda
-                be = XM.be_stop(side, entry_price, initial_stop, best, modes)
+                lb = (m15_best or {}).get(b, bar)                 # en iyi uc: last serisi (motor mfe/mae); yoksa tetik serisi
+                best_l = max(best_l, lb[1]) if side == "long" else min(best_l, lb[2])
+                be = XM.be_stop(side, entry_price, initial_stop, best_l, modes)
                 if be is not None and XM.tighter(side, be, cur):
                     cur = be
                     fresh_ms = nb
-                if modes.partial and not part_tried and XM.partial_due(side, entry_price, initial_stop, best, modes):
+                if modes.partial and not part_tried and XM.partial_due(side, entry_price, initial_stop, best_l, modes):
                     part_tried = True
                     if lot_rules is not None and qty:
-                        q = XM.partial_qty(float(qty), modes.pt_frac, lot_rules[0], lot_rules[1], lot_rules[2], float(_c))
+                        q = XM.partial_qty(float(qty), modes.pt_frac, lot_rules[0], lot_rules[1], lot_rules[2], float(lb[3]))
                         part_frac = 0.0 if q is None else q / float(qty)
                     if part_frac > 0.0:
                         part_at = nb
@@ -898,6 +921,7 @@ def _compute_modes_trade(tr: TradeInput, missing: list[str], *, trail: float, ma
         return [_mrow(tr, bot, v, trail, now, trigger_source, cost, w_start, w_end, None, reason, None, ver) for v in missing], flags
     try:
         m15_rows = market.bars(pair, "15m", entry_ms - entry_ms % M15_MS, w_end, kind)
+        m15l_rows = market.bars(pair, "15m", entry_ms - entry_ms % M15_MS, w_end, "last") if (step_15m and kind != "last") else None
         h1_rows = market.bars(pair, "1h", w_start, w_end, "last")
         h4_rows = market.bars(pair, "4h", w_start - H4_MS, w_end, "last")
         f_pts = market.funding(pair, entry_ms - H8_MS, w_end + H8_MS)
@@ -909,6 +933,7 @@ def _compute_modes_trade(tr: TradeInput, missing: list[str], *, trail: float, ma
         return nodata()
     h1 = prepare_h1(h1_rows, h4_rows, signal_params)
     m15 = {r[0]: r[1:5] for r in m15_rows}
+    m15_best = {r[0]: r[1:5] for r in m15l_rows} if m15l_rows else None      # basa-bas/kismi en iyi ucu: motor gibi last serisi
     fund = _funding_fn(f_pts, now_ms, tr.side, tr.qty, tr.entry_price)
     taker = float(cost.get("taker_fee", 0.0005))
     rows: list[dict] = []
@@ -916,7 +941,7 @@ def _compute_modes_trade(tr: TradeInput, missing: list[str], *, trail: float, ma
         rr = replay_trail(side=tr.side, entry_price=tr.entry_price, initial_stop=tr.initial_stop, entry_ms=entry_ms,
                           trail_atr=trail, h1=h1, m15=m15, now_ms=now_ms, slip_exit_bps=float(cost.get("slip_exit_bps", 2.0)),
                           slip_stop_bps=float(cost.get("slip_stop_bps", 5.0)), modes=_modes_for_variant(v), qty=tr.qty,
-                          lot_rules=lot_rules, step_15m=step_15m)
+                          lot_rules=lot_rules, step_15m=step_15m, m15_best=m15_best)
         if rr.status == "ok":
             sim = price_result(rr, tr, taker_fee=taker, funding_of=fund)
             if sim["status"] == "ok":
@@ -1004,7 +1029,7 @@ def run_modes_once(*, bot: str, trades: Sequence[TradeInput], market, store: Exi
 
 
 def deltas_modes(path, bot: str, *, now: datetime, days: int = 120, mode: str, sources: Sequence[str] = SOURCES_VERDICT,
-                 run_id: str | None = None, with_r: bool = False) -> list[dict]:
+                 run_id: str | None = None, with_r: bool = False, version: int | None = None) -> list[dict]:
     """(`with_r=True`: her satira `on_r`/`off_r` eklenir; otomatik geri alma olcutu icin.)
     Her islem icin Delta_r = net_r(mode acik) - net_r(kapali) (yalniz window_end_ts <= now; ikisi de sayisal; en yuksek
     `version`). Tablo/dosya yoksa [] (kanit yok). Doner: [{source, run_id, trade_id, entry_ts, delta_r, censored,
@@ -1015,7 +1040,7 @@ def deltas_modes(path, bot: str, *, now: datetime, days: int = 120, mode: str, s
     lo, hi = _fmt(now - timedelta(days=days)), _fmt(now)
     with _open_ro(path) as st:
         try:
-            ver = st._db.execute("SELECT MAX(version) FROM ecf_modes WHERE bot=?", (bot,)).fetchone()[0]
+            ver = version if version is not None else st._db.execute("SELECT MAX(version) FROM ecf_modes WHERE bot=?", (bot,)).fetchone()[0]
         except sqlite3.OperationalError:
             return []                                              # eski depo: tablo yok (kanit yok)
         except sqlite3.Error as e:

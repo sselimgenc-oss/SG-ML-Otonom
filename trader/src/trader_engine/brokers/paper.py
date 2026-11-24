@@ -562,6 +562,8 @@ class PaperBroker:
             t = min(hit, key=lambda x: x.trigger_price) if long else max(hit, key=lambda x: x.trigger_price)   # type: ignore[arg-type,return-value]
             gap = op >= t.trigger_price if long else op <= t.trigger_price   # type: ignore[operator]
             base = bar.last_o if gap else t.trigger_price
+            # 24.11 (muhafazakar): tetik mark ile ama dolum last fiyat yolunu asamaz: long min(hedef, last_high), short max(hedef, last_low)
+            base = min(base, bar.last_h) if long else max(base, bar.last_l)
             fp = self._slipped(base, t.order_side, cost.slip_exit_bps, rules.tick, pair, pos.opened_ts)   # type: ignore[arg-type]
             qty = min(t.qty, pos.qty)
             self._close(t, pos, qty, fp, qty * fp * cost.taker_fee, ts, "target", "fill", None)

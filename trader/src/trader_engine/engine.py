@@ -1614,6 +1614,9 @@ class Engine:
                     # 24.11 kullanici karari: basa-bas tasima ve kismi kar alma 15 dk karar adimi basina degerlendirilir (kendi tf
                     # kapanisini beklemez). Iz suren stop, zaman durdurma, rejim cikisi yine yalniz kendi tf kapanisinda.
                     self._modes_step_guarded(pos, D)
+                    pos = self.state.get_position(pos.trade_id)
+                    if pos is None or pos.status != "open":
+                        continue                                # basa-bas would_trigger / kismi sonrasi pozisyon kapandi: bu adimda iz/catchup yok
                 # WP-11: cikis yalniz pozisyonun KENDI zaman dilimi kapaninca degerlendirilir. 23.11 (canli): kacirilan sinir icin
                 # telafi: canlida kacan karar barlari yeniden oynatilmaz, bu yuzden o TF kapanisi hic gelmezse pozisyon yalniz borsa
                 # stopuyla kalirdi. Son kapanmis TF barinin siniri (D'den onceki) daha once degerlendirilmediyse simdi degerlendirilir.
@@ -1765,8 +1768,19 @@ class Engine:
             return
         if out is None:
             return
+        if not out.ok and out.note == "would_trigger":
+            # 24.11: fiyat hedefi zaten asmis: bekleyen emir semantigi = hemen tetiklenir => piyasada `target` cikisi (kagit = canli)
+            with self.state.tx():
+                self.state.kv_set(f"target:{trade_id}", {"state": "hit", "cid": out.order.client_id, "seq": out.order.seq,
+                                                         "why": "would_trigger", "n": 0})
+            self._c["target_instant_exit"] += 1
+            cur = self.state.get_position(trade_id)
+            if cur is not None and cur.status == "open":
+                log.warning("hedef girisle ayni anda asilmis trade %s: piyasada target cikisi", trade_id)
+                self._submit_exit(cur, "target", self.clock.now())
+            return
         st = {"state": "active" if out.ok else "failed", "cid": out.order.client_id, "seq": out.order.seq,
-              "why": out.note}
+              "why": out.note, "n": 0 if out.ok else 1}          # n: basarisiz deneme sayisi (mutabakat sinirli yeniden dener)
         with self.state.tx():
             self.state.kv_set(f"target:{trade_id}", st)
         self._c["target_placed" if out.ok else "target_place_failed"] += 1

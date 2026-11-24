@@ -123,7 +123,7 @@ FROZEN_SHA256 = {
     "config/engine.learner.json": "30ca2842c40cacafbf6cdd90c9e6f1f54fc62b9a9ec913476d1399ac5352cb12",
     "config/engine.testnet.json": "54247bbd4d0fcea5eda5add465809938178ec4a1decf7f61cb9aa838daa4e952",
     "config/engine.live.json": "66cc37327d03ff62970195b5423b08898811e9e76717e7f5f7e7915466259a72",   # 24.11 kullanici karari: hedef bekleyen emir (target_mode "resting"); onceki 24.11: DL1 dort zaman dilimi acik; onceki 24.11 ML filtreleri silindi; onceki 23.11 asama B + uzun_yon + HB1 (canli = kagit)
-    "src/trader_engine/order_manager.py": "14f716b3433583206affc8989e265b028157a7c12979d909641f53824b6fe8ba",   # 24.11 kullanici karari: hedef bekleyen emir (place_target/cancel_target/next_target_seq; cancel_resting hedef satirini iptal isaretler)
+    "src/trader_engine/order_manager.py": "7bd0ff0ca3173c7e8baf0ab05dde04a8b1c472d4510c4922d142220d4ae02538",   # 24.11 kullanici karari: hedef bekleyen emir; inceleme: iptal reddi emir yok => satir canceled (place_target/cancel_target/next_target_seq; cancel_resting hedef satirini iptal isaretler)
     "research/s2_run.py": "66710418f9be36225b757f9d4a1158b1e9093db5f7df131572c639e3958b21a7",
 }
 

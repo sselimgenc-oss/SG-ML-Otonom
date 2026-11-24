@@ -84,13 +84,59 @@ def test_bar_close_modunda_canlida_hedef_emri_yok(tmp_path):
     e.close()
 
 
-def test_hedef_reddedilirse_pozisyon_stopla_surer_bar_close_yedegi(tmp_path):
+def test_hedef_girisle_ayni_anda_asilmissa_piyasada_target_cikisi(tmp_path):
     e = mk(tmp_path)
-    pos = e.enter(**{**R1_KW, "planned_target": 2.0})          # hedef = mark: borsa anlik tetik reddi (-2021)
+    e.enter(**{**R1_KW, "planned_target": 2.0})          # hedef = mark: borsa anlik tetik reddi (-2021) => piyasada target cikisi
+    pos = e.state.get_position(1)
+    e.tick(31)
+    assert e.state.get_position(pos.trade_id).status == "closed" and ex_qty(e) == 0
+    assert e.real_ledger.get_trade(pos.trade_id).exit_reason == "target"
+    assert e.engine.counters()["target_instant_exit"] == 1 and algos(e) == []
+    e.close()
+
+
+def _deny_targets(e):
+    orig = e.ex._new_cond
+
+    def deny(sym, side, typ, qty, trig, wt, cid, reduce=True):
+        if typ == "TAKE_PROFIT_MARKET":
+            return FakeResp(400, {"code": -1111, "msg": "x"})
+        return orig(sym, side, typ, qty, trig, wt, cid, reduce)
+    e.ex._new_cond = deny
+    return orig
+
+
+def test_hedef_kurulamazsa_failed_ve_mutabakat_sinirli_yeniden_dener(tmp_path):
+    e = mk(tmp_path)
+    orig = _deny_targets(e)
+    pos = e.enter(**R1_KW)
     p = e.pos()
     assert p.status == "open" and len(algos(e, "STOP_MARKET")) == 1 and algos(e, "TAKE_PROFIT_MARKET") == []
-    assert e.state.kv_get(f"target:{pos.trade_id}")["state"] == "failed"
-    assert e.engine.counters()["target_place_failed"] == 1
+    tk = e.state.kv_get(f"target:{pos.trade_id}")
+    assert tk["state"] == "failed" and tk["n"] == 1 and e.engine.counters()["target_place_failed"] == 1
+    posts = lambda: len([x for x in writes(e) if x[1] == "TAKE_PROFIT_MARKET"])        # noqa: E731
+    assert posts() == 1
+    _reconcile(e)
+    _reconcile(e)
+    assert e.state.kv_get(f"target:{pos.trade_id}")["n"] == 3 and posts() == 3
+    _reconcile(e)
+    _reconcile(e)
+    assert posts() == 3                                         # sinir doldu: bar_close yedegi kalici, POST dongusu yok
+    e.close()
+    del orig
+
+
+def test_hedef_gecici_hatadan_sonra_mutabakat_kurar(tmp_path):
+    e = mk(tmp_path)
+    orig = _deny_targets(e)
+    pos = e.enter(**R1_KW)
+    assert algos(e, "TAKE_PROFIT_MARKET") == []
+    e.ex._new_cond = orig                                       # hata gecti
+    rep = _reconcile(e)
+    tp = algos(e, "TAKE_PROFIT_MARKET")
+    assert len(tp) == 1 and f"target_installed:{pos.trade_id}" in rep.actions
+    tk = e.state.kv_get(f"target:{pos.trade_id}")
+    assert tk["state"] == "active" and tk["n"] == 0
     e.close()
 
 
@@ -333,4 +379,80 @@ def test_parite_kagit_ve_canli_ayni_hedef_fiyati_ve_emir_yonu(tmp_path):
     assert (paper_req.role, paper_req.order_side, paper_req.reduce_only) == (live_req.role, live_req.order_side, live_req.reduce_only)
     assert paper_req.trigger_price == pytest.approx(104.0) and live_req.trigger_price == pytest.approx(2.3)
     pe.close()
+    e.close()
+
+
+# ----------------------------------------------------------------------------------------------- mutabakat: would_trigger / stale / iptal reddi
+def test_mutabakat_borsada_kaybolan_hedef_ve_fiyat_hedefi_asmissa_piyasada_target_cikisi(tmp_path):
+    e = mk(tmp_path)
+    pos = e.enter(**R1_KW)
+    old = algos(e, "TAKE_PROFIT_MARKET")[0]
+    e.ex.algos[old["cid"]]["algoStatus"] = "CANCELED"           # hedef borsada kayboldu
+    e.ex.marks[SYM] = Decimal("2.31")                           # mark hedefin (2.3) otesinde; stop (1.9) etkilenmez
+    n0 = len(e.ex.requests)
+    rep = _reconcile(e)
+    assert f"target_market_exit:{pos.trade_id}" in rep.actions and f"target_beyond_market:{pos.trade_id}" in rep.findings
+    assert e.state.get_order(old["cid"]).status == "canceled"                 # kayip emrin satiri accepted kalmaz
+    e.tick(31)
+    assert e.state.get_position(pos.trade_id).status == "closed"
+    assert e.real_ledger.get_trade(pos.trade_id).exit_reason == "target"
+    tp_posts = [x for x in writes(e, n0) if x[1] == "TAKE_PROFIT_MARKET"]
+    assert len(tp_posts) <= 1                                   # her turda yeni seq + POST dongusu YOK
+    e.close()
+
+
+def test_mutabakat_durum_yokken_fiyat_hedefi_asmissa_dongu_yok_tek_piyasa_cikisi(tmp_path):
+    e = mk(tmp_path)
+    pos = e.enter(**R1_KW)
+    with e.state.tx():
+        e.state.kv_set(f"target:{pos.trade_id}", None)           # durum yok (eski pozisyon)
+    old = algos(e, "TAKE_PROFIT_MARKET")[0]
+    e.ex.algos[old["cid"]]["algoStatus"] = "CANCELED"
+    e.ex.marks[SYM] = Decimal("2.31")
+    _reconcile(e)
+    n_after = len(e.ex.requests)
+    e.tick(31)
+    _reconcile(e)
+    assert e.state.get_position(pos.trade_id).status == "closed"
+    assert len([r for r in e.state.orders_for_trade(pos.trade_id) if r.role == "target"]) <= 2
+    e.close()
+    assert n_after > 0
+
+
+def test_mutabakat_baska_islemin_hedef_ve_stopu_iptal_edilir(tmp_path):
+    from datetime import timedelta
+
+    from trader_engine.state import OrderRow
+    e = mk(tmp_path)
+    pos = e.enter(**R1_KW)
+    old_d = DEC - timedelta(hours=5)
+    now = e.clock.now()
+    made = []
+    for role, typ, trig in (("target", "TAKE_PROFIT_MARKET", "2.4"), ("stop", "STOP_MARKET", "1.5")):
+        cid = make_client_id("learner", role, XRP, "long", old_d, 0)
+        with e.state.tx():
+            e.state.insert_order(OrderRow(client_id=cid, pair=XRP, role=role, order_side="sell", qty=1.0, trigger_price=float(trig),
+                                          reduce_only=True, status="accepted", signal_bar_close_ts=old_d, seq=0, attempts=0,
+                                          trade_id=999, broker_order_id=None, detail=None, created_ts=now, updated_ts=now))
+        e.ex._new_cond(SYM, "SELL", typ, Decimal("1.0"), Decimal(trig), "MARK_PRICE", cid, True)
+        made.append(cid)
+    rep = _reconcile(e)
+    for cid in made:
+        assert e.ex.algos[cid]["algoStatus"] == "CANCELED"
+    assert any(f.startswith("stale_target:") for f in rep.findings) and any(f.startswith("stale_stop:") for f in rep.findings)
+    assert len(algos(e, "TAKE_PROFIT_MARKET")) == 1 and len(algos(e, "STOP_MARKET")) == 1   # pozisyonun kendi emirleri duruyor
+    e.close()
+
+
+def test_iptal_reddi_emir_yok_ise_satir_canceled(tmp_path):
+    """Hedef borsada zaten yok (-2011): kapanista iptal reddi satiri `accepted` birakmaz."""
+    e = mk(tmp_path)
+    pos = e.enter(**R1_KW)
+    tcid = algos(e, "TAKE_PROFIT_MARKET")[0]["cid"]
+    e.ex.algos[tcid]["algoStatus"] = "CANCELED"                 # borsada yok; motor henuz bilmiyor
+    e.ex.set_mark(SYM, "1.85")                                  # stop tetiklenir
+    e.tick(31)
+    e.tick(31)
+    assert e.state.get_position(pos.trade_id).status == "closed"
+    assert e.state.get_order(tcid).status == "canceled"
     e.close()

@@ -29,6 +29,12 @@ _EXIT_RETRY_LIMIT = EXIT_RETRY_LIMIT
 __all__ = ["EXIT_RETRY_LIMIT", "make_client_id", "OrderRow", "SubmitOutcome", "OrderManager"]
 
 
+def _cancel_gone(e: Exception) -> bool:
+    """Iptal reddi 'emir yok' (-2011 Unknown order / -2013 Order does not exist): emir borsada zaten yok."""
+    t = str(e)
+    return "code=-2011" in t or "code=-2013" in t
+
+
 def _cid_is_target(cid: str) -> bool:
     """Istemci kimligi hedef (rol `t`) mi: `tr<L|T>t-<hash>`."""
     return len(cid) > 3 and cid.startswith("tr") and cid[3:4] == "t"
@@ -552,7 +558,12 @@ class OrderManager:
             except StateError:
                 raise
             except Exception as e:  # noqa: BLE001
-                log.warning("eski stop iptal edilemedi %s: %r", old, e)
+                if _cancel_gone(e):
+                    row = self.state.get_order(old)
+                    if row is not None and row.status == "accepted":
+                        self._upd(old, status="canceled", detail="gone_on_cancel")
+                else:
+                    log.warning("eski stop iptal edilemedi %s: %r", old, e)
             else:
                 if self.live_mode:                  # DD-2 D10: iptal edilen eski stop satiri `accepted` kalmaz (kagit degismez)
                     row = self.state.get_order(old)
@@ -599,6 +610,11 @@ class OrderManager:
         except StateError:
             raise
         except Exception as e:  # noqa: BLE001
+            if _cancel_gone(e):
+                row = self.state.get_order(cid)
+                if row is not None and row.status == "accepted":
+                    self._upd(cid, status="canceled", detail="gone_on_cancel")
+                return True
             log.warning("hedef iptal edilemedi %s: %r", cid, e)
             return False
         if self.live_mode:
@@ -620,6 +636,11 @@ class OrderManager:
             except StateError:
                 raise
             except Exception as e:  # noqa: BLE001
+                if _cancel_gone(e):                                 # emir borsada yok: satir `accepted` kalmaz
+                    row = self.state.get_order(cid)
+                    if row is not None and row.status == "accepted":
+                        self._upd(cid, status="canceled", detail="gone_on_cancel")
+                    continue
                 log.warning("iptal basarisiz %s: %r", cid, e)
                 continue
             if self.live_mode and _cid_is_target(cid):             # 24.11: kapanista iptal edilen hedef satiri `accepted` kalmaz
