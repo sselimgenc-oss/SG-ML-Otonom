@@ -102,6 +102,18 @@ def alinmayan_ozeti(doc: dict | None) -> list[dict] | None:
         return None
 
 
+def arm_conflict_ozeti(doc: dict | None) -> list[dict] | None:
+    """Kurulum x zaman dilimi basina `arm_conflict` kayiplari ve "alinsaydi" net R (son 7 gun); yok -> None. Salt okunur."""
+    try:
+        if not isinstance(doc, dict) or doc.get("sema") != "ml.alinmayan_sonuc.v1":
+            return None
+        rows = (doc.get("arm_conflict") or {}).get("tablolar") or []
+        return [{"kol": r["etiket"], "kayip": int(r["kayip"]), "n": int(r["n"]), "isabet_yuzde": r.get("isabet_yuzde"),
+                 "toplam_R": r.get("toplam_pnl"), "ortalama_R": r.get("ortalama_pnl")} for r in rows][:12] or None
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
 def tablolari_kur(trades_raw: list[dict], decisions_raw: list[dict], now: datetime, *, olcum: dict | None = None,
                   alinmayan: dict | None = None, haftalik_sabit: list[str] | None = None,
                   dersler: list[str] | None = None) -> dict:
@@ -111,6 +123,7 @@ def tablolari_kur(trades_raw: list[dict], decisions_raw: list[dict], now: dateti
             "son_gun_penceresi": SON_GUN, "kilitli_donem_atilan_islem": kilit,
             "toplam_kapanmis_islem": len(trades), "kollar": kol_tablosu(trades, now), "dun": dun_tablosu(trades, now),
             "kararlar": karar_tablosu(decisions), "olcum": olcum_ozeti(olcum), "alinmayan_sinyal": alinmayan_ozeti(alinmayan),
+            "arm_conflict_kayiplari": arm_conflict_ozeti(alinmayan),
             "haftalik_sabit_bolum": list(haftalik_sabit or []), "aktif_dersler": list(dersler or [])}
 
 

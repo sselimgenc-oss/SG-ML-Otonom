@@ -99,6 +99,31 @@ def _tablo(cf: list[Mapping], atlanan: list[Mapping], alinan: list[Mapping]) -> 
     return {"neden": satir}, {k: coz[k] for k in _sira(coz)}
 
 
+def _arm_conflict(cf: list[Mapping], atlanan: list[Mapping]) -> list[dict]:
+    """`arm_conflict` kayiplari kurulum x zaman dilimi (kaybeden kolun `arm_id`i) basina: kayip sayisi ve "alinsaydi" net R
+    (n/kazanan/isabet/toplam/ortalama; cozulmeyen kayip yalniz `kayip`ta sayilir). Yalniz bilgi: karar yoluna girmez."""
+    arm_of = {d.get("id"): str(d.get("arm_id") or "bilinmiyor") for d in atlanan if d.get("skip_reason") == "arm_conflict"}
+    kayip: dict[str, int] = {}
+    for a in arm_of.values():
+        kayip[a] = kayip.get(a, 0) + 1
+    kv: dict[str, list[float]] = {}
+    for r in cf:
+        if r.get("skip_reason") != "arm_conflict":
+            continue
+        v = _say(r.get("r"))
+        a = arm_of.get(r.get("decision_id"))
+        if v is not None and a is not None:
+            kv.setdefault(a, []).append(v)
+    out = []
+    for a in sorted(kayip):
+        p = kv.get(a, [])
+        kaz = sum(1 for x in p if x > 0)
+        out.append({"etiket": a, "kayip": kayip[a], "n": len(p), "kazanan": kaz,
+                    "isabet_yuzde": round(100.0 * kaz / len(p), 1) if p else None,
+                    "toplam_pnl": round(sum(p), 2), "ortalama_pnl": round(sum(p) / len(p), 2) if p else None})
+    return out
+
+
 def topla(cf: list[Mapping], atlanan: list[Mapping], alinan: list[Mapping], simdi: datetime, gun: int = PENCERE_GUN) -> dict:
     """Saf. cf: [{decision_id, skip_reason, ts(karar zamani), r}]; atlanan: [{id, skip_reason, ts}]; alinan: [{ts(kapanis), r}].
     Son `gun` gun (`tablolar`) ve tum zamanlar. Kilitli donemde (CF.HOLDOUT_*) karar cozulmedi sayilmaz (motor onlari hic okumaz)."""
@@ -121,6 +146,7 @@ def topla(cf: list[Mapping], atlanan: list[Mapping], alinan: list[Mapping], simd
     for ad, tum in (("tablolar", False), ("tum_zamanlar", True)):
         tb, coz = _tablo(pen(cf, tum), pen(atl, tum), pen(alinan, tum))
         res[ad], res[ad + "_cozulmedi"] = tb, coz
+        res.setdefault("arm_conflict", {})[ad] = _arm_conflict(pen(cf, tum), pen(atl, tum))
     return res
 
 
@@ -136,7 +162,8 @@ def olustur(cf: list[Mapping], atlanan: list[Mapping], alinan: list[Mapping], si
               "Üst sınır: sonraki kapıları ve dolumu yok sayar, giriş = planlanan fiyat; işlem yapılabilir kâr değildir."]
     return {"sema": SEMA, "uretim": simdi.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "birim": BIRIM,
             "pencere_gun": PENCERE_GUN, "tablolar": t["tablolar"], "tum_zamanlar": t["tum_zamanlar"],
-            "cozulmedi": {"tablolar": t["tablolar_cozulmedi"], "tum_zamanlar": t["tum_zamanlar_cozulmedi"]}, "not": " ".join(notlar)}
+            "cozulmedi": {"tablolar": t["tablolar_cozulmedi"], "tum_zamanlar": t["tum_zamanlar_cozulmedi"]},
+            "arm_conflict": t["arm_conflict"], "not": " ".join(notlar)}
 
 
 def _cf_satirlari(cf_yol: Path, bot: str) -> list[dict]:
@@ -166,7 +193,7 @@ def girdi_oku(ledger: Any, cf_yol: Path, bot: str) -> tuple[list[dict], list[dic
     alinan: list[dict] = []
     if ledger is not None:
         try:
-            atlanan = [{"id": d.id, "skip_reason": d.skip_reason, "ts": d.bar_close_ts}
+            atlanan = [{"id": d.id, "skip_reason": d.skip_reason, "ts": d.bar_close_ts, "arm_id": getattr(d, "arm_id", None)}
                        for d in ledger.list_decisions(final_action="skipped")]
             alinan = [{"ts": t.exit_ts, "r": t.r_multiple} for t in ledger.list_closed_trades(limit=ledger.LIST_CLOSED_MAX)]
         except Exception:  # noqa: BLE001

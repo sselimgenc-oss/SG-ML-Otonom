@@ -174,6 +174,23 @@ def alinmayan_satiri(env, durum_path=None) -> str:
         return yok
 
 
+def arm_conflict_satiri(env, durum_path=None) -> str | None:
+    """Kurulum x zaman dilimi basina `arm_conflict` kayiplari ve "alinsaydi" net R (son 7 gun). Veri yoksa None (satir yazilmaz)."""
+    try:
+        p = Path(durum_path) if durum_path else _data_root(env) / "var" / "durum" / "alinmayan_sonuc_v1.json"
+        d = json.loads(p.read_text(encoding="utf-8"))
+        if not isinstance(d, dict) or d.get("sema") != "ml.alinmayan_sonuc.v1":
+            return None
+        rows = [r for r in ((d.get("arm_conflict") or {}).get("tablolar") or []) if int(r["kayip"]) >= 1]
+        if not rows:
+            return None
+        rows.sort(key=lambda r: -int(r["kayip"]))
+        f = lambda r: f"{r['etiket']} {r['kayip']} kayıp, alınsaydı {float(r['toplam_pnl']):+.2f}R (n={r['n']})"  # noqa: E731
+        return "Kol çatışması kayıpları (7g): " + "; ".join(f(r) for r in rows[:5])
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def sabit_bolum(env, lp: str, now: datetime, lesson_store=None) -> list[str]:
     """Haftalik sabit satirlar (LLM'siz). Her satir kendi icinde hata yutar; ozeti asla engellemez."""
     def guard(fn, yok):
@@ -187,6 +204,9 @@ def sabit_bolum(env, lp: str, now: datetime, lesson_store=None) -> list[str]:
     if pbo:
         out.append(pbo)
     out.append(guard(lambda: alinmayan_satiri(env), "Alınmayan sinyal: henüz veri yok"))
+    ac = guard(lambda: arm_conflict_satiri(env), None)
+    if ac:
+        out.append(ac)
     return out
 
 

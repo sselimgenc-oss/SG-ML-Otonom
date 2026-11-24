@@ -1891,25 +1891,8 @@ class Engine:
         attempted = False
         for pair in self._entry_order(D, frames):
             try:
-                if attempted or not self.is_paper:
-                    # DD-6 O3: kapi (blokaj nedeni, KILL, duraklatma, kademe) her girisden once yeniden okunur; bir onceki giris
-                    # `stop_failed` yazdiysa kalan ciftler `gate:<neden>` ile atlanir. Kagit/geri test: yalniz giris denemesinden sonra.
-                    pre = self.gate.pre(D, self.tf, self._params_ok, self._active_tf or self.tf)
-                    self._last_pre = pre
-                out = self.gate.decide(frames[pair], D, pre, self._version_id)
-                if out.action == "enter" and self.cfg.mode == "testnet" and not self.is_paper:
-                    out = self._testnet_price_gate(pair, D, frames[pair], out)
-                if out.action != "enter":
-                    self._gate_quote = None
-                if out.action == "ignore":
-                    continue
-                if out.action == "skip":
-                    self._record_skip(pair, D, out)
-                else:
-                    attempted = True
-                    self._enter(pair, D, frames[pair], out)
-                for ex in frames[pair].extras:                  # WP-11: ayni adimda baska kurulum adaylari
-                    self._extra_candidate(pair, D, ex, frames[pair].last, pre)
+                attempted = self._pair_entries(pair, D, frames[pair], pre, attempted) or attempted
+                pre = self._last_pre if self._last_pre is not None else pre
             except StateError:
                 raise
             except Exception as e:  # noqa: BLE001 - cift-bazli hata: giris yok
@@ -1917,6 +1900,44 @@ class Engine:
                     raise
                 self._c["callback_errors"] += 1
                 log.critical("giris degerlendirmesi hatasi %s: %r", pair, e, exc_info=True)
+
+    def _pair_entries(self, pair: str, D: datetime, fr: SignalFrame, pre, attempted: bool) -> bool:
+        """Bir ciftin adaylari (buyuk tf once, sonra oncelik; `fr` kazanan, `fr.extras` digerleri). 24.11: kazanan sonraki bir
+        kontrolde (uzun_yon, kurulum tavani, risk/boyut ...) reddedilirse siradaki aday ayni adimda denenir; biri girince ya da
+        aday kalmayinca durur (cift basina en cok BIR islem). Reddedilen adaylar gercek red nedeniyle yazilir (`mark_decided`
+        yalniz hicbiri girmediyse, ilk redle, bir kez); hic denenmemis / yalniz onceliginde kaybeden sinyal adaylari
+        `arm_conflict` yazilir. Kagit/canli/geri test ayni yol. Doner: giris denemesi yapildi mi."""
+        tried = False
+        entered = None          # girisi yapilan (ya da cift-icin karari veren) aday satiri
+        first_skip: EntryOutcome | None = None
+        for c in (fr, *fr.extras):
+            if entered is not None:                   # kazanan belli: kalan sinyal adaylari yalniz onceliginde kaybetti
+                self._extra_candidate(pair, D, c, entered, pre)
+                continue
+            if attempted or tried or not self.is_paper:
+                # DD-6 O3: kapi (blokaj nedeni, KILL, duraklatma, kademe) her girisden once yeniden okunur; bir onceki giris
+                # `stop_failed` yazdiysa kalan ciftler `gate:<neden>` ile atlanir. Kagit/geri test: yalniz giris denemesinden sonra.
+                pre = self.gate.pre(D, self.tf, self._params_ok, self._active_tf or self.tf)
+                self._last_pre = pre
+            out = self.gate.decide(c, D, pre, self._version_id)
+            if out.action == "enter" and self.cfg.mode == "testnet" and not self.is_paper:
+                out = self._testnet_price_gate(pair, D, c, out)
+            if out.action != "enter":
+                self._gate_quote = None
+            if out.action == "enter":
+                tried = True
+                entered = c.last
+                self._enter(pair, D, c, out)
+            elif out.action == "skip":
+                self._record_skip(pair, D, out, mark=False)       # isaret en sonda (bkz. alt): sonraki aday `already_decided` gormesin
+                if first_skip is None:
+                    first_skip = out
+            elif c.last is not None and c.last.signal:
+                entered = c.last                                  # already_decided / position_exists / ...: cift icin karar verildi
+        if entered is None and first_skip is not None and first_skip.mark_decided:
+            with self.state.tx():
+                self.state.mark_decided(pair, D, "skipped:" + first_skip.code)
+        return tried
 
     def _extra_candidate(self, pair: str, D: datetime, ex: SignalFrame, winner, pre) -> None:
         """D-T16: kazanan (buyuk zaman dilimi) disindaki sinyal adaylari `arm_conflict` olarak yazilir; elenmis (filtre) adaylar
@@ -1952,13 +1973,13 @@ class Engine:
         return self.gate._skip(row, _tf_of(row), code, skip_reason="entry_gate_closed",      # noqa: SLF001
                                veto_reason="gate:" + code)
 
-    def _record_skip(self, pair: str, D: datetime, out: EntryOutcome) -> None:
+    def _record_skip(self, pair: str, D: datetime, out: EntryOutcome, mark: bool = True) -> None:
         try:
             self.ledger.record_decision(out.event)
         except Exception as e:  # noqa: BLE001 - skip kayitlari best-effort
             self._c["ledger_errors"] += 1
             log.error("skip karari yazilamadi (%s %s): %r", pair, out.code, e)
-        if out.mark_decided:
+        if mark and out.mark_decided:
             with self.state.tx():
                 self.state.mark_decided(pair, D, "skipped:" + out.code)
 
