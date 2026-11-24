@@ -1,0 +1,150 @@
+# Derin denetim (24.11 kullanici karari): Haiku ajanlari her alani paralel tarar, Fable bulgulari kodda dogrular, rapor ayri dala yazilir.
+# Agent SDK ile calisir: harcama ANTHROPIC_API_KEY_DENETIM anahtarindan (Max promosyon kredisi), Claude Code oturum limitinden DEGIL.
+# Elle tetiklenir. Ajanlar yalniz okur (Read/Grep/Glob); kod degistirmez. Rapor: denetim-raporlari dali, denetim/<tarih>.md
+name: derin-denetim
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: derin-denetim
+  cancel-in-progress: false
+
+env:
+  DAL: claude/charming-hawking-ab5w5q
+
+jobs:
+  tara:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        alan:
+          - id: giris
+            ad: "Motor giris akisi: aday toplama, sira, cift ici yedek aday, kapilar"
+            dosyalar: "trader/src/trader_engine/engine.py trader/src/trader_engine/gates.py trader/src/trader_engine/strategy_runner.py trader/src/trader_engine/arm_guard.py trader/src/trader_engine/uzun_yon.py trader/src/trader_engine/korelasyon_grubu.py trader/src/trader_engine/seans_disi.py"
+          - id: risk
+            ad: "Risk ve buyukluk: %1 risk, yon/toplam risk, 3x buyukluk, kayip freni, kol kucultme, sermaye kilidi, gunluk kayip, kaldirac, tasfiye"
+            dosyalar: "trader/src/trader_core/risk.py trader/src/trader_core/risk_ladder.py trader/src/trader_engine/ladder.py trader/src/trader_core/kayip_freni.py trader/src/trader_core/kol_kucultme.py trader/src/trader_engine/gates.py"
+          - id: cikis
+            ad: "Cikislar: stop, hedef (bekleyen emir), basa-bas, kismi kar, iz suren stop, zaman stopu, rejim donusu"
+            dosyalar: "trader/src/trader_engine/position_manager.py trader/src/trader_core/exit_modes.py trader/src/trader_core/signals.py trader/src/trader_engine/engine.py trader/src/trader_engine/order_manager.py"
+          - id: kagit
+            ad: "Kagit broker: dolum, kayma, fonlama, tasfiye, mark/last, veri boslugu, anlik goruntu"
+            dosyalar: "trader/src/trader_engine/brokers/paper.py trader/src/trader_engine/funding.py trader/src/trader_engine/marketdata trader/src/trader_engine/mtm.py"
+          - id: canli
+            ad: "Canli broker ve mutabakat: emirler, stop/hedef emri, tek yon modu, yeniden baslatma, kagit=canli paritesi"
+            dosyalar: "trader/src/trader_engine/brokers/binance_futures.py trader/src/trader_engine/reconcile_live.py trader/src/trader_engine/reconcile.py trader/src/trader_engine/order_manager.py trader/config/engine.live.json trader/config/engine.paper.json"
+          - id: kurulum
+            ad: "Kurallı kurulumlar T1 R1 TF1 B1 H2 S1 F1: sinyal, stop, hedef, R:R, oncelik, zaman dilimi"
+            dosyalar: "trader/src/trader_engine/strategies trader/src/trader_core/signals.py trader/src/trader_core/regime.py trader/src/trader_core/indicators.py"
+          - id: m1
+            ad: "M1: ozellikler, etiketler, gece egitimi, paket, cikarim, kol"
+            dosyalar: "trader/src/trader_ml trader/scripts/ml_retrain_run.py trader/src/trader_core/ml_package.py trader/src/trader_engine/strategies/arms trader/deploy/trader-ml-retrain.timer trader/deploy/trader-ml-retrain.service"
+          - id: dl1
+            ad: "DL1: egitim (GitHub), paket, cikarim, 4 zaman dilimi, gece zinciri, saglik"
+            dosyalar: "trader/src/trader_engine/dl1_cikarim.py trader/src/trader_engine/strategies/arms/dl1.py trader/research/dl1 .github/workflows/dl1-egitim.yml trader/src/trader_core/health.py"
+          - id: hb1
+            ad: "HB1 ve haber: haber toplama, puanlama, sinyal dosyasi, tazelik, HB1 kolu, karartma"
+            dosyalar: "trader/src/trader_core/haber_sinyal.py trader/src/trader_core/veri_haber.py trader/scripts/haber_run.py trader/scripts/haber_sinyal_run.py trader/src/trader_engine/strategies/arms/hb1.py trader/src/trader_engine/seans_disi.py trader/config/seans_takvimi.json"
+          - id: ders
+            ad: "Gece dersleri ve ogrenme: esikler, uygulama, izleme, geri alma, fren, kapsam, parametre surumu"
+            dosyalar: "trader/src/trader_core/lesson.py trader/src/trader_core/ledger.py trader/config/lesson.json trader/scripts/lesson_run.py trader/docs/ders-spec.md"
+          - id: alinsaydi
+            ad: "Alinsaydi ve karsi-olgu: alinmayan sinyal sonuclari, cikis karsi-olgusu, arm_conflict raporu"
+            dosyalar: "trader/src/trader_core/counterfactual.py trader/src/trader_core/exit_counterfactual.py trader/src/trader_core/alinmayan_sonuc.py trader/scripts/counterfactual_run.py trader/scripts/exit_counterfactual_run.py"
+          - id: telegram
+            ad: "Telegram ve raporlar: komutlar, kodlu onay, gunluk/haftalik rapor, yorumcu, panel"
+            dosyalar: "trader/src/trader_core/telegram.py trader/src/trader_core/tg_sade.py trader/src/trader_reports trader/scripts/yorumcu_run.py trader/scripts/weekly_summary_run.py trader/scripts/report_run.py trader/src/trader_core/panel_data.py"
+          - id: sunucu
+            ad: "Sunucu: systemd birimleri, zamanlayicilar, kurulum betigi, otomatik guncelleme, saglik, yedek"
+            dosyalar: "trader/deploy trader/scripts/health_run.py trader/scripts/health_backup.py trader/scripts/kurulum_gozcu.py"
+          - id: ayar
+            ad: "Ayar dosyalari: her anahtar kodda gercekten okunuyor mu, olu ayar, belge ile kod farki"
+            dosyalar: "trader/config trader/src/trader_engine/config.py trader/src/trader_core/config_loader.py trader/src/trader_core/budget.py"
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ env.DAL }}
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+      - name: Agent SDK kurulumu
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          pip install claude-agent-sdk
+      - name: "Tarama (Haiku): ${{ matrix.alan.id }}"
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY_DENETIM }}
+          ALAN_ID: ${{ matrix.alan.id }}
+          ALAN_AD: ${{ matrix.alan.ad }}
+          DOSYALAR: ${{ matrix.alan.dosyalar }}
+        run: python .github/denetim/tara.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bulgu-${{ matrix.alan.id }}
+          path: bulgu-${{ matrix.alan.id }}.json
+          if-no-files-found: warn
+
+  dogrula:
+    needs: tara
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ env.DAL }}
+          persist-credentials: true
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+      - name: Agent SDK kurulumu
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          pip install claude-agent-sdk
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: bulgu-*
+          merge-multiple: true
+          path: bulgular
+      - name: Dogrulama ve rapor (Fable)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY_DENETIM }}
+        run: python .github/denetim/dogrula.py bulgular rapor.md
+      - name: Raporu denetim-raporlari dalina yaz
+        run: |
+          tarih="$(date -u +%F)"
+          git config user.name "derin-denetim"
+          git config user.email "derin-denetim@users.noreply.github.com"
+          cp rapor.md /tmp/rapor.md
+          cp -r bulgular /tmp/bulgular
+          git fetch origin denetim-raporlari || true
+          if git rev-parse --verify -q origin/denetim-raporlari >/dev/null; then
+            git checkout -B denetim-raporlari origin/denetim-raporlari
+          else
+            git checkout --orphan denetim-raporlari
+            git rm -rfq .
+          fi
+          mkdir -p "denetim/$tarih"
+          cp /tmp/rapor.md "denetim/$tarih/rapor.md"
+          cp /tmp/bulgular/*.json "denetim/$tarih/" 2>/dev/null || true
+          git add denetim
+          git commit -m "Derin denetim raporu: $tarih"
+          git push origin denetim-raporlari
+          cat /tmp/rapor.md >> "$GITHUB_STEP_SUMMARY"
