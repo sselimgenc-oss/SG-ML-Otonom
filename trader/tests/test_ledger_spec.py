@@ -236,9 +236,9 @@ class TestOpenSchema:
     def test_new_file_schema(self, led, dbpath):
         assert led.bot == "learner"
         assert led.min_evidence_trades == 20
-        assert raw(dbpath, "PRAGMA user_version")[0][0] == 7
+        assert raw(dbpath, "PRAGMA user_version")[0][0] == 8  # 24.11 kullanici karari: formasyon kutuphanesi (sema 8)
         assert raw(dbpath, "PRAGMA journal_mode")[0][0].lower() == "wal"
-        assert L.SCHEMA_VERSION == 7
+        assert L.SCHEMA_VERSION == 8  # 24.11 kullanici karari: formasyon kutuphanesi (sema 8)
         meta = dict(raw(dbpath, "SELECT key, value FROM meta"))
         assert meta["bot"] == "learner"
         assert meta["schema_version"] == "1"
@@ -290,7 +290,7 @@ class TestOpenSchema:
 
     def test_newer_schema_rejected(self, dbpath, clock):
         L.open_ledger(dbpath, "learner", clock=clock).close()
-        c = sqlite3.connect(str(dbpath)); c.execute("PRAGMA user_version=8"); c.commit(); c.close()
+        c = sqlite3.connect(str(dbpath)); c.execute("PRAGMA user_version=9"); c.commit(); c.close()
         with pytest.raises(L.LedgerSchemaError):
             L.open_ledger(dbpath, "learner", clock=clock)
 

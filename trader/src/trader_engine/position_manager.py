@@ -30,6 +30,7 @@ class ExitContext:
     regime_last: str | None
     last_close: float
     n_closed: int
+    rule_exit: bool = False       # 24.11: kutuphane kural cikisi (EXIT_RULE) bu kapanista saglandi
 
 
 @dataclass(frozen=True)
@@ -94,7 +95,10 @@ def evaluate_exit(pos: Position, ctx: ExitContext | None) -> ExitDecision:
             for h, l in zip(ctx.highs, ctx.lows):
                 if signals.target_reached(pos.side, pos.planned_target, h, l):
                     return ExitDecision("exit", "target", None, float(pos.planned_target))
-        if signals.time_stop_due(ctx.n_closed):
+        if ctx.rule_exit:                           # 24.11: kutuphane kural cikisi (neden `other`; defter CHECK kisiti)
+            return ExitDecision("exit", "other", None, None)
+        from .strategies import arms as _arms
+        if signals.time_stop_due(ctx.n_closed, _arms.time_stop_of(pos.setup)):
             return ExitDecision("exit", "time_stop", None, None)
         return _NONE
     # trail (T1 yolu): rejim cikisi + iz suren stop (TF1, S1, H2 de burada)

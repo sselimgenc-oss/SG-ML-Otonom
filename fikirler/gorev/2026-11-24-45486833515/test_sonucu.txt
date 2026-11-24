@@ -1,0 +1,40 @@
+        from trader_reports import inputs as I
+        led.record_shadow(mk_shadow(bar_close_ts=BAR))
+        led.record_shadow(mk_shadow(bar_close_ts=datetime(2026, 6, 1, 9, 0, tzinfo=UTC), pair="ETH/USDT"))
+        c = I.open_ro(led.path, "ledger_missing")
+        try:
+>           assert I.check_ledger_schema(c) == 7
+E           AssertionError: assert 8 == 7
+E            +  where 8 = <function check_ledger_schema at 0x7ffb638394e0>(<sqlite3.Connection object at 0x7ffb42cd2200>)
+E            +    where <function check_ledger_schema at 0x7ffb638394e0> = <module 'trader_reports.inputs' from '/home/runner/work/SG-ML-Otonom/SG-ML-Otonom/trader/src/trader_reports/inputs.py'>.check_ledger_schema
+
+tests/test_wp3_impl.py:766: AssertionError
+=============================== warnings summary ===============================
+tests/engine/test_gosterge_parite_canli_geri_test.py::test_tekli_1s_windowed_precomputed_ayni_satir[BTC/USDT-uzun]
+tests/engine/test_gosterge_parite_canli_geri_test.py::test_tekli_1s_windowed_precomputed_ayni_satir[BTC/USDT-uzun]
+tests/engine/test_gosterge_parite_canli_geri_test.py::test_tekli_1s_windowed_precomputed_ayni_satir[BTC/USDT-kisa]
+tests/engine/test_gosterge_parite_canli_geri_test.py::test_tekli_1s_windowed_precomputed_ayni_satir[BTC/USDT-kisa]
+tests/engine/test_gosterge_parite_canli_geri_test.py::test_kurulumlar_canli_pencere_eq_tum_gecmis_1g[SOL/USDT]
+tests/engine/test_gosterge_parite_canli_geri_test.py::test_kurulumlar_canli_pencere_eq_tum_gecmis_1g[SOL/USDT]
+tests/engine/test_olu_mum_gostergeler.py::test_pazartesi_ilk_karar_atr_ve_stop_mesafesi[1h]
+tests/engine/test_olu_mum_gostergeler.py::test_pazartesi_ilk_karar_atr_ve_stop_mesafesi[1h]
+tests/engine/test_olu_mum_gostergeler.py::test_bars_1d_pencere_600_gun_ayni_sonuc_ve_zarif_dusus
+  /home/runner/work/SG-ML-Otonom/SG-ML-Otonom/trader/tests/engine/gosterge_support.py:81: Pandas4Warning: DatetimeIndex.dayofweek is deprecated and will be removed in a future version. Use DatetimeIndex.day_of_week instead.
+    return (grid.dayofweek < 5) & (mins >= 13 * 60 + 30) & (mins < 20 * 60)
+
+tests/engine/test_gosterge_parite_canli_geri_test.py::test_tekli_1s_windowed_precomputed_ayni_satir[BTC/USDT-uzun]
+tests/engine/test_gosterge_parite_canli_geri_test.py::test_tekli_1s_windowed_precomputed_ayni_satir[BTC/USDT-kisa]
+tests/engine/test_gosterge_parite_canli_geri_test.py::test_kurulumlar_canli_pencere_eq_tum_gecmis_1g[SOL/USDT]
+  /home/runner/work/SG-ML-Otonom/SG-ML-Otonom/trader/tests/engine/gosterge_support.py:86: Pandas4Warning: DatetimeIndex.dayofweek is deprecated and will be removed in a future version. Use DatetimeIndex.day_of_week instead.
+    dow, hr = grid.dayofweek, grid.hour
+
+tests/engine/test_pause_impl_smoke.py: 35 warnings
+  /opt/hostedtoolcache/Python/3.12.16/x64/lib/python3.12/multiprocessing/popen_fork.py:66: DeprecationWarning: This process (pid=47918) is multi-threaded, use of fork() may lead to deadlocks in the child.
+    self.pid = os.fork()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_wp3_impl.py::test_reports_load_shadow_and_lock - AssertionError: assert 8 == 7
+ +  where 8 = <function check_ledger_schema at 0x7ffb638394e0>(<sqlite3.Connection object at 0x7ffb42cd2200>)
+ +    where <function check_ledger_schema at 0x7ffb638394e0> = <module 'trader_reports.inputs' from '/home/runner/work/SG-ML-Otonom/SG-ML-Otonom/trader/src/trader_reports/inputs.py'>.check_ledger_schema
+1 failed, 8486 passed, 145 skipped, 47 warnings in 2119.99s (0:35:19)

@@ -23,7 +23,7 @@ def test_migrate_counts_fk_and_arm_id(tmp_path):
     L.open_ledger(p, "learner", clock=clock).close()
     assert raw(p, "PRAGMA foreign_key_check") == []
     assert raw(p, "PRAGMA integrity_check")[0][0] == "ok"
-    assert raw(p, "PRAGMA user_version")[0][0] == 7
+    assert raw(p, "PRAGMA user_version")[0][0] == 8   # 24.11 kullanici karari: formasyon kutuphanesi (sema 8)
     for t, n in before.items():
         assert len(dump(p, t)) == n
     assert all(a == f"{s}@{tf}" for a, s, tf in raw(p, "SELECT arm_id, setup, trigger_tf FROM decision_events"))
@@ -45,7 +45,7 @@ def test_retry_after_interrupted_migration_makes_new_backup(tmp_path, monkeypatc
     assert first.exists() and raw(p, "PRAGMA user_version")[0][0] == 4
     first_bytes = first.read_bytes()
     L.open_ledger(p, "learner", clock=clock).close()
-    assert raw(p, "PRAGMA user_version")[0][0] == 7
+    assert raw(p, "PRAGMA user_version")[0][0] == 8   # 24.11 kullanici karari: formasyon kutuphanesi (sema 8)
     assert first.read_bytes() == first_bytes                       # ezilmedi
     for suf in (".1", ".2"):
         b = Path(f"{p}.premigrate-v4{suf}")

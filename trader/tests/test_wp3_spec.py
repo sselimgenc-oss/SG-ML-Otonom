@@ -267,8 +267,8 @@ def quick_busy(led):
 def test_D1_fresh_file_is_v4(tmp_path):
     led, path = new_ledger(tmp_path)
     led.close()
-    assert L.SCHEMA_VERSION == 7
-    assert raw(path, "PRAGMA user_version")[0][0] == 7
+    assert L.SCHEMA_VERSION == 8  # 24.11 kullanici karari: formasyon kutuphanesi (sema 8)
+    assert raw(path, "PRAGMA user_version")[0][0] == 8
     pairs = [(r[0], r[1]) for r in raw(path, "SELECT from_version, to_version FROM schema_migrations")]
     assert (3, 4) in pairs
     names = {r[0] for r in raw(path, "SELECT name FROM sqlite_master")}
@@ -284,7 +284,7 @@ def test_D2_v3_file_migrates_losslessly(tmp_path):
     led = open_ledger(path, "learner", migrate=True, clock=lambda: NOW)
     led.close()
     assert os.path.exists(str(path) + ".premigrate-v3")
-    assert raw(path, "PRAGMA user_version")[0][0] == 7
+    assert raw(path, "PRAGMA user_version")[0][0] == 8
     after = snapshot(path)
     for t, rows in before.items():
         assert len(after[t]) == len(rows), t
@@ -1958,7 +1958,7 @@ def test_T6_counterfactual_shadow_api_exists():
 
 def test_T7_report_schema_check_accepts_7_rejects_8():
     from trader_reports import inputs
-    for uv, ok in ((2, True), (3, True), (4, True), (5, True), (6, True), (7, True), (8, False)):
+    for uv, ok in ((2, True), (3, True), (4, True), (5, True), (6, True), (7, True), (8, True), (9, False)):   # 24.11 kullanici karari: formasyon kutuphanesi (sema 8)
         con = sqlite3.connect(":memory:")
         con.execute(f"PRAGMA user_version={uv}")
         if ok:
@@ -2068,7 +2068,7 @@ def test_P3_migration_speed(tmp_path):
     assert t_3_4 <= 5.0, (t_3_4, t_backup)
     led = open_ledger(path, "learner", migrate=True, clock=lambda: NOW)
     led.close()
-    assert raw(path, "PRAGMA user_version")[0][0] == 7
+    assert raw(path, "PRAGMA user_version")[0][0] == 8
 
 
 def test_P4_import_weight_and_architecture_tests_still_pass():

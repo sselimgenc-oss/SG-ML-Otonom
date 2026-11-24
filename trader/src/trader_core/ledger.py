@@ -24,7 +24,7 @@ from urllib.parse import quote
 
 log = logging.getLogger("trader_core.ledger")
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8      # 24.11 kullanici karari: formasyon kutuphanesi (setup uzunlugu 2..19, MF1-YUTAN)
 BOTS = ("learner", "twin")
 MIN_FREE_BYTES = 50 * 1024 * 1024
 MAX_REASON = 500
@@ -123,7 +123,7 @@ _SHADOW_TFS = ("1h", "15m")                  # golge satirlari (sema 4 tablosu) 
 _SETUPS = ("T1", "R1")                       # golge satirlari ve v1 kurulumlari
 _SESSION_TAGS = ("open", "closed", "weekend")
 _SOURCES = ("arm", "m1", "l1")
-_SETUP_RE = re.compile(r"^[A-Z][A-Z0-9]{1,7}$")
+_SETUP_RE = re.compile(r"^[A-Z][A-Z0-9]{1,7}(-[A-Z0-9]{2,10})?$")      # 24.11 kullanici karari: formasyon kutuphanesi
 _REGIMES = ("trend_up", "trend_down", "range", "volatile", "unclear")
 _VETO = ("allowed", "blocked", "missing", "stale", "not_evaluated")
 _SKIP = ("stop_width", "rr_below_min", "veto_blocked", "veto_missing", "veto_stale", "risk_denied",
@@ -232,7 +232,7 @@ def _choice(x, name, allowed) -> str:
 def _setup_code(x, name="setup") -> str:
     """Sema 5: kurulum kodu 2-8 karakter (buyuk harf/rakam); T1/R1 ve yeni kurulumlar (TF1, B1, F1, S1, M1, L1...)."""
     if not isinstance(x, str) or not _SETUP_RE.match(x):
-        raise LedgerValidationError(f"{name} 2-8 karakterlik kurulum kodu olmali")
+        raise LedgerValidationError(f"{name} 2-8 karakterlik kurulum kodu (ya da AILE-FORMASYON) olmali")
     return x
 
 
@@ -1168,7 +1168,7 @@ CREATE TABLE {name} (id INTEGER PRIMARY KEY AUTOINCREMENT, bot TEXT NOT NULL {_b
     bar_close_ts TEXT NOT NULL,
     trigger_tf TEXT NOT NULL CHECK (trigger_tf IN ('15m','1h','4h','1d')),
     pair TEXT NOT NULL, side TEXT NOT NULL CHECK (side IN ('long','short')),
-    setup TEXT NOT NULL CHECK (length(setup) BETWEEN 2 AND 8),
+    setup TEXT NOT NULL CHECK (length(setup) BETWEEN 2 AND 19),
     regime TEXT NOT NULL CHECK (regime IN ('trend_up','trend_down','range','volatile','unclear')),
     atr_ratio REAL, rh REAL, rl REAL, rh_touches INTEGER NOT NULL, rl_touches INTEGER NOT NULL,
     features TEXT NOT NULL, planned_entry REAL NOT NULL, planned_stop REAL NOT NULL, planned_target REAL,
@@ -1280,9 +1280,15 @@ def _migration_6_to_7(bot: str, now_s: str) -> str:
     return _migration_5_to_6(bot, now_s).replace("decision_events_v6", "decision_events_v7")
 
 
+def _migration_7_to_8(bot: str, now_s: str) -> str:
+    """Sema 8 (24.11 kullanici karari: formasyon kutuphanesi): `setup` uzunluk denetimi 2..19 (`AILE-FORMASYON`); decision_events
+    yeniden kurulur (satirlar/id'ler korunur)."""
+    return _migration_5_to_6(bot, now_s).replace("decision_events_v6", "decision_events_v8")
+
+
 MIGRATIONS: list[Callable[[str, str], str]] = [_migration_0_to_1, _migration_1_to_2, _migration_2_to_3,
-                                                _migration_3_to_4, _migration_4_to_5, _migration_5_to_6, _migration_6_to_7]
-_FK_OFF_MIGRATIONS = frozenset({2, 4, 5, 6})     # tablo yeniden kurulan goclar (n -> n+1): FK denetimi islem disinda kapali
+                                                _migration_3_to_4, _migration_4_to_5, _migration_5_to_6, _migration_6_to_7, _migration_7_to_8]
+_FK_OFF_MIGRATIONS = frozenset({2, 4, 5, 6, 7})     # tablo yeniden kurulan goclar (n -> n+1): FK denetimi islem disinda kapali
 
 
 def _map_sqlite_error(e: sqlite3.Error) -> LedgerError:

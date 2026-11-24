@@ -29,7 +29,7 @@ ROOT = Path(__file__).resolve().parents[2]
 UTC = timezone.utc
 PAPER = load_cli_config(ROOT / "config", "learner", "paper")
 ALL_ARMS = tuple(f"{s_}@{tf}" for s_ in ("T1", "R1", "TF1", "B1", "H2", "S1", "F1") for tf in ("15m", "1h", "4h", "1d"))   # WP-12a: TF1/B1; WP-12b: H2/S1/F1
-PAPER_ARMS = ALL_ARMS + ("M1@1h", "M1@4h", "M1@15m", "M1@1d", "HB1@1h", "DL1@15m", "DL1@1h", "DL1@4h", "DL1@1d")   # 24.11: DL1 dort zaman dilimi; 23.11: HB1 haber kolu; 20 Kasim: M1 15dk/1g kagitta acik; DD-12 WP-14: M1 (ML'in kendi adayi) config/engine.paper.json'a eklendi
+PAPER_ARMS = ALL_ARMS + ("M1@1h", "M1@4h", "M1@15m", "M1@1d", "HB1@1h", "DL1@15m", "DL1@1h", "DL1@4h", "DL1@1d") + tuple(f"MF1-{k}@{tf}" for k in ("YILDIZ", "UCASKER", "DELICI", "ICSAHTE", "DISBAR", "YUTAN", "HARAMI", "TERSCEKIC", "CIMBIZ", "PINBAR", "ICCUBUK", "MARUBOZU") for tf in ("15m", "1h", "4h", "1d"))   # 24.11 kullanici karari: formasyon kutuphanesi (MF1 48 kol); 24.11: DL1 dort zaman dilimi; 23.11: HB1 haber kolu; 20 Kasim: M1 15dk/1g kagitta acik; DD-12 WP-14: M1 (ML'in kendi adayi) config/engine.paper.json'a eklendi
 
 
 # --------------------------------------------------------------------------- arms paketi
@@ -125,7 +125,9 @@ def test_arm_tf_helpers_and_old_contract_untouched():
 # --------------------------------------------------------------------------- yapilandirma
 def test_config_arms_and_caps():
     assert PAPER.strategy == NAME and PAPER.arms == PAPER_ARMS
-    assert PAPER.arm_max_positions == {"default": 6, "M1": 4, "HB1": 3, "DL1": 4}   # 23.11: HB1 3; 24.11: DL1 toplam 4; C1 kaldirildi (CT/ML ayriligi); 20 Kasim: kagit tavanlari gevsetildi
+    assert PAPER.arm_max_positions == {"default": 6, "M1": 4, "HB1": 3, "DL1": 4, "MF1-*": 3}  # 24.11 kullanici karari: formasyon kutuphanesi
+    assert PAPER.arm_family_max_positions == {"MF1": 6}   # 24.11 kullanici karari: formasyon kutuphanesi (aile 6)
+      # 23.11: HB1 3; 24.11: DL1 toplam 4; C1 kaldirildi (CT/ML ayriligi); 20 Kasim: kagit tavanlari gevsetildi
     c = apply_overrides(PAPER, arms={"T1": ["1h", "4h"]}, arm_max_positions=2)
     assert c.arms == ("T1@1h", "T1@4h") and c.arm_max_positions == {"default": 2}
     for kw in ({"arms": ["T1@5m"]}, {"arms": ["T1@1h", "T1@1h"]}, {"arms": "T1@1h"}, {"arm_max_positions": 0},
@@ -345,13 +347,14 @@ def test_end_to_end_multi_arm_paper_with_caps(tmp_path, hist):
     # tavan atlamasi gerekce taşır
     caps = [r for r in rows if r["veto_reason"] and str(r["veto_reason"]).startswith("gate:arm_cap:")]
     for r in caps:
-        assert r["skip_reason"] == "max_positions" and r["veto_reason"] == f"gate:arm_cap:{r['arm_id']}"
+        assert r["skip_reason"] == "max_positions" and r["veto_reason"] in (f"gate:arm_cap:{r['arm_id']}", f"gate:arm_cap:{r['setup'].split('-')[0]}")   # 24.11: aile tavani
     # arm_conflict satirlari yalniz bir kazananla birlikte (ayni cift/bar), kazananin tf'si daha buyuk
     byk = {"15m": 0, "1h": 1, "4h": 2, "1d": 3}
     for r in (r for r in rows if r["skip_reason"] == "arm_conflict"):
         win = r["veto_reason"].split(":")[-1]
         # K-7 md.3: tf once (buyuk), ayni tf'de kurulum onceligi (kucuk kazanir; WP-14 M1=90 ile ayni tf kayipları olabilir)
-        pri = {"T1": 10, "R1": 20, "TF1": 30, "B1": 40, "H2": 50, "S1": 60, "F1": 70, "M1": 90}
+        from trader_engine.strategies.arms import priority_of
+        pri = {s: priority_of(s) for s in {r["setup"] for r in rows} | {r["veto_reason"].split(":")[-1].split("@")[0] for r in rows if r["skip_reason"] == "arm_conflict"}}   # 24.11 kullanici karari: formasyon kutuphanesi (MF1-* kurulumlari)
         wtf, ltf = win.split("@")[1], r["trigger_tf"]
         assert byk[wtf] > byk[ltf] or (wtf == ltf and pri[win.split("@")[0]] < pri[r["setup"]])
     # cikislar pozisyonun kendi tf'sinde; pozisyon trigger_tf'i satirinki ile ayni

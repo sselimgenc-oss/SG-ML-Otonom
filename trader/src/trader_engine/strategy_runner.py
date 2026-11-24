@@ -24,7 +24,7 @@ from .bars import (ARM_TFS, BARS_PER_DAY_4H, MIN_CONTIG_ARM, STARTUP_BARS_ARM, W
                    arm_tf_delta, tf_delta)
 from .marketdata.sources import MarketView
 from .position_manager import ExitContext
-from .strategies.arms import priority_of
+from .strategies.arms import ArmInput, exit_rule_of, priority_of
 from .strategies.base import Strategy, StrategyContext, StrategyError, validate_row, validate_table
 from .types import Position
 from .vol_tahmin import vol_ozellikleri
@@ -406,6 +406,7 @@ class MultiArmSignalSource(WindowedSignalSource):
         cands: list[tuple[int, str, SignalRow, tuple | None]] = []
         bad: dict[str, tuple[str, str]] = {}
         exit_view = None
+        rule_in: tuple | None = None                    # 24.11: kural cikisi icin (trig, ctx) - pozisyonun zaman dilimi
         for tf in tfs:
             if h4_bad is not None:
                 bad[tf] = h4_bad
@@ -423,6 +424,8 @@ class MultiArmSignalSource(WindowedSignalSource):
             bars = {tf: trig, "4h": h4}
             le = self.last_exit_fn(pair, D, tf) if self.last_exit_fn is not None else None
             ctx = StrategyContext(pair=pair, D=D, tf=tf, params=params, bars=bars, last_exit=None)
+            if tf == pos_tf:
+                rule_in = (trig, ctx)
             fctx = StrategyContext(pair=pair, D=D, tf=tf, params=params, bars=bars, last_exit=le)
             info = lab.info
             q = self.quarantine
@@ -476,6 +479,8 @@ class MultiArmSignalSource(WindowedSignalSource):
                     self._d1_note(D, True)
                 if tf == pos_tf and (key == "core" or exit_view is None):
                     exit_view = self._exit_view(sig, trig, lr, pos, D)
+        if exit_view is not None and rule_in is not None and len(pos) > 2:
+            exit_view = self._rule_exit(exit_view, lab, pos[2], rule_in, h4, params, D)
         if exit_view is not None:
             self._exit_views[(pair, D)] = (pos_tf, exit_view)
         if not cands:
@@ -489,6 +494,27 @@ class MultiArmSignalSource(WindowedSignalSource):
         head = frames[0]
         extras = tuple(f for f in frames[1:] if f.last.signal or (f.last.setup and f.last.side and f.last.skip_reason in _FILTERED_SKIPS))
         return dataclasses.replace(head, extras=extras)
+
+    def _rule_exit(self, view: ExitContext, lab, setup, rule_in: tuple, h4, params, D: datetime) -> ExitContext:
+        """24.11 kullanici karari: kutuphane kural cikisi (EXIT_RULE): yalniz son kapanmis mum okunur. Hata olursa
+        `rule_exit` False kalir (stop ve zaman stopu yine calisir) ve sayac artar."""
+        rule = exit_rule_of(setup)
+        if rule is None:
+            return view
+        trig, ctx = rule_in
+        try:
+            keep = AG.active_mask(trig)
+            trig_a = trig if keep is None else trig[keep]
+            inp = ArmInput(pair=ctx.pair, tf=ctx.tf, D=D, trig=trig_a, h4=h4, params=SignalParams.from_mapping(params),
+                           core_fn=lambda c=ctx: lab._core_compact(c))
+            if bool(rule(inp)):
+                return dataclasses.replace(view, rule_exit=True)
+        except Exception as e:  # noqa: BLE001
+            if self.strict:
+                raise
+            self.counters["exit_rule_error"] += 1
+            log.warning("kural cikisi hesaplanamadi (%s): %s: %s", setup, type(e).__name__, e)
+        return view
 
     @staticmethod
     def _exit_view(sig: pd.DataFrame, trig: pd.DataFrame, lr: pd.Series, pos, D: datetime) -> ExitContext:

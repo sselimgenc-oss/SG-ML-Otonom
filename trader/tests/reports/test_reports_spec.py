@@ -546,7 +546,7 @@ def test_g5_engine_does_not_load_reports_and_run_leaves_backtest_outputs(tmp_pat
     assert (sha(run / "trades.csv"), sha(run / "summary.json")) == b
 
 
-@pytest.mark.parametrize("ver,ok", [(1, False), (8, False), (2, True), (3, True), (4, True), (5, True), (6, True), (7, True)])   # v1.1: 4 kabul; DD-12 WP-02: 5 kabul; WP-06a: 6 kabul
+@pytest.mark.parametrize("ver,ok", [(1, False), (9, False), (2, True), (3, True), (4, True), (5, True), (6, True), (7, True), (8, True)])   # 24.11 kullanici karari: formasyon kutuphanesi (sema 8)   # v1.1: 4 kabul; DD-12 WP-02: 5 kabul; WP-06a: 6 kabul
 def test_g6_user_version(tmp_path, ver, ok):
     tr = [mk_trade(1)]
     sc = scenario(tmp_path, [], tr, version=3 if ver in (1, 8) else ver)

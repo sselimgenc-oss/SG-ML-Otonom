@@ -86,10 +86,12 @@ def session_closed_by_lesson(session_off: Mapping[str, Collection[str]] | None, 
 # DD-12 WP-11 (D-T16): kurulum (arm) basina acik pozisyon tavani. Saf yardimcilar (durum/saat yok).
 # ---------------------------------------------------------------------------------------------------------------------
 def arm_cap(caps: Mapping[str, int] | None, arm_id: str, setup: str | None) -> int | None:
-    """Tavan arama sirasi: tam arm_id, kurulum kodu, `default`; hicbiri yoksa None (tavan yok)."""
+    """Tavan arama sirasi: tam arm_id, kurulum kodu, aile jokeri (`MF1-*`; 24.11 formasyon kutuphanesi), `default`; hicbiri
+    yoksa None (tavan yok). Joker `default` gibi kurulum x zaman dilimi basinadir."""
     if not caps:
         return None
-    for key in (arm_id, setup, "default"):
+    wild = f"{setup.split('-')[0]}-*" if isinstance(setup, str) and "-" in setup else None
+    for key in (arm_id, setup, wild, "default"):
         if key is not None and key in caps:
             return int(caps[key])
     return None
@@ -101,6 +103,24 @@ def arm_cap_is_setup_total(caps: Mapping[str, int] | None, arm_id: str, setup: s
     if not caps or arm_id in caps:
         return False
     return setup is not None and setup in caps
+
+
+def family_of(setup: str | None) -> str | None:
+    """Kurulum kodunun ailesi (`MF1-YUTAN` -> `MF1`); tireli degilse None (aile tavani uygulanmaz)."""
+    return setup.split("-")[0] if isinstance(setup, str) and "-" in setup else None
+
+
+def family_count(held_setups: Sequence[str | None], family: str) -> int:
+    """24.11 kullanici karari: ailenin tum formasyon ve zaman dilimlerindeki acik (+ acilmakta) pozisyon sayisi."""
+    return sum(1 for s in held_setups if family_of(s) == family)
+
+
+def family_full(held_setups: Sequence[str | None], setup: str | None, caps: Mapping[str, int] | None) -> str | None:
+    """Ailesi tavanda ise aile adi, degilse None."""
+    fam = family_of(setup)
+    if fam is None or not caps or fam not in caps:
+        return None
+    return fam if family_count(held_setups, fam) >= int(caps[fam]) else None
 
 
 def arm_full(held_arm_ids: Sequence[str], arm_id: str, cap: int | None, setup_total: bool = False) -> bool:

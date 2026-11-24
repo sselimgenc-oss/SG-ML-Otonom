@@ -156,13 +156,13 @@ def user_version(led_or_ver, path, ver, **over):
 # ==========================================================================
 
 def test_schema_version_constant():
-    assert L.SCHEMA_VERSION == 7
+    assert L.SCHEMA_VERSION == 8  # 24.11 kullanici karari: formasyon kutuphanesi (sema 8)
 
 
 def test_fresh_file_is_v2(tmp_path):
     led, path = new_ledger(tmp_path)
     led.close()
-    assert raw(path, "PRAGMA user_version")[0][0] == 7
+    assert raw(path, "PRAGMA user_version")[0][0] == 8  # 24.11 kullanici karari: formasyon kutuphanesi (sema 8)
     c = cols(path, "trade_exits")
     for name in ("mfe_r", "mae_r", "bars_held", "excursion_tf"):
         assert name in c
@@ -549,7 +549,7 @@ def test_v1_migration_preserves_data_and_upgrades(tmp_path):
     led = open_ledger(p, "learner", migrate=True, clock=clock)
     assert os.path.exists(str(p) + ".premigrate-v1")
     assert raw(str(p) + ".premigrate-v1", "PRAGMA user_version")[0][0] == 1
-    assert raw(p, "PRAGMA user_version")[0][0] == 7
+    assert raw(p, "PRAGMA user_version")[0][0] == 8  # 24.11 kullanici karari: formasyon kutuphanesi (sema 8)
     c = cols(p, "trade_exits")
     for name in ("mfe_r", "mae_r", "bars_held", "excursion_tf"):
         assert name in c
@@ -605,7 +605,7 @@ def test_v1_migration_idempotent(tmp_path):
     assert snapshot(p) == snap
     assert raw(p, "SELECT COUNT(*) FROM schema_migrations WHERE from_version=1 "
                   "AND to_version=2")[0][0] == 1
-    assert raw(p, "PRAGMA user_version")[0][0] == 7
+    assert raw(p, "PRAGMA user_version")[0][0] == 8  # 24.11 kullanici karari: formasyon kutuphanesi (sema 8)
     assert os.path.getmtime(bak) == bak_mtime
 
 
@@ -651,7 +651,7 @@ def test_user_version_5_and_0_rejected(tmp_path):
     led, path = new_ledger(tmp_path)
     led.close()
     con = sqlite3.connect(str(path))
-    con.execute("PRAGMA user_version=8")
+    con.execute("PRAGMA user_version=9")
     con.commit()
     con.close()
     with pytest.raises(LedgerSchemaError):

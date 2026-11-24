@@ -358,6 +358,9 @@ class EntryGate:
         try:
             fam = getattr(self.ledger, "arm_family_mean_r", None)
             aile = fam(aid, D) if fam is not None else None          # fikir 8: az islemli kol aile ortalamasina cekilir (buzulme)
+            if aile is None and "-" in aid:                          # 24.11: kutuphane kolu, gercek aile verisi yok -> on deger (bos dosya = tam boy)
+                from trader_core import formasyon_on_deger as FOD
+                aile = FOD.r_of(aid)
             return KK.karar(fn(aid, KK.KAYIT_SAYISI), aile)
         except Exception as e:  # noqa: BLE001
             log.warning("kol kucultme okunamadi, tam boyut: %s: %s", type(e).__name__, e)
@@ -574,6 +577,12 @@ class EntryGate:
                 if AG.arm_full(held_arms, aid, cap, tot):
                     return self._skip(row, tf, "max_positions", skip_reason="max_positions",
                                       veto_reason=f"gate:arm_cap:{aid}", **tk)
+            if self.cfg.arm_family_max_positions:                                        # 24.11 kullanici karari: aile tavani (kutuphane)
+                fam = AG.family_full([getattr(p, "setup", None) for p in self.state.open_positions()], row.setup,
+                                     self.cfg.arm_family_max_positions)
+                if fam is not None:
+                    return self._skip(row, tf, "max_positions", skip_reason="max_positions",
+                                      veto_reason=f"gate:arm_cap:{fam}", **tk)
             if AG.account_full(len(held), self.cfg.max_positions):
                 return self._skip(row, tf, "max_positions", skip_reason="max_positions",
                                   veto_reason="gate:max_positions", **tk)

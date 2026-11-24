@@ -297,7 +297,7 @@ class Engine:
 
     def _position_for_arms(self, pair: str):
         p = self.state.position_for_pair(pair)
-        return None if p is None else (p.trigger_tf, p.entry_bar_open)
+        return None if p is None else (p.trigger_tf, p.entry_bar_open, p.setup, p.side)
 
     def _last_exit(self, pair: str, D: datetime, tf: str | None = None):
         since = D - (arm_tf_delta(tf) if tf else tf_delta(self.tf))
@@ -563,6 +563,9 @@ class Engine:
                 return {"open": n_open, "max": AG.arm_cap(self.cfg.arm_max_positions, a, setup),
                         "scope": "setup_total" if tot else "arm"}
             res["arms"] = {a: _arm_row(a) for a in ids}
+            if self.cfg.arm_family_max_positions:                  # 24.11: aile basina acik pozisyon ve tavan
+                res["families"] = {f: {"open": AG.family_count([p.setup for p in self.state.open_positions()], f), "max": int(n)}
+                                   for f, n in self.cfg.arm_family_max_positions.items()}
         return res
 
     def summary(self) -> RunSummary:

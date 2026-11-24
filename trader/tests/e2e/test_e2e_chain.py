@@ -218,8 +218,8 @@ def _check_decisions(c: Chain):
 
 
 def test_schema_is_v4(off):   # WP-3 (defter-ek-alanlar-spec): sema 3 -> 4
-    assert L.SCHEMA_VERSION == 7
-    assert off.q("PRAGMA user_version")[0]["user_version"] == 7
+    assert L.SCHEMA_VERSION == 8  # 24.11 kullanici karari: formasyon kutuphanesi (sema 8)
+    assert off.q("PRAGMA user_version")[0]["user_version"] == 8
     assert off.decisions() and "ml_score" in off.decisions()[0]          # v3 kolonu
 
 
@@ -327,7 +327,7 @@ def test_lesson_runs_on_produced_ledger_offline(off, tmp_path, capsys):
         con.close()
     assert runs and ev, "ders calisma kaydi yazilmali"
     # ders defteri DEGISTIRMEDI: sema hala v3, karar/islem sayilari ayni (az islem -> veri yetersiz)
-    assert off.q("PRAGMA user_version")[0]["user_version"] == 7   # DD-12 WP-08: sema 6
+    assert off.q("PRAGMA user_version")[0]["user_version"] == 8   # DD-12 WP-08: sema 6
 
 
 def test_telegram_daily_report_renders_from_ledger(off, tmp_path):

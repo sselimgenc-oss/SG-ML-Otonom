@@ -13,7 +13,10 @@ Kurulum dosyasi sozlesmesi (modul seviyesi):
                                position_manager cikisi bu kipe gore secer (kurulum adina gore degil) (DD-12 WP-12a, K-7 madde 1)
   FEATURES: dict[str, str]     defter ozellik anahtari -> tasiyici sutun (CARRIERS); en fazla 6; gates._features okur (WP-12a, K-7 madde 2)
   PRIORITY: int                ayni zaman dilimindeki cakismada kucuk olan kazanir (T1 10, R1 20, TF1 30, B1 40, H2 50, S1 60, F1 70; M1 90)
-Kurulum kimligi `arm_id = <KURULUM>@<zaman dilimi>`."""
+Kurulum kimligi `arm_id = <KURULUM>@<zaman dilimi>`.
+24.11 kullanici karari: formasyon kutuphanesi. Her kurulum tek dosya; kutuphane dosyasi (`mf1.py`) birden cok kurulum kaydeder:
+modulde `FORMASYONLAR` varsa aile kodu (`MF1`) kol olmaz, her formasyon sanal kurulum (`MF1-YUTAN`) olarak kaydedilir
+(`_kutuphane.py`). Isteye bagli alanlar: TIME_STOP (yoksa 48 mum), EXIT_RULE (kural cikisi; yoksa None)."""
 from __future__ import annotations
 
 import importlib
@@ -28,14 +31,14 @@ import pandas as pd
 
 from ...bars import ARM_TFS
 
-_SETUP_RE = re.compile(r"[A-Z][A-Z0-9]{1,7}")
+_SETUP_RE = re.compile(r"[A-Z][A-Z0-9]{1,7}(-[A-Z0-9]{2,10})?")      # 24.11 kullanici karari: formasyon kutuphanesi
 EXIT_MODES = ("trail", "target")
 # tasiyici sutunlar (SIGNAL_COLUMNS icinde, sayisal ya da tamsayi); ortak anahtarlar (atr_tf, stop_dist_atr, atr_4h,
 # rh_touches, rl_touches) gates'te her zaman yazilir ve burada tasiyici olamaz (rejim anlami tasir)
 CARRIERS = ("ema_value", "body_ratio", "wick_ratio", "edge_dist_atr", "rr", "pullback_ema")
 _RESERVED_FEATURE_KEYS = ("atr_tf", "stop_dist_atr", "atr_4h", "rh_touches", "rl_touches")
 MAX_FEATURES = 6
-_ARM_ID_RE = re.compile(r"([A-Z][A-Z0-9]{1,7})@(15m|1h|4h|1d)")
+_ARM_ID_RE = re.compile(r"([A-Z][A-Z0-9]{1,7}(?:-[A-Z0-9]{2,10})?)@(15m|1h|4h|1d)")
 _OFF_PREFIX = "lab:arm_off|"
 
 
@@ -96,6 +99,17 @@ def discover(refresh: bool = False) -> dict[str, ModuleType]:
         setup = getattr(mod, "SETUP", None)
         if not isinstance(setup, str) or not _SETUP_RE.fullmatch(setup):
             raise ArmError(f"{info.name}.py: SETUP gecersiz: {setup!r}")
+        forms = getattr(mod, "FORMASYONLAR", None)
+        if forms:                                          # kutuphane dosyasi: aile kol degil, formasyonlar kol
+            from ._kutuphane import sanal_kurulumlar
+            for sub_setup, sub_mod in sanal_kurulumlar(mod).items():
+                if not _SETUP_RE.fullmatch(sub_setup):
+                    raise ArmError(f"{info.name}.py: formasyon kodu gecersiz: {sub_setup!r}")
+                validate_arm(sub_mod, f"{info.name}.py:{sub_setup}")
+                if sub_setup in found:
+                    raise ArmError(f"yinelenen kurulum kodu: {sub_setup}")
+                found[sub_setup] = sub_mod          # type: ignore[assignment]
+            continue
         tfs = getattr(mod, "TIMEFRAMES", None)
         if not tfs or any(t not in ARM_TFS for t in tfs) or not callable(getattr(mod, "compute", None)):
             raise ArmError(f"{info.name}.py: TIMEFRAMES/compute sozlesmeye uymuyor")
@@ -141,6 +155,24 @@ def priority_of(setup: str | None) -> int:
     """Siralama onceligi (kucuk once); bilinmeyen/None kurulum en sona."""
     mod = discover().get(setup) if isinstance(setup, str) else None
     return 1000 if mod is None else int(mod.PRIORITY)
+
+
+def time_stop_of(setup: str | None) -> int:
+    """Kurulumun zaman stopu (mum); `TIME_STOP` yoksa 48 (mevcut kollarin degeri)."""
+    mod = discover().get(setup) if isinstance(setup, str) else None
+    v = getattr(mod, "TIME_STOP", None)
+    return 48 if v is None else int(v)
+
+
+def exit_rule_of(setup: str | None):
+    """Kurulumun kural cikisi (`EXIT_RULE(inp) -> bool | None`); yoksa None."""
+    mod = discover().get(setup) if isinstance(setup, str) else None
+    return getattr(mod, "EXIT_RULE", None)
+
+
+def family_of(setup: str | None) -> str | None:
+    """`MF1-YUTAN` -> `MF1`; tireli degilse kodun kendisi."""
+    return setup.split("-")[0] if isinstance(setup, str) and setup else None
 
 
 def find_arm(setup: str) -> ModuleType:

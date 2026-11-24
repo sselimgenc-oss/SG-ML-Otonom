@@ -117,7 +117,7 @@ def build_config(raw) -> dict[str, dict]:
 
 
 def _valid_key(k: str) -> bool:
-    return re.fullmatch(r"[A-Z][A-Z0-9]{1,7}(@(15m|1h|4h|1d))?", k) is not None
+    return re.fullmatch(r"[A-Z][A-Z0-9]{1,7}(-[A-Z0-9]{2,10})?(@(15m|1h|4h|1d))?", k) is not None
 
 
 def resolve(cfg_modes: Mapping[str, Mapping] | None, setup: str, trigger_tf: str | None,

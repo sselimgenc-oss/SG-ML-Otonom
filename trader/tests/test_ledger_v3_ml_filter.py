@@ -66,7 +66,7 @@ def test_v2_to_v3_migration_preserves_rows_and_fk(tmp_path):
     before = {t: _table_rows(p, t) for t in ("decision_events", "trade_entries", "param_versions")}
     led = open_ledger(p, "learner", clock=clock)                # migrate=True (varsayilan)
     led.close()
-    assert raw(p, "PRAGMA user_version")[0][0] == 7
+    assert raw(p, "PRAGMA user_version")[0][0] == 8  # 24.11 kullanici karari: formasyon kutuphanesi (sema 8)
     assert (2, 3) in raw(p, "SELECT from_version, to_version FROM schema_migrations")
     assert "ml_score" in cols(p, "decision_events")
     after = raw(p, "SELECT " + ", ".join(c for c in cols(p, "decision_events")
