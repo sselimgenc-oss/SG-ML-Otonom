@@ -185,6 +185,7 @@ class BacktestSpec:
     wallet_start: float | None = None           # yalniz env ile: ozsermaye baslangici (kagit defterinden turetilir)
     flags: dict = field(default_factory=dict)
     exit_modes: dict | None = None              # cikis kipleri (basa-bas/kismi; docs/cikis-kipleri-spec.md); None = kapali (eski davranis bayt bayt ayni)
+    target_mode: str | None = None              # 24.11: "resting" (hedef bekleyen emir; kagit/canli ile ayni) | "bar_close"; None = yapilandirma degeri (--env paper: "resting")
 
 
 @dataclass
@@ -347,6 +348,8 @@ class BacktestRunner:
             kw["history_dir"] = s.history_dir
         if s.exit_modes is not None:
             kw["exit_modes"] = s.exit_modes
+        if s.target_mode is not None:
+            kw["target_mode"] = s.target_mode
         return apply_overrides(cfg, **kw)
 
     def _build_env_config(self, d: Path, out_dir: Path | None) -> EngineConfig:
@@ -369,6 +372,8 @@ class BacktestRunner:
             kw["pairs"] = tuple(canon_pair(p) for p in s.pairs)
         if s.exit_modes is not None:
             kw["exit_modes"] = s.exit_modes
+        if s.target_mode is not None:
+            kw["target_mode"] = s.target_mode
         if out_dir is not None:
             o = str(Path(out_dir).resolve())
             kw.update(var_dir=o, kill_file=f"{o}/KILL.never", pause_file=f"{o}/PAUSE.never")
@@ -537,6 +542,8 @@ class BacktestRunner:
             veto=s.veto, record_filtered=bool(s.record_filtered), skip_flat=bool(s.skip_flat),
             compat_label=("uyum calismasi, yerel sonuc degildir" if cfg.cost.fill_model == "legacy_compat" else None),
             paranoid=paranoid_report, no_paper_record=getattr(veto, "no_paper_record", [])[:200])
+        if cfg.target_mode != "bar_close":                  # 24.11: eski yolda meta bayt bayt ayni
+            meta["target_mode"] = cfg.target_mode
         if cfg.exit_modes:                                  # kip kapaliyken meta bayt bayt ayni
             meta["exit_modes"] = {k: {kk: vv for kk, vv in v.items() if vv is not None} for k, v in cfg.exit_modes.items()}
         slip = (s.slip_bps or 0.0) if cfg.cost.fill_model == "legacy_compat" else None
@@ -840,6 +847,8 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--pairs", default=None, help="virgullu kanonik ciftler (BTC/USDT,ETH/USDT)")
     ap.add_argument("--exit-modes", default=None,
                     help='cikis kipleri JSON: {"default":{"breakeven":true,"partial":{"trigger_r":1.5,"frac":0.5}}}; verilmezse kapali')
+    ap.add_argument("--target-mode", default=None, choices=["bar_close", "resting"],
+                    help="24.11: hedef bekleyen emir (resting; basa-bas/kismi 15 dk adiminda) ya da eski bar_close; verilmezse yapilandirma degeri")
     return ap
 
 
@@ -874,7 +883,8 @@ def spec_from_args(a: argparse.Namespace, argv: list[str]) -> BacktestSpec:
         truncate_check=trunc, from_paper_ledger=a.from_paper_ledger, out_root=a.out_root, config_dir=a.config_dir,
         pairs=tuple(x.strip() for x in a.pairs.split(",")) if a.pairs else None,
         target_trade_risk=a.target_trade_risk, record_shadow=bool(a.record_shadow),
-        env=a.env, wallet_start=a.wallet_start, flags=dict(argv=list(argv)), exit_modes=exit_modes)
+        env=a.env, wallet_start=a.wallet_start, flags=dict(argv=list(argv)), exit_modes=exit_modes,
+        target_mode=getattr(a, "target_mode", None))
 
 
 def run_spec(spec: BacktestSpec) -> BacktestResult:

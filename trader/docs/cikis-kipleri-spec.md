@@ -48,3 +48,12 @@ Kapsam dışı: iki kipin birlikte açıldığı koşu (oynatım tek kip yollar�
 ## 10. Kâğıtta açık (19 Kasım 2026 kullanıcı kararı)
 
 `config/engine.paper.json` → `"exit_modes": {"default": {"breakeven": true, "partial": true}}` (tüm kollar; spec §1 varsayılanları: başa-baş +1 R, kısmi +1,5 R'de %50). Geri test varsayılanı (`BacktestSpec.exit_modes` boş), testnet ve canlı **değişmez** (boş; testnet/canlıda yapılandırma ConfigError). Kâğıt = geri test paritesi kip açıkken korunur (`tests/engine/test_exit_modes_engine.py::test_paper_config_modes_are_open_and_paper_equals_backtest`). Ders menüsü yolu (§7) kâğıtta onaysız ve otomatik geri alma ile çalışır: `ders-spec.md` Revizyon 8.
+
+## 11. Hedef bekleyen emir ve 15 dk adımı (24 Kasım 2026 kullanıcı kararı)
+
+`target_mode` iki değer alır: `bar_close` (eski; taban/testnet/geri test varsayılanı) ve `resting`; `config/engine.paper.json` ve `config/engine.live.json` ikisi de `"resting"` (canlı = kâğıt, aynı kod yolu). `resting` iken:
+
+1. Hedef kipli kurulumda (R1, B1, F1, M1, HB1, DL1 ...) giriş + ilk stop sonrası planlanan hedef bekleyen reduceOnly emir olarak kurulur. Kâğıt: hedef emri 1 dk mumunda dolar, aynı dakikada stop da değerse stop önce, hedefi atlayan boşluk açılışta dolar. Canlı: `TAKE_PROFIT_MARKET`, `workingType=MARK_PRICE`. Hedef kurulamazsa durum `failed` olur, pozisyon KAPANMAZ ve hedef eski yolla (kendi tf kapanışında piyasa çıkışı) denetlenir.
+2. Başka yolla kapanışta (stop, zaman durdurma, rejim, kill) hedef iptal edilir. Kısmi kâr sonrası hedef, stop gibi kalan adede yeniden kurulur (yeni seq; önce yeni, sonra eski iptal). Mutabakat (`reconcile_live._targets`) eksik/adet uyumsuz hedefi yeniden kurar, kayıt dışı hedefi iptal eder (hedef koruyucu değildir: kurulamazsa piyasa çıkışı YOK).
+3. Başa-baş taşıma ve kısmi kâr alma her 15 dk karar adımında değerlendirilir (en iyi uç = motorun dakika dakika tuttuğu `mfe_price`/`mae_price`). İz süren stop, zaman durdurma ve rejim çıkışı kendi tf kapanışında KALIR.
+4. Karşı-olgu (`replay_trail(step_15m=True)`, satırlar `MODES_VERSION_15M = 3`) aynı 15 dk kuralını oynatır; geri test `--target-mode resting` ile aynı motoru koşar. "alinsaydi" bariyer oynatımı (`counterfactual.replay`) zaten bar içi hedef + stop-önce kuralıdır; değişmedi.

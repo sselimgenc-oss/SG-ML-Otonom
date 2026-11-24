@@ -22,6 +22,7 @@ from .errors import ConfigError
 from .types import canon_pair
 
 SCHEMA = "engine/1"
+TARGET_MODES = ("bar_close", "resting")   # 24.11: "resting" = hedef bekleyen emir; "bar_close" = eski (kendi tf mum kapanisinda piyasa cikisi)
 
 
 @dataclass(frozen=True)
@@ -81,7 +82,7 @@ class EngineConfig:
     pairs: tuple[str, ...]
     wallet_start: float
     cost: CostModel
-    target_mode: Literal["bar_close"]
+    target_mode: Literal["bar_close", "resting"]   # 24.11: "resting" = hedef bekleyen emir (borsada/kagit brokerde bar ici); "bar_close" eski yol
     veto_mode: Literal["required", "off"]
     record_filtered_candidates: bool
     stale_factor: float
@@ -510,8 +511,7 @@ def _validate(raw: Mapping[str, Any]) -> EngineConfig:
     for n in _NUM[2:]:
         if nums[n] < 0:
             raise ConfigError(f"{n} >= 0 olmali")
-    if raw["target_mode"] != "bar_close":
-        raise ConfigError(f"target_mode yalniz 'bar_close': {raw['target_mode']!r}")
+    target_mode = _choice("target_mode", raw["target_mode"], TARGET_MODES)   # 24.11 kullanici karari: hedef bekleyen emir ("resting")
     veto_mode = _choice("veto_mode", raw["veto_mode"], ("required", "off"))
     # 23.11 kullanici karari: canli = kagit (live: veto_mode 'off' da gecerli)
     if veto_mode == "off" and mode not in ("backtest", "paper", "testnet", "live"):   # DD-12: LLM veto kaldirildi
@@ -619,7 +619,7 @@ def _validate(raw: Mapping[str, Any]) -> EngineConfig:
         check_shared_paths(mode, raw["var_dir"], raw["kill_file"], pause_file)
     return EngineConfig(
         schema=SCHEMA, mode=mode, bot=bot, pairs=pairs,  # type: ignore[arg-type]
-        wallet_start=nums["wallet_start"], cost=cost, target_mode="bar_close",
+        wallet_start=nums["wallet_start"], cost=cost, target_mode=target_mode,  # type: ignore[arg-type]
         veto_mode=veto_mode,  # type: ignore[arg-type]
         record_filtered_candidates=raw["record_filtered_candidates"],
         stale_factor=nums["stale_factor"], loop_sleep_s=nums["loop_sleep_s"],

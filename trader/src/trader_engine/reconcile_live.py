@@ -167,6 +167,7 @@ class LiveReconciler(Reconciler):
             else:
                 self._clear_reduction(sp)
             self._stops(sp, bp, oo.get(pair, []), now, acts, finds, reasons, protect_only=False, skip_requantity=excess)
+            self._targets(sp, bp, oo.get(pair, []), now, acts, finds, skip_requantity=excess)    # 24.11: bekleyen hedef (stoptan SONRA, koruyucu degil)
             self._l10(sp, bp, margins, finds, reasons)
             self._price_drift(sp, bp, finds)
         # L8 yetim / L9 yabanci
@@ -400,7 +401,7 @@ class LiveReconciler(Reconciler):
             if c and c not in ids:
                 ids.append(c)
         for r in reversed(self.state.orders_for_trade(sp.trade_id)):
-            if r.role in ("stop", "exit") and r.client_id not in ids:
+            if r.role in ("stop", "exit", "target") and r.client_id not in ids:       # 24.11: bekleyen hedef emri de kapanis atfinda aday
                 ids.append(r.client_id)
         return ids
 
@@ -587,6 +588,88 @@ class LiveReconciler(Reconciler):
             cur = self.state.get_position(sp.trade_id) or cur
             if self._reinstall(cur, qty, tick, now, acts, finds, reasons, why="requantity", replace_ids=[kept.client_id]):
                 acts.append(f"stop_requantified:{cur.trade_id}")
+
+    def _targets(self, sp: Position, bp: BrokerPosition, orders_open: list[BrokerOrder], now, acts, finds,
+                 *, skip_requantity: bool = False) -> None:
+        """24.11 (target_mode=resting): bekleyen hedef emri mutabakati. Hedef KORUYUCU DEGILDIR: eksik/uyumsuz hedef yeniden kurulur
+        ama basarisizlik pozisyonu kapatmaz (motor kendi tf kapanisinda `bar_close` yedegiyle hedefi denetler). Kurallar: orders
+        tablosunda olmayan bizim onekli hedef iptal; bir pozisyonda tek hedef (fazlasi iptal); hedef yok ya da adedi borsa
+        adediyle uyumsuz -> yeni seq ile kur, eskisini kurulduktan sonra iptal et. Durum `target:<trade_id>` anahtarinda."""
+        from .position_manager import exit_mode_of
+        cur = self.state.get_position(sp.trade_id) or sp
+        if cur.status != "open" or getattr(self.cfg, "target_mode", "bar_close") != "resting":
+            return
+        if exit_mode_of(cur.setup) != "target" or not (isinstance(cur.planned_target, (int, float)) and cur.planned_target > 0):
+            return
+        tick, step = self._rules(cur.pair)
+        mine = [o for o in orders_open if o.role == "target" and o.pair == cur.pair]
+        untracked = [o for o in mine if not self.state.get_order(o.client_id)]
+        tracked = [o for o in mine if self._row_trade(o.client_id) == cur.trade_id]
+        for o in untracked:
+            finds.append(f"untracked_target:{o.client_id}")
+            self._cancel(o.pair, o.client_id, acts, f"untracked_target_canceled:{o.client_id}")
+        qty = self._floor(bp.qty, step)
+        if skip_requantity and cur.qty is not None:
+            qty = self._floor(min(bp.qty, cur.qty), step)
+        tk = self.state.kv_get(f"target:{cur.trade_id}")
+        tk = tk if isinstance(tk, dict) else None
+        state = None if tk is None else tk.get("state")
+        if not tracked:
+            if state == "failed":
+                return                                     # kurulamamisti: bar_close yedegi calisir; her turda denemeyiz
+            if state == "active":
+                finds.append(f"no_target:{cur.trade_id}")  # borsada kayip (iptal/suresi doldu): yeniden kur
+            self._reinstall_target(cur, qty, now, acts, finds, why="missing", replace_ids=())
+            return
+        kept = max(tracked, key=lambda o: (self.state.get_order(o.client_id).seq if self.state.get_order(o.client_id) else -1))
+        for o in tracked:
+            if o is not kept:
+                self._cancel(cur.pair, o.client_id, acts, f"dup_target_canceled:{o.client_id}")
+                finds.append(f"dup_target:{cur.trade_id}")
+        row = self.state.get_order(kept.client_id)
+        if tk is None or state != "active" or tk.get("cid") != kept.client_id:
+            with self.state.tx():
+                self.state.kv_set(f"target:{cur.trade_id}", {"state": "active", "cid": kept.client_id,
+                                                             "seq": row.seq if row else 0, "why": "adopted_by_reconcile"})
+            acts.append(f"target_adopted:{cur.trade_id}")
+        if not skip_requantity and abs(kept.qty - bp.qty) >= step / 2:
+            finds.append(f"target_qty_mismatch:{cur.trade_id}")
+            self._reinstall_target(cur, qty, now, acts, finds, why="requantity", replace_ids=(kept.client_id,))
+
+    def _reinstall_target(self, sp: Position, qty: float, now, acts, finds, *, why: str, replace_ids) -> bool:
+        """Yeni seq ile hedef kur (borsa adedi); eskiler yenisi KABUL EDILDIKTEN sonra iptal. Basarisizsa eskiler kalir, piyasa cikisi YOK."""
+        if not qty > 0:
+            return False
+        om = self.orders
+        seq = om.next_target_seq(sp)
+        try:
+            out = om.place_target(replace(sp, qty=qty), seq)
+        except StateError:
+            raise
+        except Exception as e:  # noqa: BLE001
+            log.warning("mutabakat: hedef kurulamadi trade %s (%s): %r", sp.trade_id, why, e)
+            return False
+        if out is None or not out.ok:
+            log.warning("mutabakat: hedef yeniden kurulamadi trade %s (%s): %s", sp.trade_id, why, None if out is None else out.note)
+            self.counters["target_reinstall_failed"] += 1
+            return False
+        with self.state.tx():
+            self.state.kv_set(f"target:{sp.trade_id}", {"state": "active", "cid": out.order.client_id, "seq": out.order.seq,
+                                                        "why": f"reconcile_{why}"})
+        acts.append(f"target_installed:{sp.trade_id}")
+        self.counters["targets_reinstalled"] += 1
+        for cid in replace_ids:
+            if cid != out.order.client_id:
+                self._cancel(sp.pair, cid, acts, f"old_target_canceled:{cid}")
+        reg = getattr(self.broker, "register_position", None)
+        if reg is not None and sp.entry_ts is not None:
+            try:
+                reg(sp.pair, sp.entry_ts, [r.client_id for r in self.state.orders_for_trade(sp.trade_id)])
+            except StateError:
+                raise
+            except Exception as e:  # noqa: BLE001
+                log.warning("register_position basarisiz %s: %r", sp.pair, e)
+        return True
 
     def _row_trade(self, cid: str):
         r = self.state.get_order(cid)

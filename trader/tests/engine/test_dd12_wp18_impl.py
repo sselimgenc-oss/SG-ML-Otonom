@@ -122,8 +122,8 @@ FROZEN_SHA256 = {
     "config/engine.base.json": "aa364bad7141613cf8d2e7898343079a2a6e15f89b31b462d15113fc97e89eb0",   # 24.11 kullanici karari: ML filtreleri silindi (ml_mode/ml_model_path anahtarlari kalkti)
     "config/engine.learner.json": "30ca2842c40cacafbf6cdd90c9e6f1f54fc62b9a9ec913476d1399ac5352cb12",
     "config/engine.testnet.json": "54247bbd4d0fcea5eda5add465809938178ec4a1decf7f61cb9aa838daa4e952",
-    "config/engine.live.json": "98d19aeeb52dc4b91ba6f9383da6ee697ba6f0866fd95e19dad79389a3cad44a",   # 24.11 kullanici karari: DL1 dort zaman dilimi acik; onceki 24.11 ML filtreleri silindi; onceki 23.11 asama B + uzun_yon + HB1 (canli = kagit)
-    "src/trader_engine/order_manager.py": "1a8a93daf39dabacd62356fb59a3a09d87634fe6a7ada7afa94171d100605077",
+    "config/engine.live.json": "66cc37327d03ff62970195b5423b08898811e9e76717e7f5f7e7915466259a72",   # 24.11 kullanici karari: hedef bekleyen emir (target_mode "resting"); onceki 24.11: DL1 dort zaman dilimi acik; onceki 24.11 ML filtreleri silindi; onceki 23.11 asama B + uzun_yon + HB1 (canli = kagit)
+    "src/trader_engine/order_manager.py": "14f716b3433583206affc8989e265b028157a7c12979d909641f53824b6fe8ba",   # 24.11 kullanici karari: hedef bekleyen emir (place_target/cancel_target/next_target_seq; cancel_resting hedef satirini iptal isaretler)
     "research/s2_run.py": "66710418f9be36225b757f9d4a1158b1e9093db5f7df131572c639e3958b21a7",
 }
 

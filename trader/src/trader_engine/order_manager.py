@@ -11,7 +11,7 @@ from typing import Callable, Literal
 
 from .clock import Clock
 from .errors import BrokerUncertain, StateError
-from .numeric import is_multiple, round_tight
+from .numeric import ceil_step, floor_step, is_multiple, round_tight
 from .state import OrderRow, StateStore, iso_z
 from .types import (BrokerOrder, Intent, OrderRequest, OrderResult, Position, Role, Side, SymbolRules,
                     order_side_for, require_utc)
@@ -27,6 +27,11 @@ EXIT_RETRY_LIMIT = 3          # kamusal sabit (reconcile_live ve testler ice akt
 _EXIT_RETRY_LIMIT = EXIT_RETRY_LIMIT
 
 __all__ = ["EXIT_RETRY_LIMIT", "make_client_id", "OrderRow", "SubmitOutcome", "OrderManager"]
+
+
+def _cid_is_target(cid: str) -> bool:
+    """Istemci kimligi hedef (rol `t`) mi: `tr<L|T>t-<hash>`."""
+    return len(cid) > 3 and cid.startswith("tr") and cid[3:4] == "t"
 
 
 def make_client_id(bot: str, role: Role, pair: str, side: Side, signal_bar_close_ts: datetime, seq: int) -> str:
@@ -555,6 +560,53 @@ class OrderManager:
                         self._upd(old, status="canceled", detail="replaced_by_tighter_stop")
         return out
 
+    # ------------------------------------------------------------------ hedef (24.11: bekleyen emir)
+    def target_price(self, pos: Position) -> float | None:
+        """Bekleyen hedef emrinin tetik fiyati: planlanan hedef, tick'e GIRISE dogru (kolay dolum; borsa `round_target_easy` ile ayni):
+        long'da asagi, short'ta yukari. Hedef yoksa/sonsuzsa None."""
+        t = pos.planned_target
+        if t is None or isinstance(t, bool) or not isinstance(t, (int, float)) or not math.isfinite(t) or not t > 0:
+            return None
+        tick = self.stop_tick(pos)
+        return floor_step(float(t), tick) if pos.side == "long" else ceil_step(float(t), tick)
+
+    def _target_request(self, pos: Position, price: float, seq: int) -> OrderRequest:
+        cid = make_client_id(self.bot, "target", pos.pair, pos.side, pos.signal_bar_close_ts, seq)
+        return OrderRequest(client_id=cid, pair=pos.pair, role="target", order_side=order_side_for(pos.side, "target"),
+                            qty=self._eff_qty(pos), trigger_price=price, reduce_only=True, leverage=None,
+                            signal_bar_close_ts=pos.signal_bar_close_ts, created_ts=self.clock.now())
+
+    def next_target_seq(self, pos: Position) -> int:
+        seqs = [r.seq for r in self.state.orders_for_trade(pos.trade_id) if r.role == "target"]
+        return (max(seqs) + 1) if seqs else 0
+
+    def place_target(self, pos: Position, seq: int | None = None) -> SubmitOutcome | None:
+        """Bekleyen hedef emri (reduceOnly; kagit: hedef emri, canli: TAKE_PROFIT_MARKET). Stop gibi satir POST'tan once kalici
+        yazilir; kimlik (rol `t`, seq) tekrar gonderimde ayni kalir. Hedef fiyati yoksa None. Basarisizlik pozisyonu KAPATMAZ
+        (hedef koruyucu degil; motor `bar_close` yedegine doner)."""
+        if pos.qty is None or not pos.qty > 0:
+            raise ValueError("pozisyon qty yok")
+        price = self.target_price(pos)
+        if price is None:
+            return None
+        seq = self.next_target_seq(pos) if seq is None else seq
+        return self._submit(self._target_request(pos, price, seq), seq, pos.trade_id)
+
+    def cancel_target(self, pos: Position, cid: str, why: str) -> bool:
+        """Hedef emrini iptal eder; canlida satir `accepted` kalmaz. True: iptal gonderildi."""
+        try:
+            self.broker.cancel(pos.pair, cid)
+        except StateError:
+            raise
+        except Exception as e:  # noqa: BLE001
+            log.warning("hedef iptal edilemedi %s: %r", cid, e)
+            return False
+        if self.live_mode:
+            row = self.state.get_order(cid)
+            if row is not None and row.status == "accepted":
+                self._upd(cid, status="canceled", detail=why)
+        return True
+
     def cancel_resting(self, pos: Position) -> None:
         cids: list[str] = []
         if pos.stop_client_id:
@@ -569,6 +621,11 @@ class OrderManager:
                 raise
             except Exception as e:  # noqa: BLE001
                 log.warning("iptal basarisiz %s: %r", cid, e)
+                continue
+            if self.live_mode and _cid_is_target(cid):             # 24.11: kapanista iptal edilen hedef satiri `accepted` kalmaz
+                row = self.state.get_order(cid)
+                if row is not None and row.status == "accepted":
+                    self._upd(cid, status="canceled", detail="position_closed")
 
     # ------------------------------------------------------------------ cozum
     def resolve_unresolved(self) -> list[SubmitOutcome]:

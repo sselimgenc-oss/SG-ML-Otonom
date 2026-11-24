@@ -158,6 +158,18 @@ def _lot_rules(market):
     return fn
 
 
+def _target_mode(base_path: str, paper_path: str) -> str:
+    """Kagit motorunun `target_mode` degeri (taban + kagit katmani; okunamazsa 'bar_close'). 24.11: 'resting' ise cikis kipleri
+    karsi-olgusu motorla ayni 15 dk adiminda oynatilir."""
+    mode = "bar_close"
+    for p in (base_path, paper_path):
+        try:
+            mode = json.loads(Path(p).read_text(encoding="utf-8")).get("target_mode", mode)
+        except (OSError, ValueError):
+            continue
+    return mode
+
+
 def _paper_block(args, now, store, source, since, modes_registered=True):
     led = L.open_ledger(_resolve(args.ledger or f"var/{args.bot}/ledger.sqlite"), args.bot, create=False, read_only=True,
                         migrate=False)
@@ -183,7 +195,8 @@ def _paper_block(args, now, store, source, since, modes_registered=True):
         # exitcf-v2: cikis kipleri (basa-bas / kismi) "acik olsaydi"; v1 sonucundan bagimsiz, ayni gece
         mr = EC.ModesRunResult() if not modes_registered else EC.run_modes_once(bot=args.bot, trades=inputs, market=market, store=store, now=now, active_value=active,
                                cost_for=cost_for, signal_params_for=lambda t: vers.get(t.param_version_id)[1],
-                               trigger_source=trig, holdout=HOLDOUT, dry_run=args.dry_run, rules_for=_lot_rules(market))
+                               trigger_source=trig, holdout=HOLDOUT, dry_run=args.dry_run, rules_for=_lot_rules(market),
+                               step_15m=_target_mode(_resolve(args.base_config), _resolve(args.paper_config)) == "resting")
         return r, mr
     finally:
         market.close()
