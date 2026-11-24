@@ -125,7 +125,7 @@ def test_arm_tf_helpers_and_old_contract_untouched():
 # --------------------------------------------------------------------------- yapilandirma
 def test_config_arms_and_caps():
     assert PAPER.strategy == NAME and PAPER.arms == PAPER_ARMS
-    assert PAPER.arm_max_positions == {"default": 6, "M1": 4, "L1": 4, "HB1": 3}   # 23.11: HB1 3; C1 kaldirildi (CT/ML ayriligi); 20 Kasim: kagit tavanlari gevsetildi
+    assert PAPER.arm_max_positions == {"default": 6, "M1": 4, "L1": 4, "HB1": 3, "DL1": 4}   # 23.11: HB1 3; 24.11: DL1 toplam 4; C1 kaldirildi (CT/ML ayriligi); 20 Kasim: kagit tavanlari gevsetildi
     c = apply_overrides(PAPER, arms={"T1": ["1h", "4h"]}, arm_max_positions=2)
     assert c.arms == ("T1@1h", "T1@4h") and c.arm_max_positions == {"default": 2}
     for kw in ({"arms": ["T1@5m"]}, {"arms": ["T1@1h", "T1@1h"]}, {"arms": "T1@1h"}, {"arm_max_positions": 0},

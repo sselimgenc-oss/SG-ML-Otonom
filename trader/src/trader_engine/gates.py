@@ -555,7 +555,8 @@ class EntryGate:
                 cap = AG.arm_cap(self.cfg.arm_max_positions, aid, row.setup)
                 held_arms = [AG.arm_id_of(p.setup, p.trigger_tf) for p in self.state.open_positions()
                              if getattr(p, "setup", None) and getattr(p, "trigger_tf", None)]
-                if AG.arm_full(held_arms, aid, cap):
+                tot = AG.arm_cap_is_setup_total(self.cfg.arm_max_positions, aid, row.setup)   # "M1": 4 => tum tf toplami
+                if AG.arm_full(held_arms, aid, cap, tot):
                     return self._skip(row, tf, "max_positions", skip_reason="max_positions",
                                       veto_reason=f"gate:arm_cap:{aid}", **tk)
             if AG.account_full(len(held), self.cfg.max_positions):

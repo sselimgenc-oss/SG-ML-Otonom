@@ -30,6 +30,13 @@ def floor_funding_time(t: datetime) -> datetime:
     return t.replace(hour=t.hour - t.hour % 8, minute=0, second=0, microsecond=0)
 
 
+def floor_funding_hour(t: datetime) -> datetime:
+    """Ham fundingTime'i saat basina tabana yuvarlar. Aralik-bagimsiz: 1h/4h/8h funding kayitlarinin KENDI zamani kullanilir
+    (sabit 00/08/16 izgarasi yok); saat basini birkac ms gecen zaman damgasi saate iner."""
+    require_utc(t, "t")
+    return t.replace(minute=0, second=0, microsecond=0)
+
+
 def due_funding_times(last_ts: datetime | None, upto: datetime) -> list[datetime]:
     require_utc(upto, "upto")
     if last_ts is None:

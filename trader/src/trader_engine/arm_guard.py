@@ -95,6 +95,20 @@ def arm_cap(caps: Mapping[str, int] | None, arm_id: str, setup: str | None) -> i
     return None
 
 
-def arm_full(held_arm_ids: Sequence[str], arm_id: str, cap: int | None) -> bool:
-    """`held_arm_ids`: acik + acilmakta pozisyonlarin arm_id'leri. cap None => dolu degil."""
-    return cap is not None and sum(1 for a in held_arm_ids if a == arm_id) >= cap
+def arm_cap_is_setup_total(caps: Mapping[str, int] | None, arm_id: str, setup: str | None) -> bool:
+    """Tavan `X@tf` ya da `default` anahtarindan gelirse kurulum x zaman dilimi basinadir (False). Zaman dilimsiz kurulum
+    anahtari (`M1`: 4) ise o sayi kurulumun TUM zaman dilimlerindeki toplamidir (True)."""
+    if not caps or arm_id in caps:
+        return False
+    return setup is not None and setup in caps
+
+
+def arm_full(held_arm_ids: Sequence[str], arm_id: str, cap: int | None, setup_total: bool = False) -> bool:
+    """`held_arm_ids`: acik + acilmakta pozisyonlarin arm_id'leri. cap None => dolu degil.
+    `setup_total`: sayim kurulumun tum zaman dilimlerinde (`M1@15m` + `M1@1h` + ...) yapilir."""
+    if cap is None:
+        return False
+    if setup_total:
+        base = arm_id.split("@")[0]
+        return sum(1 for a in held_arm_ids if a.split("@")[0] == base) >= cap
+    return sum(1 for a in held_arm_ids if a == arm_id) >= cap

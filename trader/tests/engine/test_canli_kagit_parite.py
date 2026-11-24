@@ -61,11 +61,11 @@ def test_canli_ml_stratejisi_ve_43_cift_yuklenir():
     assert live.exit_modes == paper.exit_modes          # canli kagitla ayni cikis kiplerini kullanir (istisna yok)
 
 
-def test_canli_risk_sinirlari_024_016_008_hedef_001():
+def test_canli_risk_sinirlari_012_006_008_hedef_001():
     r = load_cli_config(CONFIG, "learner", "live").risk_config
     assert isinstance(r, K.LiveRiskConfig)
     # 23.11 kullanici karari: asama B esikleri (yapilandirma 0.16 -> 0.06; LIVE_LIMITS tavani 0.16 kalir)
-    assert (r.max_open_risk, r.max_same_dir_risk, r.daily_max_loss, r.target_trade_risk) == (0.24, 0.06, 0.08, 0.01)
+    assert (r.max_open_risk, r.max_same_dir_risk, r.daily_max_loss, r.target_trade_risk) == (0.12, 0.06, 0.08, 0.01)
     assert K.LIVE_LIMITS["max_open_risk"] == 0.24 and K.LIVE_LIMITS["max_same_dir_risk"] == 0.16
     assert K.LIVE_LIMITS["daily_max_loss"] == 0.08
     # canli ust sinirlari asilamaz

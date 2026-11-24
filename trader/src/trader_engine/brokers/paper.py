@@ -14,7 +14,7 @@ from trader_core.risk import liquidation_price
 from ..clock import Clock
 from ..config import CostModel
 from ..errors import BrokerError, BrokerUncertain
-from ..funding import due_funding_times, floor_funding_time, funding_payment
+from ..funding import due_funding_times, floor_funding_hour, funding_payment
 from ..numeric import is_multiple, round_adverse, round_nearest
 from ..types import (BrokerAccount, BrokerEvent, BrokerOrder, BrokerPosition, Fill, FundingPoint, MinuteBar,
                      OrderRequest, OrderResult, Role, Side, SymbolRules, require_utc)
@@ -395,17 +395,20 @@ class PaperBroker:
         if pos is None or last is None:
             self._last_funding[pair] = ts
             return
-        if not due_funding_times(last, ts):
+        grid = due_funding_times(last, ts)                     # 8s izgara: noktasi eksikse bekle/uyar (eski davranis)
+        if not grid and floor_funding_hour(ts) <= last:        # arada saat siniri yok: odenecek funding olamaz
             self._last_funding[pair] = ts
             return
         pts = self._funding_fn(pair, last, ts)
         by_ts: dict[datetime, FundingPoint] = {}
         for p in pts or ():
-            by_ts.setdefault(floor_funding_time(p.ts), p)      # ham fundingTime saat basini birkac ms gecebilir
+            by_ts.setdefault(floor_funding_hour(p.ts), p)      # kaydin kendi zamani; ham fundingTime saat basini birkac ms gecebilir
+        # Aralik-bagimsiz: izgara disi (4s/1s) kayitlar da (last, ts] icinde kendi zamaninda bir kez odenir
+        due = sorted(set(grid) | {t for t in by_ts if last < t <= ts})
         todo = []
         hold_at: datetime | None = None                        # son odenen/atlanan nokta; imlec buraya kadar ilerler
         held = False
-        for t in due_funding_times(last, ts):
+        for t in due:
             if pos.opened_ts >= t:
                 hold_at = t
                 continue

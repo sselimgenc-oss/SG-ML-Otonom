@@ -55,7 +55,7 @@ PINNED_SHA = {
     "engine.base.json": "aa364bad7141613cf8d2e7898343079a2a6e15f89b31b462d15113fc97e89eb0",   # WP-06a: yalniz veto_config yolu; 24.11 kullanici karari: ML filtreleri silindi (ml_mode/ml_model_path kalkti)
     "engine.learner.json": "30ca2842c40cacafbf6cdd90c9e6f1f54fc62b9a9ec913476d1399ac5352cb12",
     "engine.testnet.json": "54247bbd4d0fcea5eda5add465809938178ec4a1decf7f61cb9aa838daa4e952",
-    "engine.live.json": "98d19aeeb52dc4b91ba6f9383da6ee697ba6f0866fd95e19dad79389a3cad44a",   # 24.11 kullanici karari: DL1 dort zaman dilimi acik; onceki 24.11 ML filtreleri silindi
+    "engine.live.json": "d55cedef37f84fb33cf41085fabf66cf62d6da14b8f248ccdd3f2b964c4ecc63",   # 24.11 kullanici karari: toplam acik risk 0.12, DL1 toplam 4; onceki: DL1 dort zaman dilimi acik; onceki 24.11 ML filtreleri silindi
 }
 # 23.11 kullanici karari: canli = kagit. engine.live.json'a eklenen kagit sistem anahtarlari (+ pairs yerine kagit evreni).
 LIVE_PAPER_SYSTEM_KEYS = {"veto_mode", "pairs", "optional_pairs", "strategy", "arms", "arm_max_positions", "shadow_blocks",
@@ -174,7 +174,7 @@ def test_dt1_katmansiz_yukleme_onceki_engineconfig_ile_esit(baseline, envname):
         assert cur["cfg"][k] == v, f"{envname}: alan {k} degisti"
     if envname == "live":      # 23.11 kullanici karari: canli = kagit (LIVE_LIMITS 0.24/0.16/0.08, hedef %1)
         assert (cur["risk"]["max_open_risk"], cur["risk"]["max_same_dir_risk"], cur["risk"]["daily_max_loss"],
-                cur["risk"]["target_trade_risk"]) == (0.24, 0.06, 0.08, 0.01)   # 23.11 kullanici karari: asama B esikleri
+                cur["risk"]["target_trade_risk"]) == (0.12, 0.06, 0.08, 0.01)   # 23.11 kullanici karari: asama B esikleri
         return
     if envname == "paper":     # 23.11 kullanici karari: asama B esikleri (max_same_dir_risk 0.16 -> 0.06)
         assert cur["risk"] == {**old["risk"], "max_same_dir_risk": 0.06}
@@ -438,7 +438,7 @@ def test_dt30_paper_risk_yuzdeleri():
     cfg = _paper()
     rc = cfg.risk_config
     assert rc.target_trade_risk == pytest.approx(0.01)
-    assert rc.max_open_risk == pytest.approx(0.24)
+    assert rc.max_open_risk == pytest.approx(0.12)
     assert rc.max_same_dir_risk == pytest.approx(0.06)   # 23.11 kullanici karari: asama B esikleri
     assert rc.daily_max_loss == pytest.approx(0.08)
     assert rc.max_trade_risk >= rc.target_trade_risk
@@ -499,5 +499,5 @@ def test_dt13_paper_layer_diger_ortamlari_kirletmez():
     _paper()
     assert len(load_cli_config(CONFIG, "learner", None).pairs) == 10
     assert load_cli_config(CONFIG, "learner", "testnet").risk_config.max_open_risk == 0.06
-    assert load_cli_config(CONFIG, "learner", "live").risk_config.max_open_risk == 0.24   # 23.11 kullanici karari: canli = kagit
+    assert load_cli_config(CONFIG, "learner", "live").risk_config.max_open_risk == 0.12   # 23.11 kullanici karari: canli = kagit
     assert LOCKED_CFG.max_open_risk == 0.06

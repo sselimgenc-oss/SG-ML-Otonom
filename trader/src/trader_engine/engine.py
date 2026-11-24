@@ -103,6 +103,9 @@ class RunSummary:
     counters: dict
 
 
+_TF_RANK = {"15m": 1, "1h": 2, "4h": 3, "1d": 4}      # giris sirasi: buyuk zaman dilimi once
+
+
 class Engine:
     def __init__(self, cfg: EngineConfig, *, clock: Clock, view: MarketView, broker: Broker, ledger: L.Ledger,
                  state: StateStore, signals: SignalSource, strategy: Strategy, veto: VetoSource, kill: Killswitch,
@@ -1843,11 +1846,33 @@ class Engine:
                        leg_exit_price=float(closed.exit_price))   # kayma: son bacak dolumu / planlanan cikis (karma degil)
 
     # ------------------------------------------------------------------ girisler (kapili)
+    def _entry_order(self, D: datetime, frames: Mapping[str, SignalFrame]) -> list[str]:
+        """Giris adaylarinin sirasi (kagit/canli/geri test ayni yol): once buyuk zaman dilimi (1d > 4h > 1h > 15m; adayi olmayan
+        sona), esitlikte yapilandirma sirasi `D`'den turetilen DONEN baslangic ofsetiyle (her 15 dk adimda bir ilerler).
+        Boylece boyut tavanlari (toplam notional, ayni-yon risk) dolarken hep ayni ciftler (BTC, ETH ..) onde gitmez.
+        Yalniz `D`'ye bagli: ayni zaman damgasi ayni sirayi verir (tekrar oynatma tekrarlanabilir). Cift ici sira degismez."""
+        pairs = list(self.cfg.pairs)
+        n = len(pairs)
+        if n <= 1:
+            return pairs
+        off = int(D.timestamp() // 900) % n
+
+        def rank(pair: str) -> int:
+            fr = frames.get(pair)
+            row = None if fr is None else fr.last
+            if row is None:
+                return -1
+            try:
+                return _TF_RANK.get(_tf_of(row), 0)
+            except Exception:  # noqa: BLE001 - tf cozulemezse en dusuk aday sirasi
+                return 0
+        return sorted(pairs, key=lambda p: (-rank(p), (pairs.index(p) - off) % n))
+
     def _entries(self, D: datetime, frames: Mapping[str, SignalFrame]) -> None:
         pre = self.gate.pre(D, self.tf, self._params_ok, self._active_tf or self.tf)
         self._last_pre = pre
         attempted = False
-        for pair in self.cfg.pairs:
+        for pair in self._entry_order(D, frames):
             try:
                 if attempted or not self.is_paper:
                     # DD-6 O3: kapi (blokaj nedeni, KILL, duraklatma, kademe) her girisden once yeniden okunur; bir onceki giris
