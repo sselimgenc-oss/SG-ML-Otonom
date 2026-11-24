@@ -1,0 +1,14 @@
+# Yeni kollar gecmis veri testi. Asil surum claude/charming-hawking-ab5w5q dalinda; bu kopya yalniz elle tetiklemeyi mumkun kilar (ref = gelistirme dali).
+name: yeni-kol-test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: echo "Gelistirme dalindan tetikleyin (ref = claude/charming-hawking-ab5w5q)."
