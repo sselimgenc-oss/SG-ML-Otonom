@@ -60,7 +60,7 @@ def test_param_specs_follow_ledger():
     assert set(specs) == set(L.PARAM_SPECS)
     assert {n for n, p in specs.items() if p.lesson_adjustable} == set(L.CORE_LESSON_PARAMS)
     assert specs["trail_atr"].lesson_bounds == tuple(L.LESSON_BOUNDS_DEFAULT["trail_atr"])
-    assert specs["trail_atr"].step == L.LESSON_STEP["trail_atr"] and specs["trail_atr"].scope == ("T1",)
+    assert specs["trail_atr"].step == L.LESSON_STEP["trail_atr"] and specs["trail_atr"].scope == tuple(L.LESSON_SCOPE["trail_atr"])   # 24.11: kapsam ledger.LESSON_SCOPE tek yerden
 
 
 def test_no_dynamic_import_in_strategies_and_runner():
