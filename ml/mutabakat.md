@@ -1,23 +1,23 @@
 # İşlem mutabakatı
 
-Son kontrol: 2026-11-24 22:10 (TSİ). İşlem: 86 (kapanan 78, açık 8). Uyuşmazlık: 0.
+Son kontrol: 2026-11-24 23:49 (TSİ). İşlem: 87 (kapanan 78, açık 9). Uyuşmazlık: 0.
 
 ## Kontroller
 
 | Kontrol | Sonuç | Ayrıntı |
 |---|---|---|
-| Kasa = başlangıç + Σ net K/Z | geçti | Kasa 958,10 $ tutuyor |
+| Kasa = başlangıç + Σ net K/Z | geçti | Kasa 960,75 $ tutuyor |
 | Net K/Z: SQL toplamı = motor toplamı = brüt - komisyon - fonlama | geçti | Defter toplamları tutuyor (-43,15 $) |
 | Long toplamı (motor = panel) | geçti | Long işlemler panelle aynı (13 işlem) |
 | Short toplamı (motor = panel) | geçti | Short işlemler panelle aynı (65 işlem) |
 | Toplam kapanan (motor = panel 'tümü') | geçti | Kapanan işlemlerin toplamı panelle aynı (78 işlem) |
-| Açık pozisyon sayısı (motor = panel = şerit = durum) | geçti | 8 açık işlem, hepsi aynı |
-| Açık K/Z fiyat kaynağı (panel = motor mark) | geçti | Açık işlemlerin kâr/zararı panelle aynı; fiyat bekleniyor (piyasa kapalı/veri yok): #20, #39, #40, #104, #105, #107, #109, #110 |
+| Açık pozisyon sayısı (motor = panel = şerit = durum) | geçti | 9 açık işlem, hepsi aynı |
+| Açık K/Z fiyat kaynağı (panel = motor mark) | geçti | Açık işlemlerin kâr/zararı panelle aynı; fiyat bekleniyor (piyasa kapalı/veri yok): #20, #39, #40, #104, #105, #107, #109, #110, #111 |
 | Günlük zarar limiti oranı (panel = kâğıt ayarı) | geçti | Günlük zarar limiti %8,00 (panelle aynı) |
 
 ## Bilgi
 
-- Fiyatı gelmeyen açık işlemler: #20, #39, #40, #104, #105, #107, #109, #110 · fiyat bekleniyor (piyasa kapalı/veri yok); uyuşmazlık sayılmaz
+- Fiyatı gelmeyen açık işlemler: #20, #39, #40, #104, #105, #107, #109, #110, #111 · fiyat bekleniyor (piyasa kapalı/veri yok); uyuşmazlık sayılmaz
 
 ## Telegram kaynağı
 
@@ -117,3 +117,4 @@ Yok.
 | 108 | Sahte kırılım dönüşü · 15 dakika | TSLA | long | kapalı | 2026-11-24 19:45 | 2026-11-24 20:15 | 378,690000 | 382,140000 | 2,6910 | 0,2967 | 0,0000 | 2,3943 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 109 | Trend geri çekilmesi · 15 dakika | TRX | short | açık | 2026-11-24 20:00 | — | 0,307760 | — | — | 0,4610 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
 | 110 | İki bacaklı geri çekilme · 15 dakika | HBAR | short | açık | 2026-11-24 21:00 | — | 0,050390 | — | — | 0,1927 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
+| 111 | Trend kırılımı · 4 saat | HD | long | açık | 2026-11-24 23:00 | — | 353,100000 | — | — | 0,1254 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
