@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# trader-oto-simdi: ACIL durumda otomatik guncellemeyi sabit pencere (10:30/22:30 TSI) beklemeden hemen calistirir.
+# trader-oto-simdi: otomatik guncellemeyi 5 dakikalik zamanlayiciyi beklemeden hemen calistirir.
 # Kurulacak surum yine GitHub'da yesil testli son commit'tir; DURDUR dosyasi, canli koruma ve atalik kontrolu aynen gecerlidir.
 # Belirli bir kodu elle kurmak icin: COMMIT=<KOD> bash /usr/local/lib/trader-root/current/deploy/install.sh
 # Kullanim (root): trader-oto-simdi

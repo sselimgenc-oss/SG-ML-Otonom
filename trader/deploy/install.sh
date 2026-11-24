@@ -695,7 +695,7 @@ for c in trader-geri-al trader-oto-ac trader-oto-simdi; do
   safe_tree_path "/usr/local/sbin/$c"
   install -m 0755 -o root -g root "$REL_DIR/deploy/$c" "/usr/local/sbin/$c"
 done
-enable_now trader-oto-guncelle.timer   # gunde iki sabit pencere (10:30 ve 22:30 TSI); yalniz GitHub'da yesil testli commit kurulur, canli birim varsa dokunmaz
+enable_now trader-oto-guncelle.timer   # 5 dakikada bir (24.11: sabit saat yok); yalniz GitHub'da yesil testli commit kurulur, canli birim varsa dokunmaz
 enable_now trader-kurulum-gozcu.timer  # kurulum sonrasi 20 dk oz-kontrol (yalniz sorunda mesaj) + 60 dk izleme/otomatik geri alma (kurulum.json yoksa bosta calisir)
 # Saglik birimi HEARTBEAT_URL (https) olmadan her turda cikis 1 ile coker (zorunlu ortam degiskeni): bos birakilirsa uyar
 if ! has_value /etc/trader-health.env HEARTBEAT_URL; then

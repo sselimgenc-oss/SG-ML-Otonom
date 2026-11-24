@@ -381,8 +381,8 @@ def test_birimler_ve_zamanlayici():
     assert "User=root" in s and "Type=oneshot" in s
     assert "ExecStart=/bin/bash /usr/local/lib/trader-root/current/deploy/oto_guncelle.sh" in s
     assert "TimeoutStartSec=45min" in s
-    # sabit pencereler: 10:30 ve 22:30 Turkiye saati (UTC+3, yaz saati yok) = 07:30 ve 19:30 UTC; rastgele gecikme yok
-    assert "OnCalendar=*-*-* 07,19:30:00 UTC" in tm and "RandomizedDelaySec=0" in tm and "Persistent=false" in tm
+    # 24.11 kullanici karari: sabit pencere yok; 5 dakikada bir
+    assert "OnCalendar=*:0/5" in tm and "RandomizedDelaySec=0" in tm and "Persistent=false" in tm
 
 
 def test_betiklerde_telegram_token_komut_satirinda_yok():
@@ -443,26 +443,17 @@ def test_kurulum_gerekmiyorsa_beklenmez(world):
     assert r.returncode == 0 and _uyku(world) == [] and world.install_calls() == []
 
 
-# ----------------------------------------------------------------------------- sabit kurulum pencereleri (10:30 / 22:30 TSI = 07:30 / 19:30 UTC)
+# ----------------------------------------------------------------------------- sabit pencere yok (24.11): her saatte kurulur
 SIMDI = DEPLOY / "trader-oto-simdi"
 
 
-@pytest.mark.parametrize("sa,dk", [("7", "30"), ("7", "59"), ("8", "29"), ("19", "30"), ("20", "0"), ("20", "29")])
-def test_pencere_icinde_kurulur(world, sa, dk):
+@pytest.mark.parametrize("sa,dk", [("0", "7"), ("7", "29"), ("12", "7"), ("20", "37"), ("23", "52")])
+def test_her_saatte_kurulur(world, sa, dk):
     world.set_release(world.shas[0])
     r = world.run(OTO_ZORLA="", OTO_SIMDI_SAAT=sa, OTO_SIMDI_DAKIKA=dk)
     assert r.returncode == 0, r.stderr
     assert len(world.install_calls()) == 1 and world.current() == world.shas[2]
-
-
-@pytest.mark.parametrize("sa,dk", [("7", "29"), ("8", "30"), ("10", "30"), ("12", "0"), ("19", "29"), ("20", "30"), ("22", "30"), ("0", "0")])
-def test_pencere_disinda_kurulmaz_sessiz(world, sa, dk):
-    world.set_release(world.shas[0])
-    r = world.run(OTO_ZORLA="", OTO_SIMDI_SAAT=sa, OTO_SIMDI_DAKIKA=dk)
-    assert r.returncode == 0, r.stderr
-    assert "kurulum penceresi disinda" in r.stdout
-    assert world.install_calls() == [] and world.telegram() == [] and world.history() == [] and world.curl_argv() == ""
-    assert world.current() == world.shas[0]
+    assert "penceresi disinda" not in r.stdout
 
 
 def test_simdi_secenegi_pencereyi_atlar_ama_korumalari_atlamaz(world):

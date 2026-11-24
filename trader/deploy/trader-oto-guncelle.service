@@ -1,5 +1,5 @@
 [Unit]
-Description=Trader sunucu otomatik guncelleme (sabit pencere 10:30/22:30 TSI; yalniz GitHub'da yesil testli commit; belirtim: docs/motor/oto-guncelleme-spec.md)
+Description=Trader sunucu otomatik guncelleme (5 dakikada bir; yalniz GitHub'da yesil testli commit; belirtim: docs/motor/oto-guncelleme-spec.md)
 Wants=network-online.target
 After=network-online.target
 

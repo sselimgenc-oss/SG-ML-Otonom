@@ -4,7 +4,7 @@ Kullanıcı şartları: (1) yalnız GitHub'daki otomatik testleri **yeşil** ge�
 
 ## Birimler
 - `deploy/oto_guncelle.sh` (root; kurulumdaki kök kopyadan çalışır: `/usr/local/lib/trader-root/current/deploy/oto_guncelle.sh`).
-- `deploy/trader-oto-guncelle.service` (Type=oneshot, root) + `.timer` (`OnCalendar=*-*-* 07,19:30:00 UTC` = 10:30 ve 22:30 Türkiye saati; `RandomizedDelaySec=0`, `Persistent=false`). Kurulum yalnız bu iki sabit pencerede (+60 dk tolerans) yapılır; acil durumda `trader-oto-simdi` (= `oto_guncelle.sh --simdi`). Kurulum sonrası korumalar (sessizlik, 20 dk öz-kontrol, 60 dk izleme/otomatik geri alma): `docs/sunucu-kurulum.md` → "Kurulum sonrası koruma".
+- `deploy/trader-oto-guncelle.service` (Type=oneshot, root) + `.timer` (`OnCalendar=*:0/5`, 5 dakikada bir; 24 Kasım kullanıcı kararı: sabit kurulum saati yok, yeşil commit en geç ~5 dk içinde kurulur). `trader-oto-simdi` zamanlayıcıyı beklemeden hemen çalıştırır. Kurulum sonrası korumalar (sessizlik, 20 dk öz-kontrol, 60 dk izleme/otomatik geri alma): `docs/sunucu-kurulum.md` → "Kurulum sonrası koruma".
 - `deploy/trader-geri-al`, `deploy/trader-oto-ac` ve `deploy/trader-oto-simdi` → `install.sh` bunları `/usr/local/sbin/` altına root:root 0755 kurar.
 - Durum dizini `/var/lib/trader-oto-guncelle/` (root, 0700): `gecmis.tsv` (`zaman<TAB>eski<TAB>yeni<TAB>sonuc`), `kilit` (flock).
 

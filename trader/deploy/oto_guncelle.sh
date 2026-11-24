@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Trader sunucu otomatik guncelleme (root; trader-oto-guncelle.timer gunde iki SABIT pencerede calistirir:
-# 10:30 ve 22:30 Turkiye saati = 07:30 ve 19:30 UTC; Turkiye'de yaz saati yok, UTC+3 sabit).
-# Pencere disinda (elle ya da gecikmeli tetiklemede) kurulum YAPILMAZ. Acil kurulum: `trader-oto-simdi` (= bu betik --simdi)
-# ya da OTO_ZORLA=1: pencere kontrolunu atlar; DURDUR dosyasi, canli koruma, yesil commit ve atalik kontrolu AYNEN gecerli.
+# Trader sunucu otomatik guncelleme (root; trader-oto-guncelle.timer 5 dakikada bir calistirir; 24.11 kullanici karari:
+# "guncelleme saati yok, bitince hemen devreye girer" -> sabit pencere kalkti). Yeni yesil commit yoksa islem yok.
+# `trader-oto-simdi` (= bu betik --simdi) ve OTO_ZORLA geriye uyum icin kabul edilir (artik pencere yok, etkisiz);
+# DURDUR dosyasi, canli koruma, yesil commit, atalik ve "basarisiz denenen tekrar denenmez" kontrolleri AYNEN gecerli.
 # Kurulum sonrasi korumalar: install.sh kurulum.json yazar; saglik 15 dk yalniz olumcul uyari verir; trader-kurulum-gozcu 20 dk
 # sonra oz-kontrol (yalniz sorunda mesaj) ve 60 dk boyunca izleme + esik asilirsa otomatik geri alma yapar (bkz. kurulum_gozcu.py).
 # Belirtim: docs/motor/oto-guncelleme-spec.md. Yalniz GitHub'da tests.yml'i YESIL gecmis commit kurulur; mevcut surumun
@@ -10,7 +10,7 @@
 # Ortam degiskenleri YALNIZ testler icindir (uretimde varsayilanlar kullanilir):
 #   OTO_STATE_DIR OTO_RELEASE_FILE OTO_ROOT_DIR OTO_GIT_DIR OTO_INSTALL OTO_API_URL OTO_TELEGRAM_ENV OTO_BRANCH OTO_INSTALL_TIMEOUT
 #   OTO_SIMDI_DAKIKA OTO_SIMDI_SANIYE (UTC 'simdi' dakika/saniye) OTO_UYKU (sleep komutu): mum kapanisi beklemesi testi
-#   OTO_SIMDI_SAAT (UTC saat; pencere testi) OTO_ZORLA (=1: pencere kontrolu atlanir; uretimde `--simdi` ile ayni)
+#   OTO_ZORLA (geriye uyum; etkisiz)
 #   OTO_GITHUB_TOKEN_FILE (varsayilan /etc/trader-github-token; repo gizliyse salt-okunur fine-grained token; yoksa/bossa anonim)
 # Telegram ve GitHub token'i asla komut satirinda degildir: curl --config - ile stdin'den okunur.
 set -uo pipefail
@@ -124,21 +124,6 @@ gecmis_ekle() { # eski yeni sonuc
   printf '%s\t%s\t%s\t%s\n' "$(date -u +%FT%TZ)" "$1" "$2" "$3" >> "$HIST"
 }
 
-# Sabit kurulum pencereleri (UTC): 07:30 ve 19:30 + 60 dk tolerans (systemd gecikmesi / yavas baslangic). 10:30 ve 22:30 TSI.
-PENCERE_BASLANGIC_DK="${OTO_PENCERE_DK:-450 1170}"   # 07:30 ve 19:30 UTC (dakika olarak)
-PENCERE_TOLERANS_DK=60
-
-pencere_icinde() { # 0: simdi (UTC) kurulum penceresinde; 1: disinda
-  local sa dk simdi b
-  sa="${OTO_SIMDI_SAAT:-$(date -u +%H)}"
-  dk="${OTO_SIMDI_DAKIKA:-$(date -u +%M)}"
-  simdi=$((10#$sa * 60 + 10#$dk))
-  for b in $PENCERE_BASLANGIC_DK; do
-    if [ "$simdi" -ge "$b" ] && [ "$simdi" -lt $((b + PENCERE_TOLERANS_DK)) ]; then return 0; fi
-  done
-  return 1
-}
-
 kapanis_bekle() { # kurulumdan once: 15 dk mum kapanisinin 1 dk oncesi - 3 dk sonrasi (dakika%15 in 14,0,1,2) ise dakika%15==3 olana dek bekler (en cok ~4 dk)
   local dk sn r bekle
   dk="${OTO_SIMDI_DAKIKA:-$(date -u +%M)}"
@@ -164,12 +149,6 @@ oto_guncelle() {
   flock -n 9 || { log "Baska bir guncelleme calisiyor; cikildi."; return 0; }
 
   if [ -e "$STATE_DIR/DURDUR" ]; then log "DURDUR dosyasi var; otomatik guncelleme durduruldu."; return 0; fi
-
-  # sabit pencere: yalniz 10:30 / 22:30 TSI (acil durumda --simdi). Pencere disinda sessizce cikar (mesaj yok)
-  if [ -z "$ZORLA" ] && ! pencere_icinde; then
-    log "kurulum penceresi disinda (10:30 ve 22:30 TSI = 07:30/19:30 UTC); islem yok"
-    return 0
-  fi
 
   # canli koruma: canli motor (gercek para) etkin ya da calisiyorsa hic dokunulmaz; bildirim gunde bir kez
   local canli bugun
