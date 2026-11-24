@@ -1,5 +1,5 @@
 # Agent SDK deneme isi (24.11 kullanici karari): Max planinin aylik API promosyon kredisi Agent SDK kullanimini karsiliyor mu?
-# Elle tetiklenir (workflow_dispatch). Haiku ile kucuk bir salt okuma gorevi yapar (birkac sent). Sonra Claude Console > Maliyet'te
+# Elle tetiklenir (workflow_dispatch). Haiku ile salt okuma gorevi yapar (~0,1-0,3 $; konsolda gorunur olsun diye). Sonra Claude Console > Maliyet'te
 # harcamanin promosyon kredisinden mi yoksa satin alinan bakiyeden mi dustugu kontrol edilir.
 # Anahtar: repo gizli anahtari ANTHROPIC_API_KEY_DENETIM (degeri hicbir yere yazdirilmaz).
 name: agent-sdk-deneme
@@ -45,10 +45,10 @@ jobs:
               opts = ClaudeAgentOptions(
                   model="claude-haiku-5-5",
                   allowed_tools=["Read", "Grep", "Glob"],
-                  max_turns=4,
+                  max_turns=12,
                   cwd=".",
               )
-              async for m in query(prompt="trader/config/lesson.json dosyasini oku ve icindeki anahtar sayisini tek satirla yaz.", options=opts):
+              async for m in query(prompt="Su dosyalari tamamen oku: trader/src/trader_core/lesson.py, trader/src/trader_engine/engine.py, trader/src/trader_engine/gates.py. Her biri icin satir sayisini ve en uzun fonksiyonun adini tek satirda yaz.", options=opts):
                   print(type(m).__name__, getattr(m, "result", "") or "")
                   cost = getattr(m, "total_cost_usd", None)
                   if cost is not None:
