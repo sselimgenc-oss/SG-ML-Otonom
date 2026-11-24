@@ -376,6 +376,8 @@
     var rows = a.rows.map(function (r) {
       var gn = add(el('div'), el('div', 'n', px(r.giris)), el('div', 'u', r.fiyat_bekleniyor ? '→ fiyat bekleniyor' : '→ ' + px(r.simdi)));
       return {cells: [sym(r.coin, r.yon, r.kol), gn, kzHucre(r.kz, r.kz_yuzde, r.fiyat_bekleniyor), add(el('div', 'sg'), el('span', 'n', r.sure))],
+        // siralama ham degerleri (24.11: acik tabloda v yoktu, siralama calismiyordu); Sure = acilistan bu yana (eski acilis = uzun sure)
+        v: [r.coin, num(r.kz_yuzde) ? r.kz_yuzde : null, num(r.kz) ? r.kz : null, num(r.acilis_ts) ? -r.acilis_ts : null],
         detail: [['Stop', px(r.stop)], ['Hedef', px(r.hedef)], ['Büyüklük', usd(r.buyukluk)], ['Kaldıraç', r.kaldirac ? r.kaldirac + 'x' : ''],
           ['Kol', r.kol], ['Açılış', r.acilis], ['Açılış nedeni', r.neden, 1]]};
     });
