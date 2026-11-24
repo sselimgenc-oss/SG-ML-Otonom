@@ -2,7 +2,7 @@
   "sema": "ortak.gunluk_ozet.v1",
   "proje": "ML",
   "mod": "kagit",
-  "uretim": "2026-11-24T09:02:18Z",
+  "uretim": "2026-11-24T10:05:11Z",
   "gun": "2026-11-24",
   "kasa": {
     "baslangic": 1000.0,
@@ -12,11 +12,11 @@
     "zirveden_dusus_yuzde": 16.95
   },
   "islem": {
-    "gun_acilan": 15,
+    "gun_acilan": 17,
     "gun_kapanan": 13,
     "kazanan": 5,
     "kaybeden": 8,
-    "acik_pozisyon": 6,
+    "acik_pozisyon": 8,
     "alinmayan_sinyal": 0
   },
   "hesaplar": [
@@ -89,7 +89,7 @@
     "durdu_mu": false
   },
   "saglik": {
-    "son_nabiz": "2026-11-24T08:59:05Z",
+    "son_nabiz": "2026-11-24T10:05:08Z",
     "hata_sayisi_gun": 2
   },
   "notlar": [
