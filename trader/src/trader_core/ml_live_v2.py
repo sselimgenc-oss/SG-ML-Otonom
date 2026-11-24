@@ -28,6 +28,7 @@ from datetime import datetime, timedelta, timezone
 import numpy as np
 import pandas as pd
 
+from .arm_time import strip_dead
 from .ml_features import BAR, BTC, ETH
 from .ml_features_v2 import LOOKBACK_1D_DAYS, R02_FEATURE_NAMES, R03_FEATURE_NAMES, RECIPES, feature_frame_v2
 
@@ -186,7 +187,9 @@ class LiveContextV2:
         for p, h in self._held.items():                                      # nedensellik: kapanisi D'yi asan mum tutulmaz
             if len(h) and h.index[-1] + BAR > D:
                 raise AssertionError(f"{p}: tutulan son mum {h.index[-1]} + 1s > D={D}")
-        frames = {self._key[p]: d for p, d in self._held.items() if len(d)}
+        # seansli enstruman: olu (hacim 0, o=h=l=c) 1s mumlar ozellik girdisinden cikar (v1 ile ayni, price_action_v1_ml); kriptoda ayni nesne.
+        # Tutulan pencere (_held) ham kalir: delik/gecmis denetimleri takvim izgarasinda calisir.
+        frames = {self._key[p]: strip_dead(d) for p, d in self._held.items() if len(d)}
         c = pd.DataFrame({
             "ts": [D] * len(cands), "pair": [self._key[p] for p in cands["pair"]], "side": cands["side"].to_numpy(),
             "planned_entry": cands["planned_entry"].to_numpy(float), "planned_stop": cands["planned_stop"].to_numpy(float)})

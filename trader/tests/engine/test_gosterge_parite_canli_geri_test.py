@@ -48,8 +48,13 @@ def _params() -> dict:
     return p
 
 
-def _series(days: int) -> dict[str, pd.DataFrame]:
+def _series(days: int, only: tuple[str, ...] | None = None) -> dict[str, pd.DataFrame]:
     n = days * 96
+    full = _series_all(days, n)
+    return full if only is None else {k: v for k, v in full.items() if k in only}
+
+
+def _series_all(days: int, n: int) -> dict[str, pd.DataFrame]:
     return {"BTC/USDT": GS.make_15m(1, n, START, 100.0), "SOL/USDT": GS.make_15m(5, n, START, 60.0),
             "TSLA/USDT": GS.make_stock_15m(7, days, START, 200.0, flat=True),
             "XAU/USDT": GS.make_commodity_15m(9, days, START, 2000.0, flat=True),
@@ -66,8 +71,14 @@ def kisa(tmp_path_factory):
     return _build(tmp_path_factory.mktemp("kisa"), 82)        # isinma siniri: tum pencereler gecmisin tamamini kapsar
 
 
-def _build(tmp, days):
-    series = _series(days)
+@pytest.fixture(scope="module")
+def cok_uzun(tmp_path_factory):
+    """1g penceresini (600 gun; seansli enstrumanda 600 DOLU gun ~ 840 takvim gunu) asan gecmis: yalniz 1g testleri icin (3 cift)."""
+    return _build(tmp_path_factory.mktemp("cok_uzun"), 900, only=("SOL/USDT", "TSLA/USDT", "XAU/USDT"))
+
+
+def _build(tmp, days, only=None):
+    series = _series(days, only)
     end = START + timedelta(days=days)
     GS.write_store(tmp / "market.sqlite", series, end + timedelta(days=1))
     GS.write_feather(tmp / "hist", series)
@@ -217,14 +228,20 @@ def _to_signal_row(pair, open_ts, D, rec):
     return _to_row(pair, open_ts.to_pydatetime(), D, rec, 1)
 
 
-@pytest.mark.parametrize("tf", TFS)
+@pytest.mark.parametrize("tf", ("15m", "1h", "4h"))
 @pytest.mark.parametrize("pair", CRYPTO + SESSION_FLAT)
 def test_kurulumlar_canli_pencere_eq_tum_gecmis_uzun(uzun, pair, tf):
-    """8 kurulum ailesi (T1,R1,TF1,B1,H2,S1,F1,M1): canli pencere kesiti == tum gecmis tablosu (1e-9). 1g: uzun gecmis (330 gun)
-    pencereyi (250 gun) asar -> EMA(50) tohum farki (1-2/51)^250 ~ 5e-5 bagil (bkz. test_gunluk_ema_tohum_siniri); yalniz 1g icin 1e-4.
+    """8 kurulum ailesi (T1,R1,TF1,B1,H2,S1,F1,M1): canli pencere kesiti == tum gecmis tablosu (1e-9). 15m/1s/4s pencereleri asilir.
     Ayrik alanlar (signal/setup/side/skip_reason/regime/dokunus/neden) her durumda BIREBIR ayni olmak zorunda."""
-    tol = 1e-4 if tf == "1d" else TOL
-    _check_pair_tf(uzun, pair, tf, tol)
+    _check_pair_tf(uzun, pair, tf, TOL)
+
+
+@pytest.mark.parametrize("pair", ("SOL/USDT", "TSLA/USDT", "XAU/USDT"))
+def test_kurulumlar_canli_pencere_eq_tum_gecmis_1g(cok_uzun, pair):
+    """1g: pencere 600 DOLU gun (WINDOW_ARM['1d']); gecmis 900 gun (hisse/emtia: 640-770 dolu gun) pencereyi ASAR. EMA(50) tohum farki
+    (1-2/51)^600 ~ 4e-11 => tum alanlarda 1e-9 (eski 250 gun penceresinde ~3e-5 idi; bkz. test_gunluk_ema_tohum_siniri). Tum
+    gecmis tablosu ile canli (MultiArmSignalSource) AYNI esik."""
+    _check_pair_tf(cok_uzun, pair, "1d", TOL, n_cand=6, n_rand=8)
 
 
 @pytest.mark.parametrize("tf", TFS)
@@ -246,20 +263,27 @@ def test_aday_kapsami_her_ailede_en_az_bir_aday(uzun):
     assert {"T1", "R1", "TF1", "B1", "H2", "S1", "F1"} <= seen, seen
 
 
-def test_gunluk_ema_tohum_siniri(uzun):
-    """Bilinen, olculmus fark: canli 1g penceresi 250 gun; tum gecmis EMA tohumu farkli baslar -> EMA(30) icin (1-2/31)^250 ~ 5e-8,
-    EMA(50) icin ~ 5e-5 bagil (TF1/H2/S1 1g ATR(14)/EMA(30): ~1e-8; T1/R1 1g EMA(50) ozelligi ~ 3e-5). 15m/1s/4s'te pencere/yariomur orani
-    >> 1 oldugundan fark < 1e-12. `--env paper` geri testi canli sinifi aynen kullandigindan orada fark SIFIR; yalniz 'tum gecmis' hesapta var."""
+def test_gunluk_ema_tohum_siniri(cok_uzun):
+    """Olculmus tohum etkisi: tum gecmis EMA tohumu pencere EMA'sindan farkli baslar. ESKI 250 gunluk pencerede EMA(50) icin
+    (1-2/51)^250 ~ 5e-5 bagil (T1/R1 1g EMA(50) ozelligi ~ 3e-5); YENI 600 gunluk pencerede (1-2/51)^600 ~ 4e-11 < 1e-9. Hesap TF1 1g
+    tablosundaki EMA(30)/ATR(14) sutunlari (atr_tf, ema_value) uzerindedir; EMA(50) icin dogrudan `indicators.ema` ile de dogrulanir."""
     pair, tf = "SOL/USDT", "1d"
-    trig, tabs = _full_tables(uzun["hist"], PriceActionLab(["TF1@1d"]), pair, tf, uzun["end"])
-    t = tabs["TF1"]
-    k = int(WINDOW_ARM["1d"])
-    # pencereli hesap: son k gun, ayni D (son bar)
-    trig_w = trig.iloc[-k:]
-    ctx = StrategyContext(pair=pair, D=uzun["end"], tf=tf, params=_params(), bars={tf: trig_w, "4h": uzun["hist"].bars(pair, "4h", uzun["end"], None)})
-    tw = PriceActionLab(["TF1@1d"]).compute_tf(ctx)["TF1"]
-    a, b = t["atr_tf"].to_numpy()[-1], tw["atr_tf"].to_numpy()[-1]
-    assert 0 < abs(a - b) / b < 1e-6                       # TF1 1g (EMA30/ATR14): fark VAR (tohum) ama 1e-6'nin altinda
+    trig, tabs = _full_tables(cok_uzun["hist"], PriceActionLab(["TF1@1d"]), pair, tf, cok_uzun["end"])
+    h4 = cok_uzun["hist"].bars(pair, "4h", cok_uzun["end"], None)
+
+    def windowed(k):
+        ctx = StrategyContext(pair=pair, D=cok_uzun["end"], tf=tf, params=_params(), bars={tf: trig.iloc[-k:], "4h": h4})
+        return PriceActionLab(["TF1@1d"]).compute_tf(ctx)["TF1"]
+    full = tabs["TF1"]["atr_tf"].to_numpy()[-1]
+    d_old = abs(full - windowed(250)["atr_tf"].to_numpy()[-1]) / full
+    d_new = abs(full - windowed(int(WINDOW_ARM["1d"]))["atr_tf"].to_numpy()[-1]) / full
+    assert d_new < 1e-9 and d_new <= d_old
+    from trader_core import indicators as I
+    c = trig["close"]
+    e_full = float(I.ema(c, 50).iloc[-1])
+    e_old = abs(float(I.ema(c.iloc[-250:], 50).iloc[-1]) - e_full) / e_full
+    e_new = abs(float(I.ema(c.iloc[-int(WINDOW_ARM["1d"]):], 50).iloc[-1]) - e_full) / e_full
+    assert e_old > 1e-8 and e_new < 1e-9, (e_old, e_new)    # eski pencerede fark VAR (esik anlamli), yenide yok
 
 
 # --------------------------------------------------------------------------------------------- 3) kapanmis bar kesimi (ileri bakma yok)

@@ -61,7 +61,7 @@ def _next_funding_boundary_ms(now_ms: int) -> int:
 
 
 def _default_backfill() -> Mapping[str, int]:
-    return {"1m": 4320, "15m": 5000, "1h": 1500, "4h": 1500}
+    return {"1m": 4320, "15m": 5000, "1h": 1500, "4h": 3700}      # 4s: 1g penceresi (WINDOW_ARM["1d"] = 600 gun x 6) icin; yalniz BOS depoda ilk doldurma derinligi
 
 
 @dataclass(frozen=True)
@@ -427,6 +427,7 @@ class Feed:
         return BackfillReport(w, d, c, g, e, tuple(skipped))
 
     def _backfill_series(self, pair, sym, tf, kind, now: datetime, now_ms: int):
+        derin = None
         tf_ms = int(tf_delta(tf).total_seconds() * 1000)
         last = self.store.last_open_ms(kind, pair, tf)
         end_open = to_ms(floor_tf(now, tf))                  # [.., end_open) kapanmis
@@ -437,6 +438,16 @@ class Feed:
         else:
             start_ms = last + 1
             depth = int(self.cfg.backfill_bars.get(tf, 0))
+            if tf == "4h" and depth > 0:
+                # derinlesme (bir kez): 1g penceresi 600 gun ister; eski depo 1500 x 4s ile kurulmustu. Depo istenen derinlikten
+                # sigsa eski kismi da indir (ayni satirlar yeniden yazilir, idempotent). Isaret: liste tarihi gec olan enstruman her
+                # acilista yeniden denemesin.
+                mk = f"derin:{pair}:{tf}:{kind}"
+                first = self.store.first_open_ms(kind, pair, tf)
+                want = end_open - depth * tf_ms
+                if first is not None and first > want and self.store.meta_get(mk) != str(depth):
+                    start_ms = max(want, 0)
+                    derin = mk
             if depth > 0:       # uzun kesintide de sinirli: en fazla backfill_bars kadar geriye
                 if start_ms < end_open - depth * tf_ms:
                     log.warning("backfill %s %s %s: %d..%d araligi backfill_bars=%d'den derin; atlandi", pair, tf, kind,
@@ -447,6 +458,8 @@ class Feed:
         fn = self.rest.klines_all if kind == "last" else self.rest.mark_price_klines_all
         rows = self._rest(fn, sym, tf, max(start_ms, 0))
         bars, res, gaps, _ = self._write(pair, tf, kind, rows, now_ms)
+        if derin is not None:
+            self.store.meta_set(derin, str(int(self.cfg.backfill_bars.get(tf, 0))))   # indirme basarili: bir daha deneme
         first = self.store.first_open_ms(kind, pair, tf)
         has = first is not None
         if has:

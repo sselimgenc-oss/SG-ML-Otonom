@@ -121,7 +121,9 @@ def funding_times(start: datetime, end: datetime) -> list[datetime]:
 # DEGISMEZ (eski sozlesme: `tf_delta("1d")` hata verir); kurulum yolu `arm_*` ailesini kullanir.
 # 1 gunluk bar feed'e/market.sqlite'a EKLENMEZ: UTC gununun 6 x 4s barindan motor icinde toplanir (D-T16).
 # ---------------------------------------------------------------------------------------------------------------------
-WINDOW_ARM = {"15m": 5000, "1h": 1500, "4h": 1500, "1d": 250}     # cift x zaman dilimi basina son pencere (bellek siniri)
+# cift x zaman dilimi basina son pencere (bellek siniri). 1d: 4s'ten toplanir ve 4s penceresinden BAGIMSIZ okunur (strategy_runner._bars_1d):
+# 600 gun => EMA(50) tohum farki (1-2/51)^600 ~ 4e-11 (canli pencere == tum gecmis, 1e-9). ~3600 x 4s satir/cift (~150 KB), gunde bir okunur.
+WINDOW_ARM = {"15m": 5000, "1h": 1500, "4h": 1500, "1d": 600}
 STARTUP_BARS_ARM = {"15m": 4800, "1h": 1200, "4h": 300, "1d": 50}  # 1d: 300 x 4s / 6
 MIN_CONTIG_ARM = {"trigger": 20, "4h": 150}
 BARS_PER_DAY_4H = 6
