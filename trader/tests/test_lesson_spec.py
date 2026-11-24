@@ -1372,7 +1372,7 @@ def test_shadow_every_proposal_needs_user_despite_perfect_evidence(rr_env):
     req = rr_env.notifier.approvals[-1]
     assert req.reason_code == "shadow_period" and req.shadow_period is True
     assert req.param == "rr_min" and req.from_value == pytest.approx(1.5) and req.to_value == pytest.approx(1.75)
-    assert req.scope == "R1+B1+F1" and req.proposal_id == props[0].proposal_id and req.base_version_id == 1
+    assert req.scope == "R1+F1" and req.proposal_id == props[0].proposal_id and req.base_version_id == 1
     assert req.request_id == f"lr-2026-12-19-{props[0].proposal_id}"
     assert len(req.title) <= 80 and len(req.body) <= 700 and req.provisional is False
     assert req.expires_at - req.created_at == timedelta(days=3)

@@ -132,7 +132,9 @@ def test_legacy_twin_keys_are_ignored_not_fatal(tmp_path):
 
 
 def test_lesson_params_extended_and_optional_in_ledger(env):
-    assert "session_off" in LS.LESSON_PARAMS and "post_stop_wait" in LS.LESSON_PARAMS
+    # 24.11 inceleme: motor okumaz => ders menusunde yok (defter parametre olarak tasir)
+    assert "session_off" not in LS.LESSON_PARAMS and "post_stop_wait" not in LS.LESSON_PARAMS
+    assert "session_off" in L.LESSON_PARAMS and "post_stop_wait" in L.LESSON_PARAMS
     assert L.LESSON_STEP["post_stop_wait"] == 1 and L.LESSON_BOUNDS_DEFAULT["post_stop_wait"] == (0, 3)
     r = env.apply("post_stop_wait", 1)
     assert env.led.get_active_params().params["post_stop_wait"] == 1

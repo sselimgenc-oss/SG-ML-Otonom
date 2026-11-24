@@ -62,16 +62,20 @@ def test_arm_discovery_finds_known_setups():
     assert {"T1", "R1", "B1", "F1", "H2", "S1", "TF1", "DL1", "HB1", "M1"} <= set(_arms())
 
 
+# Acik istisna: B1 rr_min'i okur ama okuma ETKISIZDIR (sabit RR 2.0; rr_min siniri 2.0'in altinda) => kapsamda degil.
+INERT_READS = {("B1", "rr_min")}
+
+
 @pytest.mark.parametrize("param", CORE_PARAMS)
 def test_scope_equals_setups_that_read_the_param(param):
-    reads = {s for s, ps in derived_reads().items() if param in ps}
+    reads = {s for s, ps in derived_reads().items() if param in ps and (s, param) not in INERT_READS}
     assert set(L.LESSON_SCOPE[param]) == reads, (param, sorted(reads), L.LESSON_SCOPE[param])
 
 
 def test_new_setup_reading_a_param_without_being_listed_fails():
     """Sozlesme: kaynaktan turetilen her (kurulum, parametre) haritada listeli olmali."""
     missing = [(s, p) for s, ps in derived_reads().items() for p in ps
-               if p in L.LESSON_PARAMS and s not in L.LESSON_SCOPE[p]]
+               if p in L.LESSON_PARAMS and s not in L.LESSON_SCOPE[p] and (s, p) not in INERT_READS]
     assert not missing, f"haritada (ledger.LESSON_SCOPE) listelenmemis okumalar: {missing}"
 
 
@@ -82,8 +86,24 @@ def test_detector_catches_an_unlisted_reader():
     assert "ZZ9" not in L.LESSON_SCOPE["rr_min"] and "ZZ9" not in L.LESSON_SCOPE["trail_atr"]
 
 
-def test_session_off_scope_is_every_setup_and_exit_modes_are_t1():
-    assert set(L.LESSON_SCOPE["session_off"]) == set(_arms())            # seans kapisi (gates.py) kurulumdan bagimsiz
+def test_inert_b1_rr_read_is_really_inert():
+    b1 = _arms()["B1"]
+    assert re.search(r"^TARGET_R\s*=\s*2\.0", b1, re.M) and L.LESSON_BOUNDS_DEFAULT["rr_min"][1] <= 2.0 + 1e-9
+    assert "B1" not in L.LESSON_SCOPE["rr_min"]
+
+
+def test_unread_params_are_not_in_lesson_menu():
+    """session_off / post_stop_wait: motor defter parametresini okumaz (gates.py yalniz gate.session_off sozlugu) => lesson=False."""
+    from trader_core import lesson as LS
+    for p in ("session_off", "post_stop_wait"):
+        assert p not in LS.LESSON_PARAMS
+    eng = ROOT / "src" / "trader_engine"
+    for f in eng.rglob("*.py"):
+        assert "post_stop_wait" not in f.read_text(encoding="utf-8"), f
+        assert '"session_off"' not in f.read_text(encoding="utf-8") or f.name == "gates.py", f
+
+
+def test_exit_modes_are_t1():
     assert L.LESSON_SCOPE["exit_breakeven"] == ("T1",) and L.LESSON_SCOPE["exit_partial"] == ("T1",)
     assert 'setup == "T1"' in (ROOT / "src" / "trader_core" / "exit_modes.py").read_text(encoding="utf-8")
 
@@ -91,5 +111,7 @@ def test_session_off_scope_is_every_setup_and_exit_modes_are_t1():
 def test_every_lesson_param_has_nonempty_scope_of_known_setups():
     known = set(_arms())
     for p in L.LESSON_PARAMS:
+        if p in ("session_off", "post_stop_wait"):
+            continue                                                       # menude degil; kapsam bilgi amacli
         sc = L.LESSON_SCOPE[p]
         assert sc and set(sc) <= known, p

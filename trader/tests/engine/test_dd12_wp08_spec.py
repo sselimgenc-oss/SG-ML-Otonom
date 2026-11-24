@@ -96,13 +96,13 @@ def _wait_param(params):
 
 def test_lesson_params_has_session_off():
     assert "session_off" in LG.LESSON_PARAMS
-    assert "session_off" in LZ.LESSON_PARAMS
+    assert "session_off" not in LZ.LESSON_PARAMS      # 24.11 inceleme: motor okumaz, ders menusunde yok
 
 
 def test_lesson_params_has_post_stop_wait_0_to_3():
     p = _wait_param(LG.LESSON_PARAMS)
     assert p, f"no post-stop wait param in {LG.LESSON_PARAMS}"
-    assert p in LZ.LESSON_PARAMS
+    assert p not in LZ.LESSON_PARAMS                  # 24.11 inceleme: motor okumaz, ders menusunde yok
     spec = {**LG.PARAM_SPECS, **getattr(LG, "OPTIONAL_PARAM_SPECS", {})}[p]
     lo = spec.get("lo", None)
     hi = spec.get("hi", None)
