@@ -66,7 +66,7 @@ def test_tavan_yoksa_dolu_degil():
 def test_yapilandirma_degerleri_beklenen():
     for ad in ("engine.paper.json", "engine.live.json"):          # paper ve live ayni tavanlar
         caps = json.loads((ROOT / "config" / ad).read_text())["arm_max_positions"]
-        assert caps == {"default": 6, "M1": 4, "L1": 4, "HB1": 3, "DL1": 4}, ad
+        assert caps == {"default": 6, "M1": 4, "HB1": 3, "DL1": 4}, ad
 
 
 def test_motor_m1_toplam_tavani_farkli_tflerde(tmp_path):
