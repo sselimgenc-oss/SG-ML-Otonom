@@ -19,6 +19,10 @@ on:
         description: "yalniz_oku ya da yaz"
         required: false
         default: yalniz_oku
+      dal:
+        description: "Calisilacak dal"
+        required: false
+        default: claude/charming-hawking-ab5w5q
 
 permissions:
   contents: read
