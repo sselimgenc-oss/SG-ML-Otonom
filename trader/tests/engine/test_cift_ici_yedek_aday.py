@@ -96,3 +96,64 @@ def test_ayni_adim_bir_islemden_fazla_acilmaz(tmp_path):
         assert n == [(1,)]
     finally:
         e.close()
+
+
+def _satir_sayisi(e, pair):
+    return W._ledger_rows(e, f"SELECT count(*) FROM decision_events WHERE pair='{pair}'")[0][0]
+
+
+def test_acik_pozisyonlu_cift_iki_sinyal_yeni_satir_yazmaz(tmp_path):
+    e = _motor(tmp_path, {"default": 6})
+    try:
+        D0 = W.D_E
+        _sinyal(e, D0, ETH, "T1@4h")
+        e.decide(D0)
+        e.step(D0)
+        assert e.state.position_for_pair(ETH) is not None
+        onceki = _satir_sayisi(e, ETH)
+        D1 = D0 + H
+        _adaylar(e, D1, ETH, ["T1@4h", "T1@1h"])                   # ETH acik: position_exists -> ignore
+        e.decide(D1)
+        e.step(D1)
+        assert _satir_sayisi(e, ETH) == onceki                    # arm_conflict dahil yeni satir yok
+    finally:
+        e.close()
+
+
+def test_cift_duzeyi_red_durur_kalan_arm_conflict(tmp_path):
+    over = W._engine_over(PAIRS, arms=["T1@4h", "T1@1h"], arm_max_positions={"default": 6})
+    over["max_positions"] = 1                                      # hesap tavani: ETH dolduruyor
+    e = W._E(tmp_path, PAIRS, W.D_E - H, over)
+    try:
+        D0 = W.D_E
+        _sinyal(e, D0, ETH, "T1@4h")
+        e.decide(D0)
+        e.step(D0)
+        D1 = D0 + H
+        _adaylar(e, D1, BTC, ["T1@4h", "T1@1h"])
+        e.decide(D1)
+        e.step(D1)
+        rows = _satirlar(e, BTC)
+        assert e.state.position_for_pair(BTC) is None
+        assert [r[:3] for r in rows] == [("T1@4h", "skipped", "max_positions"), ("T1@1h", "skipped", "arm_conflict")], rows
+        assert "gate:max_positions" == rows[0][3]
+        assert e.state.is_decided(BTC, D1)                         # bir kez isaretlendi
+    finally:
+        e.close()
+
+
+def test_red_kumeleri_tek_tanim():
+    from types import SimpleNamespace as NS
+    from trader_engine import gates as G
+
+    def o(code, veto=None, risk=None):
+        return NS(code=code, event=NS(veto_reason=veto, risk_reason=risk))
+    assert G.aday_ozgu_red(o("max_positions", "gate:arm_cap:T1@4h"))
+    assert not G.aday_ozgu_red(o("max_positions", "gate:max_positions"))
+    for k in ("uzun_yon", "korelasyon_grubu", "flat_bar", "toplam_buyukluk", "tasfiye_mesafesi"):
+        assert G.aday_ozgu_red(o(k)), k
+    for k in ("cluster_cap", "etiket_rejim", "entry_gate_closed", "rules_missing", "session_closed", "bilinmeyen_kod"):
+        assert not G.aday_ozgu_red(o(k)), k
+    assert G.aday_ozgu_red(o("risk_denied", risk="boyutlandırma reddedildi: x"))
+    assert not G.aday_ozgu_red(o("risk_denied", risk="günlük zarar bütçesi aşılır"))
+    assert not G.aday_ozgu_red(o("risk_denied", risk="toplam açık risk sınırı aşılır"))

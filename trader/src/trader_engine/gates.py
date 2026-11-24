@@ -151,6 +151,30 @@ def hb1_olay_of(row: SignalRow) -> str | None:
     return ",".join(str(i) for i in sorted(k)) if k else None
 
 
+# 24.11 (cift ici yedek aday): bir adayin reddi YALNIZ aday-ozgu nedenlerle ise siradaki aday denenir; cift/hesap duzeyindeki
+# nedenlerde (kapi kapali, cluster_cap, hesap tavani, etiket_*, gunluk zarar, ...) ayni cift icin durulur ve kalan sinyal adaylari
+# `arm_conflict` yazilir. TEK TANIM: bilinmeyen kod cift duzeyi sayilir (guvenli taraf: ek satir/deneme yok).
+ADAY_OZGU_RED_KODLARI = frozenset({"flat_bar", "hb1_ayni_olay", "hb1_olay_bekleyen_cikis", "hb1_olay_okunamadi", "uzun_yon",
+                                   "korelasyon_grubu", "tasfiye_mesafesi", "tasfiye_okunamadi", "toplam_buyukluk",
+                                   "buyukluk_okunamadi"})
+_HESAP_RISK_IZLERI = ("günlük", "toplam açık risk", "toplam teminat", "zaten açık pozisyon", "kayıp freni", "iç hata")
+
+
+def aday_ozgu_red(out) -> bool:
+    """True: red yalniz bu adaya ozgu (kurulum tavani, yon/korelasyon, boyut/tasfiye ...): siradaki aday denenebilir.
+    False: cift/hesap duzeyi (kapi, cluster_cap, hesap max_positions, etiket_*, seans, gunluk zarar ...): durulur."""
+    code = getattr(out, "code", None)
+    if code in ADAY_OZGU_RED_KODLARI:
+        return True
+    ev = getattr(out, "event", None)
+    if code == "max_positions":
+        return str(getattr(ev, "veto_reason", "") or "").startswith("gate:arm_cap:")
+    if code == "risk_denied":
+        rr = str(getattr(ev, "risk_reason", "") or "")
+        return not any(z in rr for z in _HESAP_RISK_IZLERI)
+    return False
+
+
 def _tf_of(row: SignalRow) -> str:
     if row.tf:                                               # DD-12 WP-11: bilesik strateji satiri zaman dilimini kendisi tasir
         return row.tf

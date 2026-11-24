@@ -17,7 +17,7 @@ def _frames(tfs, pairs=PAIRS):
     out = {}
     for p in pairs:
         tf = tfs.get(p)
-        out[p] = SimpleNamespace(last=None if tf is None else SimpleNamespace(tf=tf))
+        out[p] = SimpleNamespace(last=None if tf is None else SimpleNamespace(tf=tf, signal=not str(tf).startswith('!')))
     return out
 
 
@@ -120,3 +120,12 @@ def test_karisik_tf_gercek_cerceveler_ve_ortak_bolenli_n():
         assert s == g4 + g1 + gn
         ilk4.add(g4[0])
     assert ilk4 == {p for p in pairs if tfs[p] == "4h"}                       # 4h grubunda baslangic doner
+
+
+def test_sinyalsiz_cift_en_sonda_minus_bir():
+    """Satiri olan ama sinyali olmayan cift, kucuk tf'li sinyal verenin de arkasina duser."""
+    D = datetime(2026, 11, 11, 15, 0, tzinfo=UTC)
+    tfs = {"BTC/USDT": "!1d", "ETH/USDT": "15m", "SOL/USDT": None, "BNB/USDT": "!4h", "XRP/USDT": "1h"}
+    for k in range(6):
+        s = _sira(D + timedelta(hours=k), tfs)
+        assert s[:2] == ["XRP/USDT", "ETH/USDT"] and set(s[2:]) == {"BTC/USDT", "SOL/USDT", "BNB/USDT"}, s
