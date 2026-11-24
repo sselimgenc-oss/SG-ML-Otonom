@@ -39,7 +39,8 @@ PROMPT_VERSION = "lesson_prompt_v1"
 RESPONSE_SCHEMA = "lesson_response_v1"
 RULES_VERSION = "RULES_V1"
 STORE_SCHEMA_VERSION = 1
-LESSON_PARAMS = L.LESSON_PARAMS
+# 24.11: motorda okunmayan parametreler (session_off, post_stop_wait; ledger spec lesson=False) ders menusunde/olcumde yok
+LESSON_PARAMS = tuple(p for p in L.LESSON_PARAMS if L._ALL_SPECS[p]["lesson"])
 # DD-12 WP-08: kagitta "her zaman kullaniciya sorulur" kurali yok (stop_buffer_atr:up dahil, onaysiz uygulanir)
 ALWAYS_USER: frozenset = frozenset()
 MAX_RATIONALE = 400
@@ -3099,8 +3100,35 @@ def original_plan(param: str, dec, from_v: float, to_v: float) -> tuple[float, f
     return s, tg0
 
 
-def _replay_pair(market, dec, from_v: float, to_v: float, param: str, now_ms: int):
-    """(yeni_net_r, ozgun_net_r) | None (plan/veri uygun degil ya da ufuk dolmadi)."""
+REPLAY_MAX_DAYS = 10                 # oynatim ufku: min(48 mum, 10 gun) -- 4s/1g islemler izleme suresinde (28 gun) sonuclansin
+_SDA_BOUNDS = {"B1": (0.5, 2.5), "F1": (0.5, 2.0), "H2": (0.5, 2.5), "S1": (0.5, 3.0), "TF1": (0.5, 3.0)}   # kol dosyalarindaki SDA_MIN/MAX
+_SDA_DEFAULT = (0.5, 2.0)            # T1/R1: signals.STOP_DIST_MIN_ATR / STOP_DIST_MAX_ATR (testle esitligi denetlenir)
+
+
+def replay_horizon_bars(tf_ms: int) -> int:
+    return max(1, min(_cf_mod.PLAN_HORIZON_BARS, (REPLAY_MAX_DAYS * 86_400_000) // tf_ms))
+
+
+def _original_gates(dec, orig, rr_min: float | None) -> str | None:
+    """Ozgun plan giris kapilarindan gecer mi? Gecmezse 'gated' (cift disi). Stop genisligi (SDA sinirlari) ve R1 rr_min."""
+    e, s = dec.planned_entry, dec.planned_stop
+    s0, t0 = orig
+    sda = _feat(dec.features, "stop_dist_atr")
+    if sda is None or sda <= 0 or abs(e - s) <= 0:
+        return "gated"
+    sda0 = abs(e - s0) / (abs(e - s) / sda)
+    lo, hi = _SDA_BOUNDS.get(dec.setup, _SDA_DEFAULT)
+    if sda0 < lo - 1e-9 or sda0 > hi + 1e-9:
+        return "gated"
+    if dec.setup == "R1" and rr_min is not None and t0 is not None:
+        rr0 = abs(t0 - e) / abs(e - s0)
+        if rr0 < rr_min - 1e-9:
+            return "gated"
+    return None
+
+
+def _replay_pair(market, dec, from_v: float, to_v: float, param: str, now_ms: int, rr_min: float | None = None):
+    """(yeni_net_r, ozgun_net_r) | 'pending' (ufuk/veri bekliyor) | 'gated' (ozgun almazdi) | 'holdout' | None (plan uygun degil)."""
     tf = dec.trigger_tf
     tf_ms = _cf_mod.ARM_TF_MS.get(tf)
     if tf_ms is None:
@@ -3109,13 +3137,19 @@ def _replay_pair(market, dec, from_v: float, to_v: float, param: str, now_ms: in
     if orig is None:
         return None
     e, s, tg = dec.planned_entry, dec.planned_stop, dec.planned_target
-    n = _cf_mod.PLAN_HORIZON_BARS
+    n = replay_horizon_bars(tf_ms)
     start_ms = _cf_mod._ceil_ms(_aware(dec.bar_close_ts), tf_ms)
+    if not _cf_mod.KILIT_ACIK and _aware(dec.bar_close_ts) < _cf_mod.HOLDOUT_END and \
+            datetime.fromtimestamp((start_ms + n * tf_ms) / 1000, tz=timezone.utc) > _cf_mod.HOLDOUT_START:
+        return "holdout"                               # kilitli donem (kilit kapaliyken): okunmaz (counterfactual.py ile ayni)
     if now_ms < start_ms + n * tf_ms:
-        return None                                    # ufuk dolmadi: sizinti yok, bekle
+        return "pending"                               # ufuk dolmadi: sizinti yok, bekle
     bars = market.window(dec.pair, start_ms, n, tf)
     if [b[0] for b in bars] != [start_ms + k * tf_ms for k in range(n)]:
-        return None
+        return "pending"
+    gate = _original_gates(dec, orig, rr_min)
+    if gate is not None:
+        return gate                                    # ozgun ayar bu islemi almazdi
     hi, lo, cl = [b[1] for b in bars], [b[2] for b in bars], [b[3] for b in bars]
     out = []
     for stop, target in ((s, tg), orig):
@@ -3130,10 +3164,11 @@ def _replay_pair(market, dec, from_v: float, to_v: float, param: str, now_ms: in
 
 
 def param_replay_verdict(ledger_ro, cfg: LessonConfig, monitor: Monitor, started: datetime, as_of: datetime,
-                         *, market=None) -> MonitorVerdict | None:
+                         *, market=None, info: dict | None = None) -> MonitorVerdict | None:
     """stop_buffer_atr / range_target_frac: degisiklikten sonra alinan islemlerin (kapsamdaki kurulumlar) yeni vs ozgun oynatimi.
     Kanit yok / yetersiz / zarar yok => None (olagan akis surer: sure sonunda kalici). `market`: `.window(pair, start_ms, n, tf)`
     sunan nesne (testte enjekte); yoksa `market.sqlite` salt okunur acilir; yok/okunamaz => None (fail-safe)."""
+    info = info if info is not None else {}
     if not cfg.param_cf_enabled or monitor.param not in ("stop_buffer_atr", "range_target_frac"):
         return None                                    # post_stop_wait: motor okumuyor; oynatilacak plan degisikligi yok
     own = market is None
@@ -3145,7 +3180,8 @@ def param_replay_verdict(ledger_ro, cfg: LessonConfig, monitor: Monitor, started
             market = _cf_mod._Market(path)
         try:
             scope = set(scope_of(monitor.param))
-            vals = {v.id: _pv(v.params, monitor.param) for v in ledger_ro.list_versions() if v.id >= monitor.version_id}
+            versions = [v for v in ledger_ro.list_versions() if v.id >= monitor.version_id]
+            vals = {v.id: _pv(v.params, monitor.param) for v in versions}
             now_ms = int(as_of.timestamp() * 1000)
             new_r: list[float] = []
             orig_r: list[float] = []
@@ -3153,8 +3189,16 @@ def param_replay_verdict(ledger_ro, cfg: LessonConfig, monitor: Monitor, started
                             key=lambda x: (x.bar_close_ts, x.id)):
                 if d.setup not in scope or abs(vals.get(d.param_version_id, float("nan")) - monitor.to_value) > _EPS:
                     continue
-                pr = _replay_pair(market, d, monitor.from_value, monitor.to_value, monitor.param, now_ms)
-                if pr is None:
+                vp = {v.id: v.params for v in versions}.get(d.param_version_id, {})
+                pr = _replay_pair(market, d, monitor.from_value, monitor.to_value, monitor.param, now_ms,
+                                  _pv(vp, "rr_min") if "rr_min" in vp else None)
+                if pr == "pending":
+                    info["unresolved"] = info.get("unresolved", 0) + 1
+                    continue
+                if pr == "gated":
+                    info["gated"] = info.get("gated", 0) + 1
+                    continue
+                if pr is None or isinstance(pr, str):
                     continue
                 new_r.append(pr[0])
                 orig_r.append(pr[1])
@@ -3164,11 +3208,13 @@ def param_replay_verdict(ledger_ro, cfg: LessonConfig, monitor: Monitor, started
     except Exception as e:  # noqa: BLE001  fail-safe: kanit yok
         log.warning("parametre karsi-olgusu okunamadi: %s", scrub(e))
         return None
+    info["n"] = len(new_r)
     if not exit_rollback_needed(new_r, orig_r):
         return None
     y, o = math.fsum(new_r), math.fsum(orig_r)
-    st = {"n": len(new_r), "effect": r4(y - o), "damped_effect": r4(y - o), "param": monitor.param, "new_sum_r": r4(y),
-          "orig_sum_r": r4(o), "new_worst_r": r4(min(new_r)), "orig_worst_r": r4(min(orig_r))}
+    st = {"n": len(new_r), "effect": r4(y - o), "damped_effect": r4(damped_effect(y - o, len(new_r), cfg.shrink_n)),
+          "param": monitor.param, "new_sum_r": r4(y), "orig_sum_r": r4(o), "new_worst_r": r4(min(new_r)),
+          "orig_worst_r": r4(min(orig_r)), "n_gated": info.get("gated", 0), "n_unresolved": info.get("unresolved", 0)}
     return MonitorVerdict("rolled_back", "param_effect", st,
                           f"{monitor.param} kotulesti: yeni {y:+.2f} R vs ozgun {o:+.2f} R (n={len(new_r)})")
 
@@ -3191,7 +3237,8 @@ def evaluate_monitor(ledger_ro, twin_ro, monitor: Monitor, as_of: datetime, cfg:
     xh = exit_harm_verdict(cfg, monitor, started, as_of)
     if xh is not None:
         return xh
-    ph = param_replay_verdict(ledger_ro, cfg, monitor, started, as_of, market=_market)
+    pinfo: dict = {}
+    ph = param_replay_verdict(ledger_ro, cfg, monitor, started, as_of, market=_market, info=pinfo)
     if ph is not None:
         return ph
     eff = measure_effect(ledger_ro, cfg, dict(ver.params), dict(base.params), started, as_of, caps=caps)
@@ -3199,6 +3246,9 @@ def evaluate_monitor(ledger_ro, twin_ro, monitor: Monitor, as_of: datetime, cfg:
           "threshold_r": -cfg.rollback_effect_r}
     if eff.n > 0 and eff.damped <= -cfg.rollback_effect_r + LOOSE_ERR:
         return MonitorVerdict("rolled_back", "effect", st, f"ders etkisi {eff.damped:+.2f} R <= -{cfg.rollback_effect_r:g} R")
+    if pinfo.get("unresolved") and age_days < cfg.recheck_max_days:
+        st["n_unresolved_replay"] = pinfo["unresolved"]
+        return MonitorVerdict("wait", "state", st, "oynatim sonuclanmamis islemler var; onay ertelendi")
     if age_days >= cfg.monitor_max_days:
         return MonitorVerdict("confirmed", "expiry", st, "olcum suresi doldu; geri alma kosulu olusmadi")
     return MonitorVerdict("wait", "state", st, "bekle")

@@ -1021,7 +1021,7 @@ class TestApplyEvidence:
         assert p2["rr_min"] == 1.25
         assert {k: x for k, x in p2.items() if k != "rr_min"} == {k: x for k, x in PARAMS.items() if k != "rr_min"}
         ev = json.loads(v[2])
-        assert ev["n_closed"] == 20 and ev["scope"] == "R1+B1+F1" and ev["base_version_id"] == 1   # 24.11: kapsam = rr_min okuyan kurulumlar
+        assert ev["n_closed"] == 20 and ev["scope"] == "R1+F1" and ev["base_version_id"] == 1   # 24.11: kapsam = rr_min okuyan kurulumlar
         assert ev["claimed_mismatch"] is True
         assert ev["mean_r"] == pytest.approx(1.0) and ev["sum_r"] == pytest.approx(20.0)
         assert ev["win_rate"] == pytest.approx(1.0)

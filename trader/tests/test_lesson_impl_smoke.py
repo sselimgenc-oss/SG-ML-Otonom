@@ -527,7 +527,7 @@ def test_shadow_period_needs_user_then_approve(env, tmp_path):
     assert env.led.get_active_params().params["rr_min"] == 1.75
     mon = store.monitor_by_version(2)
     assert mon is not None and mon.origin == "user" and mon.base_version_id == 1 and mon.param == "rr_min"
-    assert mon.scope == "R1+B1+F1" and mon.k == 20 and mon.recheck_n == 30      # 24.11: kapsam = rr_min'i okuyan tum kurulumlar
+    assert mon.scope == "R1+F1" and mon.k == 20 and mon.recheck_n == 30      # 24.11: kapsam = rr_min'i okuyan tum kurulumlar
     store.close()
 
 

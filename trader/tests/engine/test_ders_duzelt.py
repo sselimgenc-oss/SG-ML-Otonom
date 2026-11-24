@@ -228,7 +228,7 @@ def add_plan(env, day, r, ver, *, stop, target, sda, setup="R1", hour=10):
 
 
 def _cfg_replay(tmp_path, **over):
-    return mk_cfg(tmp_path, monitor_max_days=60, recheck_max_days=60, **over)
+    return mk_cfg(tmp_path, **{**dict(monitor_max_days=60, recheck_max_days=60), **over})
 
 
 def _monitor(env, cfg, param):
@@ -372,3 +372,72 @@ def test_service_rollback_with_market_store(env, tmp_path):
     assert env.led.get_active_params().params["stop_buffer_atr"] == pytest.approx(0.3)
     assert any(n.code == "rolled_back" for n in notif) if notif and hasattr(notif[0], "code") else True
     store.close()
+
+
+# ----------------------------------------------------------------------------------------------- inceleme duzeltmeleri
+def test_replay_horizon_is_capped_by_ten_days():
+    from trader_core import counterfactual as CF
+    assert LS.replay_horizon_bars(CF.ARM_TF_MS["1h"]) == 48 and LS.replay_horizon_bars(CF.ARM_TF_MS["15m"]) == 48
+    assert LS.replay_horizon_bars(CF.ARM_TF_MS["4h"]) == 48          # 8 gun
+    assert LS.replay_horizon_bars(CF.ARM_TF_MS["1d"]) == 10          # 48 gun yerine 10 gun
+
+
+def test_sda_bounds_match_source():
+    import re
+    from trader_core import signals
+    assert LS._SDA_DEFAULT == (signals.STOP_DIST_MIN_ATR, signals.STOP_DIST_MAX_ATR)
+    arms = ROOT / "src" / "trader_engine" / "strategies" / "arms"
+    for setup, (lo, hi) in LS._SDA_BOUNDS.items():
+        src = (arms / f"{setup.lower()}.py").read_text(encoding="utf-8")
+        assert float(re.search(r"^SDA_MIN\s*=\s*([\d.]+)", src, re.M).group(1)) == lo, setup
+        assert float(re.search(r"^SDA_MAX\s*=\s*([\d.]+)", src, re.M).group(1)) == hi, setup
+
+
+def test_original_plan_gates_drop_pairs_the_original_would_not_take(env, tmp_path):
+    # stop_buffer 0.3 -> 0.2: yeni stop 1960 (sda 2.0) -> ozgun stop 1958 (sda 2.1 > 2.0): ozgun almazdi, cift elenir
+    env.apply("stop_buffer_atr", 0.2, ts=datetime(2026, 11, 1, tzinfo=UTC))
+    for i in range(10):
+        add_plan(env, 33 + i * 3, -1.0, 2, stop=1960.0, target=2100.0, sda=2.0)
+    cfg = _cfg_replay(tmp_path)
+    info = {}
+    v = LS.param_replay_verdict(env.led, cfg, _monitor(env, cfg, "stop_buffer_atr"), datetime(2026, 11, 1, tzinfo=UTC), RUN_NOW,
+                                market=FakeMarket(HARM_STOP), info=info)
+    assert v is None and info["gated"] == 10 and info.get("n") == 0
+
+
+def test_r1_rr_gate_on_original_plan():
+    dec = type("D", (), dict(planned_entry=2000.0, planned_stop=1960.0, planned_target=2055.0, side="long", setup="R1",
+                             features={"stop_dist_atr": 2.0}, rh=2100.0, rl=1980.0))
+    assert LS._original_gates(dec, (1960.0, 2070.0), 1.5) is None
+    assert LS._original_gates(dec, (1960.0, 2050.0), 1.5) == "gated"      # rr 1.25 < 1.5
+
+
+def test_replay_pair_skips_locked_period_when_lock_is_off(monkeypatch):
+    from trader_core import counterfactual as CF
+    monkeypatch.setattr(CF, "KILIT_ACIK", False)
+    dec = type("D", (), dict(planned_entry=2000.0, planned_stop=1962.0, planned_target=2100.0, side="long", setup="R1",
+                             features={"stop_dist_atr": 1.9}, rh=2100.0, rl=1980.0, trigger_tf="1h", pair="ETH/USDT",
+                             bar_close_ts=datetime(2026, 6, 1, 10, tzinfo=UTC)))
+    fm = FakeMarket(HARM_STOP)
+    assert LS._replay_pair(fm, dec, 0.3, 0.2, "stop_buffer_atr", int(RUN_NOW.timestamp() * 1000)) == "holdout" and fm.calls == 0
+
+
+def test_expiry_confirmation_deferred_while_replay_unresolved(env, tmp_path):
+    _stopbuf_env(env, 3)
+    add_plan(env, 60, -1.0, 2, stop=1962.0, target=2100.0, sda=1.9)       # 30 Kasim: ufku (48 mum) 2 Aralik'ta dolar
+    cfg = _cfg_replay(tmp_path, monitor_max_days=28, recheck_max_days=42)
+    mon = _monitor(env, cfg, "stop_buffer_atr")
+    late = datetime(2026, 11, 1, tzinfo=UTC) + timedelta(days=30)         # yasi 30 gun >= 28; son kararlarin ufku dolmadi
+    fm = FakeMarket(HARM_STOP)
+    v = LS.evaluate_monitor(env.led, None, mon, late, cfg, _market=fm)
+    assert v.action == "wait" and "ertelendi" in v.reason
+    done = LS.evaluate_monitor(env.led, None, mon, datetime(2026, 11, 1, tzinfo=UTC) + timedelta(days=40), cfg, _market=fm)
+    assert done.action == "confirmed"                                    # tum oynatimlar sonuclandi: olagan sure sonu
+
+
+def test_damped_effect_field_uses_shrink(env, tmp_path):
+    _stopbuf_env(env, 10)
+    cfg = _cfg_replay(tmp_path, shrink_n=10)
+    v = LS.evaluate_monitor(env.led, None, _monitor(env, cfg, "stop_buffer_atr"), RUN_NOW, cfg, _market=FakeMarket(HARM_STOP))
+    assert v.action == "rolled_back"
+    assert v.stats["damped_effect"] == pytest.approx(v.stats["effect"] * 10 / 20, abs=1e-3)
