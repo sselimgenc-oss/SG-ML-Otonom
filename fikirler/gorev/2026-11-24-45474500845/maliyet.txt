@@ -1,0 +1,1 @@
+.github/gorev/kutuphane_tasarim.md	claude-fable-5-2	3.40
