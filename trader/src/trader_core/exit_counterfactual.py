@@ -17,6 +17,7 @@ import json
 import math
 import os
 import sqlite3
+from pathlib import Path
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -33,6 +34,7 @@ VERSION = 1                          # kural surumu: sabit/formul degisirse arta
 PARAM = "trail_atr"
 MODES_REGISTRY_ID = "exitcf-v2"      # cikis kipleri (basa-bas / kismi) on kaydi; v1 satiri/sabitleri degismez (docs/cikis-kipleri-spec.md 6)
 MODES_VERSION = 2                    # ecf_modes kural surumu (v1 tablosundan bagimsiz); 2: kismi adet motorla ayni yuvarlama (parite, 19.11)
+MODES_VERSION_15M = 3                # 3 (24.11 kullanici karari, target_mode="resting"): basa-bas + kismi her 15 dk adiminda (kendi tf kapanisini beklemez)
 MODE_NAMES = ("breakeven", "partial")
 MODE_VARIANTS = ("off",) + MODE_NAMES
 ROLES = ("base", "up", "down", "own")
@@ -72,6 +74,23 @@ class ExitCfError(Exception):
     def __init__(self, message: str, code: str = "error"):
         super().__init__(message)
         self.code = code
+
+
+def modes_version_for(target_mode: str | None) -> int:
+    """24.11: aktif `target_mode`un cikis kipi kaniti surumu: "resting" -> `MODES_VERSION_15M`, digerleri -> `MODES_VERSION`."""
+    return MODES_VERSION_15M if target_mode == "resting" else MODES_VERSION
+
+
+def modes_version_from_config(config_dir=None) -> int | None:
+    """Kagit motorunun yapilandirmasindan (taban + kagit katmani) aktif kanit surumu; okunamazsa None (okuyucu MAX(version)'a duser)."""
+    d = Path(config_dir) if config_dir is not None else Path(__file__).resolve().parents[2] / "config"
+    mode = None
+    for name in ("engine.base.json", "engine.paper.json"):
+        try:
+            mode = json.loads((d / name).read_text(encoding="utf-8")).get("target_mode", mode)
+        except (OSError, ValueError):
+            continue
+    return None if mode is None else modes_version_for(mode)
 
 
 def registry_row() -> dict:
@@ -210,7 +229,8 @@ def _slip(price: float, side: str, bps: float) -> float:
 def replay_trail(*, side: str, entry_price: float, initial_stop: float, entry_ms: int, trail_atr: float, h1: H1Series,
                  m15: Mapping[int, tuple], now_ms: int, slip_exit_bps: float, slip_stop_bps: float,
                  max_bars: int | None = None, modes: XM.ExitModes | None = None, qty: float | None = None,
-                 lot_rules: tuple[float, float, float] | None = None) -> ReplayResult:
+                 lot_rules: tuple[float, float, float] | None = None, step_15m: bool = False,
+                 m15_best: Mapping[int, tuple] | None = None) -> ReplayResult:
     """T1 cikisini (position_manager.evaluate_exit sirasi) 1h kapanislarinda + 15 dk stop vurusuyla oynatir.
 
     `h1`: ms/o/h/l/c/atr/regime (acilis zamani sirali, bosluksuz olmali); `m15`: {acilis_ms: (o,h,l,c)} tetik serisi.
@@ -224,7 +244,14 @@ def replay_trail(*, side: str, entry_price: float, initial_stop: float, entry_ms
     15 dk acilisinda `pt_frac` kadari piyasada kapanir (bir kez; cikis karari verilmediyse), kalan surer.
     `qty` + `lot_rules` (adim, min adet, min notional; verilirse): kismi adet MOTORLA AYNI yuvarlamayla (`exit_modes.partial_qty`:
     adim tabanina, 1h kapanis fiyatiyla min notional) hesaplanir, kapanan oran = adet/qty; kapanan ya da kalan parca limit altindaysa
-    kismi bir kez ATLANIR (motor `partial:<id> = skipped`). Verilmezse tam oran `pt_frac` (eski davranis)."""
+    kismi bir kez ATLANIR (motor `partial:<id> = skipped`). Verilmezse tam oran `pt_frac` (eski davranis).
+    `step_15m` (24.11 kullanici karari, motor `target_mode="resting"`; varsayilan False = eski, bayt bayt ayni): basa-bas ve kismi 1h
+    kapanisini BEKLEMEZ; her 15 dk mumu kapaninca (motorun 15 dk karar adimi) o ana dek en iyi uca (15 dk high/low; motor: dakikalik
+    mfe/mae) bakilir: basa-bas stopu bir sonraki 15 dk mumundan itibaren gecerli (acilis zaten asmissa would_trigger -> trail_stop
+    piyasa), kismi bir sonraki 15 dk mumunun acilisinda dolar (min notional icin son kapanis = o 15 dk mumunun kapanisi). Iz suren stop,
+    rejim cikisi ve ufuk 1h kapanisinda KALIR (motor: kendi tf kapanisi); iz stopu basa-bas stopuyla birlestirilmez (motorda
+    borsa stopu en siki olandir: `cur` yalniz sikilasir). `m15_best` ({acilis_ms: (o,h,l,c)}; yalniz step_15m): basa-bas/kismi tetiginin
+    en iyi ucu icin `last` fiyat serisi (motor: 1 dk last mfe/mae); stop vurusu `m15` (tetik kaynagi, mark) uzerinde KALIR. Yoksa `m15`."""
     from trader_core import signals as S          # tembel: pandas yalniz oynatimda yuklenir
     max_bars = MAX_BARS if max_bars is None else max_bars
 
@@ -263,6 +290,7 @@ def replay_trail(*, side: str, entry_price: float, initial_stop: float, entry_ms
     part_done: tuple[int, float, float] | None = None
     part_frac = float(modes.pt_frac) if modes is not None else 0.0   # kapanacak oran (adet yuvarlamasiyla ayarlanabilir)
     part_tried = False                   # motor kismiyi bir kez dener (done | skipped): tekrar yok
+    best_l = entry_price                 # step_15m: basa-bas/kismi tetigi icin en iyi uc (last serisi)
     best_h1 = -math.inf if side == "long" else math.inf     # kapanmis 1h mumlarin en iyi ucu (giris mumu dahil; motor ctx ile ayni)
 
     def mfe_r() -> float | None:
@@ -303,6 +331,21 @@ def replay_trail(*, side: str, entry_price: float, initial_stop: float, entry_ms
                 base = o if gap else cur
                 reason = "trail_stop" if cur != initial_stop else "stop"
                 return fin(ReplayResult("ok", reason, b, _slip(base, side, slip_stop_bps), k + 1, mfe_r()))
+            if step_15m and modes is not None:
+                nb = b + M15_MS                                   # motorun 15 dk karar adimi: bu mum kapandi, emirler sonraki mumun acilisinda
+                lb = (m15_best or {}).get(b, bar)                 # en iyi uc: last serisi (motor mfe/mae); yoksa tetik serisi
+                best_l = max(best_l, lb[1]) if side == "long" else min(best_l, lb[2])
+                be = XM.be_stop(side, entry_price, initial_stop, best_l, modes)
+                if be is not None and XM.tighter(side, be, cur):
+                    cur = be
+                    fresh_ms = nb
+                if modes.partial and not part_tried and XM.partial_due(side, entry_price, initial_stop, best_l, modes):
+                    part_tried = True
+                    if lot_rules is not None and qty:
+                        q = XM.partial_qty(float(qty), modes.pt_frac, lot_rules[0], lot_rules[1], lot_rules[2], float(lb[3]))
+                        part_frac = 0.0 if q is None else q / float(qty)
+                    if part_frac > 0.0:
+                        part_at = nb
             b += M15_MS
         # ---- (2) 1h kapanisi D: motor siralamasi
         if k >= n_av:
@@ -312,7 +355,7 @@ def replay_trail(*, side: str, entry_price: float, initial_stop: float, entry_ms
                 return ReplayResult("pending" if d_k > last_closed_15 else "gap", gap_ms=d_k, gap_kind="bars15")
             return market(d_k, k, "regime_flip")
         stop = float(path[k])
-        if modes is not None:
+        if modes is not None and not step_15m:
             hk, lk = h1.h[idx0 + k], h1.l[idx0 + k]
             if side == "long":
                 best_h1 = max(best_h1, hk) if hk == hk else best_h1
@@ -330,7 +373,8 @@ def replay_trail(*, side: str, entry_price: float, initial_stop: float, entry_ms
         if tighter:
             cur = stop
             fresh_ms = d_k
-        if (modes is not None and modes.partial and not part_tried and XM.partial_due(side, entry_price, initial_stop, bh, modes)):
+        if (modes is not None and not step_15m and modes.partial and not part_tried
+                and XM.partial_due(side, entry_price, initial_stop, bh, modes)):
             part_tried = True
             if lot_rules is not None and qty:
                 q = XM.partial_qty(float(qty), modes.pt_frac, lot_rules[0], lot_rules[1], lot_rules[2], float(close))
@@ -519,12 +563,12 @@ class ExitCfStore:
         return n
 
 
-    def have_modes(self, bot: str, source: str, run_id: str) -> dict[int, set]:
-        """trade_id -> yazilmis `variant` kumesi (ecf_modes)."""
+    def have_modes(self, bot: str, source: str, run_id: str, version: int = MODES_VERSION) -> dict[int, set]:
+        """trade_id -> yazilmis `variant` kumesi (ecf_modes; `version`: kural surumu)."""
         out: dict[int, set] = {}
         try:
             for r in self._db.execute("SELECT trade_id, variant FROM ecf_modes WHERE bot=? AND source=? AND run_id=? AND version=?",
-                                      (bot, source, run_id, MODES_VERSION)):
+                                      (bot, source, run_id, version)):
                 out.setdefault(r[0], set()).add(r[1])
         except sqlite3.Error as e:
             raise ExitCfError(f"depo okuma hatasi: {type(e).__name__}", "store_io") from e
@@ -839,7 +883,7 @@ class ModesRunResult:
 
 
 def _mrow(tr: TradeInput, bot: str, variant: str, trail: float, now: datetime, trigger_source: str, cost: Mapping, w_start: int,
-          w_end_ms: int | None, sim: dict | None, reason: str, rr: ReplayResult | None) -> dict:
+          w_end_ms: int | None, sim: dict | None, reason: str, rr: ReplayResult | None, version: int = MODES_VERSION) -> dict:
     row = {"bot": bot, "source": tr.source, "run_id": tr.run_id, "trade_id": tr.trade_id, "pair": tr.pair, "side": tr.side,
            "setup": tr.setup, "trigger_tf": tr.trigger_tf, "entry_ts": _fmt(tr.entry_ts),
            "exit_ts_actual": _fmt(tr.exit_ts) if tr.exit_ts else None, "actual_exit_reason": tr.exit_reason,
@@ -849,7 +893,7 @@ def _mrow(tr: TradeInput, bot: str, variant: str, trail: float, now: datetime, t
            "partial_price": None, "partial_frac": None, "trigger_source": trigger_source, "grid_min": GRID_MIN,
            "cost_json": json.dumps(dict(cost), sort_keys=True), "window_start_ts": fmt_ms(w_start),
            "window_end_ts": fmt_ms(w_end_ms) if w_end_ms is not None else None, "computed_at": _fmt(now),
-           "version": MODES_VERSION, "registry_id": MODES_REGISTRY_ID}
+           "version": version, "registry_id": MODES_REGISTRY_ID}
     if sim is not None and rr is not None:
         row.update(exit_ts_sim=fmt_ms(rr.exit_ms), bars_held_sim=rr.bars_held, gross_r=sim["gross_r"], fee_r=sim["fee_r"],
                    funding_r=sim["funding_r"], net_r=sim["net_r"], censored=rr.censored, mfe_r_sim=rr.mfe_r)
@@ -866,18 +910,20 @@ def _modes_for_variant(variant: str) -> XM.ExitModes | None:
 
 
 def _compute_modes_trade(tr: TradeInput, missing: list[str], *, trail: float, market, now_ms, cost, signal_params,
-                         trigger_source, bot, now, w_start, w_end, lot_rules=None):
+                         trigger_source, bot, now, w_start, w_end, lot_rules=None, step_15m: bool = False):
     """-> (satirlar, bayraklar) ya da None (pending). v1 `_compute_trade` ile ayni veri/oynatim; fark yalniz `modes`."""
     pair = tr.pair
     entry_ms = to_ms(tr.entry_ts)
     kind = "mark" if trigger_source == "mark" else "last"
     flags: set[str] = set()
+    ver = MODES_VERSION_15M if step_15m else MODES_VERSION
 
     def nodata(reason="no_data"):
         flags.add(reason)
-        return [_mrow(tr, bot, v, trail, now, trigger_source, cost, w_start, w_end, None, reason, None) for v in missing], flags
+        return [_mrow(tr, bot, v, trail, now, trigger_source, cost, w_start, w_end, None, reason, None, ver) for v in missing], flags
     try:
         m15_rows = market.bars(pair, "15m", entry_ms - entry_ms % M15_MS, w_end, kind)
+        m15l_rows = market.bars(pair, "15m", entry_ms - entry_ms % M15_MS, w_end, "last") if (step_15m and kind != "last") else None
         h1_rows = market.bars(pair, "1h", w_start, w_end, "last")
         h4_rows = market.bars(pair, "4h", w_start - H4_MS, w_end, "last")
         f_pts = market.funding(pair, entry_ms - H8_MS, w_end + H8_MS)
@@ -889,6 +935,7 @@ def _compute_modes_trade(tr: TradeInput, missing: list[str], *, trail: float, ma
         return nodata()
     h1 = prepare_h1(h1_rows, h4_rows, signal_params)
     m15 = {r[0]: r[1:5] for r in m15_rows}
+    m15_best = {r[0]: r[1:5] for r in m15l_rows} if m15l_rows else None      # basa-bas/kismi en iyi ucu: motor gibi last serisi
     fund = _funding_fn(f_pts, now_ms, tr.side, tr.qty, tr.entry_price)
     taker = float(cost.get("taker_fee", 0.0005))
     rows: list[dict] = []
@@ -896,11 +943,11 @@ def _compute_modes_trade(tr: TradeInput, missing: list[str], *, trail: float, ma
         rr = replay_trail(side=tr.side, entry_price=tr.entry_price, initial_stop=tr.initial_stop, entry_ms=entry_ms,
                           trail_atr=trail, h1=h1, m15=m15, now_ms=now_ms, slip_exit_bps=float(cost.get("slip_exit_bps", 2.0)),
                           slip_stop_bps=float(cost.get("slip_stop_bps", 5.0)), modes=_modes_for_variant(v), qty=tr.qty,
-                          lot_rules=lot_rules)
+                          lot_rules=lot_rules, step_15m=step_15m, m15_best=m15_best)
         if rr.status == "ok":
             sim = price_result(rr, tr, taker_fee=taker, funding_of=fund)
             if sim["status"] == "ok":
-                rows.append(_mrow(tr, bot, v, trail, now, trigger_source, cost, w_start, rr.exit_ms, sim, rr.reason, rr))
+                rows.append(_mrow(tr, bot, v, trail, now, trigger_source, cost, w_start, rr.exit_ms, sim, rr.reason, rr, ver))
                 continue
             gap_ms, gkind = sim["gap_ms"], "funding"
         else:
@@ -909,7 +956,7 @@ def _compute_modes_trade(tr: TradeInput, missing: list[str], *, trail: float, ma
             return None
         reason = "no_data" if gkind == "funding" else "data_gap"
         flags.add(reason)
-        rows.append(_mrow(tr, bot, v, trail, now, trigger_source, cost, w_start, gap_ms, None, reason, None))
+        rows.append(_mrow(tr, bot, v, trail, now, trigger_source, cost, w_start, gap_ms, None, reason, None, ver))
     return rows, flags
 
 
@@ -917,11 +964,14 @@ def run_modes_once(*, bot: str, trades: Sequence[TradeInput], market, store: Exi
                    cost_for: Callable[[TradeInput], Mapping], signal_params_for: Callable[[TradeInput], object | None] = lambda t: None,
                    trigger_source: str = "last", holdout: tuple[datetime, datetime] | None = None, dry_run: bool = False,
                    max_trades: int = MAX_TRADES_PER_RUN,
-                   rules_for: Callable[[str], tuple[float, float, float] | None] | None = None) -> ModesRunResult:
+                   rules_for: Callable[[str], tuple[float, float, float] | None] | None = None,
+                   step_15m: bool = False) -> ModesRunResult:
     """Kapanmis T1 islemlerini cikis kipleriyle de oynatir: her islem icin `off` (kip yok), `breakeven` (yalniz basa-bas),
     `partial` (yalniz kismi) -- hepsi AKTIF `trail_atr` ile, ayni gece birlikte. Uygunluk/kilitli donem/ufuk/pending kurallari v1 ile
     ayni (spec 2-4). `rules_for(pair)` -> (adim, min adet, min notional) | None: kismi adet motorla ayni yuvarlamayla hesaplanir
-    (spec 5 Parite); None/verilmezse tam oran (`pt_frac`)."""
+    (spec 5 Parite); None/verilmezse tam oran (`pt_frac`).
+    `step_15m` (24.11, motor `target_mode="resting"`): basa-bas/kismi her 15 dk adiminda oynatilir (`replay_trail(step_15m=)`); satirlar
+    `MODES_VERSION_15M` surumuyle yazilir (eski 1h-kapanisi satirlari silinmez; ders en yuksek surumu okur)."""
     now = _utc(now)
     now_ms = to_ms(now)
     res = ModesRunResult()
@@ -951,7 +1001,7 @@ def run_modes_once(*, bot: str, trades: Sequence[TradeInput], market, store: Exi
             continue
         key = (tr.source, tr.run_id)
         if key not in have_cache:
-            have_cache[key] = store.have_modes(bot, tr.source, tr.run_id)
+            have_cache[key] = store.have_modes(bot, tr.source, tr.run_id, MODES_VERSION_15M if step_15m else MODES_VERSION)
         have = have_cache[key].get(tr.trade_id, set())
         missing = [v for v in MODE_VARIANTS if v not in have]
         if not missing:
@@ -962,7 +1012,8 @@ def run_modes_once(*, bot: str, trades: Sequence[TradeInput], market, store: Exi
             continue
         out = _compute_modes_trade(tr, missing, trail=_vkey(active_value), market=market, now_ms=now_ms, cost=cost_for(tr),
                                    signal_params=signal_params_for(tr), trigger_source=trigger_source, bot=bot, now=now,
-                                   w_start=w_start, w_end=w_end, lot_rules=rules_for(tr.pair) if rules_for else None)
+                                   w_start=w_start, w_end=w_end, lot_rules=rules_for(tr.pair) if rules_for else None,
+                                   step_15m=step_15m)
         if out is None:
             res.pending += 1
             continue
@@ -980,7 +1031,7 @@ def run_modes_once(*, bot: str, trades: Sequence[TradeInput], market, store: Exi
 
 
 def deltas_modes(path, bot: str, *, now: datetime, days: int = 120, mode: str, sources: Sequence[str] = SOURCES_VERDICT,
-                 run_id: str | None = None, with_r: bool = False) -> list[dict]:
+                 run_id: str | None = None, with_r: bool = False, version: int | None = None) -> list[dict]:
     """(`with_r=True`: her satira `on_r`/`off_r` eklenir; otomatik geri alma olcutu icin.)
     Her islem icin Delta_r = net_r(mode acik) - net_r(kapali) (yalniz window_end_ts <= now; ikisi de sayisal; en yuksek
     `version`). Tablo/dosya yoksa [] (kanit yok). Doner: [{source, run_id, trade_id, entry_ts, delta_r, censored,
@@ -991,7 +1042,7 @@ def deltas_modes(path, bot: str, *, now: datetime, days: int = 120, mode: str, s
     lo, hi = _fmt(now - timedelta(days=days)), _fmt(now)
     with _open_ro(path) as st:
         try:
-            ver = st._db.execute("SELECT MAX(version) FROM ecf_modes WHERE bot=?", (bot,)).fetchone()[0]
+            ver = version if version is not None else st._db.execute("SELECT MAX(version) FROM ecf_modes WHERE bot=?", (bot,)).fetchone()[0]
         except sqlite3.OperationalError:
             return []                                              # eski depo: tablo yok (kanit yok)
         except sqlite3.Error as e:

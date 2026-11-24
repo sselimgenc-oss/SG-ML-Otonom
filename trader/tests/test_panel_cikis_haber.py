@@ -134,3 +134,11 @@ def test_snapshot_and_server_with_empty_sources(env):
         assert run.get("/api/ciktikaniti")["neden"] == "dosya_yok"
     finally:
         run.stop()
+
+
+@pytest.fixture(autouse=True)
+def _kanit_surumu_eski_yol(monkeypatch):
+    """Bu dosya eski (MODES_VERSION=2) kanit satirlariyla calisir; 24.11 surum secimi (target_mode) ayri testlerde
+    (tests/engine/test_hedef_bekleyen_emir_cf_parite.py) denenir: burada okuyucu MAX(version)'a duser."""
+    from trader_core import exit_counterfactual as _ecf
+    monkeypatch.setattr(_ecf, "modes_version_from_config", lambda *a, **k: None)

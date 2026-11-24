@@ -1915,7 +1915,8 @@ def _build_exit_modes_block(cfg: LessonConfig, as_of: datetime, path: str, parit
     istatistik (v1 ile ayni blok-kumelenmis SE, Bonferroni z, tamamlanmis blok, parite). Tablo/satir yok ya da okunamiyor => None
     (kanit yok; v1 sonucunu etkilemez)."""
     try:
-        live = {m: _ecf_mod.deltas_modes(path, cfg.bot, now=as_of, days=cfg.exit_cf_days, mode=m) for m in _ecf_mod.MODE_NAMES}
+        ver = _ecf_mod.modes_version_from_config()          # 24.11: aktif target_mode'a gore kanit surumu (okunamazsa MAX)
+        live = {m: _ecf_mod.deltas_modes(path, cfg.bot, now=as_of, days=cfg.exit_cf_days, mode=m, version=ver) for m in _ecf_mod.MODE_NAMES}
     except Exception as e:  # noqa: BLE001  fail-safe
         log.warning("exit_counterfactual (kipler) okunamadi: %s", scrub(e))
         return None
@@ -3033,7 +3034,8 @@ def exit_harm_verdict(cfg: LessonConfig, monitor: Monitor, started: datetime, as
             mode = {v: k.split(":")[1] for k, v in CF_MODE_PARAM.items()}[monitor.param]
             if monitor.to_value <= monitor.from_value:
                 return None
-            for r in _ecf_mod.deltas_modes(path, cfg.bot, now=as_of, days=cfg.exit_cf_days, mode=mode, with_r=True):
+            for r in _ecf_mod.deltas_modes(path, cfg.bot, now=as_of, days=cfg.exit_cf_days, mode=mode, with_r=True,
+                                           version=_ecf_mod.modes_version_from_config()):
                 if parse_ts(r["entry_ts"]) >= started:
                     new_r.append(r["on_r"])
                     orig_r.append(r["off_r"])

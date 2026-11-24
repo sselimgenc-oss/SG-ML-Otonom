@@ -2,6 +2,7 @@
   "mode": "live",
   "var_dir": "var-live",
   "veto_mode": "off",
+  "target_mode": "resting",
   "pairs": ["BTC/USDT", "ETH/USDT", "BNB/USDT", "SOL/USDT", "XRP/USDT", "DOGE/USDT", "ADA/USDT", "TRX/USDT", "LINK/USDT", "AVAX/USDT", "HYPE/USDT", "BCH/USDT", "XLM/USDT", "SUI/USDT", "HBAR/USDT", "LTC/USDT", "1000SHIB/USDT", "DOT/USDT", "XMR/USDT", "NVDA/USDT", "MSFT/USDT", "AAPL/USDT", "GOOGL/USDT", "AMZN/USDT", "META/USDT", "AVGO/USDT", "TSLA/USDT", "BRKB/USDT", "JPM/USDT", "LLY/USDT", "WMT/USDT", "V/USDT", "ORCL/USDT", "XOM/USDT", "NFLX/USDT", "PLTR/USDT", "COST/USDT", "AMD/USDT", "HD/USDT", "XAU/USDT", "XAG/USDT", "BZ/USDT", "COPPER/USDT"],
   "optional_pairs": ["NVDA/USDT", "MSFT/USDT", "AAPL/USDT", "GOOGL/USDT", "AMZN/USDT", "META/USDT", "AVGO/USDT", "TSLA/USDT", "BRKB/USDT", "JPM/USDT", "LLY/USDT", "WMT/USDT", "V/USDT", "ORCL/USDT", "XOM/USDT", "NFLX/USDT", "PLTR/USDT", "COST/USDT", "AMD/USDT", "HD/USDT", "XAU/USDT", "XAG/USDT", "BZ/USDT", "COPPER/USDT"],
   "strategy": "price_action_lab_ml",

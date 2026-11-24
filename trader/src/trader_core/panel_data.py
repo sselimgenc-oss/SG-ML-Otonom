@@ -756,7 +756,10 @@ def exitcf_view(path: str, now: datetime, bekleyen: list[str] | None = None) -> 
         except sqlite3.OperationalError:
             pass                                                   # tablo yok: v1 kaniti yok
         try:
-            ver = db.execute("SELECT MAX(version) FROM ecf_modes WHERE bot='learner'").fetchone()[0]
+            from . import exit_counterfactual as _ecf
+            ver = _ecf.modes_version_from_config()                 # 24.11: aktif target_mode'a gore surum (okunamazsa MAX)
+            if ver is None:
+                ver = db.execute("SELECT MAX(version) FROM ecf_modes WHERE bot='learner'").fetchone()[0]
             if ver is not None:
                 rows = db.execute(
                     "SELECT source, run_id, trade_id, setup, variant, net_r FROM ecf_modes WHERE bot='learner' "

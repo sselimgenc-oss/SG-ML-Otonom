@@ -12,6 +12,8 @@ from dataclasses import asdict, dataclass, fields, replace
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import numpy as np
+
 from trader_core import exit_modes as XM
 from trader_core import ledger as L
 from trader_core import risk as K
@@ -34,9 +36,9 @@ from .marketdata.sources import MarketView, MinuteStep
 from .mtm import MtmRecorder
 from .numeric import round_tight
 from .order_manager import EXIT_RETRY_LIMIT, OrderManager, SubmitOutcome, make_client_id
-from .position_manager import (apply_entry_fill, apply_exit_fill, apply_exit_modes, apply_funding, build_trade_entry,
-                               build_trade_exit, close_position, evaluate_exit, exec_fields, exec_payload,
-                               fill_risk_violation, partial_due, update_excursion)
+from .position_manager import (ExitContext, ExitDecision, apply_entry_fill, apply_exit_fill, apply_exit_modes, apply_funding,
+                               build_trade_entry, build_trade_exit, close_position, evaluate_exit, exec_fields, exec_payload,
+                               exit_mode_of, fill_risk_violation, partial_due, update_excursion)
 from .reconcile import Reconciler, ReconcileReport
 from .state import OrderRow, StateStore, iso_z
 from .status import StatusWriter
@@ -1278,8 +1280,10 @@ class Engine:
         elif live:
             self.orders.place_initial_stop(cur, t_fill)
             self._register(pos.trade_id)
+            self._place_resting_target(pos.trade_id)            # 24.11: stop kuruldu; hedef bekleyen emir (basarisizlik pozisyonu kapatmaz)
         else:
             self.orders.place_initial_stop(cur)
+            self._place_resting_target(pos.trade_id)
 
     def _on_exit_fill(self, e, step, now: datetime) -> None:
         fill = e.fill
@@ -1323,6 +1327,8 @@ class Engine:
             self.state.outbox_add("exit", pos.trade_id, build_trade_exit(pos, closed, ex=xp))
             self._mark_order(fill.client_id, "filled")
         self._c["trades_closed"] += 1
+        if fill.reason == "target":
+            self._c["target_fills"] += 1                        # 24.11: bekleyen hedef emri doldu
         if not self.is_paper and self.state.kv_get(f"naked:{pos.trade_id}") is not None:
             with self.state.tx():
                 self.state.kv_set(f"naked:{pos.trade_id}", None)
@@ -1607,6 +1613,7 @@ class Engine:
         policy = self.strategy.exit_policy()
         opens = self.state.open_positions()
         seen = self._exit_seen
+        resting = self.cfg.target_mode == "resting"
         for k in [k for k in seen if k not in {p.trade_id for p in opens}]:
             seen.pop(k, None)
         for pos in opens:
@@ -1614,6 +1621,13 @@ class Engine:
                 continue
             Dx = D
             if self._multi_tf and not arm_is_tf_close(D, pos.trigger_tf):
+                if resting:
+                    # 24.11 kullanici karari: basa-bas tasima ve kismi kar alma 15 dk karar adimi basina degerlendirilir (kendi tf
+                    # kapanisini beklemez). Iz suren stop, zaman durdurma, rejim cikisi yine yalniz kendi tf kapanisinda.
+                    self._modes_step_guarded(pos, D)
+                    pos = self.state.get_position(pos.trade_id)
+                    if pos is None or pos.status != "open":
+                        continue                                # basa-bas would_trigger / kismi sonrasi pozisyon kapandi: bu adimda iz/catchup yok
                 # WP-11: cikis yalniz pozisyonun KENDI zaman dilimi kapaninca degerlendirilir. 23.11 (canli): kacirilan sinir icin
                 # telafi: canlida kacan karar barlari yeniden oynatilmaz, bu yuzden o TF kapanisi hic gelmezse pozisyon yalniz borsa
                 # stopuyla kalirdi. Son kapanmis TF barinin siniri (D'den onceki) daha once degerlendirilmediyse simdi degerlendirilir.
@@ -1636,27 +1650,31 @@ class Engine:
                 if self._multi_tf and ctx is None:              # baglam yok (kendi tf verisi bosluklu): zorla cikis DEGIL, atla
                     self._c["exit_data_gap"] += 1
                     continue
-                dec = policy.evaluate(pos, ctx) if policy is not None else evaluate_exit(pos, ctx)
+                pos_eval = pos
+                if resting and self._target_active(pos.trade_id):
+                    pos_eval = replace(pos, planned_target=None)    # hedef bekleyen emirde: bar kapanisinda hedef kontrolu YOK (zaman durdurma kalir)
+                dec = policy.evaluate(pos_eval, ctx) if policy is not None else evaluate_exit(pos_eval, ctx)
                 modes = self._exit_modes(pos)
-                if modes is not None:                           # cikis kipleri: kapaliyken bu dal hic calismaz (bayt bayt ayni)
+                if resting:
+                    if modes is not None and dec.kind != "exit":
+                        # basa-bas + kismi: ayni 15 dk yolu (mfe/mae); iz suren stop karari bunlardan SONRA, tazelenen stopa gore
+                        self._modes_step(pos, Dx)
+                        pos = self.state.get_position(pos.trade_id) or pos
+                        if pos.status != "open":
+                            continue
+                    if dec.kind == "stop_update" and dec.new_stop is not None:
+                        tighter = (dec.new_stop > pos.current_stop) if pos.side == "long" else (dec.new_stop < pos.current_stop)
+                        if not tighter:
+                            dec = ExitDecision("none")      # basa-bas stopu iz suren stoptan sikiydi: gevsetme sayilmaz
+                elif modes is not None:                         # cikis kipleri: kapaliyken bu dal hic calismaz (bayt bayt ayni)
                     dec = apply_exit_modes(pos, ctx, dec, modes)
                 dec = self._vet(pos, dec)
                 if dec.kind == "exit":
                     self._remember_dec_price(pos, Dx, getattr(ctx, "last_close", None))
                     self._submit_exit(pos, dec.reason, Dx, quote=True)
                 elif dec.kind == "stop_update":
-                    out = self.orders.replace_stop(pos, dec.new_stop)
-                    if out.note == "would_trigger":
-                        cur = self.state.get_position(pos.trade_id) or pos
-                        if cur.status == "open":
-                            self._remember_dec_price(cur, Dx, getattr(ctx, "last_close", None))
-                            self._submit_exit(cur, "trail_stop", Dx, quote=True)
-                    elif out.ok and not self.is_paper:
-                        self._register(pos.trade_id)
-                    elif not out.ok and modes is not None and not self.is_paper:
-                        self._c["exit_mode_stop_replace_failed"] += 1       # canli: eski stop DURUR (yeni once kurulur); sonraki adimda yeniden denenir
-                        log.warning("cikis kipi stop tasima basarisiz trade %s (%s): eski stop korur", pos.trade_id, out.note)
-                if modes is not None and modes.partial and dec.kind != "exit":
+                    self._apply_stop_update(pos, dec.new_stop, Dx, getattr(ctx, "last_close", None), modes)
+                if not resting and modes is not None and modes.partial and dec.kind != "exit":
                     cur = self.state.get_position(pos.trade_id)
                     if cur is not None and cur.status == "open":
                         self._maybe_partial(cur, ctx, modes, Dx)
@@ -1667,6 +1685,142 @@ class Engine:
                     raise
                 self._c["callback_errors"] += 1
                 log.critical("cikis degerlendirmesi hatasi trade %s: %r", pos.trade_id, e, exc_info=True)
+
+    def _apply_stop_update(self, pos: Position, new_stop: float, D: datetime, last_close, modes) -> None:
+        """Stop sikilastirma karari uygulamasi (iz suren stop ve basa-bas ortak): borsa/kagit stopu degistirilir; yeni stop
+        zaten asilmissa (would_trigger) piyasa cikisi."""
+        out = self.orders.replace_stop(pos, new_stop)
+        if out.note == "would_trigger":
+            cur = self.state.get_position(pos.trade_id) or pos
+            if cur.status == "open":
+                self._remember_dec_price(cur, D, last_close)
+                self._submit_exit(cur, "trail_stop", D, quote=True)
+        elif out.ok and not self.is_paper:
+            self._register(pos.trade_id)
+        elif not out.ok and modes is not None and not self.is_paper:
+            self._c["exit_mode_stop_replace_failed"] += 1       # canli: eski stop DURUR (yeni once kurulur); sonraki adimda yeniden denenir
+            log.warning("cikis kipi stop tasima basarisiz trade %s (%s): eski stop korur", pos.trade_id, out.note)
+
+    # ------------------------------------------------------------------ 24.11: 15 dk adiminda basa-bas + kismi (target_mode=resting)
+    def _modes_ctx(self, pos: Position, D: datetime) -> ExitContext | None:
+        """Kendi tf kapanisini beklemeyen cikis kipi baglami: en iyi/en kotu uc motorun dakika dakika tuttugu `mfe_price`/`mae_price`
+        (giris dolumundan bu adima kadar 1 dk `last` high/low; kagit = canli); son fiyat = son kapanmis 1 dk kapanisi. Tek eleman dizi:
+        `exit_modes` islevleri yalniz en iyi uca bakar."""
+        mfe, mae = pos.mfe_price, pos.mae_price
+        if not (_pos_finite(mfe) and _pos_finite(mae)) or not _pos_finite(pos.entry_price):
+            return None
+        lm = self._last_marks.get(pos.pair)
+        last = float(lm[0]) if lm is not None and _pos_finite(lm[0]) else float(pos.entry_price)
+        hi, lo = (float(mfe), float(mae)) if pos.side == "long" else (float(mae), float(mfe))
+        return ExitContext(bar_close_ts=D, highs=np.array([hi], dtype=float), lows=np.array([lo], dtype=float),
+                           atrs=np.array([], dtype=float), regime_last=None, last_close=last, n_closed=1)
+
+    def _modes_step_guarded(self, pos: Position, D: datetime) -> None:
+        try:
+            self._modes_step(pos, D)
+        except StateError:
+            raise
+        except Exception as e:  # noqa: BLE001
+            if self.strict:
+                raise
+            self._c["callback_errors"] += 1
+            log.critical("15 dk cikis kipi hatasi trade %s: %r", pos.trade_id, e, exc_info=True)
+
+    def _modes_step(self, pos: Position, D: datetime) -> None:
+        """Basa-bas stop tasima (once) + kismi kar alma (sonra); kagit/canli/geri test AYNI yol. Kip yoksa hicbir sey yapmaz."""
+        modes = self._exit_modes(pos)
+        if modes is None or pos.status != "open" or not pos.qty:
+            return
+        if not self.is_paper:
+            self._partial_recover(pos)
+            pos = self.state.get_position(pos.trade_id) or pos
+            if pos.status != "open":
+                return
+        ctx = self._modes_ctx(pos, D)
+        if ctx is None:
+            return
+        if modes.breakeven:
+            dec = self._vet(pos, apply_exit_modes(pos, ctx, ExitDecision("none"), modes))
+            if dec.kind == "stop_update" and dec.new_stop is not None:
+                self._c["be_moves_15m"] += 1
+                self._apply_stop_update(pos, dec.new_stop, D, ctx.last_close, modes)
+        if modes.partial:
+            cur = self.state.get_position(pos.trade_id)
+            if cur is not None and cur.status == "open":
+                self._maybe_partial(cur, ctx, modes, D)
+
+    # ------------------------------------------------------------------ 24.11: bekleyen hedef emri (target_mode=resting)
+    def _target_wanted(self, pos: Position) -> bool:
+        return (self.cfg.target_mode == "resting" and exit_mode_of(pos.setup) == "target" and _pos_finite(pos.planned_target))
+
+    def _target_state(self, trade_id: int) -> dict | None:
+        v = self.state.kv_get(f"target:{trade_id}")
+        return v if isinstance(v, dict) else None
+
+    def _target_active(self, trade_id: int) -> bool:
+        v = self._target_state(trade_id)
+        return v is not None and v.get("state") == "active"
+
+    def _place_resting_target(self, trade_id: int) -> None:
+        """Giris + ilk stop sonrasi: planlanan hedefi bekleyen (reduceOnly) emir olarak kur. Hedef koruyucu degildir: red/belirsizlik
+        pozisyonu KAPATMAZ; durum `failed` olur ve hedef eski yolla (kendi tf kapanisinda piyasa cikisi) denetlenir."""
+        pos = self.state.get_position(trade_id)
+        if pos is None or pos.status != "open" or not self._target_wanted(pos):
+            return
+        try:
+            out = self.orders.place_target(pos)
+        except StateError:
+            raise
+        except Exception as e:  # noqa: BLE001
+            if self.strict:
+                raise
+            self._c["target_place_errors"] += 1
+            log.error("hedef emri kurulamadi trade %s: %r", trade_id, e)
+            return
+        if out is None:
+            return
+        if not out.ok and out.note == "would_trigger":
+            # 24.11: fiyat hedefi zaten asmis: bekleyen emir semantigi = hemen tetiklenir => piyasada `target` cikisi (kagit = canli)
+            with self.state.tx():
+                self.state.kv_set(f"target:{trade_id}", {"state": "hit", "cid": out.order.client_id, "seq": out.order.seq,
+                                                         "why": "would_trigger", "n": 0})
+            self._c["target_instant_exit"] += 1
+            cur = self.state.get_position(trade_id)
+            if cur is not None and cur.status == "open":
+                log.warning("hedef girisle ayni anda asilmis trade %s: piyasada target cikisi", trade_id)
+                self._submit_exit(cur, "target", self.clock.now())
+            return
+        st = {"state": "active" if out.ok else "failed", "cid": out.order.client_id, "seq": out.order.seq,
+              "why": out.note, "n": 0 if out.ok else 1}          # n: basarisiz deneme sayisi (mutabakat sinirli yeniden dener)
+        with self.state.tx():
+            self.state.kv_set(f"target:{trade_id}", st)
+        self._c["target_placed" if out.ok else "target_place_failed"] += 1
+        if not out.ok:
+            log.warning("hedef emri kurulamadi trade %s (%s): bar_close yedegi", trade_id, out.note)
+        if not self.is_paper:
+            self._register(trade_id)
+
+    def _resize_target(self, pos: Position) -> None:
+        """Kismi cikis sonrasi: hedef kalan adede gore yeniden kurulur (yeni seq), eskisi iptal. Kurulamazsa eskisi durur
+        (kagit: min(hedef adedi, pozisyon) dolar; canli: mutabakat adet farkini giderir)."""
+        tk = self._target_state(pos.trade_id)
+        if tk is None or tk.get("state") != "active" or pos.status != "open":
+            return
+        old = str(tk.get("cid") or "")
+        out = self.orders.place_target(pos)
+        if out is None or not out.ok:
+            self._c["target_resize_failed"] += 1
+            log.warning("kismi sonrasi hedef kalan adede kurulamadi trade %s (%s): eski hedef durur; mutabakat duzeltir",
+                        pos.trade_id, None if out is None else out.note)
+            return
+        with self.state.tx():
+            self.state.kv_set(f"target:{pos.trade_id}", {"state": "active", "cid": out.order.client_id,
+                                                         "seq": out.order.seq, "why": "resized"})
+        self._c["target_resized"] += 1
+        if old and old != out.order.client_id:
+            self.orders.cancel_target(pos, old, "replaced_by_partial_resize")
+        if not self.is_paper:
+            self._register(pos.trade_id)
 
     # ------------------------------------------------------------------ cikis kipleri (basa-bas / kismi kar alma)
     def _exit_modes(self, pos: Position):
@@ -1813,6 +1967,7 @@ class Engine:
         cur = self.state.get_position(pos.trade_id)
         if resize and cur is not None and cur.status == "open":
             self._resize_stop(cur)
+            self._resize_target(self.state.get_position(pos.trade_id) or cur)       # 24.11: bekleyen hedef de kalan adede
         return True
 
     def _resize_stop(self, pos: Position) -> None:

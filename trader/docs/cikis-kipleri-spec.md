@@ -48,3 +48,19 @@ Kapsam dışı: iki kipin birlikte açıldığı koşu (oynatım tek kip yollar�
 ## 10. Kâğıtta açık (19 Kasım 2026 kullanıcı kararı)
 
 `config/engine.paper.json` → `"exit_modes": {"default": {"breakeven": true, "partial": true}}` (tüm kollar; spec §1 varsayılanları: başa-baş +1 R, kısmi +1,5 R'de %50). Geri test varsayılanı (`BacktestSpec.exit_modes` boş), testnet ve canlı **değişmez** (boş; testnet/canlıda yapılandırma ConfigError). Kâğıt = geri test paritesi kip açıkken korunur (`tests/engine/test_exit_modes_engine.py::test_paper_config_modes_are_open_and_paper_equals_backtest`). Ders menüsü yolu (§7) kâğıtta onaysız ve otomatik geri alma ile çalışır: `ders-spec.md` Revizyon 8.
+
+## 11. Hedef bekleyen emir ve 15 dk adımı (24 Kasım 2026 kullanıcı kararı)
+
+`target_mode` iki değer alır: `bar_close` (eski; taban/testnet/geri test varsayılanı) ve `resting`; `config/engine.paper.json` ve `config/engine.live.json` ikisi de `"resting"` (canlı = kâğıt, aynı kod yolu). `resting` iken:
+
+1. Hedef kipli kurulumda (R1, B1, F1, M1, HB1, DL1 ...) giriş + ilk stop sonrası planlanan hedef bekleyen reduceOnly emir olarak kurulur. Kâğıt: hedef emri 1 dk mumunda dolar, aynı dakikada stop da değerse stop önce, hedefi atlayan boşluk açılışta dolar. Canlı: `TAKE_PROFIT_MARKET`, `workingType=MARK_PRICE`. Hedef kurulamazsa durum `failed` olur, pozisyon KAPANMAZ ve hedef eski yolla (kendi tf kapanışında piyasa çıkışı) denetlenir.
+2. Başka yolla kapanışta (stop, zaman durdurma, rejim, kill) hedef iptal edilir. Kısmi kâr sonrası hedef, stop gibi kalan adede yeniden kurulur (yeni seq; önce yeni, sonra eski iptal). Mutabakat (`reconcile_live._targets`) eksik/adet uyumsuz hedefi yeniden kurar, kayıt dışı hedefi iptal eder (hedef koruyucu değildir: kurulamazsa piyasa çıkışı YOK).
+3. Başa-baş taşıma ve kısmi kâr alma her 15 dk karar adımında değerlendirilir (en iyi uç = motorun dakika dakika tuttuğu `mfe_price`/`mae_price`). İz süren stop, zaman durdurma ve rejim çıkışı kendi tf kapanışında KALIR.
+4. Karşı-olgu (`replay_trail(step_15m=True)`, satırlar `MODES_VERSION_15M = 3`) aynı 15 dk kuralını oynatır; geri test `--target-mode resting` ile aynı motoru koşar. "alinsaydi" bariyer oynatımı (`counterfactual.replay`) zaten bar içi hedef + stop-önce kuralıdır; değişmedi.
+
+Ek (24 Kasım 2026 inceleme düzeltmeleri):
+
+- Giriste hedef zaten aşılmışsa (would_trigger) bekleyen emir semantiği gereği hemen piyasada `target` çıkışı verilir (kâğıt = canlı). Diğer kurulum hataları `failed` (n=1) olur; canlı mutabakat en çok `TARGET_RETRY_MAX = 3` kez yeniden dener, sonra `bar_close` yedeği kalıcıdır. Mutabakatta hedef borsada kayıpsa ve fiyat hedefi aşmışsa piyasada `target` çıkışı verilir (POST döngüsü yok). Başka (kapanmış) işlemin açık hedef/stop emri aynı çiftte bulunursa `stale_target` / `stale_stop` bulgusuyla iptal edilir.
+- Kâğıt hedef dolumu mark ile tetiklenir ama dolum `min(hedef, last_high)` (short: `max(hedef, last_low)`) ile sınırlıdır; karşı-olgu 15 dk oynatımı en iyi ucu `last` serisinden alır, stop vuruşu mark'ta kalır.
+- Kanıt okuyucuları (`lesson`, `panel_data`) `ecf_modes` sürümünü aktif `target_mode`a göre seçer (`resting` → 3, diğer → 2; yapılandırma okunamazsa `MAX(version)`).
+- DEPLOY NOTU: dağıtım anında açık olan pozisyonlar KÂĞITTA `bar_close` yolunda kalır (kâğıt brokerı geçmiş pozisyona bekleyen hedef kurmaz); CANLIDA ise mutabakat (`reconcile_live._targets`, durum anahtarı yok) açık pozisyonlara hedef kurar. Bu geçiş turunda kâğıt ile canlı yalnız bu eski pozisyonlar için farklı davranır; yeni girişler aynıdır.

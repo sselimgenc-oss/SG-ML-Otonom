@@ -104,3 +104,10 @@ def test_exit_harm_no_rollback_when_not_worse(rr_env, cfpath):
     cfg = cfg_of(rr_env, paper_auto=True)
     assert LS.exit_harm_verdict(cfg, _monitor("exit_breakeven", 0.0, 1.0, started), started, as_of) is None
     assert LS.exit_harm_verdict(cfg, _monitor("rr_min", 1.5, 2.0, started), started, as_of) is None   # cikis disi parametre
+
+
+@pytest.fixture(autouse=True)
+def _kanit_surumu_eski_yol(monkeypatch):
+    """Bu dosya eski (MODES_VERSION=2) kanit satirlariyla calisir; 24.11 surum secimi ayri testlerde denenir: okuyucu MAX(version)e duser."""
+    from trader_core import exit_counterfactual as _ecf
+    monkeypatch.setattr(_ecf, "modes_version_from_config", lambda *a, **k: None)

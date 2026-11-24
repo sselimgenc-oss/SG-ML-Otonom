@@ -55,14 +55,15 @@ PINNED_SHA = {
     "engine.base.json": "aa364bad7141613cf8d2e7898343079a2a6e15f89b31b462d15113fc97e89eb0",   # WP-06a: yalniz veto_config yolu; 24.11 kullanici karari: ML filtreleri silindi (ml_mode/ml_model_path kalkti)
     "engine.learner.json": "30ca2842c40cacafbf6cdd90c9e6f1f54fc62b9a9ec913476d1399ac5352cb12",
     "engine.testnet.json": "54247bbd4d0fcea5eda5add465809938178ec4a1decf7f61cb9aa838daa4e952",
-    "engine.live.json": "d55cedef37f84fb33cf41085fabf66cf62d6da14b8f248ccdd3f2b964c4ecc63",   # 24.11 kullanici karari: toplam acik risk 0.12, DL1 toplam 4; onceki: DL1 dort zaman dilimi acik; onceki 24.11 ML filtreleri silindi
+    "engine.live.json": "bb904755e558272803a05dce102146718386f51e0402fd6503d19ffa2bb7a6a1",   # 24.11 kullanici kararlari: hedef emir + risk 0.12/DL1 4 + veto/C1 silme (birlesik pin)
 }
 # 23.11 kullanici karari: canli = kagit. engine.live.json'a eklenen kagit sistem anahtarlari (+ pairs yerine kagit evreni).
 LIVE_PAPER_SYSTEM_KEYS = {"veto_mode", "pairs", "optional_pairs", "strategy", "arms", "arm_max_positions", "shadow_blocks",
                           "exit_modes", "max_positions", "target_trade_risk", "risk", "clusters", "etiket_kurallari",
                           "flat_bar_guard", "contract_types", "cost_overrides",
                           "korelasyon", "kayip_freni", "toplam_buyukluk_kat",   # 23.11 kullanici karari: asama B esikleri
-                          "uzun_yon"}   # 23.11 kullanici karari: fikir 7 uzun donem yon kapisi
+                          "uzun_yon",   # 23.11 kullanici karari: fikir 7 uzun donem yon kapisi
+                          "target_mode"}   # 24.11 kullanici karari: hedef bekleyen emir (kagitla ayni "resting"; taban dosya "bar_close" kalir)
 ML_KEYS_REMOVED = {"ml_mode", "ml_model_path", "ml_features", "ml_experimental", "ml_pairs"}   # 24.11 kullanici karari: ML filtreleri silindi
 UNIT_SHA = {
     "trader-engine-testnet.service": "c753d965c4b8e4a239f6ca44fa83a17e3824ed501583aadc8c7a21c27c5ac07d",
