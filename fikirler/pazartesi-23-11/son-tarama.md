@@ -159,3 +159,7 @@ Kısaca: çoğu alınmaya değmez. Yılda aile başına birkaç yüz işlemle k�
 | Özellik eleme | ALMA | Süzgeç zaten ağırlıkları küçültüyor; az veriyle seçim şansa döner. |
 
 **Sıra:** (1) bu ay, canlıdan önce: düz mum ve gösterge eşitliği kontrolü, şok senaryosu, aylık tavan, saat karnesi, 4s/1g benzerlik ölçümü; (2) boş vakitte tek ölçüm turu: kovalama + aralık konumu + yeni zirve + aralık tüketimi ve iki çıkış kuralı; (3) dönüş kolunun geçmiş testi — geçerse canlıdan sonra kâğıtta. Gerisi beklesin.
+
+## Kullanıcı kararı (24.11)
+
+Aylık zarar tavanı, 4s/1g benzerlik ölçümü ve saat karnesi **yapılmayacak** (listeden çıkarıldı). AL listesinden yalnız ilk 3 yapıldı: canlı/test eşitliği + düz mum, şok/tasfiye.
