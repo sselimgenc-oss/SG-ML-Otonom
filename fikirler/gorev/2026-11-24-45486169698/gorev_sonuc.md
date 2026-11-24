@@ -1,0 +1,1 @@
+Üç test parçası arka planda çalışıyor. Sonuçlar gelince son raporu vereceğim; şu an takımın tamamı henüz geçmiş değil.
