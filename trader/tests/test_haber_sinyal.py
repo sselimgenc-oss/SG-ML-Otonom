@@ -300,7 +300,8 @@ def test_cok_baslik_partilere_bolunur_hepsi_puanlanir(tmp_path):
     assert sum(1 for e in durum["olaylar"] if e["semboller"]) == 70
 
 
-def test_bir_parti_bozuksa_tur_atlanir_durum_ilerlemez(tmp_path):
+def test_bir_parti_bozuksa_odenmis_partiler_yazilir_imlec_kismi_ilerler(tmp_path):
+    """24.11 denetim: 2. parti bozulunca 1. parti (odenmis) atilmaz; imlec yalniz islenenlerin onune gecer, kalanlar sonraki tura kalir."""
     _haber(tmp_path, [_satir(f"benzersiz olay {i} alpha{i} beta{i} gamma{i}", dk_once=1 + i % 50) for i in range(40)])
     n = {"k": 0}
 
@@ -308,7 +309,34 @@ def test_bir_parti_bozuksa_tur_atlanir_durum_ilerlemez(tmp_path):
         n["k"] += 1
         return '{"sonuclar": [' if n["k"] == 2 else _cevap(p)
     r = HS.kos(tmp_path, ROOT / "config", NOW_MS, ENV, client=Client(cevap=cevap), budget=Butce())
+    assert r["durum"] == "kismi" and r["yeni_olay"] == 30 and r["bekleyen"] == 10 and SINYAL(tmp_path).exists()
+    d = json.loads((tmp_path / "learner" / "sinyal" / HS.DURUM_DOSYASI).read_text())
+    assert len(d["olaylar"]) == 30 and d["calisma"]["durum"] == "api_hata"
+    assert d["son_alim"] >= max(e["alim"] for e in d["olaylar"]) - 1                  # imlec islenenlerin ucunda, kalanlarin gerisinde
+    # sonraki tur: yalniz kalan 10 olay modele gider, hepsi puanlanir
+    c2 = Client(cevap=_cevap)
+    r2 = HS.kos(tmp_path, ROOT / "config", NOW_MS + 60_000, ENV, client=c2, budget=Butce())
+    assert r2["durum"] == "ok" and r2["yeni_olay"] == 10 and len(c2.cagri) == 1
+    d2 = json.loads((tmp_path / "learner" / "sinyal" / HS.DURUM_DOSYASI).read_text())
+    assert len({e["baslik"] for e in d2["olaylar"]}) == 40
+
+
+def test_ilk_parti_bozuksa_dosya_yazilmaz_durum_ilerlemez(tmp_path):
+    _haber(tmp_path, [_satir(f"benzersiz olay {i} alpha{i} beta{i} gamma{i}", dk_once=1 + i % 50) for i in range(40)])
+    r = HS.kos(tmp_path, ROOT / "config", NOW_MS, ENV, client=Client(cevap=lambda p: '{"sonuclar": ['), budget=Butce())
     assert r == {"durum": "atlandi", "neden": "model yaniti sema disi"} and not SINYAL(tmp_path).exists()
+
+
+def test_max_oge_siniri_asan_olaylar_sonraki_tura_kalir(tmp_path, monkeypatch):
+    """24.11 denetim: sinirdan tasan olaylar puanlanmadan imlec ilerlemez; sonraki turda islenir."""
+    monkeypatch.setattr(HS, "MAX_OGE", 40)
+    _haber(tmp_path, [_satir(f"benzersiz olay {i} alpha{i} beta{i} gamma{i}", dk_once=1 + i % 50) for i in range(55)])
+    r = HS.kos(tmp_path, ROOT / "config", NOW_MS, ENV, client=Client(cevap=_cevap), budget=Butce())
+    assert r["durum"] == "ok" and r["yeni_olay"] == 40
+    r2 = HS.kos(tmp_path, ROOT / "config", NOW_MS + 60_000, ENV, client=Client(cevap=_cevap), budget=Butce())
+    assert r2["durum"] == "ok" and r2["yeni_olay"] == 15
+    d = json.loads((tmp_path / "learner" / "sinyal" / HS.DURUM_DOSYASI).read_text())
+    assert len({e["baslik"] for e in d["olaylar"]}) == 55
 
 
 def test_kesilen_yanit_loglanir(caplog):

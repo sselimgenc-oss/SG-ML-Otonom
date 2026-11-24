@@ -1,0 +1,1424 @@
+diff --git a/otonom-trading-arastirma/tasarim-kararlari.md b/otonom-trading-arastirma/tasarim-kararlari.md
+index 04c6e54..b2d284b 100644
+--- a/otonom-trading-arastirma/tasarim-kararlari.md
++++ b/otonom-trading-arastirma/tasarim-kararlari.md
+@@ -87,7 +87,7 @@ Ek notlar: Claude kredisi/harcama limiti dolarsa bot yeni işlem açmaz (açık
+   - `freqtrade-last` etiketi yerelde bfe5185'e kondu; etiket gönderimi vekil sunucu tarafından reddedildi. Referans commit bfe5185 (TraderV1.py, yapılandırmalar ve compose dosyasını içeren son commit) olarak kayıtlıdır.
+ - **17 Kasım 2026 — Hazırlık denetimi açık maddeleri (mentor kararı; `trader/docs/hazirlik-denetimi.md`):** Kurulumdan önce (bugün): ~~veto HMAC anahtarı ayrı `/etc/trader-veto-hmac.env` (veto + motor okur; kurulum kendisi üretir, kullanıcı doldurmaz);~~ **[KALDIRILDI 18 Kasım — veto yok]** ders ve telegram birimlerinde `user_data` dizini yazılabilir; sağlık kritik uyarıları Telegram'a (`NOTIFIER=auto`: anahtar varsa Telegram, yoksa günlük + bir uyarı; boş `HEARTBEAT_URL` artık hata değil); ~~**ikiz ilk günden açık** (ders için kontrol kolu; `--no-twin` ile kapatılabilir)~~ **[KALDIRILDI 18 Kasım — kullanıcı: ikiz bot yok, sil]**, `HEALTH_BOTS`; ~~veto tazeliği sağlıkta CRIT (veto anahtarı gelene kadar sürekli ve doğru: giriş açılmaz);~~ **[KALDIRILDI 18 Kasım — veto yok]** **ders servisi ilk günden çalışır** (denetimin "kapalı başla" önerisi reddedildi: öğrenme kullanıcının önceliği) — bildirim Telegram, defter yolları `var/<bot>/ledger.sqlite`; feed ağ yokken çıkış kodu 5; `budget.sqlite` kurulumda trader sahipliğiyle; yedek birimi motor dururken de çalışır. Isınma döneminde: motor yeniden deneme zamanlayıcısı (feed sağlıklıysa, saatte ≤ 6, `RestartPreventExitStatus=7` kalır), `trader.slice` bellek tavanı (48 saatlik gerçek veriyle). Sonra: panelde ve `/durum`'da veto satırı.
+   - **Kullanıcıdan:** kurulumdan önce `free -m` ve diğer projenin bellek kullanımı (boş RAM ~900 MB altındaysa panel yayını açılmaz); anahtar sırası Telegram → dış kalp atışı izleyicisi (`HEARTBEAT_URL`, e-posta uyarılı; sunucu tamamen ölürse tek alarm) → veto Anthropic anahtarı (yoksa hiç işlem açılmaz; 30 Kasım'dan önce taze veto belgesi doğrulanmalı) → ders Anthropic anahtarı (aynı anahtar olabilir) → Cloudflare en son; her anahtardan sonra `install.sh` yeniden çalıştırılır.
+-- **17 Kasım 2026 — Risk kademe kuralı taslağı (mentor; `risk-kademe-kurali.md`):** **[ASKIDA — kullanıcı yeniden belirleyecek]** (artış takvimi, en erken mart başı) Basamaklar %0,35 (yalnız iniş) → %0,5 → %0,75 → %1,0 → %1,2 → %1,4 (kilit tavanı); artış yalnız ölçütler tutunca ve **yalnız kullanıcının Telegram onayıyla**, en erken mart başı; iniş otomatik (tepeden −%10 bir basamak, −%15 başlangıç basamağı); −%20'de girişler durur, devamı yalnız kullanıcı onayıyla. Ders servisi, ML, veto riski artıramaz. Kod tarafı sonraki iş "RK-1" (durma/iniş kısmı canlıdan önce zorunlu). **Kullanıcı kararı bekleyenler:** −%20 tepeye mi başlangıca mı göre; durmada açık işlemler kalsın mı kapansın mı; %60 (600 USD) son taban; tavan %1,4 mü ilk yıl %1,0 mı (mentor önerisi %1,0); %0,35 basamağı; yeni strateji sürümünde başlangıç basamağına dönüş; para ekleme. Onaylanana kadar taslaktır.
++- **17 Kasım 2026 — Risk kademe kuralı taslağı (mentor; `risk-kademe-kurali.md`):** **[ASKIDA — kullanıcı yeniden belirleyecek]** (artış takvimi, en erken mart başı) Basamaklar %0,35 (yalnız iniş) → %0,5 → %0,75 → %1,0 → %1,2 → %1,4 (kilit tavanı); artış yalnız ölçütler tutunca ve **yalnız kullanıcının Telegram onayıyla**, en erken mart başı; iniş otomatik (tepeden −%10 bir basamak, −%15 başlangıç basamağı); −%20'de girişler durur, devamı yalnız kullanıcı onayıyla. Ders servisi, ML, veto riski artıramaz. Kod tarafı sonraki iş "RK-1" (durma/iniş kısmı canlıdan önce zorunlu). **Kullanıcı kararı bekleyenler:** −%20 tepeye mi başlangıca mı göre; durmada açık işlemler kalsın mı kapansın mı; %60 (600 USD) son taban; tavan %1,4 mü ilk yıl %1,0 mı (mentor önerisi %1,0); %0,35 basamağı; yeni strateji sürümünde başlangıç basamağına dönüş; para ekleme. Onaylanana kadar taslaktır. **[Iniş basamakları (tepeden −%10/−%15) KALDIRILDI 24 Kasım — risk hep %1]**
+ - **17 Kasım 2026 — 19c ML kapı koşusu sonucu: KIRMIZI (ön kayıtlı tek koşu, `ml1-r01-v1b-native33`, n_trials=4; rapor `trader/docs/ml/19c-kapi-raporu.md`).** İlk düşen kontrol: IC kapısı (yalnız alınan işlemler) rho=0,0014, t=0,02 (eşik t ≥ 2,0). Brier sabit tahminden kötü; ileri dönem eşiklerinde adayların %30'unu tutan hiçbir kesim yok, yani olasılık hiçbir ayrım yapmıyor (-1,07 R farkı tek işlemden gelir, anlamsızdır). Filtresiz taban işlem başı +0,123 R (624 OOF işlem). Kural gereği yeniden koşu, eşik/özellik değişikliği yok. **Sonuç:** ML `off` kalır; kağıt ve canlı takvimi etkilenmez. Sonraki adım kağıt döneminde 25b ön kaydıdır (en fazla 8 tarif, her biri koşudan önce kayda geçer). Kilitli dönem okunmadı.
+ - **17 Kasım 2026 — Makine öğrenmesi güçlendirme planı onaylandı (kullanıcı kararı; `ml-guclendirme-plani.md`):** (1) "Projenin ana konusu makine öğrenmesi; o gün öğrenemediyse sonraki gün devam eder": ML çalışması hiç durmaz — "hiçbir tarif geçmezse ML durur" ifadesi "tur raporu yazılır, sonraki tur açılır" olarak değişir; kapıyı geçen model kağıtta hemen gölgeye girer. Para koruyan kurallar aynen kalır (dondurulmuş kapı, ön kayıt, kilitli dönem kapalı, yalnız eleme, etkinleştirme için kapı + 6 hafta gölge + Telegram onayı). (2) Geçmiş 2021-01'e uzatılır (aynı 10 çift; v1b'nin 2021–2024 tabanı da görünür olur); indirme Binance'e erişen makinede yapılır. (3) Etiket 2R yerine 1R (eşik değişikliği değil, tarif değişikliği). (4) `diag-19c-univariate` deneme defterine eklenir (n_trials 4 → 6). (5) Açık pozisyon / uzun-kısa oranı veri toplayıcısı eklenir. (6) 5 tarif sırayla koşulur, 3'ü yedekte.
+ - **17 Kasım 2026 — Canlı başlangıç tutarı (kullanıcı kararı; mentor önerisi):** **[ASKIDA — kullanıcı yeniden belirleyecek]** ~~Duman testinden (28–29 Aralık) sonra canlı **250–300 USD** ile başlar ("ne gerekiyorsa yaparım" — kullanıcı mentor önerisini kabul etti), risk %0,5 aynı (işlem başı ~1,25–1,5 USD). BTC işlemlerinin bir kısmı en küçük emir tutarı (100 USDT) yüzünden reddedilebilir; bilinçli kabul. 3–4 hafta ya da 40–50 işlem sonra kayma ve komisyon kağıtla uyumluysa 1000 USD'ye tamamlanır. Kağıt bot ve ikiz canlıyla birlikte çalışmaya devam eder (aynı sinyalde kağıt ↔ canlı dolum karşılaştırması). Bu dönemdeki işlemler risk basamağı sayaçlarına **girer**; −%20 durma ve %60 taban **yatırılan tutara göre** ölçülür. Testnet ve duman testi atlanmaz. BTC/ETH dışındaki en küçük tutar/adım değerleri sunucudaki gerçek kural anlık görüntüsüyle kesinleşir.~~
+@@ -95,7 +95,7 @@ Ek notlar: Claude kredisi/harcama limiti dolarsa bot yeni işlem açmaz (açık
+ - **17 Kasım 2026 — WP-B7 kararları (mentor):** T-15 sınırı gevşetilmez (hesap genelinde sayım; <2 pozisyon = KISMI); T-04/07/08 betiğe eklendi, T-12 gözlem (engellemez); testnette çekim izni kontrolü yalnız `--ack-no-withdraw` ile, canlıda onay atlatma yok.
+ - **17 Kasım 2026 — ML-G2/G4 mentor kararı: kabul (düzeltmelerle, `0bde16c`).** Sızıntı yok. Teklik tüm çiftler birlikte (piyasa tek etken); aynı-ts eşit ağırlık; ağırlık her eğitim katında arındırma sonrası; Platt a≥0, kısılan son kalibrasyonla paket kurulmaz; 1g bağlam sabit 200 gün penceresi; fonlama ts'den kesin önce ve son 24 saat toplamı; genişlik oran (en az 5 geçerli çift). r02 = tam 40 özellik (`f_eth_vol_1d` çıkarıldı). Ön kayıt tanımları `ml-guclendirme-plani.md` 3.2.1'de.
+ - **17 Kasım 2026 — Sunucu (kullanıcı kararı):** Frankfurt sunucusunda kullanıcının başka projesi (~880 MB) çalışıyor ve bölgede büyütme kapalı. Bu bot için **ayrı 2 GB sunucu, Londra (LON1)** açıldı; Binance herkese açık uç 200 döndü (emir uçlarının İngiltere IP'sinden kabulü testnet anahtarıyla doğrulanacak; reddedilirse bölge değişir). Depo erişimi salt-okuma deploy anahtarıyla. `trader.slice` 1100M/1300M aynen; 4 GB takas açık. Kurulum tamam: paper learner+twin çalışıyor (açılış kapısı 10/10), Telegram ve dış kalp atışı bağlı.
+-- **17 Kasım 2026 — RK-1 risk kademe denetimi uygulandı (mentor şartnamesi `trader/docs/motor/12-risk-kademe.md`):** Asgari kısım koda bağlandı (`trader_core/risk_ladder.py`, `trader_engine/ladder.py`, CLI `capital`/`ladder`, Telegram `/kademe` `/kademe_devam`, sağlık alarmları). Varsayılanlar: −%20 durma yalnız yatırılan tutara göre; durma ve %60 taban anında açık pozisyonlar stoplarıyla açık kalır (KILL yok). Kağıt kipi yalnız gözlem; backtest bit-bit aynı. Basamak artışı K0 üstü RK-1b'dedir (en geç şubat sonu). `risk-kademe-kurali.md` §1/§5/§9.1 buna göre güncellendi.
++- **17 Kasım 2026 — RK-1 risk kademe denetimi uygulandı (mentor şartnamesi `trader/docs/motor/12-risk-kademe.md`):** Asgari kısım koda bağlandı (`trader_core/risk_ladder.py`, `trader_engine/ladder.py`, CLI `capital`/`ladder`, Telegram `/kademe` `/kademe_devam`, sağlık alarmları). Varsayılanlar: −%20 durma yalnız yatırılan tutara göre; durma ve %60 taban anında açık pozisyonlar stoplarıyla açık kalır (KILL yok). ~~Kağıt kipi yalnız gözlem~~ **[KALDIRILDI 24 Kasım — kâğıt da zorlanır]**; backtest bit-bit aynı. Basamak artışı K0 üstü RK-1b'dedir (en geç şubat sonu). `risk-kademe-kurali.md` §1/§5/§9.1 buna göre güncellendi.
+ - **17 Kasım 2026 — Proje çerçevesi (kullanıcı kararı):** Proje uzun soluklu; takvim esnek (gerekirse uzatılır). "Strateji işe yaramıyor" türü bir proje-durdurma ölçütü **konmaz**; strateji tutmazsa motor hazır olduğundan yeni strateji denenir. Mart–nisanda kâr şartı yok, "proje umut versin" yeterli. Para koruması (RK-1: yatırılana göre −%20 duruş, %60 taban) bundan ayrıdır ve aynen kalır. Mentor bu çerçevede değerlendirme yapar.
+ - **17 Kasım 2026 — r02/r03 ön kaydı (mentor; `trader/docs/ml/r02-r03-on-kayit.md`):** Derlem v2 kurulmadan (veri görülmeden) kayda geçti; deneme defteri n_trials 6 → 10. Bağlayıcı evren r01 ile aynı: alınan işlemler ve gerçek net R; bu yüzden derlem v2'ye ek ikinci donmuş girdi **alınan-işlem katmanı** (`corpus_v2_taken.parquet`, 19b bayraklarıyla 2021-01..2026-05 motor geri testi; eşleşmeyen alınan işlem = 0 şartı). Yürüyen pencere 4 kat (test başları 2022-01-06, 2023-02-04, 2024-03-04, 2025-04-02); r03 LightGBM derinlik 2 / 4 yaprak / yaprakta en az 100; r03 yalnız r02 raporu işlendikten ve r02 KABUL değilse koşar. Derlem/katman sha256'ları kurulumda §10'a yazılıp koşudan önce işlenir.
+ - **17 Kasım 2026 — Repo denetimi onay listesi (kullanıcı kararı + mentor kararı; `repo-denetim-onay-listesi.md`):** Kullanıcı 25 maddeyi toptan onayladı, şartı: "mentor tamam derse benim için de tamam; mentor çekince koyabilir." Mentorun madde madde kararı:
+@@ -176,6 +176,7 @@ Kaynak: `dis-denetim/triyaj-2026-11-17.md` (mentor). Kullanıcı: "Cloudflare i
+ - **Kullanıcı (18 Kasım):** "İstediği kadar öneri verebilir, sınır yok. Veto nedir, kaldır." → LLM aday önerisinde günlük adet sınırı yok (yalnız aylık 30 USD bütçe tavanı fiziksel sınırdır). **LLM vetosu tamamen kaldırılır** (kâğıt; `trader-veto` servisi kapatılır, motor veto kapısı devre dışı, bütçedeki veto payı öneri ve derse geçer).
+ - **Kullanıcı (18 Kasım):** "İşlem notunu kod yazsın; 10 dolar bitene kadar yapay zekâ haftalık olarak destek olsun." → İşlem notları kodla (şablon + sayılar, ücretsiz) yazılır ve ML'i besler. LLM yalnız **haftalık özet** yazar, yatırılmış 10 USD kredi bitene kadar; yeni kredi yüklenmez. **LLM aday önerisi (L1) kaldırılır** (işlem bulmak ML'in işi). 30 USD aylık bütçe kararı geçersiz.
+ - **Kullanıcı (19 Kasım):** LLM aylık bütçesi **10 USD** kalır (belgelerdeki 30 $ geçen yerler 10 $ yapıldı; bütçe tavanı değişmedi). Kâğıt günlük kayıp sınırı **%8 → %5** (açık risk %12 ve aynı yön %8 tavanları değişmedi). Canlı 1.500 $ tavanı ayar dosyasında kalır.
++  - **24.11 kullanıcı kararı: günlük %8 kalır** (ayar dosyaları ve kod değişmedi; %5 hiç uygulanmadı).
+ - **Kullanıcı (19 Kasım):** "Kapatma hiçbir şeyi; işlemler devam etsin ki ders çıksın ve makine öğrensin." → Kurulum aç/kapa dersi kurulum KAPATMAZ (yalnız karne ve "kapanırdı" bilgisi raporlanır); bütün kurulumlar işlem açmaya devam eder. A/B sorusu bu kararla kapandı.
+ - **Kullanıcı (19 Kasım):** "Makine hiçbir işlemi engellemesin." → ML (r03 süzgeci ve kurulum süzgeçleri) adaylara yalnız PUAN yazar, hiçbir adayı elemez; M1 kendi adaylarını önermeye devam eder. Puanlar ve "alınsaydı" sonuçları öğrenme verisidir.
+ - **Kullanıcı (24 Kasım):** "3'ünü de sil, gelecekte tekrar yaparız." → Üç ML giriş filtresi (v1 = r01, v2 = r02/r03, kurulum filtresi = ortak_ogrenme) kâğıtta ve canlıda kapalı: `ml_mode: "off"` (engine.paper.json + engine.live.json, canlı = kâğıt). Gece biriminde kurulum filtresi eğitilmez (`ml_mode` off iken). Kod ve defter verisi silinmedi; `ml_mode: "active"` ile geri açılır, ilk gece birikmiş tüm işlemlerden eğitilir. M1 (ML'in kendi adayı) ve DL1 etkilenmez. Gerekçe (Fable incelemesi): hiçbir filtre kalite kapısını geçmedi; kurulum filtresi 10–50 işlemle ve 5 işlemlik sınamayla karar veriyordu.
+@@ -209,3 +210,17 @@ Kaynak: `dis-denetim/triyaj-2026-11-17.md` (mentor). Kullanıcı: "Cloudflare i
+ - **24 Kasim 2026 - Siralama, kurulum toplam siniri, fonlama, toplam risk (kullanici karari):** (1) Giris adaylari artik buyuk zaman dilimi once, esitlikte her 15 dk adimda donen baslangic ofsetiyle (adimin zaman damgasindan turetilir, tekrar oynatilabilir) siralanir; boyut tavanlari dolarken hep BTC/ETH one gecmez, hisse/emtia son kalmaz. (2) `arm_max_positions` icinde zaman dilimsiz anahtar (M1: 4, HB1: 3, DL1: 4) kurulumun TUM zaman dilimlerindeki toplamidir; varsayilan 6 kurulum x zaman dilimi basina kalir; `X@tf` anahtari zaman dilimi basinadir. (3) Paper broker funding kaydinin kendi zamanini kullanir (00/08/16 izgarasi yok): 4s/1s sembollerde her olay bir kez odenir, 8s sonuclari ayni. (4) `max_open_risk` 0.24 -> 0.12 (paper = live; PAPER_LIMITS/LIVE_LIMITS ust sinirlari degismez). Degisen yapilandirma: `engine.paper.json`, `engine.live.json`. Ek (24.11): kazanan aday sonraki bir kontrolde (kurulum tavani, uzun_yon, risk/boyut) reddedilirse AYNI cift icin siradaki aday (buyuk tf once, sonra oncelik) ayni adimda denenir; cift basina en cok bir islem; reddedilenler gercek nedenle, yalniz onceliginde kaybedenler `arm_conflict` yazilir. Rapor (salt okunur): kurulum x zaman dilimi basina `arm_conflict` kayip sayisi ve "alinsaydi" net R `alinmayan_sonuc_v1.json` > `arm_conflict`, haftalik ozet satiri ve yorumcu tablosu `arm_conflict_kayiplari`. Bilinen sinir: izgara disi (4s/1s) funding kaydi saat basindan 900 sn'den (`funding_max_wait_s`) daha gec depoya duserse odenmez. Cift ici yedek: yalniz aday-ozgu redler (kurulum tavani, yon/korelasyon, boyut) siradaki adaya gecer; cift/hesap duzeyi redlerde (kapi, cluster_cap, hesap tavani, etiket, gunluk zarar) durulur ve kalanlar `arm_conflict` yazilir (tek tanim: `gates.aday_ozgu_red`); acik pozisyonlu/zaten karar verilmis ciftte satir yazilmaz.
+ - **24 Kasım 2026 — Ders eşikleri ve geri alma (kullanıcı kararı; inceleme bulguları):** `config/lesson.json`: `min_affected 8`, `min_distinct_days 4`, `min_gap_r 0.5`, `min_z 1.64` (kalibrasyon `null` iken de uygulanır), `max_changes_per_night 1`, `shrink_n 10`. `stop_buffer_atr` / `range_target_frac` için "özgün vs yeni" karşı-olgusal geri alma (≥ 10 işlem, çıkış kipleriyle aynı ölçüt; `post_stop_wait` motorda okunmadığından oynatılacak bir şey yok). Kanıt ve etki ölçümü parametreyi okuyan her kurulum üzerinden (`ledger.LESSON_SCOPE`, kaynak taramalı testle korunur). Ölü anahtarlar silindi (`monitor_k/margin_r/z`, `early_*`); bilinmeyen anahtar hata. Motor karar mantığı değişmedi. Ayrıntı: `trader/docs/ders-spec.md` Revizyon 9.
+ - **24 Kasim 2026 - Siralama, kurulum toplam siniri, fonlama, toplam risk (kullanici karari):** (1) Giris adaylari artik buyuk zaman dilimi once, esitlikte her 15 dk adimda donen baslangic ofsetiyle (adimin zaman damgasindan turetilir, tekrar oynatilabilir) siralanir; boyut tavanlari dolarken hep BTC/ETH one gecmez, hisse/emtia son kalmaz. (2) `arm_max_positions` icinde zaman dilimsiz anahtar (M1: 4, HB1: 3, DL1: 4) kurulumun TUM zaman dilimlerindeki toplamidir; varsayilan 6 kurulum x zaman dilimi basina kalir; `X@tf` anahtari zaman dilimi basinadir. (3) Paper broker funding kaydinin kendi zamanini kullanir (00/08/16 izgarasi yok): 4s/1s sembollerde her olay bir kez odenir, 8s sonuclari ayni. (4) `max_open_risk` 0.24 -> 0.12 (paper = live; PAPER_LIMITS/LIVE_LIMITS ust sinirlari degismez). Degisen yapilandirma: `engine.paper.json`, `engine.live.json`. Ek (24.11): kazanan aday sonraki bir kontrolde (kurulum tavani, uzun_yon, risk/boyut) reddedilirse AYNI cift icin siradaki aday (buyuk tf once, sonra oncelik) ayni adimda denenir; cift basina en cok bir islem; reddedilenler gercek nedenle, yalniz onceliginde kaybedenler `arm_conflict` yazilir. Rapor (salt okunur): kurulum x zaman dilimi basina `arm_conflict` kayip sayisi ve "alinsaydi" net R `alinmayan_sonuc_v1.json` > `arm_conflict`, haftalik ozet satiri ve yorumcu tablosu `arm_conflict_kayiplari`. Bilinen sinir: izgara disi (4s/1s) funding kaydi saat basindan 900 sn'den (`funding_max_wait_s`) daha gec depoya duserse odenmez. Cift ici yedek: yalniz aday-ozgu redler (kurulum tavani, yon/korelasyon, boyut) siradaki adaya gecer; cift/hesap duzeyi redlerde (kapi, cluster_cap, hesap tavani, etiket, gunluk zarar) durulur ve kalanlar `arm_conflict` yazilir (tek tanim: `gates.aday_ozgu_red`); acik pozisyonlu/zaten karar verilmis ciftte satir yazilmaz. Ek (24.11, kullanici karari): iki haftalik YZ raporu (haftalik ozet yorumu `weekly_summary_run.py`, tur 1 yorumu `tur1_haftalik_yorum_run.py`) normal Messages API yerine Message Batches API ile calisir (promosyon kredisi yalniz Batch'i kapsar); gonderim pazar gunu, sonuc `trader-weekly-collect.timer` (3 saatte bir) ile toplanip Telegram'a gider, batch kimligi+rezerv diskte (ayni hafta cift gonderim yok), basarisiz/suresi dolan batch icin kisa "atlandi" notu; `haftalik_ozet` rezerv suresi 108000 sn; butce batch fiyatiyla (x0.5). Haber puanlama (HB1, `haber_sinyal.py`) normal API'de kalir.
++
++- **24 Kasım 2026 — 24.11 denetim düzeltmeleri (kullanıcı onayı, hepsi):**
++  - M1 eğitimi: kâğıt satırı yalnız sinyal mumuyla (bar_close_ts − tf = açılış zamanı) eşlenir; tam eşleşme sonraki mumu seçiyordu.
++  - M1 kilit kesimi: `KILIT_ACIK` iken tarihsel veri ve kâğıt penceresi kesilmez; zamanlayıcı saati 00:40 UTC, CSV `veri_penceresi` alanı düzeltildi.
++  - Risk kademesi (Fable kararı, kademe_karar.md): risk düşürme kapalı, risk hep %1 (`STEP_RISK_ENABLED=False`, yalnız kod sabiti); −%20 durma, %60 taban, %85 kilit kâğıtta da zorlanır; kâğıt dosya günlüğü kullanır, ilk satırı (`initial`) motor yazar; tek fark kâğıtta aktarım eşleştirmesi yok.
++  - Panel: açık/aynı yön risk limitleri kipin ayar dosyasından (%12/%6); günlük zarar = gün başı kasa − şimdiki kasa (gerçekleşmemiş dahil, motor/Telegram ile aynı).
++  - Günlük kayıp sınırı: %8 kalır (19 Kasım %8 → %5 kaydının altına işlendi).
++  - Günlük kayıp freni: yalnız BUGÜNÜN (UTC) kapanışlarındaki kazanç freni kaldırır; dünkü kazanç engellemez.
++  - HB1 kaynak teyidi: aynı yayıncının beslemeleri (cnbc_*, marketwatch_* ...) tek kaynak sayılır (yayıncı = besleme adının ilk parçası).
++  - Haber 120 sınırı: sınırdan taşan olaylar puanlanmadan imleç ilerlemez; en eskiler önce işlenir, kalanlar sonraki tura kalır.
++  - Haber partileri: sonraki parti hata verirse önceki ödenmiş partiler yazılır, imleç yalnız işlenenlere kadar ilerler.
++  - Kâğıt tasfiye MMR: kâğıt broker sınıf MMR'ini (kripto %0,5, hisse/emtia %2) giriş kapısıyla aynı kaynaktan alır.
++  - Sağlık uyarısı: ek uyarı gönderilemezse `ek_uyarilar` durumu da geri alınır, sonraki turda yeniden denenir.
++  - Haftalık özet: "alınmayan sinyal" toplamı R olarak yazılır ($ değil).
+diff --git a/trader/docs/motor/12-risk-kademe.md b/trader/docs/motor/12-risk-kademe.md
+index 86b11b4..3e2d27e 100644
+--- a/trader/docs/motor/12-risk-kademe.md
++++ b/trader/docs/motor/12-risk-kademe.md
+@@ -20,7 +20,7 @@ Kaynak kararlar: `otonom-trading-arastirma/risk-kademe-kurali.md` (v1; özellikl
+ | Otomatik iniş | Tepeden −%10 → bir basamak; −%15 → K−1 (K0 üstündeyse K0). Onay beklemez |
+ | K−1 (%0,35) | Yalnız `dep_net ≥ 1000` iken kullanılır. Küçük sermaye döneminde en alt basamak K0'dır (en küçük emir tutarı; mentor kararı) |
+ | Etkin risk | `min(cfg.target_trade_risk, STEPS[step])`; yalnız `tightened` ile; risk kilidinin diğer alanlarına dokunulmaz |
+-| Kipler | `backtest`: RK-1 yok (bit-bit aynı). `paper`: **gözlem** (hesaplar, raporlar, hiçbir şeyi durdurmaz). `testnet`/`live`: **zorlama** |
++| Kipler | `backtest`: RK-1 yok (bit-bit aynı). `paper`: **zorlama (24.11; eski: gözlem)**. `testnet`/`live`: **zorlama** |
+ | Kim kaldırır | `drawdown_review`: yalnız kullanıcı — Telegram `/kademe_devam` (iki adımlı kod, en erken 24 saat sonra) ya da sunucuda CLI. `capital_floor`: yalnız sunucuda CLI + `tasarim-kararlari.md` karar referansı. Motor, ders servisi, ML, zamanlayıcı **hiçbirini** kaldıramaz |
+ | Sermaye hareketi | Operatör CLI ile girer; Telegram'dan girilmez. Canlıda borsanın aktarım kayıtlarıyla eşleştirilir; eşleşmeyen aktarım → giriş kapalı |
+ | Yanlış alarm koruması | Her tetik **art arda iki** değerlendirmede tutmalı (`CONFIRM_N = 2`) |
+@@ -190,8 +190,8 @@ Yazan her komut sonucu ve yeni eşikleri yazdırır (`base`, durma seviyesi, tab
+ | 2 | `equity <= round(FLOOR_RATIO * dep_net, 8)` | `floor_stop` (`ok` ya da `review`'dan) |
+ | 3 | `st.status == "review"` | — |
+ | 4 | `equity <= round(STOP_RATIO * base, 8)` | `review_stop` |
+-| 5 | `equity <= round(DOWN_2_RATIO * peak, 8)` ve `"dd_peak_15" ∉ fired` | hedef = `max(lowest(dep_net), 0 if step > 0 else -1)`; hedef < `step` ise `step_down(hedef, "dd_peak_15")` |
+-| 6 | `equity <= round(DOWN_1_RATIO * peak, 8)` ve `"dd_peak_10" ∉ fired` | hedef = `max(lowest(dep_net), step − 1)`; hedef < `step` ise `step_down(hedef, "dd_peak_10")` |
++| 5 | **[KALDIRILDI 24.11: `STEP_RISK_ENABLED=False` iken atlanır, `step_down` üretilmez]** `equity <= round(DOWN_2_RATIO * peak, 8)` ve `"dd_peak_15" ∉ fired` | hedef = `max(lowest(dep_net), 0 if step > 0 else -1)`; hedef < `step` ise `step_down(hedef, "dd_peak_15")` |
++| 6 | **[KALDIRILDI 24.11: aynı sabit]** `equity <= round(DOWN_1_RATIO * peak, 8)` ve `"dd_peak_10" ∉ fired` | hedef = `max(lowest(dep_net), step − 1)`; hedef < `step` ise `step_down(hedef, "dd_peak_10")` |
+ 
+ Satır 5 koşulu tutuyor ama hedef `step`'e eşitse (zaten en altta) eylem yoktur ve satır 6'ya **geçilmez**. `equity` sonlu ve > 0 değilse `ValueError` (çağıran §8.2'de yakalar).
+ 
+@@ -267,7 +267,7 @@ class RiskLadder:
+ | Kip | `ladder` | `enforce` | Günlük | `transfers_fn` |
+ |---|---|---|---|---|
+ | `backtest` | `None` (hiç kurulmaz) | — | — | — |
+-| `paper` | var | `False` | bellek (`LadderLog(None)`), açılışta sanal `initial = cfg.wallet_start` (`by="engine:paper"`) | yok |
++| `paper` | var | `True` (24.11) | dosya (`risk_ladder.jsonl`); günlük yoksa/boşsa motor açılışta bir kez `initial = cfg.wallet_start` (`by="engine:paper"`, `start_step=LIVE_START_STEP`) yazar | yok (tek fark: kâğıtta aktarım eşleştirmesi yok) |
+ | `testnet` | var | `True` | dosya | yok |
+ | `live` | var | `True` | dosya | `broker.transfers` |
+ 
+@@ -287,7 +287,7 @@ class RiskLadder:
+ 8. **Tetik + onay:** `a = evaluate(state, equity)`. Eylem türü bir önceki değerlendirmedekiyle aynıysa sayaç +1, değilse 1 (eylem yoksa 0). Sayaç `CONFIRM_N`'e ulaşınca §6.2 uygulanır ve sayaç sıfırlanır.
+ 9. **Sayaçlar:** `trades_fn` varsa en çok 10 dakikada bir `counters` yenilenir.
+ 
+-Gözlem kipinde (`enforce=False`) adım 3 ve 4 yoktur; adım 8'de günlük satırı belleğe yazılır, **tutuş kurulmaz, kapı kapanmaz, etkin risk değişmez**; `status()["would"]` = uygulanmış olacak son eylem (`"review_stop"` vb.) ve zamanı.
++**[KALDIRILDI 24.11 — kâğıt da zorlanır; etkin risk her kipte `cfg.risk_config` (%1)]** Eski gözlem kipinde (`enforce=False`) adım 3 ve 4 yoktu; adım 8'de günlük satırı belleğe yazılır, **tutuş kurulmaz, kapı kapanmaz, etkin risk değişmez**; `status()["would"]` = uygulanmış olacak son eylem (`"review_stop"` vb.) ve zamanı.
+ 
+ ### 8.3 Kapı ve etkin risk
+ 
+@@ -297,7 +297,7 @@ Gözlem kipinde (`enforce=False`) adım 3 ve 4 yoktur; adım 8'de günlük satı
+ - `gates.py`: `K.check_entry(acct, cand, src.risk_config)`; `src = self.ladder if self.ladder is not None else self.cfg`. Risk sabiti tarayıcısı `.risk_config` ile biten ifadeyi kabul eder; başka biçim kullanılmaz. `ladder.py` içinde sayısal risk sabiti, `RiskConfig(...)`, `replace(...)` **yoktur** (hepsi `trader_core`'dadır).
+ - Açık pozisyonlar, çıkışlar, stop yönetimi, KILL ve mutabakat bu belgeden **etkilenmez**.
+ 
+-### 8.4 İkiz ve kağıt botlarının basamağı izlemesi
++### 8.4 İkiz ve kağıt botlarının basamağı izlemesi **[KALDIRILDI 24.11: risk düşürme yok, kademe izleme anlamsız; `ladder_follow` alanı kodda kalır, kâğıt dosyasında kullanılmaz]**
+ 
+ `EngineConfig.ladder_follow: str | None = None` — başka bir botun günlük dosyasının yolu; yalnız `mode == "paper"` iken verilebilir (aksi `ConfigError`). Verilmişse her değerlendirmede o günlük katlanır: geçerliyse etkin risk `step_config(cfg.risk_config, s)`, `s = followed.step` (`followed.status != "ok"` ise `min(step, 0)`); dosya yok/bozuksa `cfg.risk_config` ve `ladder_follow_unreadable` sayacı. İzleyen bot günlüğe **yazmaz** ve izlenen botun durmasından etkilenmez (ikiz durmaz; kural belgesi §5 madde 4, §7). Bugün hiçbir yapılandırmada ayarlanmaz; canlıya geçiş adımında `engine.twin.json`'a (ve canlıyla birlikte çalışan kağıt botuna) canlı günlüğün yolu yazılır (11 §13 geçiş listesine eklenir).
+ 
+diff --git a/trader/research/pa_proposer_build.py b/trader/research/pa_proposer_build.py
+index 14bcc31..e6fc03b 100644
+--- a/trader/research/pa_proposer_build.py
++++ b/trader/research/pa_proposer_build.py
+@@ -26,7 +26,7 @@ from trader_ml.pa_proposer import features as PF  # noqa: E402
+ from trader_ml.pa_proposer import labels as LB  # noqa: E402
+ from trader_ml.pa_proposer import package as PK  # noqa: E402
+ from trader_ml.pa_proposer import train as TR  # noqa: E402
+-from trader_ml.pa_proposer.train import LOCK_END, LOCK_START  # noqa: E402
++from trader_ml.pa_proposer.train import KILIT_ACIK, LOCK_END, LOCK_START  # noqa: E402
+ 
+ TF_DELTA = {"15m": timedelta(minutes=15), "1h": timedelta(hours=1), "4h": timedelta(hours=4), "1d": timedelta(days=1)}
+ 
+@@ -49,14 +49,21 @@ def load_bars(history_dir: str, base: str, tf: str):
+ 
+ 
+ def _hist_rows(bars, pair_name: str, cutoff: datetime) -> list[dict]:
+-    """Tarihsel satirlar: yalniz kilit baslangicinin ONCESI (bar dizisi kesilir; etiket ufku da bu sinirda kalir)."""
++    """Tarihsel satirlar: kilit kapaliyken yalniz kilit baslangicinin ONCESI (bar dizisi kesilir); kilit aciksa kesim yok."""
+     ts, o, h, l, c = bars
++    if KILIT_ACIK:
++        return LB.label_rows(o, h, l, c, ts)
+     k = int(np.searchsorted(np.array([t.timestamp() for t in ts]), cutoff.timestamp(), side="left"))
+     return LB.label_rows(o[:k], h[:k], l[:k], c[:k], ts[:k])
+ 
+ 
++def _veri_penceresi() -> str:
++    """CSV veri_penceresi alani: kilit acikken kesim yok."""
++    return "hist=tum;paper=tum;kilit=acik" if KILIT_ACIK else f"hist<{LOCK_START.date()};paper>={LOCK_END.date()}"
++
++
+ def _paper_rows(recs: list[dict], bars_by: dict, tf: str, tf_delta: timedelta) -> tuple[list[dict], dict]:
+-    """Kagit kayitlari -> egitim satirlari. Bar eslesmesi: bar_close_ts tam ya da (bar_close_ts - tf) acilis zamani."""
++    """Kagit kayitlari -> egitim satirlari. Bar eslesmesi: yalniz (bar_close_ts - tf) = sinyal mumunun ACILIS zamani."""
+     stats = {"no_bar": 0, "no_window": 0, "bad": 0, "used": 0}
+     out, idx_cache = [], {}
+     for r in recs:
+@@ -72,11 +79,11 @@ def _paper_rows(recs: list[dict], bars_by: dict, tf: str, tf_delta: timedelta) -
+         if pair not in idx_cache:
+             idx_cache[pair] = {t: k for k, t in enumerate(ts)}
+         idx = idx_cache[pair]
+-        i = idx.get(t0, idx.get(t0 - tf_delta))
++        i = idx.get(t0 - tf_delta)                           # bar_close_ts = kapanis; dosya 'date' = acilis (tam eslesme sonraki mumu secer)
+         if i is None or i < PF.WINDOW - 1:
+             stats["no_bar"] += 1
+             continue
+-        if ts[i - PF.WINDOW + 1] < LOCK_END:                 # ozellik penceresi de kilit sonrasi olmali
++        if not KILIT_ACIK and ts[i - PF.WINDOW + 1] < LOCK_END:                 # ozellik penceresi de kilit sonrasi olmali
+             stats["no_window"] += 1
+             continue
+         x = PF.feature_vector(o, h, l, c, i, r["side"])
+@@ -149,7 +156,7 @@ def main(argv=None, *, now: datetime | None = None) -> int:
+                     w.writerow(["ad", "sinif", "tarif", "veri_penceresi", "commit", "sha256", "tarih"])
+                 w.writerow([f"m1_build_{tf}_{now.date().isoformat()}", "build",
+                             f"ridge_logistic;M1@{tf};stop={PF.STOP_ATR};tp={PF.TARGET_ATR};h={PF.HORIZON};q={TR.THRESHOLD_Q}",
+-                            f"hist<{LOCK_START.date()};paper>={LOCK_END.date()};rows={len(rows)};lock_dropped={dropped};status={status}",
++                            f"{_veri_penceresi()};rows={len(rows)};lock_dropped={dropped};status={status}",
+                             "", sha, now.isoformat()])
+     except (TR.LockWindowError, ValueError, OSError) as e:
+         print(f"egitim hatasi: {type(e).__name__}: {e}", file=sys.stderr)
+diff --git a/trader/scripts/health_run.py b/trader/scripts/health_run.py
+index fd95491..cb2d6f2 100755
+--- a/trader/scripts/health_run.py
++++ b/trader/scripts/health_run.py
+@@ -657,6 +657,20 @@ def ek_uyari_plani(ek: list, onceki, now: datetime):
+     return out, yeni
+ 
+ 
++def ek_uyari_geri_al(yeni, onceki, basarisiz: list) -> dict:
++    """Saf: iletilemeyen ek uyarilarin durumunu geri alir (sonraki turda yeniden denenir). Ilk uyari iletilemediyse kayit silinir;
++    hatirlatma/duzeldi iletilemediyse onceki kayit (eski `son`) korunur."""
++    out = dict(yeni) if isinstance(yeni, dict) else {}
++    eski = onceki if isinstance(onceki, dict) else {}
++    for a in basarisiz:
++        fp = "|".join(str(a.fingerprint).split("|")[:2])
++        if fp in eski:
++            out[fp] = eski[fp]
++        elif a.level is not H.Status.OK:
++            out.pop(fp, None)
++    return out
++
++
+ def disk_alerts(env: dict, now: datetime, var_dir: str | None = None, usage_fn=None) -> list:
+     """var/ dosya sisteminde kullanim >= %80 -> WARN `disk|dolu` (\"Disk dolmak üzere (%NN)\"); >= %95 -> ayrica CRIT `disk|kritik`.
+     Okunamazsa uyari yok. usage_fn: shutil.disk_usage yerine (test)."""
+@@ -946,6 +960,7 @@ def run_once(env: dict, *, now: datetime | None = None, state_path=None, notifie
+     alerts, held = H.quiet_split(alerts, report, now, quiet_until)
+     if held:   # tutulan uyarilar iletilmis sayilmaz: durum geri alinir, sorun surerse pencere sonrasinda kendiliginden gider
+         new_state = H.revert_failed_alerts(new_state, state, held)
++    ek_gonder: list = []
+     if quiet_until is not None:   # ek uyarilar (disk/...) olumcul degil: pencere boyunca tutulur, durum aynen kalir
+         new_state["ek_uyarilar"] = state.get("ek_uyarilar") or {}
+     else:
+@@ -1004,6 +1019,10 @@ def run_once(env: dict, *, now: datetime | None = None, state_path=None, notifie
+             failed.append(a)
+     if failed:
+         new_state = H.revert_failed_alerts(new_state, state, failed)
++        ek_ids = {id(a) for a in ek_gonder}
++        ek_basarisiz = [a for a in failed if id(a) in ek_ids]
++        if ek_basarisiz:   # ek uyari iletilemedi: ek_uyarilar durumu da geri alinir (yoksa sessizce yutulurdu)
++            new_state["ek_uyarilar"] = ek_uyari_geri_al(new_state.get("ek_uyarilar"), state.get("ek_uyarilar"), ek_basarisiz)
+ 
+     code = EXIT_OK
+     hb_ok = None
+diff --git a/trader/scripts/ml_retrain_run.py b/trader/scripts/ml_retrain_run.py
+index a32e4a9..44f941e 100644
+--- a/trader/scripts/ml_retrain_run.py
++++ b/trader/scripts/ml_retrain_run.py
+@@ -1,14 +1,14 @@
+ #!/usr/bin/env python3
+-"""Gece egitimi (DD-12 WP-18: M1). 03:10 UTC, tek oneshot birim (MemoryMax).
++"""Gece egitimi (DD-12 WP-18: M1). gece, zamanlayici deploy/trader-ml-retrain.timer (00:40 UTC), tek oneshot birim (MemoryMax).
+ 
+-M1 (`trader_ml.pa_proposer`, WP-18 (b)): tarihsel barlar (`var/history`, kilit baslangicindan ONCE kesilir) + kagit
++M1 (`trader_ml.pa_proposer`, WP-18 (b)): tarihsel barlar (`var/history`; kilit kapaliyken kilit baslangicindan ONCE kesilir, KILIT_ACIK iken kesim yok) + kagit
+ kayitlari (`scripts/export_paper_records.py` ile AYNI disa aktarma: kilit penceresiyle kesisen satirlar dusurulur) ->
+ `var/learner/models/pa_proposer/M1@<tf>.json` (+ `.prev.json`). Bellek: ciftbasina kuyruk (tavan 50 000 satir; spec §5.2), feather
+ pyarrow ile okunur. Olcum (WP-18): tepe RSS ~263 MB; pandas `trader_core.indicators` (dondurulmus) uzerinden gelir
+ (~100 MB). Sert tavan: deploy/trader-ml-retrain.service MemoryMax=350M.
+ Her zaman dilimi `var/learner/paper_models.csv`'ye satir ekler.
+ Ciktilar YALNIZ calisma zamani dizinine yazilir (git-izli dosya asla degismez); okuyucular once calisma zamani dizinine,
+-sonra depodaki tohum paketlere (`models/pa_proposer/`, `research/paper_models.csv`) bakar. Kilit donemi (2026-05-01..2026-11-01) egitime GIRMEZ.
++sonra depodaki tohum paketlere (`models/pa_proposer/`, `research/paper_models.csv`) bakar. Kilit kapaliyken kilit donemi (2026-05-01..2026-11-01) egitime GIRMEZ (23.11 karari: KILIT_ACIK=True, kesim yok).
+ Cikis: 0 basarili (model olusmayan kol hata degil: `ml_no_model`); 1 kullanim; 3 defter acilamadi/yazma/egitim hatasi.
+ """
+ from __future__ import annotations
+@@ -29,7 +29,7 @@ sys.path.insert(0, str(_HERE.parent / "research"))   # pa_proposer_build (resear
+ from trader_core import ledger as L  # noqa: E402
+ from trader_ml.pa_proposer import package as PK  # noqa: E402
+ from trader_ml.pa_proposer import train as TR  # noqa: E402
+-from trader_ml.pa_proposer.train import LOCK_START  # noqa: E402
++from trader_ml.pa_proposer.train import KILIT_ACIK, LOCK_START  # noqa: E402
+ 
+ 
+ def _resolve(p: str) -> str:
+@@ -71,7 +71,7 @@ def _hist_tail(bars, pair: str, cap: int, cutoff: datetime) -> list[dict]:
+     from trader_ml.pa_proposer import labels as LB
+ 
+     ts, o, h, l, c = bars
+-    k = int(np.searchsorted(np.array([t.timestamp() for t in ts]), cutoff.timestamp(), side="left"))
++    k = len(ts) if KILIT_ACIK else int(np.searchsorted(np.array([t.timestamp() for t in ts]), cutoff.timestamp(), side="left"))
+     s0 = max(0, k - cap // 2 - 70)
+     rows = LB.label_rows(o[s0:k], h[s0:k], l[s0:k], c[s0:k], ts[s0:k])
+     return rows[-cap:]
+@@ -105,7 +105,7 @@ def _m1_tf(tf, recs, bases, *, history_dir, models_dir, now, max_rows, csv_rows,
+     if csv_rows is not None:
+         csv_rows.append([f"m1_nightly_{tf}_{now.date().isoformat()}", "nightly_m1",
+                          f"ridge_logistic;M1@{tf};stop={PB.PF.STOP_ATR};tp={PB.PF.TARGET_ATR};h={PB.PF.HORIZON};q={TR.THRESHOLD_Q}",
+-                         f"hist<{LOCK_START.date()};paper>=kilit_sonrasi;rows={len(rows)};lock_dropped={dropped};status={status}" + (f";{reason}" if reason else ""),
++                         f"{PB._veri_penceresi()};rows={len(rows)};lock_dropped={dropped};status={status}" + (f";{reason}" if reason else ""),
+                          "", sha, now.isoformat()])
+     del rows, hist, paper, paper_kept, pkg, bars_by
+     return res
+diff --git a/trader/scripts/weekly_summary_run.py b/trader/scripts/weekly_summary_run.py
+index 51aba73..4937753 100644
+--- a/trader/scripts/weekly_summary_run.py
++++ b/trader/scripts/weekly_summary_run.py
+@@ -103,8 +103,9 @@ SABIT_BASLIK = "## Sabit bölüm"
+ YORUM_BASLIK = "## Yorum"
+ 
+ 
+-def _fmt_pnl(x) -> str:
+-    return f"{float(x):+.2f} $".replace(".", ",")
++def _fmt_r(x) -> str:
++    """R bicimi (+4,50R): alinmayan sonuc tablosunun toplam_pnl alani R'dir, dolar degil."""
++    return f"{float(x):+.2f}R".replace(".", ",")
+ 
+ 
+ def cikis_kaniti_satiri(env, lp: str, now: datetime, lesson_store=None) -> str:
+@@ -158,7 +159,7 @@ def alinmayan_satiri(env, durum_path=None) -> str:
+         if not rows:
+             return yok
+         iyi, kotu = max(rows, key=lambda r: r["toplam_pnl"]), min(rows, key=lambda r: r["toplam_pnl"])
+-        f = lambda r: f"{r['etiket']} {_fmt_pnl(r['toplam_pnl'])} (n={r['n']})"  # noqa: E731
++        f = lambda r: f"{r['etiket']} {_fmt_r(r['toplam_pnl'])} (n={r['n']})"  # noqa: E731
+         return f"Alınmayan sinyal (7g): {sum(int(r['n']) for r in rows)} sinyal; en iyi {f(iyi)}, en kötü {f(kotu)}"
+     except Exception:  # noqa: BLE001
+         return yok
+diff --git a/trader/src/trader_core/haber_sinyal.py b/trader/src/trader_core/haber_sinyal.py
+index a2ef49d..7298366 100644
+--- a/trader/src/trader_core/haber_sinyal.py
++++ b/trader/src/trader_core/haber_sinyal.py
+@@ -30,7 +30,7 @@ SEMA = "haber_sinyal/2"
+ PENCERE_SAAT = 6.0
+ YARI_OMUR_SAAT = 2.0                       # sonum: 2 saatte yariya
+ GECERLILIK_SAAT = 3.0
+-MAX_OGE = 120                              # bir turda en cok olay (en yeniler)
++MAX_OGE = 120                              # bir turda en cok olay (en ESKIler; kalanlar imlec geride kaldigi icin sonraki tura)
+ PARTI = 30                                 # tek API cagrisinda en cok olay (120'lik tek cagri MAX_CIKTI_TOKEN'da kesiliyordu)
+ MAX_BASLIK = 200
+ MAX_OZET = 0                               # ozet gonderilmez: yalniz baslik (daha az enjeksiyon yuzeyi, daha ucuz)
+@@ -180,6 +180,12 @@ def olay_kimligi(alim_ms: int, baslik: str) -> int:
+     return int(hashlib.sha1(f"{int(alim_ms)}|{baslik}".encode("utf-8")).hexdigest()[:8], 16)
+ 
+ 
++def yayinci(kaynak: str) -> str:
++    """Besleme adi -> yayinci (24.11): cnbc_earnings/cnbc_energy ayni yayinci `cnbc`; ayni yayincinin beslemeleri tek teyit sayilir.
++    Kural hb1.py ile AYNI (motor bu modulu iceri almaz; esitlik tests/engine/test_hb1_kol.py)."""
++    return str(kaynak).split("_", 1)[0]
++
++
+ def birlestir(olaylar: list[dict], simdi_ms: int) -> dict[str, dict]:
+     """Puanlanmis olaylar -> {sembol: {puan, kaynak_sayisi, teyit_kaynak, max_siddet, oge_sayisi, olay_kimligi, olaylar}}.
+     Son 6 saat, yari omur 2 saat; olay kendi ufkunu (ufuk_saat) astiysa katki vermez. puan = toplam(yon * siddet/3 * guven * sonum),
+@@ -206,7 +212,7 @@ def birlestir(olaylar: list[dict], simdi_ms: int) -> dict[str, dict]:
+         ayni = [e for e in a["ev"] if e["yon"] == yon] if yon else []
+         en_yeni = max(ayni, key=lambda e: (e["alim"], e.get("baslik", "")), default=None)
+         out[s] = {"puan": round(puan, 4), "kaynak_sayisi": len(a["k"]),
+-                  "teyit_kaynak": len({k for e in ayni for k in e["kaynaklar"]}),
++                  "teyit_kaynak": len({yayinci(k) for e in ayni for k in e["kaynaklar"]}),
+                   "max_siddet": max((e["siddet"] for e in ayni), default=0), "oge_sayisi": a["n"],
+                   "olay_kimligi": olay_kimligi(en_yeni["alim"], en_yeni.get("baslik", "")) if en_yeni else 0,
+                   "olaylar": [{"alim_ms": int(e["alim"]), "yon": e["yon"], "siddet": e["siddet"], "guven": e["guven"],
+@@ -347,19 +353,24 @@ def kos(var_dir: Path, config_dir: Path, simdi_ms: int, env: Mapping[str, str],
+     ham = [r for r in _oku_jsonl(Path(var_dir) / "veri" / "haber" / "haber.jsonl")
+            if _int(r.get("alim")) and son_alim < r["alim"] <= simdi_ms and r.get("baslik")]
+     yeni = olaylara_topla(ham, olaylar)
+-    yeni = sorted(yeni, key=lambda e: -e["alim"])[:MAX_OGE]
++    yeni = sorted(yeni, key=lambda e: e["alim"])           # eskiden yeniye: imlec yalniz islenenlerin onune ilerler
++    bekleyen = yeni[MAX_OGE:]                              # sinirdan tasan: puanlanmadi, sonraki tura kalir
++    yeni = yeni[:MAX_OGE]
+     for i, e in enumerate(yeni):
+         e["id"] = i
+     yeni_son = max([r["alim"] for r in ham], default=son_alim)
+ 
+     sonuc: list[dict] = []
++    hata: tuple[str, str] | None = None                   # (neden, kod): sonraki parti hatasi; onceki odenmis partiler korunur
++    islenen = 0
+     for bas in range(0, len(yeni), PARTI):
+         parti = yeni[bas:bas + PARTI]
+         params = istem_parametreleri(parti, enst)
+         est = b.estimate_cost(MODEL, max(1, (len(SYSTEM) + len(params["messages"][0]["content"])) // 3 + 400), MAX_CIKTI_TOKEN)
+         grant = b.authorize(SERVIS, est)
+         if not hasattr(grant, "grant_id"):                      # Denial: API'ye HIC gidilmez
+-            return atla(f"butce reddi ({getattr(grant, 'reason', 'denied')})", "butce")
++            hata = (f"butce reddi ({getattr(grant, 'reason', 'denied')})", "butce")
++            break
+         try:
+             metin, usage = client.create(params)
+         except Exception as e:  # noqa: BLE001
+@@ -367,7 +378,8 @@ def kos(var_dir: Path, config_dir: Path, simdi_ms: int, env: Mapping[str, str],
+                 b.release(grant)
+             except Exception:  # noqa: BLE001
+                 log.error("butce serbest birakilamadi")
+-            return atla(f"API hatasi ({type(e).__name__})", "api_hata")
++            hata = (f"API hatasi ({type(e).__name__})", "api_hata")
++            break
+         try:
+             from trader_core import lesson as _ls  # noqa: PLC0415
+             b.record(SERVIS, grant, _ls.budget_usage(usage), MODEL, False)
+@@ -375,8 +387,16 @@ def kos(var_dir: Path, config_dir: Path, simdi_ms: int, env: Mapping[str, str],
+             log.error("butce kaydi yazilamadi: %s", type(e).__name__)
+         ps = dogrula(metin, enst, {e["id"] for e in parti})
+         if ps is None:
+-            return atla("model yaniti sema disi", "api_hata")
++            hata = ("model yaniti sema disi", "api_hata")
++            break
+         sonuc.extend(ps)
++        islenen = bas + len(parti)
++    if hata is not None and islenen == 0:
++        return atla(*hata)                                 # hic parti tamamlanmadi: dosya yazilmaz, durum ilerlemez
++    bekleyen = yeni[islenen:] + bekleyen
++    yeni = yeni[:islenen]
++    if bekleyen:                                           # imlec en eski bekleyenin hemen oncesinde (esit zamanlilar da kalir)
++        yeni_son = max(son_alim, min(e["alim"] for e in bekleyen) - 1)
+     if yeni:
+         by_id = {e["id"]: e for e in yeni}
+         for s in sonuc:
+@@ -396,8 +416,11 @@ def kos(var_dir: Path, config_dir: Path, simdi_ms: int, env: Mapping[str, str],
+         onceki = durum.get("calisma") if isinstance(durum.get("calisma"), dict) else {}
+         ilk = onceki.get("ilk_ms")
+         _yaz(durum_yol, {"son_alim": yeni_son, "olaylar": olaylar,
+-                         "calisma": {"durum": "ok", "zaman_ms": simdi_ms, "ilk_ms": int(ilk) if _int(ilk) else simdi_ms}})
++                         "calisma": {"durum": hata[1] if hata else "ok", "zaman_ms": simdi_ms, "ilk_ms": int(ilk) if _int(ilk) else simdi_ms}})
+         _yaz(cikti_yol, belge)
+     except OSError as e:
+         return atla(f"yazilamadi ({type(e).__name__})")
++    if hata is not None:
++        log.warning("haber sinyali kismi: %s; %d olay yazildi, %d bekliyor", hata[0], len(yeni), len(bekleyen))
++        return {"durum": "kismi", "neden": hata[0], "yeni_olay": len(yeni), "bekleyen": len(bekleyen), "dosya": str(cikti_yol)}
+     return {"durum": "ok", "yeni_olay": len(yeni), "enstruman": len(belge["enstrumanlar"]), "dosya": str(cikti_yol)}
+diff --git a/trader/src/trader_core/kayip_freni.py b/trader/src/trader_core/kayip_freni.py
+index d0881df..25eb6ed 100644
+--- a/trader/src/trader_core/kayip_freni.py
++++ b/trader/src/trader_core/kayip_freni.py
+@@ -48,11 +48,17 @@ def ardisik_kayip(kapananlar_yeniden_eskiye: Sequence, ust: int) -> int:
+     return n
+ 
+ 
+-def _son_kazanc(kapananlar_yeniden_eskiye: Sequence) -> bool:
+-    """En yeni anlamli (elle olmayan, pnl != 0) kapanis kazancli mi? (gunluk freni kaldirir; basa-bas notr)"""
++def _son_kazanc(kapananlar_yeniden_eskiye: Sequence, gun_basi=None) -> bool:
++    """En yeni anlamli (elle olmayan, pnl != 0) kapanis kazancli mi? (gunluk freni kaldirir; basa-bas notr)
++    `gun_basi` verilirse yalniz o gunun (UTC) kapanislari bakilir: dunku kazanc bugunku freni kaldirmaz."""
++    bugun = _gun(gun_basi) if gun_basi is not None else None
+     for t in kapananlar_yeniden_eskiye:
+         if getattr(t, "exit_reason", None) == "manual":
+             continue
++        if bugun is not None:
++            ts = getattr(t, "exit_ts", None)
++            if ts is None or _gun(ts) < bugun:
++                continue
+         pnl = getattr(t, "realized_pnl", None)
+         if _fin(pnl) and float(pnl) != 0.0:
+             return float(pnl) > 0.0
+@@ -99,7 +105,7 @@ def karar(cfg: Mapping | None, kapananlar_yeniden_eskiye: Sequence, equity: floa
+     carpan = float(cfg["carpan"])
+     if aktif:
+         return FrenKarari(True, "ardisik", carpan, n)
+-    if _son_kazanc(kapananlar_yeniden_eskiye):          # gunluk fren de ilk kazancli kapanista kalkar
++    if _son_kazanc(kapananlar_yeniden_eskiye, gun_basi):   # gunluk fren de BUGUNKU ilk kazancli kapanista kalkar
+         return FrenKarari(False, None, 1.0, n)
+     if _fin(equity) and _fin(gun_basi_kasa) and float(gun_basi_kasa) > 0:
+         zarar = (float(gun_basi_kasa) - float(equity)) / float(gun_basi_kasa)
+diff --git a/trader/src/trader_core/panel_data.py b/trader/src/trader_core/panel_data.py
+index 65d65bd..8171765 100644
+--- a/trader/src/trader_core/panel_data.py
++++ b/trader/src/trader_core/panel_data.py
+@@ -24,7 +24,6 @@ from . import ledger as L
+ from . import lesson as LS
+ from .health import DEFAULT_CFG as HEALTH_CFG
+ from .arm_time import arm_id_of
+-from .risk import LOCKED_CFG
+ 
+ UTC = timezone.utc
+ TR = timezone(timedelta(hours=3))        # Europe/Istanbul: sabit UTC+3 (DST yok), telegram.TR ile ayni
+@@ -259,8 +258,9 @@ def equity_curve(path: str, bot: str, start_equity: Any, limit: int = 5000, max_
+             "points": pts, "daily": cal[-calendar_days:] if calendar_days else cal}
+ 
+ 
+-def risk_usage(path: str, bot: str, equity: Any, day_start_equity: Any, day: str) -> dict:
+-    """Acik risk / limitler: risk kilidi oranlari x equity (sabit sayi yok); kullanilan = defterdeki planned_risk."""
++def risk_usage(path: str, bot: str, equity: Any, day_start_equity: Any, day: str, mode: Any = "paper") -> dict:
++    """Acik risk / limitler: kipin ayar dosyasindaki oranlar x equity (motorla ayni); kullanilan = defterdeki planned_risk.
++    Gunluk zarar = gun basi kasa - simdiki kasa (gerceklesmemis dahil; motor/Telegram ile ayni)."""
+     closed, opened = ledger_day(path, bot, day)
+     try:
+         eq, dse = float(equity), float(day_start_equity)
+@@ -269,12 +269,12 @@ def risk_usage(path: str, bot: str, equity: Any, day_start_equity: Any, day: str
+     used_open = sum(t.planned_risk or 0.0 for t in opened)
+     long_r = sum(t.planned_risk or 0.0 for t in opened if t.side == "long")
+     short_r = sum(t.planned_risk or 0.0 for t in opened if t.side == "short")
+-    pnl, _ = sum_pnl_r(closed)
+-    c = LOCKED_CFG
++    from . import tg_sade as _TS  # noqa: PLC0415
++    c = _TS.risk_ayari(None, mode)
+     rows = [("Toplam açık risk", used_open, c.max_open_risk * eq),
+             ("Long açık risk", long_r, c.max_same_dir_risk * eq),
+             ("Short açık risk", short_r, c.max_same_dir_risk * eq),
+-            ("Günlük zarar", max(0.0, -pnl), daily_loss_rate() * dse)]
++            ("Günlük zarar", max(0.0, dse - eq), daily_loss_rate(mode) * dse)]
+     return {"rows": [{"label": n, "used": u, "limit": lim, "pct": (u / lim * 100.0) if lim > 0 else None}
+                      for n, u, lim in rows]}
+ 
+diff --git a/trader/src/trader_core/risk_ladder.py b/trader/src/trader_core/risk_ladder.py
+index 7ff373e..2e6b18b 100644
+--- a/trader/src/trader_core/risk_ladder.py
++++ b/trader/src/trader_core/risk_ladder.py
+@@ -27,6 +27,8 @@ MAX_STEP_APPROVABLE = 0          # RK-1: step_up yalniz K-1 -> K0. RK-1b bu sabi
+ # gunluk kendi kendini tanimlar. Onaylanabilir tavan = max(MAX_STEP_APPROVABLE, gunlugun baslangic basamagi): dusus sonrasi geri cikis
+ # en cok baslangic basamagina kadardir. Tum asagi inis korumalari (tepeden -%10/-%15, -%20 durma, taban, capital_latch) degismez.
+ LIVE_START_STEP = 2
++# 24.11 kullanici karari: risk dusurme kapali; etkin risk her kipte yapilandirmadaki deger (%1). Ayar degil, yalniz kod sabiti.
++STEP_RISK_ENABLED = False
+ KM1_MIN_CAPITAL = 1000.0         # dep_net bunun altindaysa en alt basamak K0
+ DOWN_1_RATIO = 0.90              # equity <= 0.90 * peak  (tepeden -%10)
+ DOWN_2_RATIO = 0.85              # equity <= 0.85 * peak  (tepeden -%15)
+@@ -459,6 +461,8 @@ def evaluate(st: LadderState, equity: float) -> tuple[Action, ...]:
+         return ()
+     if equity <= _th(STOP_RATIO, st.base):
+         return (Action("review_stop"),)
++    if not STEP_RISK_ENABLED:
++        return ()                                        # 24.11: dd_peak_15 / dd_peak_10 inisleri uretilmez
+     low = lowest(st.dep_net)
+     if equity <= _th(DOWN_2_RATIO, st.peak) and "dd_peak_15" not in st.fired:
+         target = max(low, 0 if st.step > 0 else -1)
+@@ -476,6 +480,8 @@ def step_config(base_cfg: RiskConfig, step: int) -> RiskConfig:
+     """Etkin risk: min(cfg.target_trade_risk, STEPS[step]); yalniz `tightened` ile (kilit gevsemez)."""
+     if isinstance(step, bool) or not isinstance(step, int) or step not in STEPS:
+         raise ValueError(f"bilinmeyen basamak: {step!r}")
++    if not STEP_RISK_ENABLED:
++        return base_cfg                                  # 24.11: eski gunluk basamagi riski dusuremez
+     v = min(base_cfg.target_trade_risk, STEPS[step])
+     if v == base_cfg.target_trade_risk:
+         return base_cfg
+diff --git a/trader/src/trader_core/telegram.py b/trader/src/trader_core/telegram.py
+index 1189716..feacd7c 100644
+--- a/trader/src/trader_core/telegram.py
++++ b/trader/src/trader_core/telegram.py
+@@ -651,7 +651,7 @@ def ladder_view(lf: LadderFiles, now: datetime) -> dict:
+         out["state"] = "uninitialized"
+     else:
+         sa = st.stopped_at
+-        out.update(state=st.status, step=st.step, step_name=RL.STEP_NAMES[st.step], step_risk=RL.STEPS[st.step],
++        out.update(state=st.status, step=st.step, step_name=RL.STEP_NAMES[st.step], step_risk=RL.STEPS[RL.LIVE_START_STEP],
+                    dep_net=st.dep_net, base=st.base, peak=st.peak, stopped_at=sa,
+                    stop_at=round(RL.STOP_RATIO * st.base, 8), floor_at=round(RL.FLOOR_RATIO * st.dep_net, 8))
+         e = out["equity"]
+@@ -665,6 +665,8 @@ def ladder_view(lf: LadderFiles, now: datetime) -> dict:
+         out["gate_code"] = blk.get("gate_code")
+         out["counters"] = blk.get("counters")
+         out["enforce"] = blk.get("enforce")
++        if _num_ok(blk.get("effective_risk")) and blk.get("effective_risk") > 0:      # 24.11: etkin risk durum blogundan
++            out["step_risk"] = blk["effective_risk"]
+         if blk.get("equity") is not None and out["equity"] is None and _num_ok(blk.get("equity")):
+             out["equity"] = blk.get("equity")
+     out["stale"] = not fresh
+@@ -677,7 +679,7 @@ def ladder_line(bot: str, v: dict) -> str:
+     if v["state"] in ("uninitialized", "invalid"):
+         return f"{bot}: Kademe: {'sermaye kaydı yok' if v['state'] == 'uninitialized' else 'günlük bozuk'}"
+     n = (v.get("counters") or {}).get("total_trades")
+-    return (f"{bot}: {pre}Kademe: {v['step_name']} %{_tr(v['step_risk'] * 100)} | özsermaye {_tr(v['equity'])} | "
++    return (f"{bot}: {pre}Kademe: risk %{_tr(v['step_risk'] * 100)} (sabit) | özsermaye {_tr(v['equity'])} | "
+             f"taban {_tr(v['base'])} (düşüş %{_tr(v['dd_base_pct'], 1)}) | durma {_tr(v['stop_at'])} | "
+             f"son taban {_tr(v['floor_at'])} | işlem {n if n is not None else '?'}")
+ 
+@@ -983,7 +985,7 @@ class TelegramDaemon:
+                 continue
+             dur = {"ok": "ok", "review": "inceleme", "floor": "taban"}[v["state"]]
+             c = v.get("counters") or {}
+-            ln = [f"{b}: basamak {v['step_name']} (risk %{_tr(v['step_risk'] * 100)}) | durum {dur}",
++            ln = [f"{b}: risk %{_tr(v['step_risk'] * 100)} (sabit) | durum {dur}",
+                   f"  yatırılan {_tr(v['dep_net'])} | taban {_tr(v['base'])} | tepe {_tr(v['peak'])} | "
+                   f"özsermaye {_tr(v['equity'])}",
+                   f"  düşüş: tabandan %{_tr(v['dd_base_pct'], 1)}, tepeden %{_tr(v['dd_peak_pct'], 1)}",
+@@ -1062,9 +1064,8 @@ class TelegramDaemon:
+         for b, lf, st, v in items:
+             e = v["equity"]
+             nb = min(st.base, e) if st.status == "review" else st.base
+-            step = min(st.step, 0) if st.status == "review" else st.step
+             parts.append(f"{b}: yeni taban {_tr(nb)} USD, yeni durma seviyesi {_tr(RL.STOP_RATIO * nb)} USD, "
+-                         f"basamak {RL.STEP_NAMES[step]}, son taban {_tr(RL.FLOOR_RATIO * st.dep_net)} USD")
++                         f"risk %{_tr(RL.STEPS[RL.LIVE_START_STEP] * 100)} (sabit), son taban {_tr(RL.FLOOR_RATIO * st.dep_net)} USD")
+         self._reply("Onaylarsan: " + "; ".join(parts) + f". Onay icin {CODE_TTL_S} sn icinde yalniz su 4 haneli kodu "
+                     f"yanitla: {code}")
+         return "code_sent"
+diff --git a/trader/src/trader_core/tg_sade.py b/trader/src/trader_core/tg_sade.py
+index 8293485..c79064f 100644
+--- a/trader/src/trader_core/tg_sade.py
++++ b/trader/src/trader_core/tg_sade.py
+@@ -182,17 +182,8 @@ def limit_orani(config_dir: str | Path | None, mode: Any = "paper") -> float:
+     trader_engine ice aktarilmaz."""
+     from . import risk as R  # noqa: PLC0415
+     canli = str(mode) == "live"
+-    if not config_dir:
+-        config_dir = (os.environ.get("ENGINE_CONFIG_DIR") or "").strip() or str(Path(__file__).resolve().parent.parent.parent / "config")
+     try:
+-        cfg: dict = {}
+-        for ad in ("engine.base.json", "engine.learner.json", "engine.live.json" if canli else "engine.paper.json"):
+-            p = Path(config_dir) / ad
+-            if p.exists():
+-                d = json.loads(p.read_text(encoding="utf-8"))
+-                if isinstance(d.get("risk"), dict):
+-                    cfg.setdefault("risk", {}).update(d["risk"])
+-        v = (cfg.get("risk") or {}).get("daily_max_loss")
++        v = _risk_sozlugu(config_dir, canli).get("daily_max_loss")
+         if v is None:
+             return R.LOCKED_CFG.daily_max_loss
+         return (R.live_config if canli else R.paper_config)(daily_max_loss=float(v)).daily_max_loss
+@@ -200,6 +191,31 @@ def limit_orani(config_dir: str | Path | None, mode: Any = "paper") -> float:
+         return R.LOCKED_CFG.daily_max_loss
+ 
+ 
++def _risk_sozlugu(config_dir: str | Path | None, canli: bool) -> dict:
++    """engine.base/learner/(live|paper) ayar dosyalarindaki `risk` bolumu (motorun kullandigi birlesim)."""
++    if not config_dir:
++        config_dir = (os.environ.get("ENGINE_CONFIG_DIR") or "").strip() or str(Path(__file__).resolve().parent.parent.parent / "config")
++    cfg: dict = {}
++    for ad in ("engine.base.json", "engine.learner.json", "engine.live.json" if canli else "engine.paper.json"):
++        p = Path(config_dir) / ad
++        if p.exists():
++            d = json.loads(p.read_text(encoding="utf-8"))
++            if isinstance(d.get("risk"), dict):
++                cfg.setdefault("risk", {}).update(d["risk"])
++    return dict(cfg.get("risk") or {})
++
++
++def risk_ayari(config_dir: str | Path | None, mode: Any = "paper"):
++    """Kipin ayar dosyasindaki risk limitleri (max_open_risk, max_same_dir_risk, daily_max_loss); okunamazsa LOCKED_CFG."""
++    from . import risk as R  # noqa: PLC0415
++    canli = str(mode) == "live"
++    try:
++        kw = {k: float(v) for k, v in _risk_sozlugu(config_dir, canli).items() if k in R.PAPER_KEYS and k != "target_trade_risk"}
++        return (R.live_config if canli else R.paper_config)(**kw)
++    except (OSError, ValueError, TypeError):
++        return R.LOCKED_CFG
++
++
+ def limit_uyari(zarar: float, limit: float) -> str:
+     return _bagla(["⚠️ Günlük zarar sınırına yaklaşıldı",
+                    f"Bugün {sayi(zarar)} $ kaybedildi; sınır {sayi(limit)} $ (%80 doldu).",
+diff --git a/trader/src/trader_core/veri_haber.py b/trader/src/trader_core/veri_haber.py
+index 6127edd..ba22f86 100644
+--- a/trader/src/trader_core/veri_haber.py
++++ b/trader/src/trader_core/veri_haber.py
+@@ -44,6 +44,7 @@ KAYNAK_LISTESI: tuple[tuple[str, str, str], ...] = (
+     ("mining_com", "https://www.mining.com/feed/", "emtia"),
+     ("cnbc_energy", "https://www.cnbc.com/id/19836768/device/rss/rss.html", "emtia"),
+ )
++# Yayinci = besleme adinin ilk parcasi (cnbc_*, marketwatch_* ayni yayinci); HB1 teyidinde (haber_sinyal.yayinci) tek kaynak sayilir.
+ KAYNAKLAR: dict[str, str] = {ad: url for ad, url, _ in KAYNAK_LISTESI}
+ KATEGORI: dict[str, str] = {ad: kat for ad, _, kat in KAYNAK_LISTESI}
+ KATEGORILER = ("kripto", "hisse", "emtia")
+diff --git a/trader/src/trader_engine/brokers/paper.py b/trader/src/trader_engine/brokers/paper.py
+index f94cbd7..740b0cc 100644
+--- a/trader/src/trader_engine/brokers/paper.py
++++ b/trader/src/trader_engine/brokers/paper.py
+@@ -4,7 +4,7 @@ from __future__ import annotations
+ import math
+ from collections import deque
+ from collections.abc import Mapping
+-from dataclasses import dataclass, field
++from dataclasses import dataclass, field, replace
+ from datetime import datetime, timedelta, timezone
+ from decimal import Decimal
+ from typing import Callable, Literal
+@@ -43,6 +43,7 @@ class PaperConfig:
+     mmr: float
+     wallet_start: float = 1000.0
+     funding_max_wait_s: float = 900.0   # funding noktasi gelmezse imlec en fazla bu kadar bekler, sonra funding_missing
++    mmr_fn: Callable[[str], float] | None = None   # cift -> sinif MMR'i (giris kapisiyla ayni kaynak); None: tek `mmr`
+ 
+ 
+ # --------------------------------------------------------------------------- ic kayitlar
+@@ -473,6 +474,11 @@ class PaperBroker:
+         self._events.append(BrokerEvent(kind="order_rejected", ts=ts, pair=o.pair, client_id=o.client_id,
+                                         detail=reason))
+ 
++    def _cfg_pair(self, pair: str) -> PaperConfig:
++        """Cift icin yapilandirma: `mmr_fn` varsa MMR sinifa gore (giris kapisiyla ayni kaynak), yoksa tek `mmr`."""
++        fn = self._cfg.mmr_fn
++        return self._cfg if fn is None else replace(self._cfg, mmr=float(fn(pair)))
++
+     def _fill_entry(self, o: _Order, bar: MinuteBar, rules: SymbolRules) -> None:
+         ts = bar.open_ts
+         cost = self._cfg.cost
+@@ -491,7 +497,7 @@ class PaperBroker:
+         side: Side = "long" if o.order_side == "buy" else "short"
+         self._wallet -= fee
+         self._pos[o.pair] = _Pos(side=side, qty=o.qty, entry_price=fp, leverage=lev, margin=margin,
+-                                 liq_price=liquidation_price(fp, side, lev, self._cfg.mmr),
++                                 liq_price=liquidation_price(fp, side, lev, self._cfg_pair(o.pair).mmr),
+                                  funding_paid=0.0, fee_paid_entry=fee, opened_ts=ts)
+         last = self._last_funding.get(o.pair)
+         self._last_funding[o.pair] = ts if last is None else max(last, ts)
+@@ -593,7 +599,7 @@ class PaperBroker:
+         if stop_px is not None and (stop_px <= pos.liq_price if long else stop_px >= pos.liq_price):
+             detail = "liquidation_before_stop"
+             self._ctr["anomalies"] += 1
+-        fee = pos.qty * pos.entry_price * self._cfg.mmr
++        fee = pos.qty * pos.entry_price * self._cfg_pair(pair).mmr
+         cid = f"LIQ-{pair}-{_iso(ts)}"
+         o = _Order(client_id=cid, pair=pair, role="exit", order_side="sell" if long else "buy", qty=pos.qty,
+                    trigger_price=None, reduce_only=True, leverage=pos.leverage, status="new", filled_qty=0.0,
+diff --git a/trader/src/trader_engine/cli.py b/trader/src/trader_engine/cli.py
+index 3566c1d..e6ebc51 100644
+--- a/trader/src/trader_engine/cli.py
++++ b/trader/src/trader_engine/cli.py
+@@ -519,7 +519,7 @@ EXIT_LADDER = EXIT_FINDINGS   # 12 §5 (v1.1): 5 = bulgu (bozuk gunluk, kosulu t
+ 
+ 
+ def _ladder_ctx(a, *, write: bool):
+-    """-> (cfg, LadderLog, hata_kodu). write=True: paper/backtest'te ret (cikis 2)."""
++    """-> (cfg, LadderLog, hata_kodu). write=True: yalniz backtest'te ret (cikis 2); 24.11: kagitta dosya gunlugu var."""
+     from trader_core import risk_ladder as RL
+ 
+     from .errors import ConfigError
+@@ -528,8 +528,8 @@ def _ladder_ctx(a, *, write: bool):
+     except ConfigError as e:
+         print(f"yapilandirma hatasi: {e}", file=sys.stderr)
+         return None, None, EXIT_FAZ_B
+-    if write and cfg.mode in ("backtest", "paper"):
+-        print("kagitta sermaye kaydi yok (backtest/paper kipinde yazan komut reddedildi)", file=sys.stderr)
++    if write and cfg.mode == "backtest":
++        print("backtest kipinde sermaye kaydi yok (yazan komut reddedildi)", file=sys.stderr)
+         return cfg, None, EXIT_FAZ_B
+     return cfg, RL.LadderLog(cfg.path("risk_ladder.jsonl")), None
+ 
+@@ -711,11 +711,15 @@ def _cmd_capital(a) -> int:
+     if rc is not None:
+         return rc
+     if op == "init":
++        if cfg.mode == "paper":
++            print("kagitta `capital init` yok: ilk satiri motor yazar (wallet_start)", file=sys.stderr)
++            return EXIT_FAZ_B
+         if rows:
+             print("gunluk dolu: ikinci `capital init` yok (duzeltme icin `capital adjust`)", file=sys.stderr)
+             return EXIT_FAZ_B
+         # 23.11 kullanici karari: canli = kagit; canli gunluk %1 (K2) basamagindan baslar (testnet K0)
+-        extra = {"start_step": RL.LIVE_START_STEP} if cfg.mode == "live" else {}
++        # 24.11: start_step testnet icin de yazilir
++        extra = {"start_step": RL.LIVE_START_STEP} if cfg.mode in ("live", "testnet") else {}
+         row, rc = _write_row(log, "initial", a, now, amount=a.amount, **extra)
+     elif op == "deposit":
+         row, rc = _write_row(log, "deposit", a, now, amount=a.amount)
+diff --git a/trader/src/trader_engine/engine.py b/trader/src/trader_engine/engine.py
+index f316275..85c6a54 100644
+--- a/trader/src/trader_engine/engine.py
++++ b/trader/src/trader_engine/engine.py
+@@ -2642,8 +2642,8 @@ def _check_rules_drift(broker, view, cfg: EngineConfig) -> None:
+ 
+ 
+ def _build_ladder(cfg: EngineConfig, clock: Clock, pause: EntryPause, broker, led):
+-    """12 §8.1: backtest -> yok; paper -> gozlem (bellek gunlugu, sanal initial = wallet_start); testnet/live -> zorlama
+-    (dosya gunlugu; canlida `broker.transfers` ile aktarim eslestirme)."""
++    """12 §8.1: backtest -> yok; paper/testnet/live -> zorlama (dosya gunlugu). 24.11: kagit canli gibi; kagitta gunluk yoksa motor
++    `initial` (wallet_start) yazar; canlida `broker.transfers` ile aktarim eslestirme (kagitta aktarim yok = tek fark)."""
+     if cfg.mode == "backtest":
+         return None
+     from trader_core import risk_ladder as RL
+@@ -2653,13 +2653,17 @@ def _build_ladder(cfg: EngineConfig, clock: Clock, pause: EntryPause, broker, le
+     def trades_fn(since):
+         return led.list_closed_trades(since=since, limit=L.Ledger.LIST_CLOSED_MAX)
+ 
++    lg = RL.LadderLog(cfg.path("risk_ladder.jsonl"))
+     if cfg.mode == "paper":
+-        mem = RL.LadderLog(None)
+-        mem.append("initial", "engine:paper", clock.now(), amount=float(cfg.wallet_start))
+-        follow = RL.LadderLog(cfg.ladder_follow) if cfg.ladder_follow else None
+-        return RiskLadder(cfg, clock, pause, log=mem, enforce=False, follow=follow, trades_fn=trades_fn)
++        try:
++            bos = not lg.rows()
++        except Exception as e:  # noqa: BLE001 - bozuk gunluk: dokunulmaz, kapi ladder_invalid verir
++            log.error("kagit kademe gunlugu okunamadi: %r", e)
++            bos = False
++        if bos:
++            lg.append("initial", "engine:paper", clock.now(), amount=float(cfg.wallet_start), start_step=RL.LIVE_START_STEP)
+     xfer = getattr(broker, "transfers", None) if cfg.mode == "live" else None
+-    return RiskLadder(cfg, clock, pause, log=RL.LadderLog(cfg.path("risk_ladder.jsonl")), enforce=True,
++    return RiskLadder(cfg, clock, pause, log=lg, enforce=True,
+                       transfers_fn=xfer if callable(xfer) else None, trades_fn=trades_fn)
+ 
+ 
+@@ -2742,7 +2746,11 @@ def build_engine(cfg: EngineConfig, *, clock: Clock | None = None, view: MarketV
+                 led.close()
+             raise
+     if broker is None:
+-        pcfg = PaperConfig(cost=cfg.cost, mmr=K.LOCKED_CFG.maint_margin_rate, wallet_start=cfg.wallet_start)
++        mmr_fn = None
++        if cfg.mode == "paper":                                                           # kapiyla ayni kaynak: sinif MMR'i (gates._tasfiye_mesafesi_karari)
++            from . import arm_guard as _AG
++            mmr_fn = lambda p: K.sinif_mmr(_AG.asset_class(p, cfg.clusters), cfg.risk_config.maint_margin_rate)  # noqa: E731
++        pcfg = PaperConfig(cost=cfg.cost, mmr=K.LOCKED_CFG.maint_margin_rate, wallet_start=cfg.wallet_start, mmr_fn=mmr_fn)
+         if cfg.mode == "paper" and cfg.cost_overrides:
+             broker = session_cost_broker(cfg, pcfg, view.rules, view.funding, clock)       # DD-12 §4.3: seansa gore kayma
+         else:
+diff --git a/trader/src/trader_engine/ladder.py b/trader/src/trader_engine/ladder.py
+index 73a4971..f742820 100644
+--- a/trader/src/trader_engine/ladder.py
++++ b/trader/src/trader_engine/ladder.py
+@@ -3,7 +3,8 @@
+ Motor bu sinifi her karar adiminda ve canli dongude `tick` ile besler; kapi (`gate_code`), etkin risk (`risk_config`) ve
+ durum (`status`) buradan okunur. Risk sayisi YOKTUR: basamaklar/esikler `trader_core.risk_ladder` kod sabitleridir.
+ Motor yalniz `step_down`/`review_stop`/`floor_stop`/`peak` satirlari yazar ve duraklatma tutusu KURAR; tutus kaldirmak,
+-sermaye/devam/yeniden baslatma satiri yazmak yalniz CLI'nin (ve Telegram'in) isidir. Paper kipi GOZLEM'dir (enforce=False).
++sermaye/devam/yeniden baslatma satiri yazmak yalniz CLI'nin (ve Telegram'in) isidir. 24.11: kagit da canli gibi ZORLAR (dosya gunlugu);
++risk dusurme kapali (etkin risk hep cfg %1); tek fark: kagitta borsa aktarimi olmadigi icin aktarim eslestirmesi yok.
+ Sermaye mandali (`capital_latch`): equity <= 0.85 x dep_net -> yeni giris kapanir; TUM kiplerde (paper dahil, enforce'tan bagimsiz)
+ kurulur, yeniden baslatmada kalir, yalniz kullanici acar; kaldirildiktan sonra esigin ustune cikilip yeniden inilmedikce tekrar kurulmaz.
+ """
+@@ -104,8 +105,6 @@ class RiskLadder:
+             if self._follow_cfg is None:
+                 self._refresh_follow()
+             return self._follow_cfg if self._follow_cfg is not None else base
+-        if not self.enforce:
+-            return base                                   # gozlem: kagit sonuclari bit-bit ayni
+         if not self._loaded:
+             self._load()
+         if self._st is None:
+@@ -482,7 +481,7 @@ class RiskLadder:
+             d["equity"] = eq
+         else:
+             d.update({
+-                "step": st.step, "step_name": RL.STEP_NAMES[st.step], "step_risk": RL.STEPS[st.step],
++                "step": st.step, "step_name": RL.STEP_NAMES[st.step], "step_risk": self.risk_config.target_trade_risk,
+                 "lowest_step": RL.lowest(st.dep_net), "step_since": RL.fmt_at(st.step_since),
+                 "started_at": RL.fmt_at(st.started_at), "dep_net": st.dep_net, "base": st.base, "peak": st.peak,
+                 "equity": eq,
+diff --git a/trader/src/trader_engine/strategies/arms/hb1.py b/trader/src/trader_engine/strategies/arms/hb1.py
+index 98027ec..2b5a1f3 100644
+--- a/trader/src/trader_engine/strategies/arms/hb1.py
++++ b/trader/src/trader_engine/strategies/arms/hb1.py
+@@ -102,6 +102,11 @@ def satir_gecerli(s) -> bool:
+             and ("olaylar" not in s or (isinstance(s["olaylar"], list) and all(olay_gecerli(e) for e in s["olaylar"]))))
+ 
+ 
++def yayinci(kaynak: str) -> str:
++    """Besleme adi -> yayinci (24.11; trader_core.haber_sinyal.yayinci ile ayni kural): ayni yayincinin beslemeleri tek teyit."""
++    return str(kaynak).split("_", 1)[0]
++
++
+ def yeniden_sonumle(s: dict, D_ms: int) -> dict:
+     """Satirda ham olaylar varsa puan/teyit/max_siddet/olay_kimligi'ni karar zamanina (D) gore yeniden hesaplar (uretici `birlestir` ile
+     ayni formul: pencere 6 sa, yari omur 2 sa, olay ufku). Olaylar yoksa satir aynen doner."""
+@@ -119,7 +124,7 @@ def yeniden_sonumle(s: dict, D_ms: int) -> dict:
+     yon = 1 if puan > 0 else -1 if puan < 0 else 0
+     ayni = [e for e in canli if e["yon"] == yon] if yon else []
+     en_yeni = max(ayni, key=lambda e: (e["alim_ms"], e["kimlik"]), default=None)
+-    return {**s, "puan": puan, "teyit_kaynak": len({k for e in ayni for k in e["kaynaklar"]}),
++    return {**s, "puan": puan, "teyit_kaynak": len({yayinci(k) for e in ayni for k in e["kaynaklar"]}),
+             "max_siddet": max((e["siddet"] for e in ayni), default=0), "olay_kimligi": en_yeni["kimlik"] if en_yeni else 0,
+             "olay_kimlikleri": sorted({e["kimlik"] for e in ayni})}
+ 
+diff --git a/trader/src/trader_panel/data.py b/trader/src/trader_panel/data.py
+index 6042db4..4efaec8 100644
+--- a/trader/src/trader_panel/data.py
++++ b/trader/src/trader_panel/data.py
+@@ -188,7 +188,7 @@ class PanelData:
+                 raise P.SectionError(s["code"])
+             d = s["data"]
+             return P.risk_usage(self._ledger_path(b), b, d.get("equity"), d.get("day_start_equity"),
+-                                P.today_tr(self.now()))
++                                P.today_tr(self.now()), d.get("mode"))
+         return self._wrap(fn)
+ 
+     def _kill_file(self) -> bool | None:
+@@ -227,7 +227,8 @@ class PanelData:
+             safe = {}
+             for k, f in (("health", lambda: P.health_view(self.cfg.health_state, now, self.cfg.health_stale_s)),
+                          ("budget", lambda: P.budget_view(self.cfg.budget_config)),
+-                         ("risk", lambda: P.risk_usage(lp, b, status["equity"], status["day_start_equity"], P.today_tr(now))["rows"]),
++                         ("risk", lambda: P.risk_usage(lp, b, status["equity"], status["day_start_equity"], P.today_tr(now),
++                                                 status.get("mode"))["rows"]),
+                          ("tut", lambda: P.tutarlilik_view(self._tut_path(), now)),
+                          ("mut", lambda: PP.mutabakat_view(self._mut_path())),
+                          ("pbo", lambda: P.pbo_view(self._holdout_path("pbo_path", "pbo_ozet.json"),
+diff --git a/trader/tests/engine/test_asama_b_esikleri.py b/trader/tests/engine/test_asama_b_esikleri.py
+index dfff671..c4a2634 100644
+--- a/trader/tests/engine/test_asama_b_esikleri.py
++++ b/trader/tests/engine/test_asama_b_esikleri.py
+@@ -326,6 +326,18 @@ def test_fren_ardisik_seri_yeni_utc_gununde_kalkar(mk):
+     assert _risk(_go(e, "ETH/USDT", D=D2)) == pytest.approx(temel, rel=1e-6)     # yeni gun: fren yok
+ 
+ 
++def test_fren_gunluk_dunku_kazanc_freni_kaldirmaz():
++    """24.11 denetim: gunluk fren yalniz BUGUNUN (UTC) kapanislarina bakar; dunku kazanc engellemez, bugunku kazanc kaldirir."""
++    cfg = {"ardisik": 5, "gunluk_oran": 0.04, "carpan": 0.5}
++    gun = datetime(2026, 11, 24, tzinfo=timezone.utc)
++    t = lambda pnl, ts: SimpleNamespace(realized_pnl=pnl, exit_reason="stop", exit_ts=ts)   # noqa: E731
++    dun = t(+5, gun - timedelta(hours=1))
++    bugun_kazanc = t(+5, gun + timedelta(hours=1))
++    assert KF.karar(cfg, [dun], 960.0, 1000.0, gun).neden == "gunluk"                 # dunku kazanc: fren duruyor
++    assert KF.karar(cfg, [t(-1, gun + timedelta(hours=2)), dun], 960.0, 1000.0, gun).aktif is True
++    assert KF.karar(cfg, [bugun_kazanc, dun], 960.0, 1000.0, gun).aktif is False       # bugunku kazanc: kalkar
++
++
+ def test_fren_gunluk_yuzde4_ve_ertesi_gun_kalkar(mk):
+     kw = {**BOS, "kayip_freni": {"ardisik": 5, "gunluk_oran": 0.04, "carpan": 0.5}}
+     e = mk(PAPER, **kw)
+diff --git a/trader/tests/engine/test_canli_kagit_parite.py b/trader/tests/engine/test_canli_kagit_parite.py
+index 894d796..d0dfa84 100644
+--- a/trader/tests/engine/test_canli_kagit_parite.py
++++ b/trader/tests/engine/test_canli_kagit_parite.py
+@@ -132,19 +132,16 @@ def _ladder_log(tmp_path, *, start_step=None, amount=1000.0):
+     return lg
+ 
+ 
+-def test_canli_kademe_yuzde_bir_baslar_ve_adim_adim_iner(tmp_path):
++def test_canli_kademe_yuzde_bir_baslar_inis_yok_durma_ve_taban_aynen(tmp_path):
++    """24.11 kullanici karari: risk dusurme kapali; tepeden -%10/-%15 eylem uretmez; -%20 durma ve %60 taban degismedi."""
+     base = load_cli_config(CONFIG, "learner", "live").risk_config
+     st = _ladder_log(tmp_path, start_step=RL.LIVE_START_STEP).state()
+     assert st.step == 2 and RL.STEPS[st.step] == 0.010
+-    assert RL.step_config(base, st.step).target_trade_risk == 0.01
+-    # tepeden -%10 -> K1 (0.0075); -%15 -> K0 (0.005); -%20 durma; taban; hepsi degismedi
+-    a = RL.evaluate(st, 1000.0 * 0.90)
+-    assert [(x.kind, x.step) for x in a] == [("step_down", 1)]
+-    a = RL.evaluate(st, 1000.0 * 0.85)
+-    assert [(x.kind, x.step) for x in a] == [("step_down", 0)]
++    assert RL.step_config(base, st.step) is base
++    assert RL.evaluate(st, 1000.0 * 0.90) == () and RL.evaluate(st, 1000.0 * 0.85) == ()
+     assert [x.kind for x in RL.evaluate(st, 1000.0 * 0.80)] == ["review_stop"]
+     assert [x.kind for x in RL.evaluate(st, 1000.0 * 0.60)] == ["floor_stop"]
+-    assert RL.step_config(base, 1).target_trade_risk == 0.0075 and RL.step_config(base, 0).target_trade_risk == 0.005
++    assert all(RL.step_config(base, s) is base for s in RL.STEPS)
+ 
+ 
+ def test_kademe_varsayilan_baslangic_degismedi_ve_start_step_sinirli(tmp_path):
+@@ -267,3 +264,87 @@ def test_canli_birim_bellek_tavani_kagitla_ayni():
+         line = next(x for x in paper.splitlines() if x.startswith(key + "="))
+         assert line in live.splitlines()
+     assert "MemoryMax=750M" in live
++
++
++# ----------------------------------------------------------------------------------------------- 24.11: kagit de zorlar
++def _paper_engine(tmp_path):
++    import test_engine_live_spec as LS
++    from test_engine_05_spec import SynthView
++    from trader_engine.clock import SimClock
++    cfg = LS.make_cfg(tmp_path, "learner", "paper", (LS.BTC,), 1000.0)
++    from trader_engine.config import apply_overrides
++    cfg = apply_overrides(cfg, pause_file=str(tmp_path / "PAUSE"), kill_file=str(tmp_path / "KILL"))   # depo icindeki shared/ kirlenmesin
++    clock = SimClock(LS.BOOT)
++    view = SynthView((LS.BTC,), LS.BOOT - timedelta(days=1), LS.BOOT + timedelta(days=1), clock=None)
++    return cfg, build_engine(cfg, clock=clock, view=view, env={}), clock
++
++
++def _surdur(lad, t0, seq):
++    for i, eq in enumerate(seq):
++        lad.tick(t0 + timedelta(seconds=61 * (i + 1)), eq, eq)
++    return lad.gate_code(), sorted(h.reason for h in lad.pause.holds()), lad.risk_config.target_trade_risk
++
++
++def _kapat(eng):
++    eng.state.close()
++    eng.ledger.close()
++
++
++def test_kagit_ve_canli_ladder_zorlar_ayni_dizide_ayni_sonuc(tmp_path):
++    import test_engine_live_spec as LS
++    (tmp_path / "p").mkdir()
++    (tmp_path / "l").mkdir()
++    _, peng, _ = _paper_engine(tmp_path / "p")
++    lcfg, leng = _live_engine(tmp_path / "l")
++    try:
++        assert peng.ladder.enforce is True and leng.ladder.enforce is True
++        for eng, cfg in ((peng, None), (leng, lcfg)):
++            if cfg is not None and not eng.ladder.log.rows():
++                eng.ladder.log.append("initial", "test", LS.BOOT, amount=1000.0, start_step=RL.LIVE_START_STEP)
++        seq = [1000.0, 900.0, 900.0, 850.0, 850.0, 790.0, 790.0]          # -%10, -%15, sonra -%21
++        sonuc = []
++        for eng in (peng, leng):
++            lad = eng.ladder
++            lad.transfers_fn = None                        # tek fark (aktarim eslestirmesi) disarida: kalan davranis ayni
++            sonuc.append(_surdur(lad, LS.BOOT, seq))
++        assert sonuc[0][:2] == sonuc[1][:2]                                # ayni kapi kodu, ayni tutuslar
++        gate, holds, _ = sonuc[0]
++        assert "drawdown_review" in holds and "capital_latch" in holds
++        # etkin risk her kipte kendi yapilandirmasindaki deger (dusurme yok); gercek dosyalarda ikisi de %1
++        assert sonuc[0][2] == peng.cfg.risk_config.target_trade_risk and sonuc[1][2] == leng.cfg.risk_config.target_trade_risk
++        assert load_cli_config(CONFIG, "learner", "paper").risk_config.target_trade_risk == 0.01
++        assert load_cli_config(CONFIG, "learner", "live").risk_config.target_trade_risk == 0.01
++    finally:
++        _kapat(peng)
++        _kapat(leng)
++
++
++def test_kagit_gunlugu_yoksa_motor_initial_yazar_capital_missing_yok(tmp_path):
++    cfg, eng, clock = _paper_engine(tmp_path)
++    try:
++        rows = eng.ladder.log.rows()
++        assert [r["kind"] for r in rows] == ["initial"] and rows[0]["by"] == "engine:paper" and rows[0]["amount"] == cfg.wallet_start
++        eng.ladder.tick(clock.now() + timedelta(seconds=61), 1000.0, 1000.0)
++        assert eng.ladder.gate_code() is None             # capital_missing yok
++    finally:
++        _kapat(eng)
++
++
++def test_kagit_yeniden_baslatilinca_review_korunur(tmp_path):
++    import test_engine_live_spec as LS
++    cfg, eng, clock = _paper_engine(tmp_path)
++    try:
++        _surdur(eng.ladder, LS.BOOT, [790.0, 790.0, 790.0])
++        assert eng.ladder.log.state().status == "review"
++    finally:
++        _kapat(eng)
++    from test_engine_05_spec import SynthView
++    from trader_engine.clock import SimClock
++    view = SynthView((LS.BTC,), LS.BOOT - timedelta(days=1), LS.BOOT + timedelta(days=1), clock=None)
++    eng2 = build_engine(cfg, clock=SimClock(LS.BOOT + timedelta(hours=1)), view=view, env={})
++    try:
++        assert eng2.ladder.log.state().status == "review"                  # dosya gunlugu: yeniden baslatmada kalir
++        eng2.ladder.tick(LS.BOOT + timedelta(hours=1, seconds=61), 1000.0, 1000.0)
++        assert eng2.ladder.log.state().status == "review" and "drawdown_review" in [h.reason for h in eng2.ladder.pause.holds()]
++    finally:
++        _kapat(eng2)
+diff --git a/trader/tests/engine/test_dd12_wp18_impl.py b/trader/tests/engine/test_dd12_wp18_impl.py
+index 357b420..892545d 100644
+--- a/trader/tests/engine/test_dd12_wp18_impl.py
++++ b/trader/tests/engine/test_dd12_wp18_impl.py
+@@ -225,8 +225,9 @@ def hist_dir(tmp_path):
+     return h
+ 
+ 
+-def test_m1_history_tail_excludes_lock_window(hist_dir):
++def test_m1_history_tail_excludes_lock_window(hist_dir, monkeypatch):
+     import ml_retrain_run as R
++    monkeypatch.setattr(R, "KILIT_ACIK", False)                                  # 24.11 kullanici karari: denetim duzeltmeleri (kesim yalniz kilit kapaliyken)
+     bars = R._load_bars(str(hist_dir), "BTC", "1h")
+     rows = R._hist_tail(bars, "BTC/USDT", cap=400, cutoff=LOCK_START)
+     assert rows and len(rows) <= 400
+diff --git a/trader/tests/engine/test_hb1_kol.py b/trader/tests/engine/test_hb1_kol.py
+index 27b05f2..11c189a 100644
+--- a/trader/tests/engine/test_hb1_kol.py
++++ b/trader/tests/engine/test_hb1_kol.py
+@@ -189,6 +189,27 @@ def test_teyit_bir_olumlu_bir_etkisiz_farkli_kaynak_giris_yok(sinyal):
+     assert bool(_son(HB1.compute(_inp()))["signal"])
+ 
+ 
++def test_ayni_yayincinin_beslemeleri_tek_teyit_sayilir(sinyal):
++    """24.11 denetim: cnbc_earnings + cnbc_finance ayni yayinci = 1 teyit (siddet < 3 iken giris yok); farkli yayinci = 2."""
++    from trader_core import veri_haber as VH
++    assert HS.yayinci("cnbc_finance") == HB1.yayinci("cnbc_finance") == "cnbc"
++    assert {HS.yayinci(a) == HB1.yayinci(a) for a in VH.KAYNAKLAR} == {True}
++    assert len({HS.yayinci(a) for a in ("marketwatch_top", "marketwatch_pulse", "cnbc_energy", "cnbc_earnings")}) == 2
++
++    def ev(kay, n):
++        return {"baslik": f"h{kay}{n}", "alim": _ms(D - timedelta(minutes=70)), "kaynaklar": [kay], "semboller": ["BTC/USDT"], "yon": 1,
++                "siddet": 2, "guven": 1.0, "ufuk_saat": 24}
++    uret = _ms(D - timedelta(minutes=50))
++    belge = HS.sinyal_belgesi([ev("cnbc_earnings", 0), ev("cnbc_finance", 1)], uret)
++    s = belge["enstrumanlar"]["BTC/USDT"]
++    assert s["kaynak_sayisi"] == 2 and s["teyit_kaynak"] == 1
++    sinyal(belge)
++    assert not _son(HB1.compute(_inp()))["signal"] and HB1.COUNTERS["tek_kaynak"] == 1
++    assert HB1.yeniden_sonumle(s, _ms(D))["teyit_kaynak"] == 1
++    sinyal(HS.sinyal_belgesi([ev("cnbc_earnings", 0), ev("marketwatch_top", 1)], uret))
++    assert bool(_son(HB1.compute(_inp()))["signal"])
++
++
+ def test_kol_teyit_kaynak_alanini_kullanir_kaynak_sayisini_degil(sinyal):
+     sinyal(_belge(D - timedelta(minutes=50), {"BTC/USDT": _s(k=2, teyit=1, sid=2)}))
+     assert not _son(HB1.compute(_inp()))["signal"]
+diff --git a/trader/tests/engine/test_m1_tf_paper.py b/trader/tests/engine/test_m1_tf_paper.py
+index 5188bd6..87c7bdb 100644
+--- a/trader/tests/engine/test_m1_tf_paper.py
++++ b/trader/tests/engine/test_m1_tf_paper.py
+@@ -94,8 +94,9 @@ class _Led:
+         return []
+ 
+ 
+-def test_nightly_produces_per_tf_packages_and_excludes_lock(tmp_path):
++def test_nightly_produces_per_tf_packages_and_excludes_lock(tmp_path, monkeypatch):
+     import ml_retrain_run as R
++    monkeypatch.setattr(R, "KILIT_ACIK", False)                  # 24.11 kullanici karari: denetim duzeltmeleri (kesim yalniz kilit kapaliyken)
+     h = tmp_path / "h"
+     h.mkdir()
+     for k, b in enumerate(("BTC", "ETH")):                       # kilit icine uzanan veri
+diff --git a/trader/tests/engine/test_risk_ladder_impl.py b/trader/tests/engine/test_risk_ladder_impl.py
+index c1c86a3..26cc985 100644
+--- a/trader/tests/engine/test_risk_ladder_impl.py
++++ b/trader/tests/engine/test_risk_ladder_impl.py
+@@ -167,7 +167,7 @@ def test_testnet_engine_enforces_without_transfers(tmp_path):
+         eng.ledger.close()
+ 
+ 
+-def test_paper_engine_observes_and_backtest_has_no_ladder(tmp_path):
++def test_paper_engine_enforces_with_file_log_and_backtest_has_no_ladder(tmp_path):
+     import test_engine_live_spec as LS
+     from test_engine_05_spec import SynthView
+     cfg = LS.make_cfg(tmp_path, "learner", "paper", (LS.BTC,), 1000.0)
+@@ -176,13 +176,14 @@ def test_paper_engine_observes_and_backtest_has_no_ladder(tmp_path):
+     eng = build_engine(cfg, clock=clock, view=view, env={})
+     try:
+         lad = eng.ladder
+-        assert lad is not None and lad.enforce is False and lad.log.path is None
+-        assert lad.risk_config is cfg.risk_config                      # gozlem: boyutlama cfg ile (bit-bit ayni)
++        # 24.11 kullanici karari: kagit da zorlar; dosya gunlugu, ilk satiri motor yazar; etkin risk cfg (%1)
++        assert lad is not None and lad.enforce is True and lad.log.path == cfg.path("risk_ladder.jsonl")
++        assert lad.risk_config is cfg.risk_config
+         st = lad.log.state()
+-        assert st.dep_net == cfg.wallet_start and lad.log.rows()[0]["by"] == "engine:paper"
++        assert st.dep_net == cfg.wallet_start and lad.log.rows()[0]["by"] == "engine:paper" and st.step == rl.LIVE_START_STEP
+         blk = eng.status.build(eng)["risk_ladder"]
+-        assert blk["enforce"] is False and blk["state"] == "ok" and blk["would"] is None
+-        assert not os.path.exists(cfg.path("risk_ladder.jsonl"))       # kagitta dosya yok
++        assert blk["enforce"] is True and blk["state"] == "ok" and blk["would"] is None and blk["transfer"] is None
++        assert os.path.exists(cfg.path("risk_ladder.jsonl"))
+     finally:
+         eng.state.close()
+         eng.ledger.close()
+@@ -291,19 +292,20 @@ def test_t29_paper_observation_sizing_unchanged_and_would(tmp_path):
+         e.close()
+ 
+ 
+-def test_t38_effective_risk_after_step_down_sizes_next_entry(tmp_path):
++def test_t38_24_11_step_down_satiri_riski_dusurmez_sizes_next_entry(tmp_path):
+     def down(b):
+         S.to_km1(b)
+     e, lad, pause, b = _env05(tmp_path, enforce=True, steps=[down])
+     e.start()
+     try:
+         lad.tick(e.clock.now() + M1, 1000.0, 1000.0)
+-        assert lad.risk_config.target_trade_risk == 0.0035 and lad.gate_code() is None
++        # 24.11: eski gunlukte step_down satiri olsa da risk dusmez (cfg riski)
++        assert lad.risk_config.target_trade_risk == e.cfg.risk_config.target_trade_risk and lad.gate_code() is None
+         e.signal(T0 + H)
+         e.decide(T0 + H)
+         d = [x for x in e.decisions() if x.final_action == "entered"]
+         assert d, [x.skip_reason for x in e.decisions()]
+-        assert d[0].size_risk_amount == pytest.approx(0.0035 * 1000.0, rel=3e-2)      # 0,0035 x ozsermaye
++        assert d[0].size_risk_amount == pytest.approx(e.cfg.risk_config.target_trade_risk * 1000.0, rel=3e-2)
+     finally:
+         e.close()
+ 
+diff --git a/trader/tests/engine/test_risk_ladder_spec.py b/trader/tests/engine/test_risk_ladder_spec.py
+index ebb5ceb..b6e271d 100644
+--- a/trader/tests/engine/test_risk_ladder_spec.py
++++ b/trader/tests/engine/test_risk_ladder_spec.py
+@@ -603,7 +603,35 @@ def test_t19_review_state_only_floor(equity):
+     assert ev(to_review(book(1000.0)).state(), equity) == ()
+ 
+ 
+-def test_t20_dd_peak_10_boundary_and_fired():
++@pytest.fixture()
++def adim_acik(monkeypatch):
++    """24.11 kullanici karari: risk dusurme kodda kapali (STEP_RISK_ENABLED=False). Basamak makinesi (kod kalir) bu fikstürle denenir."""
++    monkeypatch.setattr(rl, "STEP_RISK_ENABLED", True)
++
++
++def test_t20_24_11_risk_dusurme_kapali_evaluate_bos_step_config_ayni():
++    """24.11: tepeden -%10/-%15'te evaluate bos; step_config her basamakta cfg'yi AYNEN dondurur; -%20/%60 degismedi."""
++    assert rl.STEP_RISK_ENABLED is False
++    st = book(1000.0).state()
++    for eq in (900.0, 899.0, 850.0, 849.0, 810.0):
++        assert ev(st, eq) == (), eq
++    assert ev(dataclasses.replace(st, step=2), 850.0) == ()
++    assert [a.kind for a in ev(st, 800.0)] == ["review_stop"]
++    assert [a.kind for a in ev(st, 600.0)] == ["floor_stop"]
++    for s_ in sorted(rl.STEPS):
++        assert rl.step_config(LOCKED_CFG, s_) is LOCKED_CFG
++    with pytest.raises(ValueError):
++        rl.step_config(LOCKED_CFG, 99)                       # basamak dogrulamasi sabitten once
++
++
++def test_t20_24_11_eski_gunlukte_step_down_satiri_katlanir_risk_yuzde_bir():
++    b = to_km1(book(1000.0))                                 # eski gunluk: step_down satiri var
++    st = b.state()
++    assert st.step == -1 and "step_down" in [r["kind"] for r in b.rows()]
++    assert rl.step_config(LOCKED_CFG, st.step) is LOCKED_CFG
++
++
++def test_t20_dd_peak_10_boundary_and_fired(adim_acik):
+     st = book(1000.0).state()
+     assert ev(st, 900.01) == ()
+     assert ev(st, 900.0) == (act("step_down", -1, "dd_peak_10"),)
+@@ -619,12 +647,12 @@ def test_t20_dd_peak_10_boundary_and_fired():
+     assert ev(st3, 900.0) == (act("step_down", -1, "dd_peak_10"),)
+ 
+ 
+-def test_t20_dd_peak_10_from_k2_goes_one_step():
++def test_t20_dd_peak_10_from_k2_goes_one_step(adim_acik):
+     st = dataclasses.replace(book(1000.0).state(), step=2)     # elle kurulmus durum
+     assert ev(st, 900.0) == (act("step_down", 1, "dd_peak_10"),)
+ 
+ 
+-def test_t21_dd_peak_15():
++def test_t21_dd_peak_15(adim_acik):
+     st0 = book(1000.0).state()
+     st2 = dataclasses.replace(st0, step=2)
+     assert ev(st2, 850.0) == (act("step_down", 0, "dd_peak_15"),)
+@@ -672,7 +700,7 @@ def test_t24_evaluate_invalid_equity(bad):
+         ev(book(1000.0).state(), bad)
+ 
+ 
+-def test_t25_step_config():
++def test_t25_step_config(adim_acik):
+     from trader_core.risk import tightened
+     cfg = tightened(LOCKED_CFG, target_trade_risk=0.005)         # cfg.target_trade_risk = 0.005
+     assert rl.step_config(cfg, 0) is cfg
+@@ -1063,7 +1091,7 @@ def test_t37_floor_stop_during_review(tmp_path):
+     assert set(e.reasons()) >= {"capital_floor"}
+ 
+ 
+-def test_t38_effective_risk_after_step_down(tmp_path):
++def test_t38_effective_risk_after_step_down(tmp_path, adim_acik):
+     e = Env(tmp_path)
+     assert e.rl.risk_config is e.cfg.risk_config                 # K0: yapilandirma nesnesinin kendisi
+     e.tick(900.0)
+@@ -1169,7 +1197,7 @@ def test_t44_no_peak_while_mismatch(tmp_path):
+     assert e.rl.gate_code() == "capital_mismatch" and "peak" not in e.kinds()
+ 
+ 
+-def test_t45_follow_k_minus_1_and_not_stopped(tmp_path):
++def test_t45_follow_k_minus_1_and_not_stopped(tmp_path, adim_acik):
+     fp = tmp_path / "other" / "risk_ladder.jsonl"
+     other = to_km1(book(1000.0, fp))
+     e = Env(tmp_path, mode="paper", enforce=False, follow=rl.LadderLog(str(fp)))
+diff --git a/trader/tests/test_haber_sinyal.py b/trader/tests/test_haber_sinyal.py
+index fecb13a..9243600 100644
+--- a/trader/tests/test_haber_sinyal.py
++++ b/trader/tests/test_haber_sinyal.py
+@@ -300,7 +300,8 @@ def test_cok_baslik_partilere_bolunur_hepsi_puanlanir(tmp_path):
+     assert sum(1 for e in durum["olaylar"] if e["semboller"]) == 70
+ 
+ 
+-def test_bir_parti_bozuksa_tur_atlanir_durum_ilerlemez(tmp_path):
++def test_bir_parti_bozuksa_odenmis_partiler_yazilir_imlec_kismi_ilerler(tmp_path):
++    """24.11 denetim: 2. parti bozulunca 1. parti (odenmis) atilmaz; imlec yalniz islenenlerin onune gecer, kalanlar sonraki tura kalir."""
+     _haber(tmp_path, [_satir(f"benzersiz olay {i} alpha{i} beta{i} gamma{i}", dk_once=1 + i % 50) for i in range(40)])
+     n = {"k": 0}
+ 
+@@ -308,9 +309,36 @@ def test_bir_parti_bozuksa_tur_atlanir_durum_ilerlemez(tmp_path):
+         n["k"] += 1
+         return '{"sonuclar": [' if n["k"] == 2 else _cevap(p)
+     r = HS.kos(tmp_path, ROOT / "config", NOW_MS, ENV, client=Client(cevap=cevap), budget=Butce())
++    assert r["durum"] == "kismi" and r["yeni_olay"] == 30 and r["bekleyen"] == 10 and SINYAL(tmp_path).exists()
++    d = json.loads((tmp_path / "learner" / "sinyal" / HS.DURUM_DOSYASI).read_text())
++    assert len(d["olaylar"]) == 30 and d["calisma"]["durum"] == "api_hata"
++    assert d["son_alim"] >= max(e["alim"] for e in d["olaylar"]) - 1                  # imlec islenenlerin ucunda, kalanlarin gerisinde
++    # sonraki tur: yalniz kalan 10 olay modele gider, hepsi puanlanir
++    c2 = Client(cevap=_cevap)
++    r2 = HS.kos(tmp_path, ROOT / "config", NOW_MS + 60_000, ENV, client=c2, budget=Butce())
++    assert r2["durum"] == "ok" and r2["yeni_olay"] == 10 and len(c2.cagri) == 1
++    d2 = json.loads((tmp_path / "learner" / "sinyal" / HS.DURUM_DOSYASI).read_text())
++    assert len({e["baslik"] for e in d2["olaylar"]}) == 40
++
++
++def test_ilk_parti_bozuksa_dosya_yazilmaz_durum_ilerlemez(tmp_path):
++    _haber(tmp_path, [_satir(f"benzersiz olay {i} alpha{i} beta{i} gamma{i}", dk_once=1 + i % 50) for i in range(40)])
++    r = HS.kos(tmp_path, ROOT / "config", NOW_MS, ENV, client=Client(cevap=lambda p: '{"sonuclar": ['), budget=Butce())
+     assert r == {"durum": "atlandi", "neden": "model yaniti sema disi"} and not SINYAL(tmp_path).exists()
+ 
+ 
++def test_max_oge_siniri_asan_olaylar_sonraki_tura_kalir(tmp_path, monkeypatch):
++    """24.11 denetim: sinirdan tasan olaylar puanlanmadan imlec ilerlemez; sonraki turda islenir."""
++    monkeypatch.setattr(HS, "MAX_OGE", 40)
++    _haber(tmp_path, [_satir(f"benzersiz olay {i} alpha{i} beta{i} gamma{i}", dk_once=1 + i % 50) for i in range(55)])
++    r = HS.kos(tmp_path, ROOT / "config", NOW_MS, ENV, client=Client(cevap=_cevap), budget=Butce())
++    assert r["durum"] == "ok" and r["yeni_olay"] == 40
++    r2 = HS.kos(tmp_path, ROOT / "config", NOW_MS + 60_000, ENV, client=Client(cevap=_cevap), budget=Butce())
++    assert r2["durum"] == "ok" and r2["yeni_olay"] == 15
++    d = json.loads((tmp_path / "learner" / "sinyal" / HS.DURUM_DOSYASI).read_text())
++    assert len({e["baslik"] for e in d["olaylar"]}) == 55
++
++
+ def test_kesilen_yanit_loglanir(caplog):
+     msg = SimpleNamespace(stop_reason="max_tokens", content=[SimpleNamespace(type="text", text="{")], usage=None)
+     sdk = SimpleNamespace(Anthropic=lambda **k: SimpleNamespace(messages=SimpleNamespace(create=lambda **p: msg)))
+diff --git a/trader/tests/test_health_ek_uyari_plani.py b/trader/tests/test_health_ek_uyari_plani.py
+index 20b2a11..07ce796 100644
+--- a/trader/tests/test_health_ek_uyari_plani.py
++++ b/trader/tests/test_health_ek_uyari_plani.py
+@@ -96,3 +96,49 @@ def test_disk_bir_kez_6_saatte_bir_tek_duzeldi_ve_crit_ayri():
+     assert sorted(a.title for a in out) == ["✅ Düzeldi: Disk doluluğu kritik seviyeden indi", "✅ Düzeldi: Disk doluluğu yeniden normal"]
+     out, durum = HR.ek_uyari_plani([], durum, now + timedelta(minutes=5))
+     assert out == [] and durum == {}
++
++
++def test_ek_uyari_geri_al_saf():
++    """24.11 denetim: iletilemeyen ek uyarinin durumu geri alinir (ilk: kayit silinir; hatirlatma/duzeldi: onceki kayit kalir)."""
++    now = T0
++    a = _ct(now)
++    out, yeni = HR.ek_uyari_plani([a], None, now)
++    assert HR.ek_uyari_geri_al(yeni, None, out) == {}                      # ilk uyari gitmedi -> kayit yok, sonraki tur yeniden gonderir
++    onceki = yeni
++    now2 = now + timedelta(hours=7)
++    out2, yeni2 = HR.ek_uyari_plani([_ct(now2)], onceki, now2)
++    assert len(out2) == 1 and yeni2["pa_proposer|stale"]["son"] != onceki["pa_proposer|stale"]["son"]
++    assert HR.ek_uyari_geri_al(yeni2, onceki, out2) == onceki              # hatirlatma gitmedi -> eski `son` korunur
++    out3, yeni3 = HR.ek_uyari_plani([], onceki, now2)                      # duzeldi
++    assert yeni3 == {} and HR.ek_uyari_geri_al(yeni3, onceki, out3) == onceki
++
++
++def test_run_once_ek_uyari_gonderilemezse_durum_ilerlemez(tmp_path, monkeypatch):
++    import json
++    from test_kurulum_gozcu import _snap
++    ek = H.Alert(H.Status.WARN, "disk_dolu", "Disk", "Disk dolu", "disk|dolu", T0)
++
++    class Kotu:
++        ok_send = False
++
++        def __init__(self):
++            self.sent = []
++
++        def send(self, a):
++            self.sent.append(a)
++            return self.ok_send
++
++    monkeypatch.setattr(HR, "pa_proposer_alerts", lambda *a, **k: [])
++    monkeypatch.setattr(HR, "tutarlilik_alerts", lambda *a, **k: [])
++    monkeypatch.setattr(HR, "disk_alerts", lambda *a, **k: [ek])
++    sp = tmp_path / "state.json"
++    n = Kotu()
++    HR.run_once({}, now=T0, state_path=sp, notifier=n, sender=HR.NoHeartbeat(), snapshot_fn=lambda e, s, now: _snap())
++    assert any(a.code == "disk_dolu" for a in n.sent)
++    assert json.loads(sp.read_text()).get("ek_uyarilar") == {}             # gonderilemedi -> kayit yok
++    n.ok_send = True
++    n2 = Kotu()
++    n2.ok_send = True
++    HR.run_once({}, now=T0 + timedelta(minutes=5), state_path=sp, notifier=n2, sender=HR.NoHeartbeat(), snapshot_fn=lambda e, s, now: _snap())
++    assert any(a.code == "disk_dolu" for a in n2.sent)                     # sonraki turda yeniden denendi
++    assert "disk|dolu" in json.loads(sp.read_text())["ek_uyarilar"]
+diff --git a/trader/tests/test_panel_data.py b/trader/tests/test_panel_data.py
+index 5acfb0a..4f5af0c 100644
+--- a/trader/tests/test_panel_data.py
++++ b/trader/tests/test_panel_data.py
+@@ -7,8 +7,12 @@ import pytest
+ 
+ from panel_support import DAY, NOW, Env, Running, STD_LEARNER, status_doc, z
+ from trader_core import panel_data as P
++from pathlib import Path
++
+ from trader_core.risk import LOCKED_CFG
+ 
++ROOT_CFG = Path(__file__).resolve().parents[1] / "config"
++
+ 
+ @pytest.fixture(scope="module")
+ def env(tmp_path_factory):
+@@ -151,11 +155,25 @@ def test_curve_without_engine_config_falls_back_to_pnl(tmp_path):
+ def test_risk_rows_use_ledger_and_risk_config(run):
+     rows = {x["label"]: x for x in run.get("/api/risk?bot=learner")["rows"]}
+     assert rows["Toplam açık risk"]["used"] == pytest.approx(13.188)     # acik islemin planned_risk toplami
+-    assert rows["Toplam açık risk"]["limit"] == pytest.approx(LOCKED_CFG.max_open_risk * 1003.5)
+-    assert rows["Long açık risk"]["limit"] == pytest.approx(LOCKED_CFG.max_same_dir_risk * 1003.5)
++    cfg = json.loads((ROOT_CFG / "engine.paper.json").read_text())["risk"]        # 24.11: limitler kipin ayar dosyasindan (motorla ayni)
++    assert rows["Toplam açık risk"]["limit"] == pytest.approx(cfg["max_open_risk"] * 1003.5)
++    assert rows["Long açık risk"]["limit"] == pytest.approx(cfg["max_same_dir_risk"] * 1003.5)
+     assert rows["Günlük zarar"]["limit"] == pytest.approx(P.daily_loss_rate() * 1000.0)
+ 
+ 
++@pytest.mark.parametrize("mode", ["paper", "live"])
++def test_risk_usage_ayar_dosyasi_ve_gerceklesmemis_zarar(monkeypatch, mode):
++    """24.11 denetim: limitler LOCKED_CFG degil ayar dosyasi (%12/%6); gunluk zarar = gun basi kasa - simdiki kasa (acik zarar dahil)."""
++    monkeypatch.setattr(P, "ledger_day", lambda path, bot, day: ([], []))
++    cfg = json.loads((ROOT_CFG / f"engine.{mode}.json").read_text())["risk"]
++    rows = {x["label"]: x for x in P.risk_usage("x", "learner", 970.0, 1000.0, DAY, mode)["rows"]}
++    assert rows["Toplam açık risk"]["limit"] == pytest.approx(cfg["max_open_risk"] * 970.0)
++    assert rows["Short açık risk"]["limit"] == pytest.approx(cfg["max_same_dir_risk"] * 970.0)
++    assert rows["Günlük zarar"]["used"] == pytest.approx(30.0)                    # gerceklesen pnl yok, acik zarar 30
++    assert rows["Günlük zarar"]["limit"] == pytest.approx(cfg["daily_max_loss"] * 1000.0)
++    assert cfg["max_open_risk"] != LOCKED_CFG.max_open_risk
++
++
+ def test_compare_and_twin_endpoints_removed(run):
+     """DD-12: ikiz karsilastirmasi kalkti; bot=twin gecersiz."""
+     assert run.req(f"/api/compare?day={DAY}")[0] == 404
+diff --git a/trader/tests/test_telegram_ladder_impl.py b/trader/tests/test_telegram_ladder_impl.py
+index aca3589..b7fea2a 100644
+--- a/trader/tests/test_telegram_ladder_impl.py
++++ b/trader/tests/test_telegram_ladder_impl.py
+@@ -125,7 +125,7 @@ def rows(r):
+ # ------------------------------------------------------------------------------------------------ /kademe
+ def test_kademe_values(rig):
+     t = rig.say("/kademe")
+-    assert "learner: basamak K0 (risk %0,50) | durum inceleme" in t
++    assert "learner: risk %1,00 (sabit) | durum inceleme" in t
+     assert "yatırılan 1000,00 | taban 1000,00 | tepe 1000,00 | özsermaye 790,00" in t
+     assert "tabandan %21,0" in t and "durma seviyesi 800,00 USD | son taban 600,00 USD" in t
+     assert "işlem 37" in t and "bayat" not in t
+@@ -140,7 +140,7 @@ def test_kademe_unconfigured(tmp_path):
+ def test_kademe_stale_status_falls_back_to_log(rig):
+     rig.write_status(age=121)
+     t = rig.say("/kademe")
+-    assert "motor durumu bayat" in t and "özsermaye ?" in t and "basamak K0" in t
++    assert "motor durumu bayat" in t and "özsermaye ?" in t and "risk %1,00 (sabit)" in t
+ 
+ 
+ def test_kademe_gate_code_shown_and_uninitialized(rig, tmp_path):
+@@ -224,7 +224,7 @@ def test_refuse_gate_code(rig):
+ def test_request_shows_outcome_beforehand(rig):
+     rig.write_status(equity=790.0)
+     t = rig.say("/kademe_devam")
+-    assert "yeni taban 790,00 USD" in t and "yeni durma seviyesi 632,00 USD" in t and "basamak K0" in t
++    assert "yeni taban 790,00 USD" in t and "yeni durma seviyesi 632,00 USD" in t and "risk %1,00 (sabit)" in t
+     assert "son taban 600,00 USD" in t and "0427" in t
+     assert rows(rig) == ["initial", "review_stop"] and rig.pause.active()          # istek hicbir sey yazmaz
+ 
+@@ -237,7 +237,7 @@ def test_request_shows_km1_stays(tmp_path):
+         r.pause.add("drawdown_review", "engine:rk1")
+     r = Rig(tmp_path, build=build)
+     r.write_status()
+-    assert "basamak K-1" in r.say("/kademe_devam")
++    assert "risk %1,00 (sabit)" in r.say("/kademe_devam")
+ 
+ 
+ # ------------------------------------------------------------------------------------------------ iki adim
+@@ -355,7 +355,7 @@ def test_status_and_report_line_formats(tmp_path):
+     r = Rig(tmp_path, build=lambda r: r.ok(250.0))
+     r.write_status(equity=262.4)
+     line = T.ladder_line("learner", T.ladder_view(r.d.ladders["learner"], T0))
+-    assert line == ("learner: Kademe: K0 %0,50 | özsermaye 262,40 | taban 250,00 (düşüş %0,0) | durma 200,00 | "
++    assert line == ("learner: Kademe: risk %1,00 (sabit) | özsermaye 262,40 | taban 250,00 (düşüş %0,0) | durma 200,00 | "
+                     "son taban 150,00 | işlem 37")
+     assert line in r.say("/durum")
+     sec = T.default_sections(r.cfg, T0, "2026-12-30", None, r.d.ladders)
+@@ -367,10 +367,10 @@ def test_status_and_report_line_formats(tmp_path):
+ def test_status_line_review_and_floor_prefix(tmp_path):
+     r = Rig(tmp_path)
+     r.write_status()
+-    assert "learner: İNCELEME Kademe: K0" in r.say("/durum")
++    assert "learner: İNCELEME Kademe: risk %1,00 (sabit)" in r.say("/durum")
+     r2 = Rig(tmp_path / "f", build=lambda r: r.floor())
+     r2.write_status(590.0)
+-    assert "learner: TABAN Kademe: K0" in r2.say("/durum")
++    assert "learner: TABAN Kademe: risk %1,00 (sabit)" in r2.say("/durum")
+ 
+ 
+ def test_run_report_passes_ladders(tmp_path):
+diff --git a/trader/tests/test_telegram_ladder_spec.py b/trader/tests/test_telegram_ladder_spec.py
+index 37008f0..7eaa4ac 100644
+--- a/trader/tests/test_telegram_ladder_spec.py
++++ b/trader/tests/test_telegram_ladder_spec.py
+@@ -130,7 +130,7 @@ class TestKademe:
+         lad.rebuild()
+         lad.send("/kademe")
+         t = lad.last()
+-        assert "K0" in t
++        assert "risk %0,50 (sabit)" in t and "K0" not in t          # 24.11: etkin risk durum blogundan
+         assert re.search(r"0[,.]5", t)                                 # risk %0,5
+         for v in (250.0, 262.4, 198.0, 200.0, 150.0):                  # dep_net/base, peak, equity, durma, taban
+             assert has_num(t, v), (v, t)
+@@ -410,7 +410,7 @@ class TestTwoStep:
+         lad.send("/kademe_devam")
+         t = lad.last()
+         assert code_of(t) == "4821" and "Onaylarsan" in t
+-        assert has_num(t, 198.0) and re.search(r"158[,.]4", t) and has_num(t, 150.0) and "K0" in t
++        assert has_num(t, 198.0) and re.search(r"158[,.]4", t) and has_num(t, 150.0) and "(sabit)" in t
+         assert lad.rows() == rows and lad.holds() == holds
+ 
+     def test_pending_action_is_ladder_resume(self, lad):
+@@ -670,7 +670,7 @@ class TestDevamDoesNotLiftLadder:
+ # =====================================================================================================
+ # T-59 /durum ve gunluk rapor satiri
+ # =====================================================================================================
+-OK_LINE = "Kademe: K0 %0,50 | özsermaye 262,40 | taban 250,00 (düşüş %0,0) | durma 200,00 | son taban 150,00 | işlem 37"
++OK_LINE = "Kademe: risk %0,50 (sabit) | özsermaye 262,40 | taban 250,00 (düşüş %0,0) | durma 200,00 | son taban 150,00 | işlem 37"
+ 
+ 
+ class TestStatusAndReport:
+diff --git a/trader/tests/test_weekly_sabit.py b/trader/tests/test_weekly_sabit.py
+index 750ae6f..01f3ba1 100644
+--- a/trader/tests/test_weekly_sabit.py
++++ b/trader/tests/test_weekly_sabit.py
+@@ -109,7 +109,8 @@ def test_alinmayan_satiri(tmp_path):
+     _write(p, {"sema": "ml.alinmayan_sonuc.v1", "tablolar": {"neden": [r("risk_limiti", 3, 4.5), r("dusuk_skor", 2, -1.0)]},
+                "tum_zamanlar": {"neden": []}})
+     s = W.alinmayan_satiri({"TRADER_DATA_ROOT": str(tmp_path)})
+-    assert s == "Alınmayan sinyal (7g): 5 sinyal; en iyi risk_limiti +4,50 $ (n=3), en kötü dusuk_skor -1,00 $ (n=2)"
++    assert s == "Alınmayan sinyal (7g): 5 sinyal; en iyi risk_limiti +4,50R (n=3), en kötü dusuk_skor -1,00R (n=2)"
++    assert "$" not in s                                                    # 24.11 denetim: R dolar diye yazilmaz
+     p.write_text("{", encoding="utf-8")
+     assert W.alinmayan_satiri({"TRADER_DATA_ROOT": str(tmp_path)}).endswith("henüz veri yok")
+ 

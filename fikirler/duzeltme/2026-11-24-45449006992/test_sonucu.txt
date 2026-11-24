@@ -1,0 +1,40 @@
+  Expected: 4.8 ± 4.8e-06)
+FAILED tests/engine/test_canli_cikis_kipleri.py::test_madde3_gecici_ret_kismiyi_skipped_yapmaz_sonraki_barda_yeniden_dener[reason1] - AssertionError: assert ('retry' == 'retry'
+  
+    retry and 13.4 == 4.8 ± 4.8e-06
+  
+  comparison failed
+  Obtained: 13.4
+  Expected: 4.8 ± 4.8e-06)
+FAILED tests/engine/test_canli_cikis_kipleri.py::test_madde4_bayat_last_pos_kismi_dolumu_olay_uretir_ve_kapanis_dogru - AssertionError: assert ('done' == 'done'
+  
+    done and 9.0 == 3.3 ± 3.3e-06
+  
+  comparison failed
+  Obtained: 9.0
+  Expected: 3.3 ± 3.3e-06)
+FAILED tests/engine/test_canli_cikis_kipleri.py::test_madde4_kismi_new_kalir_sonra_dolar_gecikmeli_user_trades - AssertionError: assert ('pending' == 'pending'
+  
+    pending and 13.4 == 4.8 ± 4.8e-06
+  
+  comparison failed
+  Obtained: 13.4
+  Expected: 4.8 ± 4.8e-06)
+FAILED tests/engine/test_canli_cikis_kipleri.py::test_madde5_mutabakat_bekleyen_kismi_dolmus_ext_reduction_uretmez - AssertionError: assert ('done' == 'done'
+  
+    done and 11.9 == 3.3 ± 3.3e-06
+  
+  comparison failed
+  Obtained: 11.9
+  Expected: 3.3 ± 3.3e-06)
+FAILED tests/engine/test_hedef_bekleyen_emir_canli.py::test_kismi_sonrasi_stop_ve_hedef_kalan_adede_yeni_once_eski_sonra_iptal - AssertionError: assert 13.4 == 4.8
+ +  where 13.4 = Position(trade_id=1, bot='learner', pair='XRP/USDT', side='long', setup='R1', status='open', decision_id=1, signal_bar...rice=2.0, exit_reason=None, exit_client_id=None, closed_ts=None, strategy_name='fake_strategy', strategy_version='0.1').qty
+FAILED tests/engine/test_hedef_bekleyen_emir_canli.py::test_kismi_sonrasi_hedef_kurulamazsa_eski_hedef_durur_sayac - AssertionError: assert (1 == 1 and 'trLt-60916d0...cd9125a0501e2' == 'trLt-60916d0...cd9125a0501e2'
+ +  where 1 = len([{'algoId': 1003, 'cid': 'trLt-60916d07481cd9125a0501e2', 'symbol': 'XRPUSDT', 'side': 'SELL', ...}])
+  )
+    trLt-60916d07481cd9125a0501e2 and Decimal('13.4') == Decimal('4.8')
+ +  and   Decimal('4.8') = Decimal('4.8')
+FAILED tests/engine/test_hedef_bekleyen_emir_canli.py::test_mutabakat_hedef_adedi_borsa_adedinden_farkliysa_degistirir - AssertionError: assert (1 == 1 and Decimal('13.4') == Decimal('4.8'))
+ +  where 1 = len([{'algoId': 1004, 'cid': 'trLt-1f7c173dd0e96761e77245da', 'symbol': 'XRPUSDT', 'side': 'SELL', ...}])
+ +  and   Decimal('4.8') = Decimal('4.8')
+22 failed, 8403 passed, 145 skipped, 47 warnings in 3333.95s (0:55:33)

@@ -602,6 +602,7 @@ class LadderFiles:
     log: Any
     status_path: str
     pause: Any
+    risk: float | None = None     # kipin ayarindaki islem basi risk (durum blogu yokken yedek); None: RL.LIVE_START_STEP
 
 
 def _tr(x: Any, nd: int = 2) -> str:
@@ -617,6 +618,12 @@ def _tr(x: Any, nd: int = 2) -> str:
 
 def _num_ok(x: Any) -> bool:
     return isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x)
+
+
+def _cfg_risk(lf: LadderFiles) -> float:
+    """Etkin risk yedegi: kipin ayarindan (LadderFiles.risk), yoksa canli baslangic basamagi."""
+    r = getattr(lf, "risk", None)
+    return float(r) if _num_ok(r) and r > 0 else RL.STEPS[RL.LIVE_START_STEP]
 
 
 def ladder_view(lf: LadderFiles, now: datetime) -> dict:
@@ -651,7 +658,7 @@ def ladder_view(lf: LadderFiles, now: datetime) -> dict:
         out["state"] = "uninitialized"
     else:
         sa = st.stopped_at
-        out.update(state=st.status, step=st.step, step_name=RL.STEP_NAMES[st.step], step_risk=RL.STEPS[st.step],
+        out.update(state=st.status, step=st.step, step_name=RL.STEP_NAMES[st.step], step_risk=_cfg_risk(lf),
                    dep_net=st.dep_net, base=st.base, peak=st.peak, stopped_at=sa,
                    stop_at=round(RL.STOP_RATIO * st.base, 8), floor_at=round(RL.FLOOR_RATIO * st.dep_net, 8))
         e = out["equity"]
@@ -665,6 +672,8 @@ def ladder_view(lf: LadderFiles, now: datetime) -> dict:
         out["gate_code"] = blk.get("gate_code")
         out["counters"] = blk.get("counters")
         out["enforce"] = blk.get("enforce")
+        if _num_ok(blk.get("effective_risk")) and blk.get("effective_risk") > 0:      # 24.11: etkin risk durum blogundan
+            out["step_risk"] = blk["effective_risk"]
         if blk.get("equity") is not None and out["equity"] is None and _num_ok(blk.get("equity")):
             out["equity"] = blk.get("equity")
     out["stale"] = not fresh
@@ -677,7 +686,7 @@ def ladder_line(bot: str, v: dict) -> str:
     if v["state"] in ("uninitialized", "invalid"):
         return f"{bot}: Kademe: {'sermaye kaydı yok' if v['state'] == 'uninitialized' else 'günlük bozuk'}"
     n = (v.get("counters") or {}).get("total_trades")
-    return (f"{bot}: {pre}Kademe: {v['step_name']} %{_tr(v['step_risk'] * 100)} | özsermaye {_tr(v['equity'])} | "
+    return (f"{bot}: {pre}Kademe: risk %{_tr(v['step_risk'] * 100)} (sabit) | özsermaye {_tr(v['equity'])} | "
             f"taban {_tr(v['base'])} (düşüş %{_tr(v['dd_base_pct'], 1)}) | durma {_tr(v['stop_at'])} | "
             f"son taban {_tr(v['floor_at'])} | işlem {n if n is not None else '?'}")
 
@@ -983,7 +992,7 @@ class TelegramDaemon:
                 continue
             dur = {"ok": "ok", "review": "inceleme", "floor": "taban"}[v["state"]]
             c = v.get("counters") or {}
-            ln = [f"{b}: basamak {v['step_name']} (risk %{_tr(v['step_risk'] * 100)}) | durum {dur}",
+            ln = [f"{b}: risk %{_tr(v['step_risk'] * 100)} (sabit) | durum {dur}",
                   f"  yatırılan {_tr(v['dep_net'])} | taban {_tr(v['base'])} | tepe {_tr(v['peak'])} | "
                   f"özsermaye {_tr(v['equity'])}",
                   f"  düşüş: tabandan %{_tr(v['dd_base_pct'], 1)}, tepeden %{_tr(v['dd_peak_pct'], 1)}",
@@ -1062,9 +1071,8 @@ class TelegramDaemon:
         for b, lf, st, v in items:
             e = v["equity"]
             nb = min(st.base, e) if st.status == "review" else st.base
-            step = min(st.step, 0) if st.status == "review" else st.step
             parts.append(f"{b}: yeni taban {_tr(nb)} USD, yeni durma seviyesi {_tr(RL.STOP_RATIO * nb)} USD, "
-                         f"basamak {RL.STEP_NAMES[step]}, son taban {_tr(RL.FLOOR_RATIO * st.dep_net)} USD")
+                         f"risk %{_tr(v['step_risk'] * 100)} (sabit), son taban {_tr(RL.FLOOR_RATIO * st.dep_net)} USD")
         self._reply("Onaylarsan: " + "; ".join(parts) + f". Onay icin {CODE_TTL_S} sn icinde yalniz su 4 haneli kodu "
                     f"yanitla: {code}")
         return "code_sent"

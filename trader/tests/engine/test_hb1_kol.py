@@ -189,6 +189,27 @@ def test_teyit_bir_olumlu_bir_etkisiz_farkli_kaynak_giris_yok(sinyal):
     assert bool(_son(HB1.compute(_inp()))["signal"])
 
 
+def test_ayni_yayincinin_beslemeleri_tek_teyit_sayilir(sinyal):
+    """24.11 denetim: cnbc_earnings + cnbc_finance ayni yayinci = 1 teyit (siddet < 3 iken giris yok); farkli yayinci = 2."""
+    from trader_core import veri_haber as VH
+    assert HS.yayinci("cnbc_finance") == HB1.yayinci("cnbc_finance") == "cnbc"
+    assert {HS.yayinci(a) == HB1.yayinci(a) for a in VH.KAYNAKLAR} == {True}
+    assert len({HS.yayinci(a) for a in ("marketwatch_top", "marketwatch_pulse", "cnbc_energy", "cnbc_earnings")}) == 2
+
+    def ev(kay, n):
+        return {"baslik": f"h{kay}{n}", "alim": _ms(D - timedelta(minutes=70)), "kaynaklar": [kay], "semboller": ["BTC/USDT"], "yon": 1,
+                "siddet": 2, "guven": 1.0, "ufuk_saat": 24}
+    uret = _ms(D - timedelta(minutes=50))
+    belge = HS.sinyal_belgesi([ev("cnbc_earnings", 0), ev("cnbc_finance", 1)], uret)
+    s = belge["enstrumanlar"]["BTC/USDT"]
+    assert s["kaynak_sayisi"] == 2 and s["teyit_kaynak"] == 1
+    sinyal(belge)
+    assert not _son(HB1.compute(_inp()))["signal"] and HB1.COUNTERS["tek_kaynak"] == 1
+    assert HB1.yeniden_sonumle(s, _ms(D))["teyit_kaynak"] == 1
+    sinyal(HS.sinyal_belgesi([ev("cnbc_earnings", 0), ev("marketwatch_top", 1)], uret))
+    assert bool(_son(HB1.compute(_inp()))["signal"])
+
+
 def test_kol_teyit_kaynak_alanini_kullanir_kaynak_sayisini_degil(sinyal):
     sinyal(_belge(D - timedelta(minutes=50), {"BTC/USDT": _s(k=2, teyit=1, sid=2)}))
     assert not _son(HB1.compute(_inp()))["signal"]

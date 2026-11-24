@@ -26,7 +26,7 @@ from trader_ml.pa_proposer import features as PF  # noqa: E402
 from trader_ml.pa_proposer import labels as LB  # noqa: E402
 from trader_ml.pa_proposer import package as PK  # noqa: E402
 from trader_ml.pa_proposer import train as TR  # noqa: E402
-from trader_ml.pa_proposer.train import LOCK_END, LOCK_START  # noqa: E402
+from trader_ml.pa_proposer.train import KILIT_ACIK, LOCK_END, LOCK_START  # noqa: E402
 
 TF_DELTA = {"15m": timedelta(minutes=15), "1h": timedelta(hours=1), "4h": timedelta(hours=4), "1d": timedelta(days=1)}
 
@@ -49,14 +49,21 @@ def load_bars(history_dir: str, base: str, tf: str):
 
 
 def _hist_rows(bars, pair_name: str, cutoff: datetime) -> list[dict]:
-    """Tarihsel satirlar: yalniz kilit baslangicinin ONCESI (bar dizisi kesilir; etiket ufku da bu sinirda kalir)."""
+    """Tarihsel satirlar: kilit kapaliyken yalniz kilit baslangicinin ONCESI (bar dizisi kesilir); kilit aciksa kesim yok."""
     ts, o, h, l, c = bars
+    if KILIT_ACIK:
+        return LB.label_rows(o, h, l, c, ts)
     k = int(np.searchsorted(np.array([t.timestamp() for t in ts]), cutoff.timestamp(), side="left"))
     return LB.label_rows(o[:k], h[:k], l[:k], c[:k], ts[:k])
 
 
+def _veri_penceresi() -> str:
+    """CSV veri_penceresi alani: kilit acikken kesim yok."""
+    return "hist=tum;paper=tum;kilit=acik" if KILIT_ACIK else f"hist<{LOCK_START.date()};paper>={LOCK_END.date()}"
+
+
 def _paper_rows(recs: list[dict], bars_by: dict, tf: str, tf_delta: timedelta) -> tuple[list[dict], dict]:
-    """Kagit kayitlari -> egitim satirlari. Bar eslesmesi: bar_close_ts tam ya da (bar_close_ts - tf) acilis zamani."""
+    """Kagit kayitlari -> egitim satirlari. Bar eslesmesi: yalniz (bar_close_ts - tf) = sinyal mumunun ACILIS zamani."""
     stats = {"no_bar": 0, "no_window": 0, "bad": 0, "used": 0}
     out, idx_cache = [], {}
     for r in recs:
@@ -72,11 +79,11 @@ def _paper_rows(recs: list[dict], bars_by: dict, tf: str, tf_delta: timedelta) -
         if pair not in idx_cache:
             idx_cache[pair] = {t: k for k, t in enumerate(ts)}
         idx = idx_cache[pair]
-        i = idx.get(t0, idx.get(t0 - tf_delta))
+        i = idx.get(t0 - tf_delta)                           # bar_close_ts = kapanis; dosya 'date' = acilis (tam eslesme sonraki mumu secer)
         if i is None or i < PF.WINDOW - 1:
             stats["no_bar"] += 1
             continue
-        if ts[i - PF.WINDOW + 1] < LOCK_END:                 # ozellik penceresi de kilit sonrasi olmali
+        if not KILIT_ACIK and ts[i - PF.WINDOW + 1] < LOCK_END:                 # ozellik penceresi de kilit sonrasi olmali
             stats["no_window"] += 1
             continue
         x = PF.feature_vector(o, h, l, c, i, r["side"])
@@ -149,7 +156,7 @@ def main(argv=None, *, now: datetime | None = None) -> int:
                     w.writerow(["ad", "sinif", "tarif", "veri_penceresi", "commit", "sha256", "tarih"])
                 w.writerow([f"m1_build_{tf}_{now.date().isoformat()}", "build",
                             f"ridge_logistic;M1@{tf};stop={PF.STOP_ATR};tp={PF.TARGET_ATR};h={PF.HORIZON};q={TR.THRESHOLD_Q}",
-                            f"hist<{LOCK_START.date()};paper>={LOCK_END.date()};rows={len(rows)};lock_dropped={dropped};status={status}",
+                            f"{_veri_penceresi()};rows={len(rows)};lock_dropped={dropped};status={status}",
                             "", sha, now.isoformat()])
     except (TR.LockWindowError, ValueError, OSError) as e:
         print(f"egitim hatasi: {type(e).__name__}: {e}", file=sys.stderr)

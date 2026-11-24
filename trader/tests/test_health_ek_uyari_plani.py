@@ -96,3 +96,49 @@ def test_disk_bir_kez_6_saatte_bir_tek_duzeldi_ve_crit_ayri():
     assert sorted(a.title for a in out) == ["✅ Düzeldi: Disk doluluğu kritik seviyeden indi", "✅ Düzeldi: Disk doluluğu yeniden normal"]
     out, durum = HR.ek_uyari_plani([], durum, now + timedelta(minutes=5))
     assert out == [] and durum == {}
+
+
+def test_ek_uyari_geri_al_saf():
+    """24.11 denetim: iletilemeyen ek uyarinin durumu geri alinir (ilk: kayit silinir; hatirlatma/duzeldi: onceki kayit kalir)."""
+    now = T0
+    a = _ct(now)
+    out, yeni = HR.ek_uyari_plani([a], None, now)
+    assert HR.ek_uyari_geri_al(yeni, None, out) == {}                      # ilk uyari gitmedi -> kayit yok, sonraki tur yeniden gonderir
+    onceki = yeni
+    now2 = now + timedelta(hours=7)
+    out2, yeni2 = HR.ek_uyari_plani([_ct(now2)], onceki, now2)
+    assert len(out2) == 1 and yeni2["pa_proposer|stale"]["son"] != onceki["pa_proposer|stale"]["son"]
+    assert HR.ek_uyari_geri_al(yeni2, onceki, out2) == onceki              # hatirlatma gitmedi -> eski `son` korunur
+    out3, yeni3 = HR.ek_uyari_plani([], onceki, now2)                      # duzeldi
+    assert yeni3 == {} and HR.ek_uyari_geri_al(yeni3, onceki, out3) == onceki
+
+
+def test_run_once_ek_uyari_gonderilemezse_durum_ilerlemez(tmp_path, monkeypatch):
+    import json
+    from test_kurulum_gozcu import _snap
+    ek = H.Alert(H.Status.WARN, "disk_dolu", "Disk", "Disk dolu", "disk|dolu", T0)
+
+    class Kotu:
+        ok_send = False
+
+        def __init__(self):
+            self.sent = []
+
+        def send(self, a):
+            self.sent.append(a)
+            return self.ok_send
+
+    monkeypatch.setattr(HR, "pa_proposer_alerts", lambda *a, **k: [])
+    monkeypatch.setattr(HR, "tutarlilik_alerts", lambda *a, **k: [])
+    monkeypatch.setattr(HR, "disk_alerts", lambda *a, **k: [ek])
+    sp = tmp_path / "state.json"
+    n = Kotu()
+    HR.run_once({}, now=T0, state_path=sp, notifier=n, sender=HR.NoHeartbeat(), snapshot_fn=lambda e, s, now: _snap())
+    assert any(a.code == "disk_dolu" for a in n.sent)
+    assert json.loads(sp.read_text()).get("ek_uyarilar") == {}             # gonderilemedi -> kayit yok
+    n.ok_send = True
+    n2 = Kotu()
+    n2.ok_send = True
+    HR.run_once({}, now=T0 + timedelta(minutes=5), state_path=sp, notifier=n2, sender=HR.NoHeartbeat(), snapshot_fn=lambda e, s, now: _snap())
+    assert any(a.code == "disk_dolu" for a in n2.sent)                     # sonraki turda yeniden denendi
+    assert "disk|dolu" in json.loads(sp.read_text())["ek_uyarilar"]

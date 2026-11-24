@@ -182,22 +182,38 @@ def limit_orani(config_dir: str | Path | None, mode: Any = "paper") -> float:
     trader_engine ice aktarilmaz."""
     from . import risk as R  # noqa: PLC0415
     canli = str(mode) == "live"
-    if not config_dir:
-        config_dir = (os.environ.get("ENGINE_CONFIG_DIR") or "").strip() or str(Path(__file__).resolve().parent.parent.parent / "config")
     try:
-        cfg: dict = {}
-        for ad in ("engine.base.json", "engine.learner.json", "engine.live.json" if canli else "engine.paper.json"):
-            p = Path(config_dir) / ad
-            if p.exists():
-                d = json.loads(p.read_text(encoding="utf-8"))
-                if isinstance(d.get("risk"), dict):
-                    cfg.setdefault("risk", {}).update(d["risk"])
-        v = (cfg.get("risk") or {}).get("daily_max_loss")
+        v = _risk_sozlugu(config_dir, canli).get("daily_max_loss")
         if v is None:
             return R.LOCKED_CFG.daily_max_loss
         return (R.live_config if canli else R.paper_config)(daily_max_loss=float(v)).daily_max_loss
     except (OSError, ValueError, TypeError):
         return R.LOCKED_CFG.daily_max_loss
+
+
+def _risk_sozlugu(config_dir: str | Path | None, canli: bool) -> dict:
+    """engine.base/learner/(live|paper) ayar dosyalarindaki `risk` bolumu (motorun kullandigi birlesim)."""
+    if not config_dir:
+        config_dir = (os.environ.get("ENGINE_CONFIG_DIR") or "").strip() or str(Path(__file__).resolve().parent.parent.parent / "config")
+    cfg: dict = {}
+    for ad in ("engine.base.json", "engine.learner.json", "engine.live.json" if canli else "engine.paper.json"):
+        p = Path(config_dir) / ad
+        if p.exists():
+            d = json.loads(p.read_text(encoding="utf-8"))
+            if isinstance(d.get("risk"), dict):
+                cfg.setdefault("risk", {}).update(d["risk"])
+    return dict(cfg.get("risk") or {})
+
+
+def risk_ayari(config_dir: str | Path | None, mode: Any = "paper"):
+    """Kipin ayar dosyasindaki risk limitleri (max_open_risk, max_same_dir_risk, daily_max_loss); okunamazsa LOCKED_CFG."""
+    from . import risk as R  # noqa: PLC0415
+    canli = str(mode) == "live"
+    try:
+        kw = {k: float(v) for k, v in _risk_sozlugu(config_dir, canli).items() if k in R.PAPER_KEYS and k != "target_trade_risk"}
+        return (R.live_config if canli else R.paper_config)(**kw)
+    except (OSError, ValueError, TypeError):
+        return R.LOCKED_CFG
 
 
 def limit_uyari(zarar: float, limit: float) -> str:

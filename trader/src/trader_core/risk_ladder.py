@@ -27,6 +27,8 @@ MAX_STEP_APPROVABLE = 0          # RK-1: step_up yalniz K-1 -> K0. RK-1b bu sabi
 # gunluk kendi kendini tanimlar. Onaylanabilir tavan = max(MAX_STEP_APPROVABLE, gunlugun baslangic basamagi): dusus sonrasi geri cikis
 # en cok baslangic basamagina kadardir. Tum asagi inis korumalari (tepeden -%10/-%15, -%20 durma, taban, capital_latch) degismez.
 LIVE_START_STEP = 2
+# 24.11 kullanici karari: risk dusurme kapali; etkin risk her kipte yapilandirmadaki deger (%1). Ayar degil, yalniz kod sabiti.
+STEP_RISK_ENABLED = False
 KM1_MIN_CAPITAL = 1000.0         # dep_net bunun altindaysa en alt basamak K0
 DOWN_1_RATIO = 0.90              # equity <= 0.90 * peak  (tepeden -%10)
 DOWN_2_RATIO = 0.85              # equity <= 0.85 * peak  (tepeden -%15)
@@ -459,6 +461,8 @@ def evaluate(st: LadderState, equity: float) -> tuple[Action, ...]:
         return ()
     if equity <= _th(STOP_RATIO, st.base):
         return (Action("review_stop"),)
+    if not STEP_RISK_ENABLED:
+        return ()                                        # 24.11: dd_peak_15 / dd_peak_10 inisleri uretilmez
     low = lowest(st.dep_net)
     if equity <= _th(DOWN_2_RATIO, st.peak) and "dd_peak_15" not in st.fired:
         target = max(low, 0 if st.step > 0 else -1)
@@ -476,6 +480,8 @@ def step_config(base_cfg: RiskConfig, step: int) -> RiskConfig:
     """Etkin risk: min(cfg.target_trade_risk, STEPS[step]); yalniz `tightened` ile (kilit gevsemez)."""
     if isinstance(step, bool) or not isinstance(step, int) or step not in STEPS:
         raise ValueError(f"bilinmeyen basamak: {step!r}")
+    if not STEP_RISK_ENABLED:
+        return base_cfg                                  # 24.11: eski gunluk basamagi riski dusuremez
     v = min(base_cfg.target_trade_risk, STEPS[step])
     if v == base_cfg.target_trade_risk:
         return base_cfg

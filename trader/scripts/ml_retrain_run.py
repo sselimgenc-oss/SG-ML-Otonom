@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Gece egitimi (DD-12 WP-18: M1). 03:10 UTC, tek oneshot birim (MemoryMax).
+"""Gece egitimi (DD-12 WP-18: M1). gece, zamanlayici deploy/trader-ml-retrain.timer (00:40 UTC), tek oneshot birim (MemoryMax).
 
-M1 (`trader_ml.pa_proposer`, WP-18 (b)): tarihsel barlar (`var/history`, kilit baslangicindan ONCE kesilir) + kagit
+M1 (`trader_ml.pa_proposer`, WP-18 (b)): tarihsel barlar (`var/history`; kilit kapaliyken kilit baslangicindan ONCE kesilir, KILIT_ACIK iken kesim yok) + kagit
 kayitlari (`scripts/export_paper_records.py` ile AYNI disa aktarma: kilit penceresiyle kesisen satirlar dusurulur) ->
 `var/learner/models/pa_proposer/M1@<tf>.json` (+ `.prev.json`). Bellek: ciftbasina kuyruk (tavan 50 000 satir; spec §5.2), feather
 pyarrow ile okunur. Olcum (WP-18): tepe RSS ~263 MB; pandas `trader_core.indicators` (dondurulmus) uzerinden gelir
 (~100 MB). Sert tavan: deploy/trader-ml-retrain.service MemoryMax=350M.
 Her zaman dilimi `var/learner/paper_models.csv`'ye satir ekler.
 Ciktilar YALNIZ calisma zamani dizinine yazilir (git-izli dosya asla degismez); okuyucular once calisma zamani dizinine,
-sonra depodaki tohum paketlere (`models/pa_proposer/`, `research/paper_models.csv`) bakar. Kilit donemi (2026-05-01..2026-11-01) egitime GIRMEZ.
+sonra depodaki tohum paketlere (`models/pa_proposer/`, `research/paper_models.csv`) bakar. Kilit kapaliyken kilit donemi (2026-05-01..2026-11-01) egitime GIRMEZ (23.11 karari: KILIT_ACIK=True, kesim yok).
 Cikis: 0 basarili (model olusmayan kol hata degil: `ml_no_model`); 1 kullanim; 3 defter acilamadi/yazma/egitim hatasi.
 """
 from __future__ import annotations
@@ -29,7 +29,7 @@ sys.path.insert(0, str(_HERE.parent / "research"))   # pa_proposer_build (resear
 from trader_core import ledger as L  # noqa: E402
 from trader_ml.pa_proposer import package as PK  # noqa: E402
 from trader_ml.pa_proposer import train as TR  # noqa: E402
-from trader_ml.pa_proposer.train import LOCK_START  # noqa: E402
+from trader_ml.pa_proposer.train import KILIT_ACIK, LOCK_START  # noqa: E402
 
 
 def _resolve(p: str) -> str:
@@ -71,7 +71,7 @@ def _hist_tail(bars, pair: str, cap: int, cutoff: datetime) -> list[dict]:
     from trader_ml.pa_proposer import labels as LB
 
     ts, o, h, l, c = bars
-    k = int(np.searchsorted(np.array([t.timestamp() for t in ts]), cutoff.timestamp(), side="left"))
+    k = len(ts) if KILIT_ACIK else int(np.searchsorted(np.array([t.timestamp() for t in ts]), cutoff.timestamp(), side="left"))
     s0 = max(0, k - cap // 2 - 70)
     rows = LB.label_rows(o[s0:k], h[s0:k], l[s0:k], c[s0:k], ts[s0:k])
     return rows[-cap:]
@@ -105,7 +105,7 @@ def _m1_tf(tf, recs, bases, *, history_dir, models_dir, now, max_rows, csv_rows,
     if csv_rows is not None:
         csv_rows.append([f"m1_nightly_{tf}_{now.date().isoformat()}", "nightly_m1",
                          f"ridge_logistic;M1@{tf};stop={PB.PF.STOP_ATR};tp={PB.PF.TARGET_ATR};h={PB.PF.HORIZON};q={TR.THRESHOLD_Q}",
-                         f"hist<{LOCK_START.date()};paper>=kilit_sonrasi;rows={len(rows)};lock_dropped={dropped};status={status}" + (f";{reason}" if reason else ""),
+                         f"{PB._veri_penceresi()};rows={len(rows)};lock_dropped={dropped};status={status}" + (f";{reason}" if reason else ""),
                          "", sha, now.isoformat()])
     del rows, hist, paper, paper_kept, pkg, bars_by
     return res

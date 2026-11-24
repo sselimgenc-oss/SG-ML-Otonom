@@ -603,7 +603,35 @@ def test_t19_review_state_only_floor(equity):
     assert ev(to_review(book(1000.0)).state(), equity) == ()
 
 
-def test_t20_dd_peak_10_boundary_and_fired():
+@pytest.fixture()
+def adim_acik(monkeypatch):
+    """24.11 kullanici karari: risk dusurme kodda kapali (STEP_RISK_ENABLED=False). Basamak makinesi (kod kalir) bu fikstürle denenir."""
+    monkeypatch.setattr(rl, "STEP_RISK_ENABLED", True)
+
+
+def test_t20_24_11_risk_dusurme_kapali_evaluate_bos_step_config_ayni():
+    """24.11: tepeden -%10/-%15'te evaluate bos; step_config her basamakta cfg'yi AYNEN dondurur; -%20/%60 degismedi."""
+    assert rl.STEP_RISK_ENABLED is False
+    st = book(1000.0).state()
+    for eq in (900.0, 899.0, 850.0, 849.0, 810.0):
+        assert ev(st, eq) == (), eq
+    assert ev(dataclasses.replace(st, step=2), 850.0) == ()
+    assert [a.kind for a in ev(st, 800.0)] == ["review_stop"]
+    assert [a.kind for a in ev(st, 600.0)] == ["floor_stop"]
+    for s_ in sorted(rl.STEPS):
+        assert rl.step_config(LOCKED_CFG, s_) is LOCKED_CFG
+    with pytest.raises(ValueError):
+        rl.step_config(LOCKED_CFG, 99)                       # basamak dogrulamasi sabitten once
+
+
+def test_t20_24_11_eski_gunlukte_step_down_satiri_katlanir_risk_yuzde_bir():
+    b = to_km1(book(1000.0))                                 # eski gunluk: step_down satiri var
+    st = b.state()
+    assert st.step == -1 and "step_down" in [r["kind"] for r in b.rows()]
+    assert rl.step_config(LOCKED_CFG, st.step) is LOCKED_CFG
+
+
+def test_t20_dd_peak_10_boundary_and_fired(adim_acik):
     st = book(1000.0).state()
     assert ev(st, 900.01) == ()
     assert ev(st, 900.0) == (act("step_down", -1, "dd_peak_10"),)
@@ -619,12 +647,12 @@ def test_t20_dd_peak_10_boundary_and_fired():
     assert ev(st3, 900.0) == (act("step_down", -1, "dd_peak_10"),)
 
 
-def test_t20_dd_peak_10_from_k2_goes_one_step():
+def test_t20_dd_peak_10_from_k2_goes_one_step(adim_acik):
     st = dataclasses.replace(book(1000.0).state(), step=2)     # elle kurulmus durum
     assert ev(st, 900.0) == (act("step_down", 1, "dd_peak_10"),)
 
 
-def test_t21_dd_peak_15():
+def test_t21_dd_peak_15(adim_acik):
     st0 = book(1000.0).state()
     st2 = dataclasses.replace(st0, step=2)
     assert ev(st2, 850.0) == (act("step_down", 0, "dd_peak_15"),)
@@ -672,7 +700,7 @@ def test_t24_evaluate_invalid_equity(bad):
         ev(book(1000.0).state(), bad)
 
 
-def test_t25_step_config():
+def test_t25_step_config(adim_acik):
     from trader_core.risk import tightened
     cfg = tightened(LOCKED_CFG, target_trade_risk=0.005)         # cfg.target_trade_risk = 0.005
     assert rl.step_config(cfg, 0) is cfg
@@ -1063,7 +1091,7 @@ def test_t37_floor_stop_during_review(tmp_path):
     assert set(e.reasons()) >= {"capital_floor"}
 
 
-def test_t38_effective_risk_after_step_down(tmp_path):
+def test_t38_effective_risk_after_step_down(tmp_path, adim_acik):
     e = Env(tmp_path)
     assert e.rl.risk_config is e.cfg.risk_config                 # K0: yapilandirma nesnesinin kendisi
     e.tick(900.0)
@@ -1169,7 +1197,7 @@ def test_t44_no_peak_while_mismatch(tmp_path):
     assert e.rl.gate_code() == "capital_mismatch" and "peak" not in e.kinds()
 
 
-def test_t45_follow_k_minus_1_and_not_stopped(tmp_path):
+def test_t45_follow_k_minus_1_and_not_stopped(tmp_path, adim_acik):
     fp = tmp_path / "other" / "risk_ladder.jsonl"
     other = to_km1(book(1000.0, fp))
     e = Env(tmp_path, mode="paper", enforce=False, follow=rl.LadderLog(str(fp)))

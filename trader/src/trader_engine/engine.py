@@ -2642,8 +2642,8 @@ def _check_rules_drift(broker, view, cfg: EngineConfig) -> None:
 
 
 def _build_ladder(cfg: EngineConfig, clock: Clock, pause: EntryPause, broker, led):
-    """12 §8.1: backtest -> yok; paper -> gozlem (bellek gunlugu, sanal initial = wallet_start); testnet/live -> zorlama
-    (dosya gunlugu; canlida `broker.transfers` ile aktarim eslestirme)."""
+    """12 §8.1: backtest -> yok; paper/testnet/live -> zorlama (dosya gunlugu). 24.11: kagit canli gibi; kagitta gunluk yoksa motor
+    `initial` (wallet_start) yazar; canlida `broker.transfers` ile aktarim eslestirme (kagitta aktarim yok = tek fark)."""
     if cfg.mode == "backtest":
         return None
     from trader_core import risk_ladder as RL
@@ -2653,13 +2653,17 @@ def _build_ladder(cfg: EngineConfig, clock: Clock, pause: EntryPause, broker, le
     def trades_fn(since):
         return led.list_closed_trades(since=since, limit=L.Ledger.LIST_CLOSED_MAX)
 
+    lg = RL.LadderLog(cfg.path("risk_ladder.jsonl"))
     if cfg.mode == "paper":
-        mem = RL.LadderLog(None)
-        mem.append("initial", "engine:paper", clock.now(), amount=float(cfg.wallet_start))
-        follow = RL.LadderLog(cfg.ladder_follow) if cfg.ladder_follow else None
-        return RiskLadder(cfg, clock, pause, log=mem, enforce=False, follow=follow, trades_fn=trades_fn)
+        try:
+            bos = not lg.rows()
+        except Exception as e:  # noqa: BLE001 - bozuk gunluk: dokunulmaz, kapi ladder_invalid verir
+            log.error("kagit kademe gunlugu okunamadi: %r", e)
+            bos = False
+        if bos:
+            lg.append("initial", "engine:paper", clock.now(), amount=float(cfg.wallet_start), start_step=RL.LIVE_START_STEP)
     xfer = getattr(broker, "transfers", None) if cfg.mode == "live" else None
-    return RiskLadder(cfg, clock, pause, log=RL.LadderLog(cfg.path("risk_ladder.jsonl")), enforce=True,
+    return RiskLadder(cfg, clock, pause, log=lg, enforce=True,
                       transfers_fn=xfer if callable(xfer) else None, trades_fn=trades_fn)
 
 
@@ -2742,7 +2746,11 @@ def build_engine(cfg: EngineConfig, *, clock: Clock | None = None, view: MarketV
                 led.close()
             raise
     if broker is None:
-        pcfg = PaperConfig(cost=cfg.cost, mmr=K.LOCKED_CFG.maint_margin_rate, wallet_start=cfg.wallet_start)
+        mmr_fn = None
+        if cfg.mode == "paper":                                                           # kapiyla ayni kaynak: sinif MMR'i (gates._tasfiye_mesafesi_karari)
+            from . import arm_guard as _AG
+            mmr_fn = lambda p: K.sinif_mmr(_AG.asset_class(p, cfg.clusters), cfg.risk_config.maint_margin_rate)  # noqa: E731
+        pcfg = PaperConfig(cost=cfg.cost, mmr=K.LOCKED_CFG.maint_margin_rate, wallet_start=cfg.wallet_start, mmr_fn=mmr_fn)
         if cfg.mode == "paper" and cfg.cost_overrides:
             broker = session_cost_broker(cfg, pcfg, view.rules, view.funding, clock)       # DD-12 §4.3: seansa gore kayma
         else:

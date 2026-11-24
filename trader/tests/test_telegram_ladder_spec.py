@@ -130,7 +130,7 @@ class TestKademe:
         lad.rebuild()
         lad.send("/kademe")
         t = lad.last()
-        assert "K0" in t
+        assert "risk %0,50 (sabit)" in t and "K0" not in t          # 24.11: etkin risk durum blogundan
         assert re.search(r"0[,.]5", t)                                 # risk %0,5
         for v in (250.0, 262.4, 198.0, 200.0, 150.0):                  # dep_net/base, peak, equity, durma, taban
             assert has_num(t, v), (v, t)
@@ -410,7 +410,7 @@ class TestTwoStep:
         lad.send("/kademe_devam")
         t = lad.last()
         assert code_of(t) == "4821" and "Onaylarsan" in t
-        assert has_num(t, 198.0) and re.search(r"158[,.]4", t) and has_num(t, 150.0) and "K0" in t
+        assert has_num(t, 198.0) and re.search(r"158[,.]4", t) and has_num(t, 150.0) and "(sabit)" in t
         assert lad.rows() == rows and lad.holds() == holds
 
     def test_pending_action_is_ladder_resume(self, lad):
@@ -670,7 +670,7 @@ class TestDevamDoesNotLiftLadder:
 # =====================================================================================================
 # T-59 /durum ve gunluk rapor satiri
 # =====================================================================================================
-OK_LINE = "Kademe: K0 %0,50 | özsermaye 262,40 | taban 250,00 (düşüş %0,0) | durma 200,00 | son taban 150,00 | işlem 37"
+OK_LINE = "Kademe: risk %0,50 (sabit) | özsermaye 262,40 | taban 250,00 (düşüş %0,0) | durma 200,00 | son taban 150,00 | işlem 37"
 
 
 class TestStatusAndReport:

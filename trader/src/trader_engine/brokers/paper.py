@@ -4,7 +4,7 @@ from __future__ import annotations
 import math
 from collections import deque
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Callable, Literal
@@ -43,6 +43,7 @@ class PaperConfig:
     mmr: float
     wallet_start: float = 1000.0
     funding_max_wait_s: float = 900.0   # funding noktasi gelmezse imlec en fazla bu kadar bekler, sonra funding_missing
+    mmr_fn: Callable[[str], float] | None = None   # cift -> sinif MMR'i (giris kapisiyla ayni kaynak); None: tek `mmr`
 
 
 # --------------------------------------------------------------------------- ic kayitlar
@@ -473,6 +474,11 @@ class PaperBroker:
         self._events.append(BrokerEvent(kind="order_rejected", ts=ts, pair=o.pair, client_id=o.client_id,
                                         detail=reason))
 
+    def _cfg_pair(self, pair: str) -> PaperConfig:
+        """Cift icin yapilandirma: `mmr_fn` varsa MMR sinifa gore (giris kapisiyla ayni kaynak), yoksa tek `mmr`."""
+        fn = self._cfg.mmr_fn
+        return self._cfg if fn is None else replace(self._cfg, mmr=float(fn(pair)))
+
     def _fill_entry(self, o: _Order, bar: MinuteBar, rules: SymbolRules) -> None:
         ts = bar.open_ts
         cost = self._cfg.cost
@@ -491,7 +497,7 @@ class PaperBroker:
         side: Side = "long" if o.order_side == "buy" else "short"
         self._wallet -= fee
         self._pos[o.pair] = _Pos(side=side, qty=o.qty, entry_price=fp, leverage=lev, margin=margin,
-                                 liq_price=liquidation_price(fp, side, lev, self._cfg.mmr),
+                                 liq_price=liquidation_price(fp, side, lev, self._cfg_pair(o.pair).mmr),
                                  funding_paid=0.0, fee_paid_entry=fee, opened_ts=ts)
         last = self._last_funding.get(o.pair)
         self._last_funding[o.pair] = ts if last is None else max(last, ts)
@@ -593,7 +599,7 @@ class PaperBroker:
         if stop_px is not None and (stop_px <= pos.liq_price if long else stop_px >= pos.liq_price):
             detail = "liquidation_before_stop"
             self._ctr["anomalies"] += 1
-        fee = pos.qty * pos.entry_price * self._cfg.mmr
+        fee = pos.qty * pos.entry_price * self._cfg_pair(pair).mmr
         cid = f"LIQ-{pair}-{_iso(ts)}"
         o = _Order(client_id=cid, pair=pair, role="exit", order_side="sell" if long else "buy", qty=pos.qty,
                    trigger_price=None, reduce_only=True, leverage=pos.leverage, status="new", filled_qty=0.0,

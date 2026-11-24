@@ -657,6 +657,20 @@ def ek_uyari_plani(ek: list, onceki, now: datetime):
     return out, yeni
 
 
+def ek_uyari_geri_al(yeni, onceki, basarisiz: list) -> dict:
+    """Saf: iletilemeyen ek uyarilarin durumunu geri alir (sonraki turda yeniden denenir). Ilk uyari iletilemediyse kayit silinir;
+    hatirlatma/duzeldi iletilemediyse onceki kayit (eski `son`) korunur."""
+    out = dict(yeni) if isinstance(yeni, dict) else {}
+    eski = onceki if isinstance(onceki, dict) else {}
+    for a in basarisiz:
+        fp = "|".join(str(a.fingerprint).split("|")[:2])
+        if fp in eski:
+            out[fp] = eski[fp]
+        elif a.level is not H.Status.OK:
+            out.pop(fp, None)
+    return out
+
+
 def disk_alerts(env: dict, now: datetime, var_dir: str | None = None, usage_fn=None) -> list:
     """var/ dosya sisteminde kullanim >= %80 -> WARN `disk|dolu` (\"Disk dolmak üzere (%NN)\"); >= %95 -> ayrica CRIT `disk|kritik`.
     Okunamazsa uyari yok. usage_fn: shutil.disk_usage yerine (test)."""
@@ -946,6 +960,7 @@ def run_once(env: dict, *, now: datetime | None = None, state_path=None, notifie
     alerts, held = H.quiet_split(alerts, report, now, quiet_until)
     if held:   # tutulan uyarilar iletilmis sayilmaz: durum geri alinir, sorun surerse pencere sonrasinda kendiliginden gider
         new_state = H.revert_failed_alerts(new_state, state, held)
+    ek_gonder: list = []
     if quiet_until is not None:   # ek uyarilar (disk/...) olumcul degil: pencere boyunca tutulur, durum aynen kalir
         new_state["ek_uyarilar"] = state.get("ek_uyarilar") or {}
     else:
@@ -1004,6 +1019,10 @@ def run_once(env: dict, *, now: datetime | None = None, state_path=None, notifie
             failed.append(a)
     if failed:
         new_state = H.revert_failed_alerts(new_state, state, failed)
+        ek_ids = {id(a) for a in ek_gonder}
+        ek_basarisiz = [a for a in failed if id(a) in ek_ids]
+        if ek_basarisiz:   # ek uyari iletilemedi: ek_uyarilar durumu da geri alinir (yoksa sessizce yutulurdu)
+            new_state["ek_uyarilar"] = ek_uyari_geri_al(new_state.get("ek_uyarilar"), state.get("ek_uyarilar"), ek_basarisiz)
 
     code = EXIT_OK
     hb_ok = None

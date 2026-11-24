@@ -519,7 +519,7 @@ EXIT_LADDER = EXIT_FINDINGS   # 12 §5 (v1.1): 5 = bulgu (bozuk gunluk, kosulu t
 
 
 def _ladder_ctx(a, *, write: bool):
-    """-> (cfg, LadderLog, hata_kodu). write=True: paper/backtest'te ret (cikis 2)."""
+    """-> (cfg, LadderLog, hata_kodu). write=True: yalniz backtest'te ret (cikis 2); 24.11: kagitta dosya gunlugu var."""
     from trader_core import risk_ladder as RL
 
     from .errors import ConfigError
@@ -528,8 +528,8 @@ def _ladder_ctx(a, *, write: bool):
     except ConfigError as e:
         print(f"yapilandirma hatasi: {e}", file=sys.stderr)
         return None, None, EXIT_FAZ_B
-    if write and cfg.mode in ("backtest", "paper"):
-        print("kagitta sermaye kaydi yok (backtest/paper kipinde yazan komut reddedildi)", file=sys.stderr)
+    if write and cfg.mode == "backtest":
+        print("backtest kipinde sermaye kaydi yok (yazan komut reddedildi)", file=sys.stderr)
         return cfg, None, EXIT_FAZ_B
     return cfg, RL.LadderLog(cfg.path("risk_ladder.jsonl")), None
 
@@ -711,11 +711,15 @@ def _cmd_capital(a) -> int:
     if rc is not None:
         return rc
     if op == "init":
+        if cfg.mode == "paper":
+            print("kagitta `capital init` yok: ilk satiri motor yazar (wallet_start)", file=sys.stderr)
+            return EXIT_FAZ_B
         if rows:
             print("gunluk dolu: ikinci `capital init` yok (duzeltme icin `capital adjust`)", file=sys.stderr)
             return EXIT_FAZ_B
         # 23.11 kullanici karari: canli = kagit; canli gunluk %1 (K2) basamagindan baslar (testnet K0)
-        extra = {"start_step": RL.LIVE_START_STEP} if cfg.mode == "live" else {}
+        # 24.11: start_step testnet icin de yazilir
+        extra = {"start_step": RL.LIVE_START_STEP} if cfg.mode in ("live", "testnet") else {}
         row, rc = _write_row(log, "initial", a, now, amount=a.amount, **extra)
     elif op == "deposit":
         row, rc = _write_row(log, "deposit", a, now, amount=a.amount)

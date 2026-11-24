@@ -44,6 +44,7 @@ KAYNAK_LISTESI: tuple[tuple[str, str, str], ...] = (
     ("mining_com", "https://www.mining.com/feed/", "emtia"),
     ("cnbc_energy", "https://www.cnbc.com/id/19836768/device/rss/rss.html", "emtia"),
 )
+# Yayinci = besleme adinin ilk parcasi (cnbc_*, marketwatch_* ayni yayinci); HB1 teyidinde (haber_sinyal.yayinci) tek kaynak sayilir.
 KAYNAKLAR: dict[str, str] = {ad: url for ad, url, _ in KAYNAK_LISTESI}
 KATEGORI: dict[str, str] = {ad: kat for ad, _, kat in KAYNAK_LISTESI}
 KATEGORILER = ("kripto", "hisse", "emtia")
