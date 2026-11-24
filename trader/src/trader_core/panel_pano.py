@@ -395,6 +395,11 @@ def ders_view(path: str, ctx: Ctx, now: datetime, status_live: bool) -> dict | N
         durum, renk = ogrenme_durumu(True, False, min(eff.n if eff is not None else 0, MIN_ETKI), MIN_ETKI)
     else:
         durum, renk = ogrenme_durumu(bool(status_live), False, min(eff.n if eff is not None else 0, MIN_ETKI), MIN_ETKI)
+    ilerleme = _ders_ilerleme()
+    if renk == "sari":              # 24.11: "0/10" etki sayaci yaniltiyordu; yerine en yakin adayin gercek ilerlemesi
+        durum = (durum_veri_birikiyor(0).split(" (")[0] if ilerleme is None else
+                 f"Açık, veri birikiyor (en yakın aday {ilerleme['n']}/{ilerleme['n_hedef']} işlem, "
+                 f"{ilerleme['gun']}/{ilerleme['gun_hedef']} gün)")
     son = next((s for s in satirlar if not s["geri"]), satirlar[0] if satirlar else None)
     if eff is not None and eff.n >= MIN_ETKI:
         r2usd = _usd_per_r(ctx.closed)
@@ -402,22 +407,76 @@ def ders_view(path: str, ctx: Ctx, now: datetime, status_live: bool) -> dict | N
     else:
         katki = katki_olculemedi(eff.n if eff is not None else 0)
     return {"durum": durum, "renk": renk, "son": son, "degisen_7g": degisen, "katki": katki,
-            "son5": satirlar if len(satirlar) > 1 else []}           # tek ders: "Son dersler" listesi tekrar olur
+            "son5": satirlar if len(satirlar) > 1 else [],           # tek ders: "Son dersler" listesi tekrar olur
+            "ilerleme": ilerleme, "kol_dersleri": kol_dersleri(path)}
 
 
-def kucultme_view(ledger_path: str, bot: str) -> dict | None:
-    """OGRENME sekmesi 'Kademeli kucultme' karti (docs/motor/kademeli-kucultme-spec.md): boyutu kucultulen kollar
-    (carpan, son 5/10 net R). Kucultulen kol yoksa ya da okunamazsa None (kart gizlenir)."""
+def _ders_ilerleme() -> dict | None:
+    """Parametre dersinin en yakin adayinin gercek ilerlemesi (lesson store kontrol noktalari; salt okunur). Okunamazsa None."""
+    from . import lesson as LS  # noqa: PLC0415
+    try:
+        cfg = LS.load_config()
+        sp = Path(cfg.store_path)
+        sp = sp if sp.is_absolute() else _REPO / sp
+        if not sp.exists():
+            return None
+        store = LS.LessonStore(str(sp), read_only=True, create=False)
+        try:
+            r = LS.lesson_progress(store.checkpoints(), cfg)
+        finally:
+            store.close()
+    except Exception:  # noqa: BLE001 - istege bagli kart satiri
+        return None
+    if r is not None:
+        r["ad"] = TS.PARAM_AD.get(r["param"], r["param"])
+    return r
+
+
+_KOL_OLAY = {"closed": "kapatıldı", "reopened": "yeniden açıldı", "rolled_back": "geri alındı (kapatma yanlıştı)"}
+
+
+def kol_dersleri(ledger_path: str) -> list[dict]:
+    """`arms_off.json` kol dersleri: kapatilan kollar ve yeniden acilan/geri alinan kollar (en yeni once). Dosya yoksa []."""
+    from . import lesson as LS  # noqa: PLC0415
+    out = []
+    for a, st in LS.read_arms_state(Path(ledger_path).parent / "arms_off.json").items():
+        ev = st.get("last_event")
+        if st.get("state") != "closed" and ev not in ("reopened", "rolled_back"):
+            continue
+        olay = "closed" if st.get("state") == "closed" else ev
+        try:
+            dt = datetime.fromisoformat(str(st.get("epoch_start")).replace("Z", "+00:00"))
+            dt = dt if dt.tzinfo else dt.replace(tzinfo=P.UTC)
+        except (TypeError, ValueError):
+            dt = None
+        out.append({"kol": a, "olay": olay, "metin": _KOL_OLAY.get(olay, str(olay)), "tarih": tsi_gun(dt),
+                    "ts": dt.timestamp() if dt else 0.0, "n": st.get("n"), "ort_r": st.get("mean_r")})
+    out.sort(key=lambda r: (-r["ts"], r["kol"]))
+    return out
+
+
+def kucultme_view(ledger_path: str, bot: str, arms=None, now: datetime | None = None) -> dict | None:
+    """OGRENME sekmesi 'Kademeli kucultme' karti (docs/motor/kademeli-kucultme-spec.md): boyutu kucultulen kollar (carpan, kolun
+    KENDI islem sayisi, aile ortalamasi, aile nedeniyle mi). 24.11: aile ortalamasi motorla AYNI hesap (`arm_family_mean_r`,
+    son 90 gun, kolun kendisi haric) ve hic islemi olmayan ama aile yuzunden kucultulen kollar da (`arms` + defterdeki) listelenir.
+    Kucultulen kol yoksa ya da okunamazsa None (kart gizlenir)."""
     from . import kol_kucultme as KK  # noqa: PLC0415
+    now = now or datetime.now(P.UTC)
     led = P.open_ledger_ro(ledger_path, bot)
     try:
-        az = KK.azaltilanlar(led.arm_results_all(10**6))
+        sonuc = led.arm_results_all(10**6)
+        out = []
+        for a in sorted(set(sonuc) | {str(x) for x in (arms or [])}):
+            vals = sonuc.get(a, [])
+            aile = led.arm_family_mean_r(a, now)
+            k = KK.karar(vals, aile)
+            if k.carpan < 1.0:
+                ham = KK.karar(vals, None)
+                out.append({"kol": a, "carpan": k.carpan, "n": len(vals[:KK.KAYIT_SAYISI]), "net_5": k.net_5, "net_10": k.net_10,
+                            "aile": aile, "aile_nedeni": ham.carpan > k.carpan})
     finally:
         led.close()
-    if not az:
-        return None
-    return {"kollar": [{"kol": a, "carpan": k.carpan, "n": k.n, "net_5": k.net_5, "net_10": k.net_10}
-                       for a, k in sorted(az.items())]}
+    return {"kollar": out} if out else None
 
 
 # ----------------------------------------------------------------------------- ogrenme (kol x zaman dilimi, model kollari)

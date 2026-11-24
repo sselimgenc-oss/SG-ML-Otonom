@@ -1,0 +1,1 @@
+Dört test parçası arka planda çalışıyor. Bitince bildirim gelecek, sonucu o zaman raporlayacağım.

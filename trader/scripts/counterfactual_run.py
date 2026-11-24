@@ -88,6 +88,19 @@ def _read_v3_skipped(path: str, bot: str, since) -> list:
         raise L.LedgerSchemaError(f"sema 3 defter okunamadi: {e}") from e
 
 
+def _aile_ort(cands: list, arm: str, shrink_n: int) -> float | None:
+    """24.11: kolun ailesi (ayni formasyon, kolun kendisi HARIC diger ZD'ler) cozulmus adaylarinin sonumlu ortalamasi:
+    `toplam R / (n_aile + shrink_n)`; alinmayan aday 0,5 agirlikli. Aile verisi yoksa None (bugunku davranis)."""
+    fam = arm.partition("@")[0]
+    tot = n = 0.0
+    for c in cands:
+        if c["arm_id"] != arm and c["arm_id"].partition("@")[0] == fam and c["r"] is not None:
+            w = 1.0 if c["taken"] else LS.ARM_CF_AGIRLIK
+            tot += w * c["r"]
+            n += w
+    return LS.damped_mean(tot, n, shrink_n) if n > 0 else None
+
+
 def _arm_lesson(led, cf_path: str, bot: str, state_path: str, arms: list, asset_of, now: datetime, dry_run: bool) -> dict:
     """WP-13: kurulum karnesi (tum adaylar) + kurulum dersi (ac/kapa, geri alma). Yazma yalnizca gercek kosuda."""
     decisions = led.list_decisions()                          # salt okunur; aday filtresi arm_candidates'ta
@@ -100,7 +113,8 @@ def _arm_lesson(led, cf_path: str, bot: str, state_path: str, arms: list, asset_
     for arm in seen:
         cs = [(c["ts"], c["r"], c["taken"]) for c in cands if c["arm_id"] == arm and c["r"] is not None]
         st, ev = LS.arm_lifecycle_step(prev.get(arm), cs, now, shrink_n=lcfg.shrink_n,
-                                       rollback_r=lcfg.rollback_effect_r)
+                                       rollback_r=lcfg.rollback_effect_r, aile_ort=_aile_ort(cands, arm, lcfg.shrink_n),
+                                       cf_weight=LS.ARM_CF_AGIRLIK)
         states[arm] = st
         if ev:
             events.append({"arm_id": arm, "event": ev})
