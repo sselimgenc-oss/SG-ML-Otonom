@@ -1,0 +1,87 @@
+{
+ "alan": "kagit",
+ "bulgular": [
+  {
+   "dosya": "trader/src/trader_engine/brokers/paper.py",
+   "satir": 596,
+   "tur": "kagit_canli",
+   "onem": "yuksek",
+   "sorun": "Kağıt tasfiye fiyatı hisse/emtia için gevşek MMR (0,004) ile hesaplanıyor; giriş kapısı ise sınıf MMR'ı (hisse/emtia %2) kullanıyor. Kağıtta tasfiye gerçekte olduğundan çok daha uzakta görünür.",
+   "kanit": "engine.py: PaperConfig(mmr=K.LOCKED_CFG.maint_margin_rate); risk.py: maint_margin_rate=0.004 ve liquidation_price(fp, side, lev, self._cfg.mmr) kullanılıyor, oysa MMR_SINIF hisse/emtia için 0.02 diyor. Sınıf bazlı MMR kağıt brokerine hiç geçmiyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/brokers/paper.py",
+   "satir": 563,
+   "tur": "hata",
+   "onem": "orta",
+   "sorun": "Açılış fiyatı tasfiye fiyatını aştığında (liq_gap) pozisyon yine tam tasfiye fiyatından kapanıyor. Gerçekte gap'ten sonraki kötü fiyattan kapanırdı; kağıtta kayıp iyimser.",
+   "kanit": "liq_gap=op<=liq ise _liquidate çağrılıyor; _liquidate içinde _close(..., pos.liq_price, ...) var, bar açılışı kullanılmıyor. Stop için gap'te bar.last_o kullanılıyor, tasfiye için kullanılmıyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/brokers/paper.py",
+   "satir": 45,
+   "tur": "olu_ayar",
+   "onem": "orta",
+   "sorun": "PaperConfig.funding_max_wait_s hiçbir yerde ayardan okunmuyor. Her zaman varsayılan 900 sn kalıyor, ayar dosyasından değiştirilemiyor.",
+   "kanit": "engine.py ve backtest.py PaperConfig(cost=, mmr=, wallet_start=) ile kuruyor. src içinde funding_max_wait_s'e paper.py dışında referans yok; EngineConfig'te alan yok.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/funding.py",
+   "satir": 27,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "floor_funding_time src içinde hiç çağrılmıyor. accrue ise yalnız testlerde kullanılıyor, kağıt broker kendi mantığını _funding_step'te yazıyor. Testler üretimde çalışmayan accrue'yu doğruluyor olabilir.",
+   "kanit": "grep sonucunda src içinde yalnız tanımlar ve exit_counterfactual içindeki bir docstring var. accrue ile floor_funding_time'ın PaperBroker'dan çağrısı yok.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/config.py",
+   "satir": 164,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "_PAPER_ONLY_KEYS sabiti hiç kullanılmıyor. Satır 63 yorumu ve gerçek kontrol (satır 582-590) ile uyumsuz: canlı mod artık bu anahtarları kabul ediyor.",
+   "kanit": "grep: _PAPER_ONLY_KEYS yalnız tanım satırında geçiyor. engine.live.json mode=live iken cost_overrides, clusters, risk gibi anahtarları taşıyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/config/engine.live.json",
+   "satir": 1,
+   "tur": "kagit_canli",
+   "onem": "orta",
+   "sorun": "Seans bazlı kayma (cost_overrides) yalnız kağıt brokerde uygulanıyor. Canlı yapılandırmada aynı blok var ama canlıda etkisi yok (gerçek dolum). Canlı ayarı kağıtla aynı görünüyor ama davranış aynı değil.",
+   "kanit": "engine.py: if cfg.mode == 'paper' and cfg.cost_overrides: session_cost_broker(...). Canlıda _build_live_broker kullanılıyor. status.py kayma_haritasi ise cost_overrides'ı okuyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/brokers/paper.py",
+   "satir": 587,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "_triggers_pair sonundaki last_mark güncellemesi gereksiz. last_mark zaten fills fazında aynı mark_c ile yazılıyor. Ayrıca stop/tasfiye erken dönüşlerinde zaten çalışmıyor.",
+   "kanit": "_fills_pair satır 386-390 mark_c'yi yazıyor; satır 587-588 aynı değeri tekrar yazıyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/brokers/paper.py",
+   "satir": 431,
+   "tur": "hata",
+   "onem": "dusuk",
+   "sorun": "Funding noktasında mark yoksa fallback olarak funding zamanındaki mark yerine içinde bulunulan çubuğun açılış mark'ı kullanılıyor. Bekleme sonrası gecikmiş ödemelerde (en fazla 15 dk) tutar hafifçe sapar.",
+   "kanit": "mark = bar.mark_o if bar.mark_o is not None else bar.last_o; bar o anki çubuk, funding zamanı t değil.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_engine/brokers/paper.py",
+   "satir": 596,
+   "tur": "hata",
+   "onem": "dusuk",
+   "sorun": "Tasfiye ücreti pos.entry_price üzerinden hesaplanıyor, tasfiye fiyatı üzerinden değil. Bakiye de sıfırın altına inmeyecek şekilde kısıtlanmıyor.",
+   "kanit": "fee = pos.qty * pos.entry_price * self._cfg.mmr; _close wallet += gross - fee, taban kontrolü yok.",
+   "emin_degil": true
+  }
+ ],
+ "maliyet_usd": 0.22319590000000003
+}

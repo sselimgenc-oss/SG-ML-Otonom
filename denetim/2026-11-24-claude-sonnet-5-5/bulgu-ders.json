@@ -1,0 +1,96 @@
+{
+ "alan": "ders",
+ "bulgular": [
+  {
+   "dosya": "trader/config/lesson.json",
+   "satir": 14,
+   "tur": "olu_ayar",
+   "onem": "orta",
+   "sorun": "max_pair_share=1.0 olduğu için kümelenme koruması pratikte işlemiyor; belge ise 0.5 diyor",
+   "kanit": "cluster_guard_info (lesson.py:848): ok = ... share <= cfg.max_pair_share + 1e-12. Pay en çok 1.0 olabileceğinden bu koşul her zaman doğru. ders-spec.md:165 ve :223 `max_pair_share ≤ 0.5` yazıyor. Rev. 9 bu değeri anmıyor, yani bilinçli gevşetme izi yok. Yalnız min_distinct_days (4) etkili.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/lesson.py",
+   "satir": 5172,
+   "tur": "olu_kod",
+   "onem": "orta",
+   "sorun": "_apply_more hiçbir zaman çalışmıyor: config max_changes_per_night=1 olduğu için hemen [] dönüyor",
+   "kanit": "`if cfg.max_changes_per_night == 1: return []`. Kod yorumu ve docstring (5173) 'max_changes_per_night=None' diyor ve 'aynı gece birden çok ayar' anlatıyor. Rev. 8 maddesi 1 hâlâ 'kural vekili _apply_more bunları da seçer' diyor. Rev. 9 bunun tersini söylüyor (ders-spec.md:35). Çok ayarlı uygulama kodu ve testleri canlı yapılandırmada ölü yük.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/config/lesson.json",
+   "satir": 44,
+   "tur": "olu_ayar",
+   "onem": "orta",
+   "sorun": "exit_cf_reject_cooldown_days=0 hiçbir yerde etkili değil, ama kâğıt/canlı farkı yaratıyor",
+   "kanit": "_exit_cooldown_days (lesson.py:4879): `0 if self.cfg.paper_auto else self.cfg.exit_cf_reject_cooldown_days`. paper_auto=true iken config değeri okunmuyor. paper_auto=false yapılınca config'teki 0 devreye girer ve 28 günlük bekleme sessizce kapanır. Kod varsayılanı 28, belge de canlıda 28 diyor. Canlıya geçişte bu iki ayar birlikte değişmezse bekleme yok olur.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/lesson.py",
+   "satir": 2741,
+   "tur": "kagit_canli",
+   "onem": "yuksek",
+   "sorun": "classify_route, paper_auto=false iken kâğıtta kullanılan yolları kapatıyor; kâğıt ve canlı ders davranışı bilerek ayrışıyor",
+   "kanit": "paper_auto doğruysa 'off_menu' ve 'counterfactual_exit_support' ask_user nedeni üretilmiyor (2752-2756). _exit_cooldown_days, _revert/bildirim metinleri, auto_capable/always_user (2049-2050, 2089-2090) ve evaluate_monitor'daki exit_harm yolu da paper_auto'ya bağlı. 'Canlı kâğıtla aynı davranmalı' ilkesine göre canlıda kâğıtta hiç sınanmamış kod yolları (ask_user akışı, 28 gün bekleme) çalışacak.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/lesson.py",
+   "satir": 4848,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "Gölge dönem mekanizması kapalı ama kodda ve yapılandırmada sürüyor",
+   "kanit": "shadow_weeks=0 ve paper_start_day=null olduğundan _shadow_active her zaman False (run_day < start+0). resolve_shadow_start, shadow_end, 'shadow_period' nedeni ve ApprovalRequest.shadow_ends_on etkisiz. Doğrulayıcı `isint(shadow_weeks, 0, 6)` hâlâ var.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/config/lesson.json",
+   "satir": 32,
+   "tur": "olu_ayar",
+   "onem": "dusuk",
+   "sorun": "calibration: null; kalibrasyon sistemi karar vermiyor, yalnız bilgi",
+   "kanit": "calibration_status her zaman (False,'no_calibration') dönüyor. classify_route'ta cal_ok yalnızca Route.provisional alanına gidiyor. REASON_PRIORITY içindeki 'calibration_required' ve 'twin_unavailable' hiçbir yerde üretilmiyor (2745-2761). lesson.py:397 yorumu: kalibrasyon bilgi içindir.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/lesson.py",
+   "satir": 3222,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "evaluate_monitor imzasındaki twin_ro, twin_code, twin_report kullanılmıyor",
+   "kanit": "Gövde bu parametrelere hiç bakmıyor. Çağıran (4780) `evaluate_monitor(ctx.led_ro, None, m, ...)` ile None geçiyor. cfg.twin_* property'leri (409-415) 'eski kod yolları için' sabit değer döndürüyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/lesson.py",
+   "satir": 239,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "Dataclass yorumları gerçek davranışla uyuşmuyor",
+   "kanit": "min_affected için 'esiksiz (kagit)', min_z için '0 => z sarti aranmaz' yazıyor. Kâğıt yapılandırması 8, 0.5 ve 1.64 kullanıyor. Rev. 9 yalnızca 'kod varsayılanları testler için esiksiz' diyor. Ayrıca ders-spec.md:164-165 tablosu min_z 2.0 ve min_distinct_days 8 diyor, gerçek değerler 1.64 ve 4.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/lesson.py",
+   "satir": 4539,
+   "tur": "hata",
+   "onem": "dusuk",
+   "sorun": "Kör kalma geri alımı yalnızca en son etkinleştirme 'lesson' tarafından yapılmış 'apply' ise tetikleniyor",
+   "kanit": "`acts[0].kind == \"apply\" and acts[0].actor == \"lesson\"`. Ders, arka arkaya birkaç ayar uyguladıktan sonra bir kez geri aldıysa (kind='rollback', actor='lesson') ya da fren çalıştıysa, aktif sürüm referans değilse bile bir sonraki kör günlerde geri alma yapılmaz. Etkin sürümün 'lesson' yazarlı olup olmadığına bakılmıyor.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_core/lesson.py",
+   "satir": 5183,
+   "tur": "hata",
+   "onem": "dusuk",
+   "sorun": "_apply_more'da `done.add(m.param)` kontrollerden önce ekleniyor",
+   "kanit": "Parametre 'bu arada değişti' ya da propose/apply başarısız olduğunda `continue` ediliyor ama param zaten done'da. max_changes_per_night sınırı başarısız denemeleri de sayıyor, uygulanmamış değişiklik hakkı tüketiyor. Şu an max=1 ile ölü kod olduğu için etkisi yok.",
+   "emin_degil": true
+  }
+ ],
+ "maliyet_usd": 0.2618878
+}

@@ -1,0 +1,96 @@
+{
+ "alan": "hb1",
+ "bulgular": [
+  {
+   "dosya": "trader/src/trader_engine/strategies/arms/hb1.py",
+   "satir": 171,
+   "tur": "olu_kod",
+   "onem": "orta",
+   "sorun": "MAX_SINYAL_YASI_DK (90 dk) ve `eski_sinyal` dalı üretici dosyayla hiç çalışmaz; ölü ayar. Belge 'ham olay yoksa 90 dk' diyor ama bu koruma devreye girmiyor.",
+   "kanit": "`elif D_ms - uretim > MAX_SINYAL_YASI_DK*60_000` yalnız satırda 'olaylar' anahtarı yoksa çalışır. haber_sinyal.birlestir her satıra (boş olsa da) 'olaylar' listesi yazıyor (haber_sinyal.py satır 212). Sonuç: üretim başarısız olunca dosya 3 saate kadar kullanılır. Sönümleme yeniden hesaplandığı için bu belki istenen davranış, ama 90 dk sınırı fiilen ölü.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/haber_sinyal.py",
+   "satir": 356,
+   "tur": "hata",
+   "onem": "orta",
+   "sorun": "Çok partili turda sonraki parti hata verirse önceki partilerin ücreti ödenmiş sonuçları atılır; durum ilerlemez, aynı başlıklar bir sonraki saatte yeniden puanlanıp tekrar ücretlendirilir.",
+   "kanit": "`for bas in range(0,len(yeni),PARTI)` içinde `return atla(...)` (bütçe reddi / API hatası / şema dışı) `sonuc.extend(ps)` ile birikenleri yazmadan çıkıyor. haber_kolu günlük tavanı yalnız 0.10 USD (budget.json); parti başına rezerve edilen tahmin MAX_CIKTI_TOKEN=6000 çıktı üzerinden.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/haber_sinyal.py",
+   "satir": 350,
+   "tur": "hata",
+   "onem": "orta",
+   "sorun": "MAX_OGE=120 sınırı aşan eski olaylar sessizce düşer, ama son_alim ilerletilir; bu başlıklar bir daha hiç puanlanmaz (ilk turda 6 saatlik birikim ve 14 kaynakla kolayca aşılır).",
+   "kanit": "`yeni = sorted(yeni, key=-alim)[:MAX_OGE]`; sonra `yeni_son = max(r['alim'] for r in ham)` tüm ham satırlardan hesaplanıyor, kırpılanlardan bağımsız. Alım zamanı tur başına kaynak başına tek değer olduğundan çoğu olay aynı alim'e sahip ve kırpma rastgele sıralı.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/haber_sinyal.py",
+   "satir": 364,
+   "tur": "olu_ayar",
+   "onem": "orta",
+   "sorun": "budget.json `retry` (max_retries, deadline_s.haber_kolu=120) ve sağlayıcı limiti (429 enforced_spend_limit) işleme yolu haber kolunda kullanılmıyor; istemci max_retries=0 ve hata durumunda yalnız release çağrılıyor.",
+   "kanit": "kos() hata dalında yalnız `b.release(grant)`; budget'ın hata işleyicisi (budget.py ~800-845: stop/retry/fail sınıflandırması) hiç çağrılmıyor. Dolayısıyla provider_limit bloğu yazılmaz ve haber_kolu için retry/deadline_s etkisiz.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_engine/strategies/arms/hb1.py",
+   "satir": 175,
+   "tur": "hata",
+   "onem": "orta",
+   "sorun": "'En az 2 farklı kaynak' teyidi aynı yayıncının ayrı beslemelerini (cnbc_earnings/technology/finance/energy, marketwatch_top/pulse) bağımsız kaynak sayıyor; teyit kapısı zayıflıyor.",
+   "kanit": "teyit_kaynak = len({k for e in ayni for k in e['kaynaklar']}); kaynaklar KAYNAK_LISTESI adlarıdır (veri_haber.py 31-46) ve 4 ayrı cnbc_* ile 2 marketwatch_* ad var. olaylara_topla farklı adları ayrı kaynak olarak ekliyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/haber_sinyal.py",
+   "satir": 207,
+   "tur": "hata",
+   "onem": "dusuk",
+   "sorun": "Üretici ve HB1 aynı alim'li olaylar arasında farklı tie-break kullanıyor (üretici: başlık, HB1: kimlik); olay_kimligi alanı iki yerde farklı çıkabilir. Aynı turdaki olayların çoğu aynı alim_ms paylaştığı için sık oluşur.",
+   "kanit": "birlestir: `key=lambda e:(e['alim'], e.get('baslik',''))`; hb1.yeniden_sonumle: `key=lambda e:(e['alim_ms'], e['kimlik'])`. Etkisi: 'olay_kimlikleri' varsa kullanılmıyor; yalnız yedek 'olay_kimligi' yolunda fark yaratır.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/haber_sinyal.py",
+   "satir": 46,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "SYSTEM istemi 'BTC=Bitcoin, XAU=altin' gibi kısa kodlar veriyor, ama şema enum'u tam çiftler ('BTC/USDT', 'XAU/USDT'); model eşlemeyi kendisi yapmak zorunda, yanlış/uyumsuz sembol çıktıda satır atılır (sessiz).",
+   "kanit": "cikti_semasi semboller enum=list(enstrumanlar) = engine.paper.json pairs ('XAU/USDT' ...); prompt kodları '/USDT' içermiyor. dogrula bilinmeyen sembollü öğeyi tümden atıyor.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_core/veri_haber.py",
+   "satir": 29,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "Yorum '21 hisse + 4 emtia' diyor; evrende 20 hisse ve 4 emtia var (43 = 19+20+4).",
+   "kanit": "engine.paper.json pairs: 19 kripto, 20 hisse (NVDA..HD), XAU/XAG/BZ/COPPER; haber_sinyal.enstrumanlar_yukle docstring'i 20 hisse diyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/haber_sinyal.py",
+   "satir": 113,
+   "tur": "kagit_canli",
+   "onem": "dusuk",
+   "sorun": "Evren her zaman engine.paper.json'dan okunuyor, canlı ayarı (engine.live.json) kullanılmıyor; iki dosyanın pairs listesi bugün aynı ama biri değişirse haber sinyali canlı evrenden sapar.",
+   "kanit": "`Path(config_dir)/'engine.paper.json'` sabit; live.json'da ayrı pairs/optional_pairs var.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/seans_disi.py",
+   "satir": 93,
+   "tur": "hata",
+   "onem": "dusuk",
+   "sorun": "Tatil penceresi emtia için de önceki işlem günü 16:00 ET'te başlıyor; CME emtia o gün 17:00 ET'e kadar işlem görür (hisse kapanışı baz alınmış). Yorum bunu 'temkinli' diyor, ama belgedeki emtia hafta sonu kuralıyla tutarsız (1 saat erken engel).",
+   "kanit": "_tatil_pencereleri HISSE_KAPANIS kullanıyor, cls ayrımı yok; karar() tatil penceresini hisse ve emtia için aynı uyguluyor. seans_takvimi.json notu da bunu 'temkinli' diye kabul ediyor.",
+   "emin_degil": false
+  }
+ ],
+ "maliyet_usd": 0.31361230000000007
+}

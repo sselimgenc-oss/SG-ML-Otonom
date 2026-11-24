@@ -1,0 +1,51 @@
+{
+ "alan": "kurulum",
+ "bulgular": [
+  {
+   "dosya": "trader/src/trader_engine/strategies/arms/b1.py",
+   "satir": 348,
+   "tur": "olu_kod",
+   "onem": "orta",
+   "sorun": "B1'deki 'rr_below_min' dalı hiçbir zaman çalışmaz. Sabit RR 2.0, rr_min üst sınırı olan 2.0'a hiçbir koşulda yenilmez.",
+   "kanit": "`rr = TARGET_R` (2.0); `elif rr < rr_min: skip='rr_below_min'`. SignalParams.rr_min aralığı 1.0–2.0 olduğundan `2.0 < rr_min` hiç doğru olmaz. ledger.py yorumu bunu 'B1 okuması etkisiz' diye kabul ediyor; ama B1 hâlâ `rr_min`i okuyor ve belge 'rr_below_min' filtresi varmış gibi görünüyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/signals.py",
+   "satir": 83,
+   "tur": "olu_ayar",
+   "onem": "dusuk",
+   "sorun": "`trigger_tf` parametresi (9 anahtardan biri) lab stratejisinde hiçbir hesabı etkilemez. Kurulumlar kendi arm zaman dilimini kullanır; `trigger_tf` yalnız `validate_params` içinde 'izinli mi' diye denetlenir.",
+   "kanit": "`_TRIGGER_TFS=('1h','15m')`. lab.py'de `allowed_trigger_tfs=('1h',)`; `trigger_tf` yalnız validate_params ve strategy_runner.py:238/260'taki izin denetiminde okunuyor. `core_signals` ve arm hesabı `ctx.tf` kullanıyor. Ders menüsünde bu parametreyi değiştirmenin hiçbir etkisi olmaz.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_core/signals.py",
+   "satir": 275,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "`pick_candidate` içindeki T1 > R1 önceliği ulaşılamaz. `compute_signals` her satırda yalnız T1 (trend) ya da yalnız R1 (range) adayı üretir. Çok kurulumlu öncelik gerçekte `strategy_runner` içinde `priority_of` ile yapılıyor.",
+   "kanit": "`t1 = label != 'range'`; T1 dalında `cands=[evaluate_t1(...)]`, R1 dalında yalnız R1 adayları. strateji-spec.md:134 bunu 'canlıda ulaşılamaz' diye belgeliyor, yani bilinçli savunma kodu.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/docs/strateji-spec.md",
+   "satir": 204,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "Belge, `regime_flip` çıkışının yalnız T1 için, `time_stop` ve `target` çıkışlarının yalnız R1 için olduğunu söylüyor. Kod bunları EXIT_MODE'a göre uyguluyor: regime_flip ve trail tüm trail kollarına (T1, TF1, H2, S1), target ve time_stop tüm target kollarına (R1, B1, F1) uygulanıyor.",
+   "kanit": "position_manager.py:93-101: `mode == 'target'` ise target ve time_stop, aksi halde `regime_flip_exit` ve trail. Çalışma zamanı davranışı kağıtta da canlıda da aynı; fark yalnız belgede.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/signals.py",
+   "satir": 125,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "`from_mapping` içindeki `pullback_ema` ve diğer sayısal anahtarların dalları birebir aynı. Ölü dal, davranış etkisi yok.",
+   "kanit": "`elif k == 'pullback_ema': vals[k] = round(_num(v,k),6)` ile `else: vals[k] = round(_num(v,k),6)` aynı ifade.",
+   "emin_degil": false
+  }
+ ],
+ "maliyet_usd": 0.3677669
+}

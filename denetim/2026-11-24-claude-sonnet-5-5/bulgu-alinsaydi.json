@@ -1,0 +1,105 @@
+{
+ "alan": "alinsaydi",
+ "bulgular": [
+  {
+   "dosya": "trader/src/trader_core/counterfactual.py",
+   "satir": 522,
+   "tur": "belge_farki",
+   "onem": "orta",
+   "sorun": "run_shadow docstring'i hesabin run_once ile AYNI olduğunu söylüyor; gerçekte farklı. Gölge hesap seansa göre kaymayı (cost_table) kullanmıyor, sabit 5 bp ile fiyatlıyor. Kurulum zaman dilimini de yok sayıp her şeyi 1 saatlik ızgarada oynatıyor.",
+   "kanit": "run_shadow satır 565 ve 572: replay(..., varsayılan fee_rate/slippage_rate) çağrılıyor, _priced/_session_slip yok. start_ms = _ceil_hour_ms ve mk.window(d.pair, start_ms, horizon) tf vermiyor (1h). run_once ise tf_ms, _priced ve seans kayması kullanıyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/counterfactual.py",
+   "satir": 3,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "Modül docstring'i 'karar mumundan sonraki 1 saatlik mumlar' ve '72 mum' diyor. Gerçekte oynatma, kararın kurulum zaman diliminde (15m/1h/4h/1g) yapılıyor. 72 ve 48 mum o zaman diliminin mumu; 1g için 4s'lerden kurulan günlük mum.",
+   "kanit": "run_once: tf_ms = ARM_TF_MS[tf]; end = start + horizon*tf_ms; mk.window(d.pair, start_ms, horizon, tf). _rows_for/ufuk 15m için 18 saat, 1g için 72 gün demek. Üst docstring ve sabit yorumları (HORIZON_BARS) bunu belirtmiyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/scripts/counterfactual_run.py",
+   "satir": 66,
+   "tur": "kagit_canli",
+   "onem": "orta",
+   "sorun": "Karşı-olgu maliyet tablosu (cost_overrides) ve varlık sınıfı yalnız engine.paper.json'dan okunuyor. engine.live.json'un kendi cost_overrides bloğu var ve değerler paper'dan farklı olabilir. Canlıya geçildiğinde karşı-olgu canlı kaymasını yansıtmaz. --paper-config okunamazsa sessizce 5 bp taban ve 'kripto' varsayılıyor (yalnız uyarı).",
+   "kanit": "_paper_maps(path) yalnız args.paper_config; engine.live.json:109 cost_overrides var ama hiç okunmuyor. Okuma hatasında 'return {}, (lambda pair: AG.CLASS_CRYPTO), []' ile devam ediliyor.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_core/exit_counterfactual.py",
+   "satir": 84,
+   "tur": "kagit_canli",
+   "onem": "orta",
+   "sorun": "modes_version_from_config yalnız engine.base.json ve engine.paper.json'dan target_mode okuyor. Canlı/testnet ayarını (engine.live.json) hiç okumuyor. Canlıda target_mode değişirse (live.json'da şimdilik 'resting', base'de 'bar_close') kanıt sürümü yanlış seçilebilir. Aynı mantık exit_counterfactual_run._target_mode içinde de var.",
+   "kanit": "for name in ('engine.base.json','engine.paper.json'): ... .get('target_mode', mode). engine.live.json:4 ayrı target_mode taşıyor ama okunmuyor.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_core/exit_counterfactual.py",
+   "satir": 66,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "Modülde kullanılmayan ölü sabitler var: CF_EXIT_BLOCK_DAYS (lesson.py kendi kopyasını tanımlıyor), TRAIL_BOUND_NOTE, SIM_REASONS. İlki kopya olduğu için iki yerde ayrışabilir.",
+   "kanit": "Grep: bu üç ad exit_counterfactual.py dışında başka modülden bu modül üzerinden okunmuyor. lesson.py:1803 CF_EXIT_BLOCK_DAYS = 7 kendi tanımı. SIM_REASONS, TRAIL_BOUND_NOTE yalnız tanım satırında geçiyor (tests hariç, test taranmadı).",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_core/exit_counterfactual.py",
+   "satir": 696,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "_funding_fn'in now_ms parametresi hiç kullanılmıyor. Ayrıca _alternatives içindeki 'own' rolü dışında etki yok. Parametre ölü.",
+   "kanit": "def _funding_fn(points, now_ms, side, qty, fallback_mark): gövdede now_ms geçmiyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/counterfactual.py",
+   "satir": 58,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "cost_in_r ve replay'in fee_rate/slippage_rate parametreleri üretim yolunda kullanılmıyor. run_once replay'i fee=0, slip=0 ile çağırıp maliyeti _priced'ta ekliyor. cost_in_r yalnız __all__ ve docstring'de var. KILIT_ACIK True olduğu için holdout dalları (satır 405, 537) ve alinmayan_sonuc.kilit() ölü dal.",
+   "kanit": "run_once: replay(..., fee_rate=0.0, slippage_rate=0.0); cost_in_r çağıran yok (Grep, tests hariç). 'if not KILIT_ACIK and ...' hep False.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/alinmayan_sonuc.py",
+   "satir": 98,
+   "tur": "hata",
+   "onem": "orta",
+   "sorun": "Rapordaki 'alınan işlemler' satırı farklı bir zaman ekseniyle ve farklı birimle karışık karşılaştırılıyor. Alınmayanlar karar zamanına (bar_close_ts), alınanlar çıkış zamanına (exit_ts) göre 7 günlük pencereye alınıyor. Ayrıca alınanlar tüm setuplar ve gerçek dolumlu r_multiple, alınmayanlar yalnız planlanan fiyattan, ufku dolmuş 'plan' sonucu. Karşılaştırma yanıltıcı olabilir. Ayrıca list_closed_trades(limit=LIST_CLOSED_MAX) tavanı 'tum_zamanlar' için sessizce keser.",
+   "kanit": "girdi_oku: alinan = [{'ts': t.exit_ts, 'r': t.r_multiple}]; atlanan ts = d.bar_close_ts; topla/pen aynı alt<=t<=simdi süzgecini iki farklı zaman damgasına uyguluyor. limit=ledger.LIST_CLOSED_MAX.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_core/alinmayan_sonuc.py",
+   "satir": 105,
+   "tur": "hata",
+   "onem": "dusuk",
+   "sorun": "arm_conflict raporunda atlanan kararın arm_id'si kaybeden kolun id'si olarak alınıyor. arm_id boşsa 'bilinmiyor' etiketi altında toplanıyor. Çözülmemiş 'kayip' sayısı cf'ten bağımsız atlanan listesinden geliyor ama pencere (pen) cf ve atlanan için ayrı süzülüyor. Eski kararlarda arm_id hiç yazılmamışsa tüm arm_conflict tek 'bilinmiyor' satırına çöker (counterfactual.arm_id_of fallback'i burada yok).",
+   "kanit": "arm_of = {d.get('id'): str(d.get('arm_id') or 'bilinmiyor') ...}; girdi_oku getattr(d,'arm_id',None); counterfactual.run_once ise arm_id_of(d.setup, tf) ile türetiyor.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_core/counterfactual.py",
+   "satir": 83,
+   "tur": "hata",
+   "onem": "dusuk",
+   "sorun": "Aynı mumda hem stop hem hedef değerse STOP sayılıyor (muhafazakâr, belgeli). Ancak stop dolumu tam -1R ve boşluk (gap) yok sayılıyor: açılış stopu aşmış olsa bile r_gross=-1.0, bu nedenle 'üst sınır' kayıp zaten iyimser. Kayma yalnız slip_stop_bps ile ekleniyor, bu yeterli sayılabilir ama exit_counterfactual (gap -> açılış fiyatı) ile tutarsız.",
+   "kanit": "replay: out, why, g, j = 0, 'stop', -1.0, i_stop; exit_counterfactual.replay_trail gap durumunda base = o kullanıyor.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/config/lesson.json",
+   "satir": 44,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "exit_cf_reject_cooldown_days=0 yazıyor, ama kod bunu yalnız canlıda kullanıyor; kağıtta paper_auto ise doğrudan 0 dönüyor, ayar etkisiz. Belge (cikis-karsi-olgu-spec.md) varsayılan 28 diyor, dosya 0: kağıt ve canlı arasında bilinçli fark ama canlı için yapılandırılmış değer 0 olduğundan canlıda da bekleme 0 olur.",
+   "kanit": "lesson.py:4879: return 0 if self.cfg.paper_auto else self.cfg.exit_cf_reject_cooldown_days; lesson.json:44 değeri 0.",
+   "emin_degil": true
+  }
+ ],
+ "maliyet_usd": 0.3067796
+}

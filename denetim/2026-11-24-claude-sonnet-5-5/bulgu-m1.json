@@ -1,0 +1,123 @@
+{
+ "alan": "m1",
+ "bulgular": [
+  {
+   "dosya": "scripts/ml_retrain_run.py",
+   "satir": 89,
+   "tur": "hata",
+   "onem": "yuksek",
+   "sorun": "Kilit ACIK olmasina ragmen gece egitimi tarihsel barlari hala 2026-05-01'de kesiyor; son 6 ay veri egitime girmiyor.",
+   "kanit": "`_hist_tail(bars, pair, cap, LOCK_START)` kosulsuz cagriliyor ve `_hist_tail` `searchsorted(..., cutoff)` ile keser. `train.KILIT_ACIK=True` ve `in_lock` False donuyor, yani bu kesim kilit bayragina bagli degil. Model paketi 21 gun gecerli olsa da her gece 2026-05'ten once biten veriyle egitiliyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "research/pa_proposer_build.py",
+   "satir": 79,
+   "tur": "hata",
+   "onem": "yuksek",
+   "sorun": "Kagit satirlari, kilit acikken bile ozellik penceresi LOCK_END (2026-11-01) oncesine denk geliyorsa atiliyor.",
+   "kanit": "`if ts[i - PF.WINDOW + 1] < LOCK_END: stats['no_window'] += 1; continue` KILIT_ACIK'a bakmiyor. Sonuc: 2026-05..10 araligi ne tarihsel (LOCK_START kesimi) ne kagit yoldan egitime giriyor. `split_lock` ve `drop_lock` da kilit acikken hicbir satiri dusurmuyor, bu yuzden `lock_dropped` hep 0.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "src/trader_engine/strategies/arms/m1.py",
+   "satir": 47,
+   "tur": "kagit_canli",
+   "onem": "yuksek",
+   "sorun": "M1 PackageSet'i allow_paper_only varsayilaniyla (True) olusturuyor; paper_only isaretli paketler canli modda da yukleniyor.",
+   "kanit": "`_PS = PackageSet(MODELS_DIR, fallback_dirs=(SEED_MODELS_DIR,))`. `package.build_package` her pakete `paper_only: True` yaziyor. ml_package.py:114 yorumu 'testnet/canliya kapidan gecmemis model yuklenmez' diyor, ama motor modunu hicbir yerde `allow_paper_only`'ye gecirmiyor (grep: yalniz ml_package.py'de var). engine.live.json M1 kollarini iceriyor, bu yuzden canli ayar kagitla ayni modeli kullaniyor.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "scripts/ml_retrain_run.py",
+   "satir": 2,
+   "tur": "belge_farki",
+   "onem": "orta",
+   "sorun": "Docstring gece egitimini '03:10 UTC' diye veriyor; zamanlayici 00:40 UTC'de calisiyor.",
+   "kanit": "Docstring: 'Gece egitimi ... 03:10 UTC'. deploy/trader-ml-retrain.timer: `OnCalendar=*-*-* 00:40:00 UTC`.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "scripts/ml_retrain_run.py",
+   "satir": 11,
+   "tur": "belge_farki",
+   "onem": "orta",
+   "sorun": "Belgeler 'Kilit donemi (2026-05-01..2026-11-01) egitime GIRMEZ' diyor, ancak 23.11 karariyla kilit acik (KILIT_ACIK=True); yalniz yukaridaki iki kesim yolu bu belgeyi dogru kiliyor.",
+   "kanit": "train.py ve trader_ml/config.py'de KILIT_ACIK=True. CSV 'veri_penceresi' alani yine `hist<{LOCK_START.date()}` yaziyor (satir 108), yani kayit gercek veri penceresini yansitmiyor. trader_ml/__init__.py satir 3 'kilit donemi yapisal reddi' diyor, oysa assert_no_lock hicbir sey reddetmiyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "src/trader_ml/walkforward.py",
+   "satir": 24,
+   "tur": "olu_kod",
+   "onem": "orta",
+   "sorun": "make_folds ve trader_ml/config.py'deki walk-forward sabitleri (TRAIN_BARS, TEST_BARS, STEP_BARS, MIN_TEST_BARS, HORIZON_BARS, EMBARGO_BARS, DATA_START, HOLDOUT_END) uretimde hic kullanilmiyor.",
+   "kanit": "`grep make_folds|trader_ml.walkforward` yalniz tests/ml/test_holdout_guard.py ve research/dl1/cekirdek.py'deki bir yorum satirini buluyor. cekirdek.py kendi `PURGE_MUM = DL.UFUK + 24` degerini kullaniyor. __init__.py ise walkforward'un 'DL1 egitimi' icin oldugunu soyluyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "src/trader_ml/guards.py",
+   "satir": 19,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "assert_pre_holdout, KILIT_ACIK=True oldugu icin hep hemen donuyor; HoldoutViolation dali ulasilamaz.",
+   "kanit": "`if KILIT_ACIK: return` fonksiyonun ilk satirinda. Ayni sekilde train.in_lock, assert_no_lock, drop_lock ve split_lock fiilen etkisiz.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "src/trader_core/ml_package.py",
+   "satir": 103,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "MlModelView.user_approved alani dolduruluyor ama hicbir yerde okunmuyor; gate_passed/user_approved paketlerde sabit True.",
+   "kanit": "`grep user_approved` ml_package.py:87/103 ve package.py:33 disinda M1 yolunda sonuc vermiyor. Digerleri lesson.py'deki ayri bir kavram.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "src/trader_ml/pa_proposer/package.py",
+   "satir": 26,
+   "tur": "olu_ayar",
+   "onem": "dusuk",
+   "sorun": "threshold_quantile 0.98 sabit yazilmis, train.THRESHOLD_Q ile bagli degil; biri degisirse meta yanlis kayit tutar.",
+   "kanit": "package.py: `\"threshold_quantile\": 0.98`; train.py: `THRESHOLD_Q = 0.98` esigi hesaplarken kullaniliyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "src/trader_ml/pa_proposer/train.py",
+   "satir": 110,
+   "tur": "hata",
+   "onem": "orta",
+   "sorun": "Esik, egitim verisinin kendi puanlarinin %98 yuzdeligi olarak ayarlaniyor (orneklem ici); canlida tetik orani cogu zaman beklenenden farkli olur. Hicbir dogrulama yok.",
+   "kanit": "`scores = TreeModel(model,...).predict_proba(X); thr = np.quantile(scores, THRESHOLD_Q)`. Kalite kapisiz yayin kullanici karari, ama esigin orneklem ici olmasi ayri bir konu.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "scripts/ml_retrain_run.py",
+   "satir": 64,
+   "tur": "hata",
+   "onem": "dusuk",
+   "sorun": "Tarihsel etiketler 'ucluk bariyer (hedef 3 ATR, stop 1.5 ATR, SMA ATR)' ile uretilirken kagit satirlari 'R>0' etiketiyle ayni egitim kumesinde karisiyor; iki etiketin anlami farkli.",
+   "kanit": "labels.paper_row: `y = 1 if r > 0 else 0`; labels.triple_barrier: hedef once vurulursa 1. Bu iki etiket tek tabloda ayni sinifa konuyor.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "src/trader_engine/strategies/arms/m1.py",
+   "satir": 41,
+   "tur": "olu_ayar",
+   "onem": "dusuk",
+   "sorun": "FEATURES = {m1_body, m1_wick, m1_rr} haritasi tek basina M1 dosyasinda; model ozellikleri (FEATURE_NAMES) ile ilgisi yok, 'rr' hep sabit 2.0.",
+   "kanit": "`rr=RR` sabit (TARGET_ATR/STOP_ATR); `edge`/`ema` NaN. Defterdeki ozellikler karar yerine yalniz bilgi amacli.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "src/trader_engine/strategies/arms/_pa.py",
+   "satir": 43,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "M1 `P.prepare` ile Wilder ATR hesaplatiyor; yalniz `p.ok` icin kullaniliyor, stop mesafesi ise `PF.atr_at` (SMA ATR) ile hesaplaniyor. Iki farkli ATR tanimi var.",
+   "kanit": "m1.py: `atr = PF.atr_at(...)` stop/target icin; `_pa.prepare`: `I.atr(trig, 14)` yalniz `ok` maskesinde. Ozellik/stop tutarli, ama `ok` kapisi farkli ATR'ye gore karar veriyor.",
+   "emin_degil": true
+  }
+ ],
+ "maliyet_usd": 0.194681
+}

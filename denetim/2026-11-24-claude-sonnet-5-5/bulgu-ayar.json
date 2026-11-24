@@ -1,0 +1,78 @@
+{
+ "alan": "ayar",
+ "bulgular": [
+  {
+   "dosya": "trader/src/trader_engine/config.py",
+   "satir": 406,
+   "tur": "olu_ayar",
+   "onem": "orta",
+   "sorun": "live.max_attempts ayarı doğrulanıp okunuyor ama canlı yolda hiç etkisi yok. Ayar 2 olsa bile 1'e sabitleniyor.",
+   "kanit": "LiveSettings.max_attempts için 1..2 aralığı doğrulanıyor (satır 406). engine.py:150 'self.orders.max_attempts = 1 # ayar olu: 1'e sabit' diyor. Engine bu alanı hiç okumuyor. binance_rest'in max_attempts parametresi ayrı ve LiveSettings'ten beslenmiyor (engine.py:2624 yalnız recv_window_ms ve conditional_mode geçiriyor). Operatör 2 yazınca yeniden deneme açıldığını sanabilir.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/config.py",
+   "satir": 93,
+   "tur": "olu_ayar",
+   "onem": "orta",
+   "sorun": "start_delay_s zorunlu ayar, doğrulanıyor ve engine.base.json'da duruyor ama motor hiç kullanmıyor. Belge ise ikiz (twin) için bekleme yapıldığını söylüyor.",
+   "kanit": "src içinde start_delay_s yalnızca config.py'de geçiyor. engine.py'de ne start_delay_s ne 'twin' var. docs/motor/05-engine-runner.md:187 'Twin ise clock.sleep(cfg.start_delay_s)' diyor. Ikiz kaldırıldı: bot yalnız 'learner' kabul ediliyor (config.py:494). Değer yalnızca testlerde kontrol ediliyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/config.py",
+   "satir": 164,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "_PAPER_ONLY_KEYS sabiti hiçbir yerde kullanılmıyor. Gerçek kontrol _validate içinde elle yazılmış 'given' sözlüğüyle yapılıyor, iki liste ayrışabilir.",
+   "kanit": "Grep: _PAPER_ONLY_KEYS yalnızca tanım satırında geçiyor. config.py:583-590'da ayrı 'given' sözlüğü var. İki liste birebir aynı değil: 'ladder_follow', 'retired_pairs' ve 'etiket_kurallari' farklı yollarla denetleniyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/config_loader.py",
+   "satir": 29,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "validate() ve load_config() (trading_mode, margin_mode, dry_run, exchange sırları) hiçbir yerden çağrılmıyor. Yalnızca deep_merge kullanılıyor. Docstring'deki değişmez denetimleri fiilen çalışmıyor.",
+   "kanit": "Grep: config_loader'dan yalnızca config.py:18 ve gunluk_ozet.py:216 deep_merge alıyor. engine_dependency_direction testi de yalnızca deep_merge'e izin veriyor (CORE_NAME_ALLOWED). Şemada trading_mode, margin_mode, dry_run ve exchange anahtarları yok.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/config.py",
+   "satir": 598,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "Hata mesajları ve yorumlar 'yalniz mode=paper ile verilebilir' diyor, ama kod live modunda da kabul ediyor.",
+   "kanit": "Satır 582 'if mode not in (\"paper\", \"live\")'. Satır 590 mesajı yalnızca 'paper' diyor. Satır 164 ve 163 yorumları ile 'DD-12 yalniz mode=paper' başlığı (satır 63, 107) güncel değil. Satır 468-470'te de paper için 'uygulanmaz' deniyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/backtest.py",
+   "satir": 332,
+   "tur": "kagit_canli",
+   "onem": "orta",
+   "sorun": "Backtest yalnızca engine.base.json + engine.learner.json yüklüyor. Kağıt/canlı ayarları (arms, clusters, risk, korelasyon, kayıp freni, exit_modes, resting hedef, cost_overrides) ile koşmuyor. Sonuçlar canlıdan farklı davranışı ölçer.",
+   "kanit": "load_engine_config(d/'engine.base.json', bot) overlay vermiyor. Taban dosyada target_mode='bar_close', strategy='price_action_v1' ve target_trade_risk=0.005 var. Kağıt/canlı overlay'inde 'resting', 'price_action_lab_ml', 0.01 var. Satır 338'deki yorum bunu 'kilitli risk' için bilerek yapıyor, ama diğer ayarlar için ayrı bir not yok. s.env verilirse _build_env_config yolu var, bunu ayrıca incelemedim.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/config/engine.live.json",
+   "satir": 1,
+   "tur": "kagit_canli",
+   "onem": "dusuk",
+   "sorun": "Canlı ve kağıt dosyalarındaki arms, clusters, cost_overrides ve risk blokları elle kopyalanmış. Yalnız birine yapılan değişiklik sessizce ayrışabilir. Ayrıca kağıt evren kaplaması canlıda okunmuyor.",
+   "kanit": "engine.paper.json ve engine.live.json'da arms, risk, korelasyon, kayıp freni ve cost_overrides aynı. apply_universe_overlay yalnızca mode=='paper' için pairs/optional_pairs/retired_pairs'i değiştiriyor (config.py:670). Aylık evren güncellemesi canlıya yansımıyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/config/engine.live.json",
+   "satir": 22,
+   "tur": "olu_ayar",
+   "onem": "dusuk",
+   "sorun": "canlı ve kağıt dosyasında 'max_positions: 24' ile 'arm_max_positions' ve küme tavanları birlikte var. Sonuncusu hiç dönmeyen bir kural değil ama küme toplamı (6+9+8+5+3+3) farklı katmanlarda yineleniyor. Bunu emin olmadan yazıyorum.",
+   "kanit": "Tavan uygulamasını (gates.py) bu denetimde açmadım. Yalnızca ayar dosyasından gördüm.",
+   "emin_degil": true
+  }
+ ],
+ "maliyet_usd": 0.28690489999999996
+}

@@ -1,0 +1,123 @@
+{
+ "alan": "dl1",
+ "bulgular": [
+  {
+   "dosya": "trader/scripts/health_run.py",
+   "satir": 807,
+   "tur": "kagit_canli",
+   "onem": "orta",
+   "sorun": "Saglik denetimi paketi TRADER_DATA_ROOT altindan okuyor, motor ise kod kokunden okuyor; iki yer ayri dizine bakabilir.",
+   "kanit": "Saglik: data_root(env)/'models'/'dl1'/f'DL1@{tf}.json'. Motor: dl1_cikarim.PAKET_DIZINI = Path(__file__).parents[2]/'models'/'dl1' (satir 53) ve dl1.py bunu kullaniyor, veri kokunu okumuyor. data_root, TRADER_DATA_ROOT mutlak yol ise onu veriyor. Kok birimleri ayriysa saglik 'ok' derken motorun paketi eski/yok olabilir ya da tersi.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_engine/dl1_cikarim.py",
+   "satir": 254,
+   "tur": "olu_ayar",
+   "onem": "orta",
+   "sorun": "Paketteki ufuk, etiket(stop_atr/hedef_atr), tf, kapi, sinif_adlari ve metrikler canlida hic dogrulanmiyor ve kullanilmiyor.",
+   "kanit": "paket_dogrula yalniz kanallar, pencere, esik, olcekleyici, kapsam.siniflar, olusturma, son_kullanma ve agirliklari okuyor. Canli stop/hedef/ufuk sabitleri DL.STOP_ATR, DL.HEDEF_ATR ve signals.TIME_STOP_BARS'tan geliyor (dl1.py:119-120). Paketi farkli ufuk ya da ATR carpaniyla egitilmis olsa bile motor sessizce yanlis stop/hedef kullanir.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/dl1_cikarim.py",
+   "satir": 365,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "Ucuncu cikti (oynaklik) canlida hesaplanip atiliyor; yalniz egitimde yardimci kayip olarak kullaniliyor.",
+   "kanit": "puanla `float(z[2])` donduruyor, dl1.py:98 `pl, ps, _vol, atr = sonuc` ile atiyor. Egitimde vol_agirlik=0.1 ile smooth_l1 kaybi var.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/dl1_cikarim.py",
+   "satir": 319,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "paket_yasi_gun uretimde hic cagrilmiyor (yalniz testlerde). Saglik kendi yas hesabini yapiyor. PAKET_YOLU ve ARM_ID de yalniz geriye uyum/test icin duruyor.",
+   "kanit": "Grep: paket_yasi_gun yalniz tests/engine/test_dl1_cikarim.py'de. PAKET_YOLU yalniz test satir 173'te. health_run.probe_dl1_paket paket_yukle ile kendi hesabini yapiyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/research/dl1/cekirdek.py",
+   "satir": 42,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "BAR sabiti (1 saat) hic kullanilmiyor. H_NS yalniz varsayilan arguman olarak kaldi; zaman dilimi artik bar_ns ile geliyor.",
+   "kanit": "BAR = pd.Timedelta(hours=1) satir 43; foldlar kendi `bar` degiskenini ayar.bar_ns'ten kuruyor, BAR'a baska atif yok.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/research/dl1/cekirdek.py",
+   "satir": 114,
+   "tur": "kagit_canli",
+   "onem": "orta",
+   "sorun": "Egitimin masraf tablosu ve cikis kipleri yalniz engine.paper.json'dan okunuyor. Canli ayar (engine.live.json) ayri bir dosya ve kendi cost_overrides ile exit_modes degerlerini tasiyor; ikisi ayrisirsa egitim R'si ve kapi canliyi yansitmaz.",
+   "kanit": "cikis_kipleri, maliyet_tablosu ve sinif_haritasi varsayilan olarak config/engine.paper.json'u okuyor. engine.live.json'da exit_modes ve cost_overrides ayrica tanimli. Su an esit olup olmadigini dogrulayamadim (kosu izni alinamadi).",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/research/dl1/cekirdek.py",
+   "satir": 126,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "Veri.bitis yorumu 'D + 24 saat' diyor, kod D + UFUK*bar_ns (48 mum) kullaniyor. 15m'de bu 12 saat, 1d'de 48 gun eder.",
+   "kanit": "Yorum: 'bitis: (S,) etiket bitisi (ns): D + 24 saat'. veri_kur: bitis=ts[sira] + DL.UFUK * bar_ns.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/dl1_cikarim.py",
+   "satir": 145,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "Docstring'ler eski: ileri 'x (B,96,8)' diyor ama girdi 11 kanal. Modul basligi sunucuya yalniz DL1@1h.json'un geldigini soyluyor ama dort paket var.",
+   "kanit": "ileri docstring '(B, 96, 8)'; N_KANAL = 11 ve c1 11 giris kanalli. Baslik satir 4: 'yalniz models/dl1/DL1@1h.json paketi gelir'.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/research/dl1/cekirdek.py",
+   "satir": 239,
+   "tur": "hata",
+   "onem": "dusuk",
+   "sorun": "Kismi kar cikisinin ekstra komisyon/kaymasi masrafa yansitilmiyor; net R basa-bas+kismi kar acikken iyimser.",
+   "kanit": "simule_cikis sonunda tek tur masraf: c*(2*taker + s_in + cikis_kayma)/risk. Kismi cikis (pt_frac) rtot'a yalniz brut R ekliyor, ayrica taker/kayma dusulmuyor. Walk-forward kapi metrigi ve etiketler biraz iyimser olur (kapi yayini engellemedigi icin etkisi dusuk).",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/research/dl1/egit.py",
+   "satir": 178,
+   "tur": "hata",
+   "onem": "dusuk",
+   "sorun": "Canli esik, nihai modelin kendi egitim ornekleri uzerindeki puanlarin %98'ligi; ornek-ici puanlar disi puanlardan yuksek oldugu icin canlida beklenenden az aday cikabilir.",
+   "kanit": "esik = np.percentile(C.puanlar(v, tr, pk, ort, std).ravel(), 98); tr = alt_kume(rows, ...) yani modelin egitildigi satirlar. Walk-forward dilim esigi de ayni sekilde egitim puanlarindan hesaplaniyor, yani kapi ile canli tutarli, ama esik dagilimi test disi puanlari yansitmiyor. Tasarim secimi olabilir.",
+   "emin_degil": true
+  },
+  {
+   "dosya": ".github/workflows/dl1-egitim.yml",
+   "satir": 53,
+   "tur": "kagit_canli",
+   "onem": "dusuk",
+   "sorun": "Yedek denetim 'olusturma' damgasinin UTC gunune bakiyor. Ana kosu zaman asimina ugrayip paket ilk yazimdan sonra (kapi bos) kalirsa paket 'yenilendi' sayilir ve yedek kosu o zaman dilimini yeniden egitmez; kapi/metrikler bos kalir.",
+   "kanit": "egit.py once kapi bos paketi yaziyor (satir 185), sonra walk-forward'dan sonra ikinci kez. gunluk_kontrol.bugun_yenilendi yalniz olusturma gunune bakiyor. Model tam yayinlandigi icin etkisi yalniz rapor/kapi bilgisi.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/health.py",
+   "satir": 805,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "Docstring 'yok -> WARN dl1_paket_yok' diyor, ama bozuk ve yok paket birlikte olursa saglik yalniz 'bozuk' (unreadable) raporluyor; ayrica bir zaman diliminin yoklugu 'ilgili' degil 'en az bir' diye genelleniyor.",
+   "kanit": "probe_dl1_paket: ilk bozuk paketle hemen Dl1PaketProbe('unreadable') donuyor, kalan zaman dilimlerine bakmiyor. Hangi zaman diliminin sorunlu oldugu mesajda yok.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/health.py",
+   "satir": 1168,
+   "tur": "kagit_canli",
+   "onem": "dusuk",
+   "sorun": "DL1 saglik denetiminin acilip acilmayacagi yalniz engine.paper.json'daki kollara bakiyor (dl1_kolda). Canli ayar dosyasinda DL1 kapatilsa bile paper'a gore denetim uretilir (ya da tersi).",
+   "kanit": "health_run.dl1_kolda yalniz os.path.join(cdir,'engine.paper.json') aciyor; engine.live.json okunmuyor.",
+   "emin_degil": true
+  }
+ ],
+ "maliyet_usd": 0.4117575
+}

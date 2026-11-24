@@ -1,0 +1,78 @@
+{
+ "alan": "sunucu",
+ "bulgular": [
+  {
+   "dosya": "trader/scripts/health_run.py",
+   "satir": 952,
+   "tur": "hata",
+   "onem": "orta",
+   "sorun": "Ek uyarılar (disk, M1 paketi, tutarlılık) iletilemezse durum geri alınmıyor, uyarı sessizce kayboluyor.",
+   "kanit": "ek_uyari_plani, ek_uyarilar durumunda 'son' alanını gönderim denemesinde hemen güncelliyor. Uyarıların parmak izi f\"{fp}|{iso}\" biçiminde ve zaman damgalı. revert_failed_alerts (health.py 1509-1530) yalnızca 'fingerprints' anahtarına bakıyor, 'ek_uyarilar'a bakmıyor. Telegram gönderimi başarısız olursa (satır 1005-1006) yeni sorun için yeniden deneme olmuyor, sonraki hatırlatma 6 saat sonra geliyor. 'Düzeldi' mesajı da kayboluyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/scripts/kurulum_gozcu.py",
+   "satir": 142,
+   "tur": "hata",
+   "onem": "orta",
+   "sorun": "Motor açılış kapısından (çıkış 7) bilerek durmuşsa gözcü bunu 'servis çalışmıyor' sayıyor ve sağlam sürümü geri alabilir.",
+   "kanit": "trader-engine@.service'te RestartPreventExitStatus=7 8 var. Çıkış 7 ile duran motor 'inactive' kalıyor ve yeniden deneme zamanlayıcısı onu 5 dk'da bir deniyor. motor_sorunlari bu durumda sysctl('is-active') != 'active' görüp 'servis_etkin_degil' ekliyor. Ardışık 2 turda (yaklaşık 4 dk) ve GRACE_MIN=4 geçtikten sonra trader-geri-al --otomatik çalışıyor. Kurulumdan sonra besleme/piyasa verisi geç gelirse kodla ilgisi olmayan bir gecikme geri almaya yol açabilir. Kapı çıkışlarının koda göre tam anlamını doğrulamadım.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/scripts/kurulum_gozcu.py",
+   "satir": 237,
+   "tur": "hata",
+   "onem": "dusuk",
+   "sorun": "Geri alma başarısız olursa her gözcü turunda (2 dk) yeniden deneniyor. Her deneme ağır bir kurulum ve kendi başarısızlık mesajını üretiyor.",
+   "kanit": "rc != 0 ise action='geri_alma_basarisiz', rolled_back False kalıyor. fails>=2 koşulu sonraki turlarda yine sağlandığı için 60 dk boyunca (en fazla ~30 deneme) tekrar çalışıyor. Her denemeden önce 2400 sn'ye kadar bekleyen systemd-run var. Üst sınır ya da bekleme yok. Yorumda 'geri-al kendi mesajını yollar' yazıyor, yani tekrarlayan Telegram mesajı çıkabilir.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/deploy/trader-health.service",
+   "satir": 3,
+   "tur": "olu_ayar",
+   "onem": "dusuk",
+   "sorun": "Ölü docker bağımlılığı ve eski yol: After=docker.service, ReadOnlyPaths=/home/trader/trader/var.",
+   "kanit": "Sağlık betiğinin docstring'inde ve engine_container içinde 'docker yok' yazıyor. Birimde hâlâ After=docker.service var. ReadOnlyPaths=/home/trader/trader/var yolu render() ile TRADER_DIR/var'a çevriliyor ama veri kökü zaten /opt/trader. Aynı eski yol trader-engine-retry@.service içinde de var.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/scripts/health_run.py",
+   "satir": 31,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "TOTAL_BUDGET_S ve collect(deadline=...) hiçbir yerde kullanılmıyor, 60 sn bütçesi uygulanmıyor. BOTS sabiti de ölü.",
+   "kanit": "run_once içinde deadline = time.monotonic()+TOTAL_BUDGET_S hesaplanıp collect'e veriliyor. collect gövdesinde 'deadline' hiç okunmuyor. BOTS ('geriye uyum') yalnızca tanımlı, kullanım yok. Bütçe yalnızca systemd TimeoutStartSec=90 ile sağlanıyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/scripts/kurulum_gozcu.py",
+   "satir": 48,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "_iso fonksiyonu tanımlı ama hiç çağrılmıyor.",
+   "kanit": "Dosyada 'def _iso' dışında '_iso(' geçen yer yok. İçe aktarılan H._iso ayrı bir fonksiyon.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/scripts/health_backup.py",
+   "satir": 108,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "_fail(name, ...) içindeki 'name' parametresi kullanılmıyor. 'for p in (partial,)' döngüsü tek elemanlı gereksiz yapı.",
+   "kanit": "_fail gövdesi name'e hiç başvurmuyor. backup_one 119-121. satırlarda tek elemanlı bir demet üzerinde döngü var.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/scripts/health_run.py",
+   "satir": 88,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "make_cfg içinde 'import dataclasses' gereksiz, modül başında zaten içe aktarılmış. _parse_dt ile _parse_dt_utc iki ayrı davranış gösteriyor.",
+   "kanit": "Satır 10'da import dataclasses var, satır 89'da yeniden içe aktarılıyor. _parse_dt zaman dilimi olmayan değeri None döndürüyor, _parse_dt_utc UTC sayıyor. Yorum 'Motorla ayni' diyor. status.json'daki tz'siz bir zaman damgası loop_at'ı None yapıp ping_ok=None (UNKNOWN) üretir. M1 paket yaşı ise UTC sayılır.",
+   "emin_degil": true
+  }
+ ],
+ "maliyet_usd": 0.41048270000000003
+}

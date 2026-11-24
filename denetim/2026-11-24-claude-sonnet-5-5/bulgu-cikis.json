@@ -1,0 +1,87 @@
+{
+ "alan": "cikis",
+ "bulgular": [
+  {
+   "dosya": "trader/config/engine.paper.json",
+   "satir": 1,
+   "tur": "olu_ayar",
+   "onem": "dusuk",
+   "sorun": "`start_delay_s` ayarı config'te okunuyor ve cfg'ye yazılıyor ama motor hiçbir yerde kullanmıyor. Ayar etkisiz.",
+   "kanit": "Grep `start_delay_s` src/ içinde yalnız config.py:93/157/621 buldu: alan tanımı, sayı doğrulaması, cfg ataması. Motor, engine ve cli içinde okuma yok. engine.base.json'daki `\"start_delay_s\": 0.0` hiçbir şeyi değiştirmiyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/docs/cikis-kipleri-spec.md",
+   "satir": 23,
+   "tur": "belge_farki",
+   "onem": "orta",
+   "sorun": "Belge, çıkış kiplerinin (başa-baş ve kısmi) yalnız benzetimli brokerda çalıştığını, canlıda `Engine._exit_modes`'un None döndüğünü ve yapılandırmanın reddedildiğini söylüyor. Kod bunun tersini yapıyor.",
+   "kanit": "engine.py:1825-1829 `_exit_modes`: yorum \"kagit/geri test ve CANLI (23.11: canli = kagit); testnet: kapali\". Koşul `is_paper or cfg.mode == 'live'`. config.py:580 mode='live' için exit_modes'u kabul ediyor. engine.live.json:11 `exit_modes: {default:{breakeven:true, partial:true}}` taşıyor. Belge güncel değil. Canlı kısmi emir yolu (`_partial_recover`, `_register`) kodda var.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/position_manager.py",
+   "satir": 182,
+   "tur": "hata",
+   "onem": "orta",
+   "sorun": "Stop dolumunun nedeni `current_stop != initial_stop` ise hep `trail_stop` yazılıyor. Başa-baş kipi stopu girişe çektiğinde, hiç iz süren stopu olmayan hedef-kipli R1 pozisyonu da `trail_stop` olarak etiketleniyor. Rapor ve ders istatistiği (`share_time_stop`/`share_target`, exit_reason dağılımı) kirleniyor.",
+   "kanit": "`exit_reason_for_stop_fill`: `return \"trail_stop\" if pos.current_stop != pos.initial_stop else \"stop\"`. `engine._apply_stop_update` başa-baş taşımasında stopu `replace_stop` ile değiştiriyor. engine.paper/live.json `exit_modes.default` tüm kurulumlara, R1 dahil, başa-baş uyguluyor. `engine._apply_stop_update` would_trigger durumunda da `_submit_exit(... \"trail_stop\")` çağırıyor. Cikis-kipleri-spec.md:21 bunu bilinçli yazmış (\"Başa-baş stop vuruşu trail_stop yazılır\"). Yani belgeli bir tasarım, ama R1 için yanıltıcı ve başa-baş ile iz süren stop ayırt edilemiyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/position_manager.py",
+   "satir": 105,
+   "tur": "hata",
+   "onem": "orta",
+   "sorun": "İz süren stop çıkışı bar KAPANIŞ fiyatına bakıyor (`stop >= last_close`), bar içi low'a bakmıyor. Stop sonraki bar kapanışında piyasa emriyle kapanıyor. Borsada ayrıca bekleyen stop emri var, ama pozisyon_manager mantığı iki kez çıkış üretebilir.",
+   "kanit": "`crossed = stop >= ctx.last_close if pos.side=='long' else stop <= ctx.last_close` -> `ExitDecision('exit','trail_stop')`. Aynı adımda `tighter` dalı ancak crossed değilse çalışıyor. Yeni hesaplanan stop zaten aşılmışsa, borsadaki eski gevşek stop duruyor ve piyasa çıkışı gidiyor. Bu davranış `_apply_stop_update`'in would_trigger yoluyla tutarlı, ama yorum/belgede açıkça yazılı değil. Kağıt ve canlı aynı kodu paylaşıyor, bu yüzden hata değil davranış notu.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_engine/engine.py",
+   "satir": 1624,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "Resting modunda 15 dk adımında başa-baş ve kısmi kâr zaten değerlendiriliyor. Aynı sıra TF kapanış adımında, `dec.kind != 'exit'` ise `_modes_step` ile tekrar çalışıyor. Aynı mfe/mae bağlamı ve ayrıca bar-kapanış `apply_exit_modes` yolu (`elif modes`) resting'de hiç çalışmıyor. exit_counterfactual MODES_VERSION_15M ile bu ayrımı izliyor, fakat `apply_exit_modes(pos, ctx, dec, modes)` resting dalında ölü: yalnız `_modes_step` içinde ExitDecision('none') ile çağrılıyor.",
+   "kanit": "engine.py:1657-1669: `if resting: ... self._modes_step(...) elif modes is not None: dec = apply_exit_modes(pos, ctx, dec, modes)`. Paper ve live config'in ikisi de `target_mode: resting`, yani `elif` dalı ve `_maybe_partial` bar-kapanış çağrısı (satır 1676 `not resting`) şu an canlı/kağıt konfigürasyonunda hiç çalışmıyor. Yalnız base config `bar_close` ve geri test için kullanılıyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/config/engine.base.json",
+   "satir": 10,
+   "tur": "kagit_canli",
+   "onem": "orta",
+   "sorun": "Taban ayar `target_mode: bar_close`. paper ve live ise `resting` ile ezerek davranışı değiştiriyor. Geri test ya da başka bir ortam taban ayardan türerse çıkış davranışı kağıttan farklı olur (hedef bar kapanışında piyasa çıkışı, başa-baş/kısmi yalnız TF kapanışında, 15 dk adımı yok).",
+   "kanit": "engine.base.json: `\"target_mode\": \"bar_close\"`, `exit_modes` yok. engine.paper.json:4 ve engine.live.json:4 `\"resting\"` + `exit_modes default`. testnet ve learner config'leri taban ayarı miras alıyorsa (target_mode/exit_modes ezmiyorlarsa) kağıtla aynı davranmaz. engine.testnet.json ve engine.learner.json'u grep ettim: `target_mode` ve `exit_modes` içermiyorlar, yani testnet/learner `bar_close` ile çalışır. `_exit_modes` testnet için zaten None döndürüyor, yani testnet kasıtlı olarak farklı.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_engine/engine.py",
+   "satir": 1654,
+   "tur": "hata",
+   "onem": "orta",
+   "sorun": "Resting hedef aktifken `planned_target=None` verilerek bar kapanışında hedef kontrolü kapatılıyor. Hedef emri borsada/kağıtta doluysa sorun yok. Ancak hedef emri `active` görünüp gerçekte iptal olmuş/kaybolmuşsa (canlıda belirsiz iptal, `target_resize_failed`) pozisyon yalnız zaman stopuyla (48 bar) ve borsa stopuyla kalıyor; yedek hedef kontrolü yok.",
+   "kanit": "`if resting and self._target_active(pos.trade_id): pos_eval = replace(pos, planned_target=None)`. `_resize_target` hata durumunda 'eski hedef durur; mutabakat düzeltir' diyor ve yalnız sayaç artırıyor. Düzeltme mutabakata (reconcile_live) bağlı. Mutabakat çalışmazsa bar_close yedeği devreye girmiyor. `_place_resting_target` başarısızlıkta durumu `failed` yapıyor ve yedek yolu açıyor, ama sonradan kaybolan hedef için durum `active` kalıyor.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_core/exit_modes.py",
+   "satir": 120,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "`_valid_key` anahtar deseni `[A-Z][A-Z0-9]{1,7}(@(15m|1h|4h|1d))?` kullanıyor. Kurulum kodları T1/R1/TF1/B1/H2/S1/M1/HB1/DL1 ile uyumlu, ama `ExitModes.any` özelliği hiçbir yerde kullanılmıyor.",
+   "kanit": "exit_modes.py:54-56 `any` property tanımlı. Grep ile `\\.any\\b` kullanımı ExitModes için bulunmadı (numpy `.any()` dışında). Küçük ölü kod.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_core/exit_modes.py",
+   "satir": 135,
+   "tur": "kagit_canli",
+   "onem": "dusuk",
+   "sorun": "Ders bayrakları (`exit_breakeven`/`exit_partial`) yalnız `setup == 'T1'` için başa-baş/kısmiyi açıyor. Yapılandırmada `default` olsa bile diğer kurulumlarda ders yolu hiçbir şey eklemiyor. Docstring bunu söylüyor (\"kurulum T1 ise\"), ama ders-spec'te bayrağın T1 ile sınırlı olduğunu belirten bir yer yoksa ders sonucu ile uygulama farklılaşır.",
+   "kanit": "`if lesson_flags and setup == \"T1\":` yalnız T1 için `be`/`pt` açılıyor. engine.paper/live.json zaten `default` ile hepsini açtığı için şu an etkisiz (be/pt None değil, ders dalı atlanıyor).",
+   "emin_degil": true
+  }
+ ],
+ "maliyet_usd": 0.31237020000000004
+}

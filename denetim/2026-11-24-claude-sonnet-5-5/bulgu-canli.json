@@ -1,0 +1,87 @@
+{
+ "alan": "canli",
+ "bulgular": [
+  {
+   "dosya": "trader/config/engine.live.json",
+   "satir": 531,
+   "tur": "olu_ayar",
+   "onem": "orta",
+   "sorun": "live.max_attempts ayarı canlıda hiçbir şeyi değiştirmiyor. Bunu engine.py kendisi de \"ölü ayar\" diye belirtiyor.",
+   "kanit": "engine.py:150 `self.orders.max_attempts = 1  # ayar olu: 1'e sabit`. engine.py:2622-2625 REST istemcisini max_attempts vermeden kuruyor, yani istemci varsayılanı 4 geçerli (binance_rest.py:146). config.py:406 değeri 1-2 aralığında doğruluyor ama hiçbir yerde kullanılmıyor. Siparişler ağ hatasında zaten yeniden denenmiyor (binance_rest.py:341 ve 429), yani ayar hem ölü hem yanıltıcı. Okumalar ise 4 deneme yapıyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/config/engine.live.json",
+   "satir": 531,
+   "tur": "kagit_canli",
+   "onem": "dusuk",
+   "sorun": "live.order_quote=true yalnız canlı/testnet'te işe yarıyor. Kâğıtta emir anı bookTicker sorgusu hiç yapılmıyor, bu yüzden bu ayar kâğıt ile canlı arasında davranış farkı yaratıyor.",
+   "kanit": "engine.py:225 `if not simulated and live is not None and live.order_quote:` ile quote_fn bağlanıyor. config.py:58'de varsayılan False. engine.paper.json'da live bloğu yok.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/brokers/binance_futures.py",
+   "satir": 58,
+   "tur": "hata",
+   "onem": "orta",
+   "sorun": "_STATUS_MAP'te algo emir durumu TRIGGERED ve TRIGGERING \"filled\"/\"new\" olarak eşleniyor. Algo stop tetiklenmiş ama gerçek emir henüz dolmamış olabilir. Bu durumda BrokerOrder.status=\"filled\" olup filled_qty=0 kalabilir ve mutabakat emri dolmuş sayabilir.",
+   "kanit": "`\"TRIGGERED\": \"filled\", \"FINISHED\": \"filled\"`. _to_order (satır 689) filled_qty'yi yalnız executedQty/actualQty'den alıyor, yoksa 0. reconcile_live._adopt_opening `filled>0` arıyor, bu yüzden TRIGGERED+0 \"unknown\" döner. _l3b ise status=\"filled\" kabul eder.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_engine/brokers/binance_futures.py",
+   "satir": 1530,
+   "tur": "hata",
+   "onem": "orta",
+   "sorun": "Kapanış seçiminde `known` yoksa (yeniden başlatma, _last_pos kaybı) yön son işlemin tersinden çıkarılıyor. Son işlem kapanıştan sonraki yeni bir giriş ise yön ters çıkar ve kapanış yanlış atfedilebilir ya da hiç bulunamaz.",
+   "kanit": "`d_sign = ... if (known is not None and known != 0) else -sg(rows[-1])`. rows[-1] en yeni işlemdir. Kapanıştan sonra aynı yönde yeni giriş olmuşsa sg(rows[-1]) giriş yönüdür, d_sign ise onun tersi (azaltma yönü) olur ve doğru bulunur. Ters yönde yeni giriş olursa yön bozulur. _sync'te `_last_pos` korunuyor ama _finish ile siliniyor.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_engine/reconcile_live.py",
+   "satir": 176,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "Yabancı emir taraması (L9) yalnızca borsa ve state tamamen düzken yapılıyor. Pozisyon açıkken yabancı emirler hiç görülmüyor. Üstelik açık emir okuması da broker.open_orders içinde `_cid_role` filtresiyle yalnız bizim önekli emirleri döndürüyor.",
+   "kanit": "`if self._flat: self._foreign(...)`. _flat = `not bpos and not spairs` (satır 193). reconcile_live.py:3 \"bilinmeyen pozisyona dokunulmaz\" diyor ama yabancı emir denetimi pozisyon varken devre dışı.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/reconcile_live.py",
+   "satir": 794,
+   "tur": "hata",
+   "onem": "orta",
+   "sorun": "_orphans, borsada pozisyonu olmayan çiftteki reduce_only emirleri koşulsuz iptal ediyor. State'te status=\"opening\" veya yeni açılmış, henüz borsada görünmeyen (positionRisk gecikmesi) pozisyonun stop ve hedefi de yetim sayılıp iptal edilebilir.",
+   "kanit": "`if pair in bpos or pair in skip: continue` sonrası `o.reduce_only` ise `_cancel`. skip yalnız unresolved_l3 (open/closing, borsada yok ve çıkış türetilemedi) çiftlerini kapsıyor. `opening` durumundaki çiftler kapsanmıyor (run() satır 133-134 yalnız _l3b çağırıyor).",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_engine/brokers/binance_futures.py",
+   "satir": 527,
+   "tur": "hata",
+   "onem": "dusuk",
+   "sorun": "Başlangıçta marjin/kaldıraç doğrulaması yalnız döngüdeki SON satırın sonucunu `ok`'a yazıyor. Satır başına `ok =` atandığı için çift yönlü (hedge) kayıtlarda önceki satırın sonucu ezilir. Tek yön modu zorlandığı için pratik risk düşük.",
+   "kanit": "`for r in pr or []: ... ok = str(...).lower() == \"isolated\" and int(...) == self._lev`. Önceki satırın ok değeri korunmuyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/brokers/binance_futures.py",
+   "satir": 1473,
+   "tur": "hata",
+   "onem": "dusuk",
+   "sorun": "Funding gelir satırları `since` (pozisyon açılış zamanı − 2 sn payı) ile `ts+5000` ms arasında çekiliyor. Satırlar `_delivered_funding` ile tekilleştiriliyor ama bu küme hiç temizlenmiyor. Uzun çalışmada bellek sızıntısı oluşuyor. Aynı şekilde `_delivered` (işlem kimlikleri) de hiç temizlenmiyor.",
+   "kanit": "`self._delivered_funding.update(new_keys)` ve `self._delivered.add(t[\"id\"])`. _finish bu iki kümeyi temizlemiyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/brokers/binance_futures.py",
+   "satir": 1130,
+   "tur": "test",
+   "onem": "dusuk",
+   "sorun": "Bu bulguda test dosyalarını okumadım. Canlı yolun ince dalları (TRIGGERED eşlemesi, _select yön çıkarımı, _orphans-opening) için ilgili testlerin varlığını ve neyi doğruladığını denetlemedim.",
+   "kanit": "Test dosyalarına bakmadım, yalnız kaynak kodu okudum.",
+   "emin_degil": true
+  }
+ ],
+ "maliyet_usd": 0.34918610000000005
+}

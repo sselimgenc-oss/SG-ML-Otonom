@@ -1,0 +1,114 @@
+{
+ "alan": "telegram",
+ "bulgular": [
+  {
+   "dosya": "trader/src/trader_core/panel_data.py",
+   "satir": 262,
+   "tur": "hata",
+   "onem": "yuksek",
+   "sorun": "Panelin risk kullanımı limitleri ayar dosyasından değil kilitli varsayılandan alıyor. Günlük zarar da yalnız gerçekleşen kâr/zarardan hesaplanıyor.",
+   "kanit": "risk_usage içinde `c = LOCKED_CFG` ve limitler `c.max_open_risk*eq` ile `c.max_same_dir_risk*eq`. LOCKED_CFG'de max_open_risk=0.06 ve max_same_dir_risk=0.04. engine.paper.json ve engine.live.json'da 0.12 ve 0.06. Docstring 'risk kilidi oranları x equity (sabit sayı yok)' diyor. 'Günlük zarar' satırı `max(0,-pnl)` (yalnız kapanmış işlemler) ile `daily_loss_rate()*dse` kullanıyor. Motorun kuralı ve Telegram zarar_tick/build_report ise `dse-eq` (gerçekleşmemiş dahil) kullanıyor. Panel kullanım yüzdesi şişik, günlük zarar ise eksik görünüyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/scripts/weekly_summary_run.py",
+   "satir": 163,
+   "tur": "hata",
+   "onem": "orta",
+   "sorun": "Haftalık özetteki 'Alınmayan sinyal' satırı R cinsinden değerleri dolar olarak biçimliyor.",
+   "kanit": "alinmayan_sonuc.py başlığı: '`toplam_pnl`/`ortalama_pnl` alanları bu raporda R'dir'. alinmayan_satiri ise `_fmt_pnl(r['toplam_pnl'])` kullanıyor ve `_fmt_pnl` `f\"{x:+.2f} $\"` döndürüyor. Hemen altındaki arm_conflict_satiri aynı alanı 'R' diye yazıyor, yani iki satır birbiriyle tutarsız.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/telegram.py",
+   "satir": 2178,
+   "tur": "olu_kod",
+   "onem": "orta",
+   "sorun": "default_sections'taki bölümlerin üretimde hiçbiri çağrılmıyor; yalnız 'Duraklatma' okunuyor. Bu yüzden bölüm üreticileri ölü kod.",
+   "kanit": "build_report docstring'i 'sections yalnız Duraklatma için okunur; diğer bölümler panelde' diyor ve kodda yalnız `sections.get('Duraklatma')` var. default_sections ise Defter, Bütçe, Ders, Öğrenme, Kurulum karnesi, Davranış, Risk kademesi ve Alınmayan lambdalarını kuruyor. rapor_defter, rapor_butce, rapor_ders, rapor_ogrenme, rapor_kacirilan, rapor_davranis, rapor_kurulum_karnesi, _haftalik_ozet_metni ve section_ledger/lesson/counterfactual yalnız testlerden ve default_sections'tan çağrılıyor. Testler günlük raporda hiç görünmeyen metinleri doğruluyor olabilir.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/scripts/weekly_summary_run.py",
+   "satir": 5,
+   "tur": "belge_farki",
+   "onem": "orta",
+   "sorun": "Docstring, Telegram günlük raporunun haftalık özetin sabit bölümünü okuduğunu söylüyor; gerçekte okumuyor.",
+   "kanit": "Docstring: 'Telegram günlük raporu `telegram.rapor_ogrenme` onu okur'. rapor_ogrenme yalnız default_sections içinde ve build_report onu hiç çağırmıyor. Ayrıca HAFTALIK_TELEGRAM=False olduğundan telegram.haftalik_gonder de hiçbir şey göndermiyor. Haftalık sabit bölüm yalnız yorumcu_run'a ve panele gidiyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/telegram.py",
+   "satir": 2250,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "haftalik_gonder ve haftalik_metni sabit bir bayrak yüzünden hiç çalışmıyor.",
+   "kanit": "`HAFTALIK_TELEGRAM = False`; haftalik_gonder ilk satırda `if not HAFTALIK_TELEGRAM: return False` ile çıkıyor. run_report bu fonksiyonu her başarılı raporda çağırıyor ama sonuç hep False. haftalik_metni da ulaşılamıyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/telegram.py",
+   "satir": 1439,
+   "tur": "olu_ayar",
+   "onem": "orta",
+   "sorun": "GUNLUK_ZARAR_ORANI ve tg_sade.LIMIT_ORANI hiçbir yerde okunmuyor; yorumları da ayar dosyasıyla çelişiyor.",
+   "kanit": "İkisi de 0.05 ve yorumlarında 'risk kilidiyle aynı %5' yazıyor. Grep'te yalnız tanımları çıkıyor. Gerçek oran limit_orani() ile config/engine.paper.json ve engine.live.json'dan okunuyor ve 0.08. Yorum yanıltıcı.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_reports/yorumcu.py",
+   "satir": 253,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "telegram_ozeti hiçbir yerde çağrılmıyor.",
+   "kanit": "'Geriye uyum: ilk parça' diyen fonksiyonun grep'te yalnız tanımı çıkıyor. yorumcu_run.py telegram_parcalari kullanıyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_reports/yorumcu.py",
+   "satir": 64,
+   "tur": "kagit_canli",
+   "onem": "orta",
+   "sorun": "Yorumcunun 'dün' tablosu UTC gününe göre hesaplanıyor; günlük rapor ve panel İstanbul (TSİ) gününe göre. Aynı 'dün' farklı işlemleri kapsıyor.",
+   "kanit": "dun_tablosu: `gun=(now-timedelta(days=1)).date().isoformat()` ve `t['exit_ts'][:10]==gun`. exit_ts UTC'dir. telegram._istanbul_day_bounds_utc ve panel_data.day_bounds_utc ise TR gün sınırı kullanıyor. Yorumcu 05:40 UTC'de çalışıyor, yani TSİ 08:40'ta. TSİ 00:00-03:00 arasında kapanan işlemler UTC'nin önceki gününe düşüyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/scripts/yorumcu_run.py",
+   "satir": 163,
+   "tur": "hata",
+   "onem": "dusuk",
+   "sorun": "Geçici hata sonrası günün yeniden denenmesi engelleniyor.",
+   "kanit": "yok() her durumda `<tarih>.md` yazıyor ('API hatası', 'batch zamanında bitmedi' dahil). kos() başında `if (dizin/f'{tarih}.md').exists() and not force: return exists`. Aynı gün ikinci çalıştırma geçici API hatasından sonra da hiçbir şey yapmaz; yalnız --force kurtarıyor.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/scripts/weekly_summary_run.py",
+   "satir": 13,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "Docstring 'aylık tavan 20 $' diyor ama haftalik_ozet payı budget.json'da 2 $ ve günlük 0,25 $.",
+   "kanit": "Docstring: 'Bütçe payı haftalik_ozet (aylık tavan 20 $...)'. budget.json'da monthly_share_usd.haftalik_ozet=2.0, daily_cap_usd=0.25, monthly_cap_usd=20.0 (tüm servisler için).",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/telegram.py",
+   "satir": 1762,
+   "tur": "kagit_canli",
+   "onem": "dusuk",
+   "sorun": "section_ledger günlük zarar bütçesini kip vermeden ve yalnız gerçekleşen PnL'den hesaplıyor; build_report ve zarar_tick ise kipi geçiriyor ve özsermaye farkına bakıyor.",
+   "kanit": "section_ledger içinde `TS.limit_orani(cfg.config_dir, None)`; None kipi canlı olmadığı için hep paper dosyasını okur. 'günlük zarar' `max(0,-pnl)` ile hesaplanıyor. build_report ve zarar_tick `limit_orani(..., st.mode)` ve `dse-eq` kullanıyor. Üretimde çağrılmıyor; yalnız panel eşdeğerlik testi için duruyor.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_core/tg_sade.py",
+   "satir": 88,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "kontrol() ve _YASAK yasak-kelime denetimi üretim yolunda uygulanmıyor ('Testler ve savunma amacli').",
+   "kanit": "Grep ile üretim kodunda çağrısı yok. build_report çıktısı bu denetimden geçmiyor. Telegram'a giden metinlerde 'sunucu', 'sunucuda' ve '_' gibi yasak kalıplar var, örneğin _on_code yanıtlarındaki 'sunucuda arm-quarantine release' ve NEDEN_TR içindeki 'yalnız sunucuda açılır'. Kural fiilen yalnız testlerde kalıyor.",
+   "emin_degil": true
+  }
+ ],
+ "maliyet_usd": 0.41212990000000005
+}

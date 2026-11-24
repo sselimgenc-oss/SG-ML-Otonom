@@ -1,0 +1,132 @@
+{
+ "alan": "risk",
+ "bulgular": [
+  {
+   "dosya": "trader/src/trader_engine/ladder.py",
+   "satir": 107,
+   "tur": "kagit_canli",
+   "onem": "yuksek",
+   "sorun": "Risk kademesi kagitta yalniz gozlem (enforce=False), canlida zorunlu. Kademe dusunce canli riski %1'den %0,5'e iner, kagit %1'de kalir. 'Canli = kagit' karari bu noktada tutmuyor.",
+   "kanit": "risk_config: `if not self.enforce: return base`; canlida `RL.step_config(base, self._st.step)`. engine.py:_build_ladder paper'da enforce=False, live'da True. Canli gunluk start_step=K2 (%1) ile basliyor, ilk dususte K0 (%0,5).",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/ladder.py",
+   "satir": 204,
+   "tur": "kagit_canli",
+   "onem": "yuksek",
+   "sorun": "-%20 durma (review_stop), taban durmasi (floor_stop) ve sermaye aktarim eslestirmesi yalniz canlida giris kapatir. Kagitta bu esikler gelip gecer, yalniz kayit olusur.",
+   "kanit": "_hold_invariant ve _apply icinde `if self.enforce and self.pause is not None: self._add_hold(...)`. Paper'da sanal 'would' kaydi tutuluyor. gate_code paper'da hep None.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "otonom-trading-arastirma/tasarim-kararlari.md",
+   "satir": 178,
+   "tur": "belge_farki",
+   "onem": "yuksek",
+   "sorun": "Belge kagit gunluk kayip sinirini %5 ve ayni yon tavanini %8 diyor. Ayar dosyalari ise gunluk %8, ayni yon %0,06 (%6) kullaniyor. Ayni yon degeri hicbir belgedeki sayiyla (%8 / %16) eslesmiyor.",
+   "kanit": "Satir 178: 'gunluk kayip %8 -> %5 (ayni yon %8)'. engine.paper.json ve engine.live.json: risk={max_open_risk:0.12, max_same_dir_risk:0.06, daily_max_loss:0.08}. dd12-capraz-varlik-spec.md ayni yon %8/%16 yaziyor.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_core/risk.py",
+   "satir": 34,
+   "tur": "belge_farki",
+   "onem": "orta",
+   "sorun": "PAPER_LIMITS/LIVE_LIMITS ust sinirlari ayardan gevsek: max_open 0,24, ayni yon 0,16. Ayar dosyasi 0,12 ve 0,06 kullaniyor. dd12 spec ve ct-ayrilik-spec hala 0,24/0,16 'gecerli' diyor, yani belge gercek davranisla uyusmuyor. Sinirlar kosulsuz gevsek kalinca ayara yazilacak hatali bir deger de yakalanmaz.",
+   "kanit": "risk.py:37-38 ve 46-47: 0.24/0.16. config: 0.12/0.06. Tasarim kararlari 24.11 (4) yalniz max_open'i 0.12'ye cekmis; ayni yon 0,06'nin gerekcesi yok.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_core/risk.py",
+   "satir": 363,
+   "tur": "hata",
+   "onem": "orta",
+   "sorun": "Adim 4 (gunluk limit) esit olmayan bir sinir kullaniyor: `<= -daily_max_loss`. Adim 10'daki kagit dali `loss_today >= limit` kullaniyor. Iki kontrol ayni seyi iki farkli kayan nokta yoluyla ifade ediyor. Adim 4 oran bolmesi, adim 10 carpim kullandigi icin tam sinirda tutarsiz olabilir. Adim 10'un kagit/canli dali adim 4'un bir alt kumesi oldugu icin fiilen etkisiz.",
+   "kanit": "adim 4: `(equity-day_start)/day_start <= -cfg.daily_max_loss`. adim 10: `elif loss_today >= cfg.daily_max_loss*day_start` (_DAILY_INCLUDES_OPEN_RISK=False). Iki kosul matematiksel olarak ayni.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_core/risk.py",
+   "satir": 100,
+   "tur": "olu_kod",
+   "onem": "orta",
+   "sorun": "Kagit ve canlida `_DAILY_INCLUDES_OPEN_RISK` hep False. Dolayisiyla 'gunluk zarar butcesi asilir' dali, acik risk + yeni risk toplamini hic kontrol etmiyor. Bu dal yalniz testnet/geri testte calisir; kagit ve canlida gunluk risk butcesi pratikte yok.",
+   "kanit": "PaperRiskConfig ve LiveRiskConfig `_DAILY_INCLUDES_OPEN_RISK = False`. Kagit dali yalniz adim 4'u tekrarliyor. Kagit/canli, testnet/geri test ile ayni riski tasimiyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/gates.py",
+   "satir": 440,
+   "tur": "olu_ayar",
+   "onem": "orta",
+   "sorun": "`toplam_buyukluk_kat: 3` neredeyse etkisiz. Kaldirac 3 ve teminat toplami <= equity oldugu icin (risk.py adim 11) toplam nominal zaten <= 3x equity. Ek kapi yalniz mark fiyati giris fiyatindan buyuk saparsa devreye girer. Yalniz kagit/canli dalinda cagriliyor.",
+   "kanit": "risk.py:406 `sum(margin)+size.margin > equity` ve margin=notional/lev (lev=3 -> toplam nominal <= 3x equity). gates.py:640 `if paper:` icinde cagriliyor.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_core/kayip_freni.py",
+   "satir": 93,
+   "tur": "hata",
+   "onem": "orta",
+   "sorun": "Gunluk fren hesabi `gun_basi_kasa` ve `equity`ye gore: equity gerceklesmemis zarari icerir. Fren, kazancli kapanista kalkiyor (`_son_kazanc`). Bu, gun icinde kar alip hala %4 ekside olan hesapta freni acar ve cikis yolunu keser. Belgede 'gun basinda kalkar' yaziyor, kod ek olarak kazancla kaldiriyor; belge tam anlatmiyor.",
+   "kanit": "karar(): `if _son_kazanc(...): return FrenKarari(False, None, 1.0, n)` gunluk zarar kontrolunden ONCE. Modul docstring'i gunluk freni yalniz UTC gun basinda kalkar diyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/kayip_freni.py",
+   "satir": 34,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "`ardisik_kayip()` fonksiyonu motor kodunda cagrilmiyor; yerine `ardisik_seri` kullaniliyor. Ayrica risk_ladder.counters() consec_losses'ta basa-bas islemi seriyi keser sayiyor (notr degil), kayip_freni'nde notr: tanim tutarsiz.",
+   "kanit": "gates.py yalniz KF.karar ve KF.YOK kullaniyor. risk_ladder.py:503 `if _fin(r) and r < 0: consec += 1 else: break`.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_engine/gates.py",
+   "satir": 612,
+   "tur": "kagit_canli",
+   "onem": "orta",
+   "sorun": "Kayip freni, kol kucultme ve toplam buyukluk yalniz `paper` dalinda (mode paper veya live). Testnet bunlari atlar. Testnet bu yuzden canliyla ayni davranmiyor, canliya gecis oncesi testnetle risk dogrulanamaz.",
+   "kanit": "`paper = self.cfg.mode in (\"paper\",\"live\")`; `if paper:` icinde _kol_karari/_fren_karari/_toplam_buyukluk_karari.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/risk.py",
+   "satir": 231,
+   "tur": "kagit_canli",
+   "onem": "orta",
+   "sorun": "Giris kapisi sinif MMR'si (kripto %0,5, hisse/emtia %2) kullaniyor. Kagit broker simulasyonu ve geri test ise LOCKED_CFG.maint_margin_rate=0,004 kullaniyor. Kagitta tasfiye simulasyonu ile kapi farkli MMR ile calisiyor. Hisse/emtia icin simule edilen tasfiye gercek MMR'den uzakta.",
+   "kanit": "engine.py:2745 `PaperConfig(mmr=K.LOCKED_CFG.maint_margin_rate)`; gates.py:478 `K.sinif_mmr(sinif, rc.maint_margin_rate)`.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_core/risk.py",
+   "satir": 16,
+   "tur": "olu_ayar",
+   "onem": "dusuk",
+   "sorun": "Kaldirac ayari `leverage` ayar dosyalarinda yok, her yerde varsayilan 3. HARD_LIMITS min_leverage=1 ama `RiskConfig.min_leverage=3`. max_leverage=5 hic kullanilmaz, kaldirac her zaman 3.",
+   "kanit": "config.py:525 `raw.get('leverage', min_leverage)`; engine.*.json'da leverage yok; gates.entry_leverage cfg.leverage'i doner.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/kol_kucultme.py",
+   "satir": 106,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "Rapor/panel `azaltilanlar`, kapidan farkli veri kumesiyle aile ortalamasi hesaplar (90 gun penceresi yok). Panelde gosterilen carpan ile gercek giris carpani ayrisabilir. Kodda NOT olarak kabul edilmis ama kullaniciya yansiyan fark.",
+   "kanit": "Yorum: 'rapor/panel yaklasimi; aile = verilen listelerin tamami (kapi 90 gunluk pencere kullanir)'. gates._kol_karari ledger.arm_family_mean_r(aid, D) kullanir.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/risk_ladder.py",
+   "satir": 22,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "K3 (%1,2) ve K4 (%1,4) basamaklari hic kullanilmaz: MAX_STEP_APPROVABLE=0, LIVE_START_STEP=2, step_up tavani K2. Kagitta kademe hic uygulanmiyor, canlida en yuksek K2.",
+   "kanit": "STEPS 3 ve 4; fold: `step > max(MAX_STEP_APPROVABLE, start_step)` hata; start_step <= LIVE_START_STEP=2.",
+   "emin_degil": false
+  }
+ ],
+ "maliyet_usd": 0.38720419999999994
+}

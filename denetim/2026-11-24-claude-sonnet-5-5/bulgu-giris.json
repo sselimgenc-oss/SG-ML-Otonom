@@ -1,0 +1,96 @@
+{
+ "alan": "giris",
+ "bulgular": [
+  {
+   "dosya": "trader/src/trader_engine/gates.py",
+   "satir": 148,
+   "tur": "hata",
+   "onem": "orta",
+   "sorun": "Hesap düzeyindeki iki red kodu 'adaya özgü' sayılıyor: buyukluk_okunamadi ve tasfiye_okunamadi. Belirtilen güvenli taraf bunun tersi.",
+   "kanit": "ADAY_OZGU_RED_KODLARI içinde \"tasfiye_okunamadi\" ve \"buyukluk_okunamadi\" var. Yorum (145-147) bilinmeyen kodun çift düzeyi sayılacağını söylüyor. Bu kodlar okuma/hesap hatasından geliyor, adaydan değil. Hata kalıcıysa her yedek aday aynı hatayla yeniden denenir ve ledger'a fazladan satır yazılır. Girişin kendisi yine engellenir.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/gates.py",
+   "satir": 151,
+   "tur": "hata",
+   "onem": "orta",
+   "sorun": "risk_denied'in hesap düzeyi olup olmadığı, Türkçe risk metninde alt dize aranarak anlaşılıyor. Kayıp freni izi hiçbir zaman eşleşmiyor.",
+   "kanit": "_HESAP_RISK_IZLERI = (\"günlük\", \"toplam açık risk\", ..., \"kayıp freni\", \"iç hata\"). risk.py'deki _deny metinlerinde 'kayıp freni' geçmiyor. Fren küçültmesi sonrası boyut reddi 'boyutlandırma reddedildi...' olarak gelir ve adaya özgü sayılır. 'aynı yön (...) risk sınırı aşılır' ve 'kaldıraç aralık dışı' da adaya özgü sayılır. Metin değişirse sınıflama sessizce bozulur; yapısal kod yok.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/gates.py",
+   "satir": 148,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "Yön bazlı iki kapı farklı sınıflanıyor. uzun_yon ve korelasyon_grubu adaya özgü, ama etiket_rejim (trende karşı yön) çift düzeyi sayılıyor.",
+   "kanit": "aday_ozgu_red'de etiket_* kodları listede yok. Etiket kuralı da EK.degerlendir(row.side, row.regime) ile yöne bağlı. Aynı çiftte long adayı geçebilecekken short'un etiket reddi yedek adayı keser ve kalanlar arm_conflict yazılır. Tasarım gereği olabilir.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_engine/engine.py",
+   "satir": 2092,
+   "tur": "hata",
+   "onem": "dusuk",
+   "sorun": "Çift düzeyi redde durulduğunda kalan adaylar için 'kazanan' olarak fr.last (ilk aday) veriliyor, o anki red edilen aday (k>0) değil.",
+   "kanit": "self._kalan_adaylar(pair, D, cands[k + 1:], fr.last, pre). Yedek aday k>0 iken çift düzeyi reddedilirse arm_conflict satırlarına veto_reason 'gate:arm_conflict:<ilk aday>' yazılır. İlk aday zaten reddedilmişti, kazanan değildi. Yalnız kayıt yanlış; giriş davranışı etkilenmiyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/arm_guard.py",
+   "satir": 2,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "Modül başlığı 'Seans yüzünden giriş ENGELLENMEZ' diyor. Seans dışı kapısı (seans_disi) artık hisse/emtia için yeni girişi engelliyor.",
+   "kanit": "arm_guard.py docstring: 'Seans yuzunden giris ENGELLENMEZ: etiket yalniz kayittir'. gates._seans_disi_karari ise hafta sonu/tatil/haber için _skip(...session_closed) döndürüyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/config/engine.paper.json",
+   "satir": 0,
+   "tur": "olu_ayar",
+   "onem": "dusuk",
+   "sorun": "uzun_yon.min_gun=60, ema+egim_gun=50+10=60'a eşit. min_gun bu değerle hiçbir etki yapmıyor; yalnızca 60'ın üstüne çıkarılırsa devreye girer.",
+   "kanit": "uzun_yon.sinifla: len(kapanislar) < max(min_gun, ema_n + egim_gun). max(60, 60) = 60. min_gun yalnız ema+egim_gun'dan büyük olduğunda etkili.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/gates.py",
+   "satir": 415,
+   "tur": "hata",
+   "onem": "dusuk",
+   "sorun": "Takvim yüklenemezse (None) her aday için dosya yeniden okunup ayrıştırılıyor. Başarısızlık önbelleğe alınmıyor.",
+   "kanit": "if self._takvim is _YUKLENMEDI or self._takvim is None: self._takvim = SD.yukle(...). Takvim bozuksa her hisse/emtia adayında disk okuması olur. Uyarı bir kez basılıyor ama G/Ç tekrarlanıyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/gates.py",
+   "satir": 546,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "arms_off dosyası her girişte diskten okunuyor, sonucu yalnızca arm_would_close sayacını artırıyor. Karar etkisi yok.",
+   "kanit": "engine.py:164 gate.arms_off = lambda: load_arms_off(path); gates.py:546 'if aid in self._arms_off(): counters[\"arm_would_close\"] += 1'. 19 Kasım kararı bunu bilgi amaçlı bırakıyor. Her aday için dosya açma maliyeti var.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/gates.py",
+   "satir": 543,
+   "tur": "kagit_canli",
+   "onem": "dusuk",
+   "sorun": "Testnet, kağıt/canlıdaki kapıların çoğunu hiç görmüyor: uzun_yon, korelasyon, kol küçültme, kayıp freni, toplam büyüklük, seans dışı, etiket, flat_bar, arm cap. Bunlar yalnız paper/live'da çalışıyor.",
+   "kanit": "if paper: bloğu (cfg.mode in ('paper','live')). Konfigte testnet dalında bu kapılar yok. Canlı=kağıt hedefi sağlanıyor, ancak testnet ayrı davranıyor. Kullanıcı kararı gereği paper/live eşitliği doğru.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_engine/uzun_yon.py",
+   "satir": 85,
+   "tur": "hata",
+   "onem": "dusuk",
+   "sorun": "Önbellek erken dönüşü son mum saatinin 20 olmasına bağlı. Hisse/emtia için gün sonu mumu 20:00 olmayabilir (ölü mumlar maskelenir). Bu durumda ilk 8 saat her çağrıda 4h barlar yeniden okunuyor.",
+   "kanit": "hit[0][1].hour == 24 - 4. _gunluk, AG.active_mask ile ölü mumları atıyor. Son aktif mum 16:00 olabilir. Doğruluk etkilenmiyor, yalnız performans ve yedek yol.",
+   "emin_degil": true
+  }
+ ],
+ "maliyet_usd": 0.3909435
+}
