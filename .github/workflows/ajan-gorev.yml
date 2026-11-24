@@ -1,0 +1,30 @@
+# Genel ajan gorevi. Asil surum claude/charming-hawking-ab5w5q dalinda; bu kopya yalniz elle tetiklemeyi mumkun kilar (ref = gelistirme dali).
+name: ajan-gorev
+
+on:
+  workflow_dispatch:
+    inputs:
+      istem:
+        description: "Istem dosyasi (depo kokune gore)"
+        required: true
+      model:
+        description: "Model"
+        required: false
+        default: claude-fable-5-2
+      butce:
+        description: "Azami harcama ($)"
+        required: false
+        default: "5"
+      yalniz_oku:
+        description: "yalniz_oku ya da yaz"
+        required: false
+        default: yalniz_oku
+
+permissions:
+  contents: read
+
+jobs:
+  gorev:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: echo "Gelistirme dalindan tetikleyin (ref = claude/charming-hawking-ab5w5q)."
