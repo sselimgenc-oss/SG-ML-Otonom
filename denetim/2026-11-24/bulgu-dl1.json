@@ -1,0 +1,87 @@
+{
+ "alan": "dl1",
+ "bulgular": [
+  {
+   "dosya": "trader/scripts/health_run.py",
+   "satir": 807,
+   "tur": "hata",
+   "onem": "orta",
+   "sorun": "Saglik DL1 paket probu veri kokunden (TRADER_DATA_ROOT) okuyor; motor paketi kod kokunden (__file__) okuyor, dizinler ayrisabilir",
+   "kanit": "probe_dl1_paket: yol = data_root(env) / 'models' / 'dl1' / ...; data_root TRADER_DATA_ROOT tanimliysa onu donduruyor (satir 41-45). deploy/trader-health.service:13 TRADER_DATA_ROOT=/opt/trader. Motor: dl1_cikarim.py:53-54 PAKET_DIZINI = parents[2]/models/dl1 (dosya konumundan). docs/dd9-canli-paket-spec.md:176 kod kokunun betik konumundan geldigini yaziyor. Sonuc: motor bir dizinden paket okur, saglik baska dizine bakar; uyumsuzlukta saglik yanlis 'dl1_paket_yok' ya da eski durum gosterir.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/tests/test_health_dl1_paket.py",
+   "satir": 68,
+   "tur": "test",
+   "onem": "dusuk",
+   "sorun": "probe_dl1_paket testi yalniz TRADER_DATA_ROOT dizinini dogruluyor; motorun paket dizinini (PAKET_DIZINI) hic karsilastirmiyor, bu yuzden yukaridaki ayrisma testte gorunmuyor",
+   "kanit": "env = {'TRADER_DATA_ROOT': str(tmp_path)}; paketler tmp_path/models/dl1 altina yaziliyor (satir 70-75). dl1_cikarim.PAKET_DIZINI ile esitlik assert edilmiyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/dl1_cikarim.py",
+   "satir": 319,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "paket_yasi_gun uretimde cagrilmiyor; yalniz testler kullaniyor, saglik kendi probunu yaziyor",
+   "kanit": "Grep: paket_yasi_gun yalniz tests/engine/test_dl1_cikarim.py:197-284 ve tanimda geciyor. scripts/health_run.py probe_dl1_paket (satir 800-820) bu fonksiyonu kullanmiyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/dl1_cikarim.py",
+   "satir": 54,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "PAKET_YOLU sabiti kodda kullanilmiyor; yalniz bir test assert'i okuyor",
+   "kanit": "PAKET_YOLU yalniz satir 54 tanimi ve tests/engine/test_dl1_cikarim.py:173'te geciyor. paket_yukle varsayilani paket_yolu(tf) kullanir.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/dl1_cikarim.py",
+   "satir": 145,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "ileri() docstring'i girdiyi (B, 96, 8) yaziyor; gercek girdi 11 kanal",
+   "kanit": "Docstring 'x (B, 96, 8)'; ayni modulde KANALLAR 11 eleman (satir 38-39), kanallar() (n, 11) donduruyor, c1 = Conv1d(N_KANAL=11) (satir 67; egit.py:39). Kod dogru, docstring yanlis.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/research/dl1/cekirdek.py",
+   "satir": 480,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "ilk_ag docstring'i 'test/duman icin' diyor; duman.py ilk_ag kullanmiyor, yalniz testler kullaniyor",
+   "kanit": "duman.py icinde ilk_ag cagrisi yok (duman torch_trainer ile egitiyor); ilk_ag cagrilari yalniz tests/research/test_dl1_egitim.py'de.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/research/dl1/egit.py",
+   "satir": 8,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "Kapi metrigi 'en ust %2 puanli adaylar' diye yazilmis; kodda esik her dilim icin egitim puanlarinin %98'lik dilimi, test adaylari puan >= esik ve 48 mumda tek aday",
+   "kanit": "cekirdek.py:384 esik = percentile(... ESIK_YUZDELIK=98) egitim orneklerinden; cekirdek.py:386-387 test adaylari bu esikle seciliyor; aday_sec ufuk kurali (358-377). 'En ust %2' yaklasik, birebir degil.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/research/dl1/duman.py",
+   "satir": 47,
+   "tur": "test",
+   "onem": "dusuk",
+   "sorun": "Duman betigi esigi 98 olarak sabit yaziyor; uretimdeki C.ESIK_YUZDELIK degisirse duman bunu sinamaz",
+   "kanit": "esik = float(np.percentile(..., 98)); cekirdek.py:71 ESIK_YUZDELIK = 98.0 ayri bir sabit.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/scripts/health_run.py",
+   "satir": 829,
+   "tur": "kagit_canli",
+   "onem": "dusuk",
+   "sorun": "DL1 saglik denetiminin acik olup olmadigi yalniz engine.paper.json'a bakiyor; canli konfigurasyon ayri dosya",
+   "kanit": "dl1_kolda: open(os.path.join(cdir, 'engine.paper.json')) (satir 829). engine.live.json de bugun ayni DL1 kollarini iceriyor (satir 8); ama canli ayar degisirse saglik yanlis karar verir.",
+   "emin_degil": false
+  }
+ ],
+ "maliyet_usd": 0.24787460500000003
+}

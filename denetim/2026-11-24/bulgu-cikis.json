@@ -1,0 +1,60 @@
+{
+ "alan": "cikis",
+ "bulgular": [
+  {
+   "dosya": "trader/src/trader_engine/strategies/arms/hb1.py",
+   "satir": 13,
+   "tur": "belge_farki",
+   "onem": "orta",
+   "sorun": "HB1 docstring'i zaman stopunu 24 mum diyor; kod 48 mum kullaniyor",
+   "kanit": "Docstring: \"zaman stopu 24 mum (ortak kural)\". signals.py:31 TIME_STOP_BARS = 48; hb1.py:47 EXIT_MODE = \"target\"; position_manager.py:97 time_stop_due(ctx.n_closed) esigi 48. Testler de 48 diyor (test_signals_spec.py:1095).",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/docs/cikis-kipleri-spec.md",
+   "satir": 15,
+   "tur": "belge_farki",
+   "onem": "orta",
+   "sorun": "Spec, exit_modes yalniz paper/backtest'te, testnet/canlida ConfigError ve canlida kip kapali diyor; kod canliya izin veriyor ve engine.live.json kipleri aciyor (23.11 karari: canli = kagit)",
+   "kanit": "Spec satir 15 ve 23: testnet/canlida ConfigError, Engine._exit_modes canlida None. Kod: config.py:580 'mode not in (paper, backtest, live) and exit_modes' (canli izinli); engine.py:1827 '(self.is_paper or self.cfg.mode == \"live\")'; engine.live.json:11 exit_modes default breakeven+partial true. Spec satir 50 de 'canli degismez (bos)' diyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/engine.py",
+   "satir": 1591,
+   "tur": "kagit_canli",
+   "onem": "dusuk",
+   "sorun": "Kacan TF kapanisi telafisi yalniz canlida calisir; kagit ayni durumda cikis degerlendirmesini atlar",
+   "kanit": "_catchup_boundary: 'if self.is_paper or self.cfg.mode != \"live\": return None'. _exits 1649-1651: ctx None ise paperda exit_data_gap ile atlanir; canlida 1633 telafi eder.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/strategies/price_action_v1_4h.py",
+   "satir": 34,
+   "tur": "hata",
+   "onem": "dusuk",
+   "sorun": "4s politikasi karari 4s gruplarinda verir, ama basa-bas ve kismi tetigi motorun 1s ctx'inden (1s en iyi uc) hesaplanir",
+   "kanit": "H4ExitPolicy.evaluate 4s gruplari (gh/gl/ga) olusturur; engine.py:1669 ve 1679 ile _modes_step/_maybe_partial apply_exit_modes(pos, ctx, ...) cagirir; ctx = precomputed.py:247 t.high[lo:k] (1s satirlar). Kip tetigi 'tetik-zaman-dilimi' (cikis-kipleri-spec.md:7) ile celisebilir.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/tests/test_exit_modes_cf.py",
+   "satir": 96,
+   "tur": "test",
+   "onem": "dusuk",
+   "sorun": "Motor ile karsi-olgu 'ayni fonksiyonu kullanir' iddiasi davranis yerine kaynak metni aramasiyla test ediliyor",
+   "kanit": "assert \"XM.be_stop(\" in src and \"XM.partial_due(\" in src and \"XM.merge_stop(\" in src; bu test kodun dogru sonuc uretmesini degil, metnin bulunmasini dogrular.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/position_manager.py",
+   "satir": 3,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "Docstring, karsi-olgu ve motorun AYNI islevleri cagirdigini soyluyor; karsi-olgu XM.merge_stop kullanir, motor ise kendi tighter karsilastirmasini kullanir",
+   "kanit": "exit_counterfactual.py:365 'stop = XM.merge_stop(side, stop, XM.be_stop(...))'; position_manager.apply_exit_modes (118-129) merge_stop cagirmaz, _xm.tighter kullanir. Mantik muhtemelen esdeger, ama iddia tam dogru degil.",
+   "emin_degil": true
+  }
+ ],
+ "maliyet_usd": 0.20849427
+}

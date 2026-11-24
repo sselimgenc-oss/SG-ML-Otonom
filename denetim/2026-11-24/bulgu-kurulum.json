@@ -1,0 +1,78 @@
+{
+ "alan": "kurulum",
+ "bulgular": [
+  {
+   "dosya": "trader/docs/kagit-degerlendirme-plani.md",
+   "satir": 31,
+   "tur": "belge_farki",
+   "onem": "yuksek",
+   "sorun": "Belge kağıt botun yapılandırmasını engine.base.json sanıyor; efektif kağıt yapılandırması base + learner + paper overlay ile farklı strateji ve risk kullanıyor.",
+   "kanit": "Belge: 'Kağıt bot yapılandırması (engine.base.json) risk, maliyet, çift ve strateji bakımından bu koşuyla aynıdır'. base.json:9 strategy=price_action_v1, base.json:6 target_trade_risk=0.005, 10 kripto çift. config.py load_cli_config base+bot+overlay katmanlarını birleştirir; env=paper overlay engine.paper.json:7 strategy=price_action_lab_ml, :13 target_trade_risk=0.01, 43 çift, 39 kurulum (arms).",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/strategies/arms/h2.py",
+   "satir": 79,
+   "tur": "hata",
+   "onem": "dusuk",
+   "sorun": "H2 EMA koruması, EMA tanımsızken (ısınma) geçiyor; koruma NaN karşılaştırmasında False döner ve geri çekilme reddedilmez.",
+   "kanit": "satır 47: ema_g = I.ema(cs, EMA_GUARD[tf]) (1h/15m/4h için 50, 1d için 30; indicators._recursive ilk length-1 indekste NaN). satır 51: for t in range(PB_WIN + 1, n) — t 21'den başlıyor. satır 79: if np.any(c[s+1:t+1] < ema_g[s+1:t+1]): continue; NaN için c < NaN False, dolayısıyla koruma atlanır. Doküman (dd12-ek-k K-5) 'EMA50 altında kapanış → aday yok' diyor. Canlı pencere 1500 bar olduğu için etkisi düşük; sıfırdan seriler (backtest/ML tablosu) etkilenir.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/strategies/price_action_v1_4h.py",
+   "satir": 131,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "PriceActionV1H4, H4ExitPolicy ve make_v1b_4h kayıt defterinde yok; hiçbir yerden çağrılmıyor. arms/t1.py docstring'i (satır 2) bu ölü koda atıf yapıyor.",
+   "kanit": "registry.py:14-18 _FACTORIES yalnızca price_action_v1, price_action_v1_full, price_action_lab_ml içeriyor. grep: make_v1b_4h / PriceActionV1H4 yalnızca kendi dosyasında geçiyor. Sınıflar: price_action_v1_4h.py:28 (H4ExitPolicy), :58 (PriceActionV1H4), :131 (make_v1b_4h).",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/strategies/arms/s1.py",
+   "satir": 27,
+   "tur": "olu_ayar",
+   "onem": "dusuk",
+   "sorun": "NR_WIN sabiti tanımlı ama hiç okunmuyor; NR penceresi 1,2,3 kaydırmalarıyla sabit kodlanmış.",
+   "kanit": "satır 27: NR_WIN = 3. satır 57: nrc = (ev.shift(1) + ev.shift(2) + ev.shift(3)) — NR_WIN'e referans yok. Doküman (dd12-ek-k K-4) NR_WIN=3 parametresi diyor; değiştirilse bile davranış değişmez.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/docs/motor/dd12-ek-k-kurulumlar.md",
+   "satir": 107,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "Doküman H2 için PB_MIN_BARS=3 parametresi tanımlıyor; kodda böyle bir sabit ve asgari bar kontrolü yok.",
+   "kanit": "Doküman satır 107: 'PB_WIN 20, PB_MIN_BARS 3, LEG_GAP_MAX 10 ...'. h2.py sabitleri: PB_WIN, LEG_GAP_MAX, EMA_TREND, EMA_SLOPE_LAG, PB_MIN_ATR, EMA_GUARD, SDA_MIN/MAX, ALLOWED; PB_MIN_BARS yok (grep ile doğrulandı).",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/config/engine.testnet.json",
+   "satir": 1,
+   "tur": "kagit_canli",
+   "onem": "dusuk",
+   "sorun": "Testnet (live'ın gölge koşusu) target_mode'u base'den 'bar_close' alıyor; live ve paper 'resting' kullanıyor. Resting hedef yolu (bekleyen hedef emri) testnet'te denenmiyor.",
+   "kanit": "engine.testnet.json'da target_mode anahtarı yok; engine.base.json:10 target_mode='bar_close'; engine.live.json ve engine.paper.json 'resting'. engine.py:1615/1753 ve reconcile_live.py:606 target_mode=='resting' dalına bağlı. dd8 belgesi testnetin canlı gölgesi olduğunu söylüyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/engine.py",
+   "satir": 1591,
+   "tur": "kagit_canli",
+   "onem": "dusuk",
+   "sorun": "Kayıp mum telafisi (catch-up) yalnızca canlıda çalışıyor; kağıt botta yeniden başlatma sonrası çıkış değerlendirmesi telafi edilmiyor. 'Canlı = kağıt' ilkesiyle ayrışıyor.",
+   "kanit": "satır 1591: if self.is_paper or self.cfg.mode != 'live': return None. Docstring: 'yalniz canli (gercek broker)'. Çağrı satır 1633: Dx = self._catchup_boundary(pos, D). Kullanıcı kararı 'canlı = kağıt' ile tutarlılık tartışmalı; tasarım tercihi olabilir.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/docs/veri-toplama-spec.md",
+   "satir": 21,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "Doküman engine.base.json'da 19 kripto çifti diyor; base dosyasında 10 çift var.",
+   "kanit": "Doküman satır 21: 'engine.base.json içindeki 19 kripto çifti'. engine.base.json:4 pairs listesi 10 çift (BTC..AVAX). Kağıt/canlı evreni ise overlay dosyalarında (paper: 43 çift).",
+   "emin_degil": false
+  }
+ ],
+ "maliyet_usd": 0.45201922000000005
+}

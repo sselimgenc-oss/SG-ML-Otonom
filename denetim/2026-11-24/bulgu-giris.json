@@ -1,0 +1,69 @@
+{
+ "alan": "giris",
+ "bulgular": [
+  {
+   "dosya": "trader/src/trader_engine/strategy_runner.py",
+   "satir": 482,
+   "tur": "hata",
+   "onem": "orta",
+   "sorun": "Bir tf'deki tum kurulumlar (ve core) karantinadaysa cands ve bad bos kalir; next(iter(bad.values())) StopIteration atar ve kare 'error' olur (callback_errors artar, CRITICAL log; strict modda yukselir).",
+   "kanit": "strategy_runner.py:435-441: karantinali anahtar `continue` ile atlanir, bad'e yazilmaz. 481-482: `if not cands:` ardindan `st, det = next(iter(bad.values()))`. strategies/lab.py:172-173: kurulum kalmadiysa compute_tf {} doner. Bu yol icin test yok.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/gates.py",
+   "satir": 149,
+   "tur": "belge_farki",
+   "onem": "orta",
+   "sorun": "toplam_buyukluk (hesap geneli toplam nominal tavani) aday-ozgu sayiliyor; belge ise hesap tavanini cift/hesap duzeyi (durulur) sayiyor. Test de bu siniflandirmayi kilitliyor.",
+   "kanit": "gates.py:146-147 yorum: 'cift/hesap duzeyindeki nedenlerde (... hesap tavani ...) ... durulur'. gates.py:149 ADAY_OZGU_RED_KODLARI icinde \"toplam_buyukluk\". tasarim-kararlari.md:209: 'cift/hesap duzeyi redlerde (kapi, cluster_cap, hesap tavani, ...) durulur'. trader/tests/engine/test_cift_ici_yedek_aday.py:153 bunu aday-ozgu olarak assert ediyor. Kod kendi icinde toplam_acik_risk (hesap) ile tutarsiz.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_core/ledger.py",
+   "satir": 2645,
+   "tur": "hata",
+   "onem": "dusuk",
+   "sorun": "closed_decision_features_since (HB1 olay kontrolu) yalniz alt sinir kullaniyor (exit_ts >= since); karar zamani D'den sonra kapanmis islemler de sayiliyor (ileriye bakis).",
+   "kanit": "ledger.py:2645: \"WHERE t.bot=? AND t.arm_id=? AND t.pair=? AND t.side=? AND t.exit_ts>=?\" - ust sinir (exit_ts <= D) yok. gates.py:337: prev = fn(aid, row.pair, row.side, D - HB1_OLAY_PENCERE). Ayni desen engine.py:302-308 _last_exit'te de var.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_engine/gates.py",
+   "satir": 514,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "Motor giris kapisinin tum paper blogu (cluster_cap, arm_cap, max_positions, uzun_yon, korelasyon, seans, HB1, flat_bar, etiket, toplam_buyukluk, kayip freni, kol kucultme) yalniz paper/live modunda calisir. Backtest/testnet ayni kapi zincirini kosmaz; engine.py:1-2 ise 'paper, backtest ve canli ayni dongu, fark yalniz enjeksiyon' diyor.",
+   "kanit": "gates.py:514 `paper = self.cfg.mode in (\"paper\", \"live\")`; gates.py:543-589 bu bayrakla korunuyor, else dali (591) yalniz veto.lookup. config.py:583-589 bu anahtarlari backtest/testnet icin ConfigError ile yasakliyor. engine.py:1-2 docstring.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_engine/config.py",
+   "satir": 93,
+   "tur": "olu_ayar",
+   "onem": "dusuk",
+   "sorun": "start_delay_s ayari okunmuyor; motor baslangicinda uyku/gecikme yok. Belge (twin icin clock.sleep(cfg.start_delay_s)) ile uyusmuyor.",
+   "kanit": "config.py:93 alan tanimi ve config.py:157 dogrulama listesi; trader/config/engine.base.json:14 `\"start_delay_s\": 0.0`. trader/ altinda engine/cli/clock'ta start_delay okuyan satir yok. docs/motor/05-engine-runner.md:187: 'Twin ise clock.sleep(cfg.start_delay_s)'.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/engine.py",
+   "satir": 150,
+   "tur": "olu_ayar",
+   "onem": "dusuk",
+   "sorun": "live.max_attempts ayari dogrulaniyor (1..2) ama canlida her zaman 1'e zorlaniyor; config degeri sessizce etkisiz.",
+   "kanit": "engine.py:150 `self.orders.max_attempts = 1  # ... (ayar olu: 1'e sabit)`. config.py:406 `max_attempts=_int(\"live.max_attempts\", ..., 1, 2)`. engine.live.json:530 ve engine.testnet.json:16 `\"max_attempts\": 1`.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/gates.py",
+   "satir": 256,
+   "tur": "hata",
+   "onem": "dusuk",
+   "sorun": "stale_data kontrolu karar adiminin tf'ini (self.tf = 1s/1h) kullaniyor; bilesik strateji 15 dk adiminda calisir. Bayat karar 1 saate kadar kabul edilir.",
+   "kanit": "gates.py:256 `if self.clock.now() - D > self.cfg.stale_factor * tf_delta(tf)`; engine.py:2044 `pre(D, self.tf, ...)`. engine.py:226-228 yorumu: self.tf (1s = 1 saat) parametre tf'i, step_tf 15 dk. Tek-tf stratejide step==tf oldugu icin sorun yok; bilesik stratejide tolerans 4 kat genis.",
+   "emin_degil": true
+  }
+ ],
+ "maliyet_usd": 0.3922453250000001
+}

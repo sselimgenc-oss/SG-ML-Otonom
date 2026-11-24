@@ -1,0 +1,69 @@
+{
+ "alan": "risk",
+ "bulgular": [
+  {
+   "dosya": "trader/src/trader_engine/engine.py",
+   "satir": 2660,
+   "tur": "kagit_canli",
+   "onem": "yuksek",
+   "sorun": "Kagit kademe yalniz gozlem: canli kademe basamagi boyutu ve kapiyi etkilerken kagit hep %1 ve hicbir kapi kapatmiyor. engine.paper.json'da ladder_follow yok.",
+   "kanit": "engine.py:2660 paper icin RiskLadder(..., enforce=False) doner. ladder.py:85-87 enforce=False iken gate_code() None doner (review/floor kapiyi kapatmaz). ladder.py:107-108 enforce=False iken risk_config = base (hedef 0.01, kademe uygulanmaz). config/engine.paper.json'da ladder_follow anahtari yok. docs/motor/12-risk-kademe.md:477 ladder_follow'u canliya gecis oncesi operator adimi olarak listeliyor. Canli (enforce=True) K-1..K4 uygular ve kapiyi kapatir.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/gates.py",
+   "satir": 361,
+   "tur": "hata",
+   "onem": "orta",
+   "sorun": "Kol kucultme kolun son 10 islemini 'manual' (elle kapanis) dahil ve zaman siniri olmadan okuyor. Kayip freni ve kademe sayaci manuel kapanisi atliyor. Karar zamani kesiti yok (look-ahead riski, replay'de).",
+   "kanit": "gates.py:361 KK.karar(fn(aid, KK.KAYIT_SAYISI), aile): fn = ledger.arm_recent_results, bu da ledger.py:2636 'SELECT r_multiple FROM v_closed_trades WHERE bot=? AND arm_id=?' (manual filtresi yok; v_closed_trades = v_trades WHERE exit_ts IS NOT NULL). Karsilastirma: kayip_freni.py:38/71 ve risk_ladder.py:491 'exit_reason != manual'. arm_family_mean_r (ledger.py:2657) ise until=D kesiti kullaniyor, arm_recent_results kullanmiyor. kademeli-kucultme-spec.md manuel kapanis hakkinda sessiz.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_core/risk_ladder.py",
+   "satir": 347,
+   "tur": "hata",
+   "onem": "orta",
+   "sorun": "Tepe degeri gun basina bir kez guncelleniyor: gun ici yukselen ozsermaye tepe olarak kaydedilmiyor, dusus esikleri bu yuzden gecikmeli tetikleniyor. Belgede (T-44) bilincli tasarim olarak yazili.",
+   "kanit": "risk_ladder/ladder.py:345-354 _peak: 'if self._peak_day == day: return st' (ayni UTC gunu icin erken donus); tepe yalniz gunun ilk degerlendirmesinde eq > st.peak ise yazilir. docs/motor/12-risk-kademe.md:86 ve :437 (T-44) bunu acikca tanimlar. Sonuc: gun ici tepeden -%10/-%15 tetikleri gercek tepeye gore gec calisir.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_core/risk.py",
+   "satir": 102,
+   "tur": "belge_farki",
+   "onem": "orta",
+   "sorun": "Yorum 'True (kilitli/testnet/canli)' diyor; canli (LiveRiskConfig) aslinda False. Gunluk limit canlida yalniz bugunku zarara bakar (acik risk dahil degil).",
+   "kanit": "risk.py:103 _DAILY_INCLUDES_OPEN_RISK = True (RiskConfig). risk.py:145 PaperRiskConfig'te False. risk.py:147-150 LiveRiskConfig PaperRiskConfig'ten miras alip override etmiyor, dolayisiyla canli icin False. Kod 23.11 kararina uygun; yalnizca yorum yanlis.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/config.py",
+   "satir": 131,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "risk blogu bossa paper/live sessizce HARD RiskConfig'e duser (max_open 0.06, same_dir 0.04, gunluk 0.05, acik risk dahil). Blok varsa LIVE/PAPER limitleri (0.24/0.16/0.08) uygulanir. Yorum ('tek ayar target_trade_risk') bu farki gizliyor.",
+   "kanit": "config.py:131 'if self.mode in (\"paper\", \"live\") and self.risk:' yoksa build_risk_config(target) -> tightened(LOCKED_CFG) (RiskConfig, _DAILY_INCLUDES_OPEN_RISK=True). config.py:1-2 docstring 'tek ayar target_trade_risk' diyor. engine.live.json ve engine.paper.json risk blogu iceriyor, bu nedenle guncel dosyalarda etkisiz.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/gates.py",
+   "satir": 1,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "Modul docstring'i 'cfg.risk_config: yalniz daha siki target_trade_risk' diyor; paper/live'da risk blogu max_open_risk, same_dir, daily_max_loss limitlerini de ayarlar.",
+   "kanit": "gates.py:1-2 docstring vs config.py:131-133 (risk blogu ile PaperRiskConfig/LiveRiskConfig kurulumu).",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/kayip_freni.py",
+   "satir": 34,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "ardisik_kayip() uretimde cagrilmiyor; yalnizca tests/engine/test_asama_b_esikleri.py kullanıyor. Yerine gecen ardisik_seri gun-sifirlama kuralini iceriyor, bu eski fonksiyon icermiyor.",
+   "kanit": "kayip_freni.py:34 tanim; grep: src altinda cagri yok, tests/engine/test_asama_b_esikleri.py'da cagrilir. gates.py _fren_karari yalnizca KF.karar cagirir, KF.karar ardisik_seri kullanir (kayip_freni.py:98).",
+   "emin_degil": false
+  }
+ ],
+ "maliyet_usd": 0.290820055
+}

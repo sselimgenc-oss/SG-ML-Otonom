@@ -1,0 +1,78 @@
+{
+ "alan": "canli",
+ "bulgular": [
+  {
+   "dosya": "trader/src/trader_engine/order_manager.py",
+   "satir": 744,
+   "tur": "hata",
+   "onem": "orta",
+   "sorun": "Canlida _retry_failed_exits her yeniden denemede cikis sayacini iki kez artiriyor; EXIT_RETRY_LIMIT 3'e iki denemede ulasiyor",
+   "kanit": "_retry_failed_exits: kv_set(exit_retry, n+1) (743-744) ve ardindan _resolve_row -> _unknown_path_live -> _fail -> _after -> _exit_effects (359-362) -> _revert_exit -> _count_exit_failure (441-450, 462) ikinci kez artirir. Test (test_b45_fixes_impl.py:39) yalniz _submit_exit yolunu sinar.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/config/engine.live.json",
+   "satir": 530,
+   "tur": "olu_ayar",
+   "onem": "orta",
+   "sorun": "live.max_attempts hicbir etki yapmiyor; motor 1'e sabitliyor. 2 yazilirsa sanilan ayar calismaz",
+   "kanit": "engine.py:150 'self.orders.max_attempts = 1' (ayar olu); config.py:406 1-2 dogruluyor ama okunan deger hicbir yerde kullanilmiyor; SignedRestClient kurulumunda (engine.py:2624) max_attempts gecilmiyor",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/order_manager.py",
+   "satir": 681,
+   "tur": "hata",
+   "onem": "orta",
+   "sorun": "Accepted giris, sorgu 'yok' donerse hemen failed; giris penceresi (entry_resolve_window_s) beklenmiyor. Iki yol tutarsiz",
+   "kanit": "_requery_entry 682-684: 'if bo is None: row=_upd(status=failed, detail=gone_on_query)'; _resolve_entry_live (377-387) ayni durumda _entry_pending_or_fail ile pencereyi bekler. Pozisyon kapatma yolu _entry_failed -> close_unopened_fn'e gider; L2a geri acabilir ama gecikmeli",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_engine/reconcile_live.py",
+   "satir": 195,
+   "tur": "hata",
+   "onem": "dusuk",
+   "sorun": "Pozisyon varken (flat degil) sembolsuz tarama yok; pozisyonu olmayan ve state'te olmayan ciftlerdeki yetim reduceOnly emirler bulunmaz",
+   "kanit": "_read: 'if full_scan or (full_scan is None and flat)' disinda oo yalniz watch=bpos|spairs icin doldurulur (197-200); _orphans (794-797) yalniz oo anahtarlarina bakar; _foreign yalniz _flat iken calisir (176-177)",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/config/engine.live.json",
+   "satir": 109,
+   "tur": "olu_ayar",
+   "onem": "dusuk",
+   "sorun": "Canli dosyadaki cost_overrides (kayma bps, 24 cift x 3 seans) canlida etkisiz; yalniz kagit kayma uygular",
+   "kanit": "engine.py:2746 'if cfg.mode == \"paper\" and cfg.cost_overrides' (kayma override yalniz paper). LiveBroker ve reconcile_live slip alanlarini kullanmiyor; kayma degerleri yalniz paper.py _slipped icinde",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/engine.py",
+   "satir": 2488,
+   "tur": "kagit_canli",
+   "onem": "dusuk",
+   "sorun": "Ucret tahmini iki canli yolda farkli: giris/kismi/gec dolum sabit cfg.cost.taker_fee (0.0005), LiveBroker dolumu gercek commissionRate ile hesaplar",
+   "kanit": "engine.py:2488 ve 1938, reconcile_live.py:308 ve 368: 'self.cfg.cost.taker_fee'; binance_futures.py:988 'fee = float(cum) * self._taker_rate(pair)' (_taker_rate = account commissionRate, 327-328). Kagit de sabit oran kullanir; kapanista gercek komisyon (userTrades) kullanilir",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/docs/motor/11-canli-broker.md",
+   "satir": 83,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "Belge max_attempts'i 1 ya da 2 olarak ayarlanabilir anlatiyor; kod 1'e sabitliyor",
+   "kanit": "Belge satir 83: 'max_attempts: int = 1 # yalnız 1 ya da 2; 2 için T-08 kanıtı + mentor onayı'; kod engine.py:150 'self.orders.max_attempts = 1 # ... (ayar olu: 1'e sabit)'",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/tests/engine/test_b45_fixes_impl.py",
+   "satir": 39,
+   "tur": "test",
+   "onem": "dusuk",
+   "sorun": "exit_retry sayim testi yalniz _submit_exit yolunu dogruluyor; mutabakattaki _retry_failed_exits yolunun sayimi test edilmiyor, cift sayim yakalanamiyor",
+   "kanit": "test_b45i_exit_retry_limit_counts_every_failed_attempt: 3 kez engine._submit_exit cagirip ==3 assert ediyor; _retry_failed_exits icin test yok (grep: test dosyalarinda _retry_failed_exits sadece anilmiyor)",
+   "emin_degil": false
+  }
+ ],
+ "maliyet_usd": 0.44063395000000005
+}

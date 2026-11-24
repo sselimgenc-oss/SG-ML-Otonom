@@ -1,0 +1,96 @@
+{
+ "alan": "telegram",
+ "bulgular": [
+  {
+   "dosya": "trader/src/trader_core/telegram.py",
+   "satir": 2403,
+   "tur": "hata",
+   "onem": "orta",
+   "sorun": "Islem imleci en buyuk 500 ID'yi tutuyor; eski acik/kapanan islemler imlecten dusup her turda yeniden 'acildi/kapandi' bildirimi gidiyor",
+   "kanit": "2370: acilan, kapanan = set(im.get(...)); 2365: kap = list_closed_trades(since=now-2g, limit=500); 2375: if t.trade_id in acilan: continue; 2403: atomic_write_json(imp, {\"acilan\": sorted(acilan)[-500:], \"kapanan\": sorted(kapanan)[-500:]}) -> en KUCUK ID'ler duser. 500'den fazla sonraki islemden sonra acik ya da 2 gun icinde kapanan eski bir islem her turda yeniden 'acildi' (ve kapanis icin 'kapandi') olarak bildirilir; dedup anahtari 10 dk, saatlik sinir 6 mesaj.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/telegram.py",
+   "satir": 1671,
+   "tur": "belge_farki",
+   "onem": "orta",
+   "sorun": "Gunluk rapor yalniz 'Duraklatma' bolumunu okuyor; Butce/Ders/Ogrenme/Kurulum bolumleri hic cagrilmiyor, ama docstring ve belgeler bunlarin gunluk raporda oldugunu soyluyor",
+   "kanit": "1671: pause_text = (sections or {}).get(\"Duraklatma\"...) - build_report yalniz bunu okur. default_sections (2180-2193) Ders/Ogrenme/Butce lambdalarini kurar ama hicbiri cagrilmaz (olu kod). 2138 rapor_ogrenme docstring: 'Gunluk rapor: ders etkisi, M1, seans kirilimi ... harcama'. weekly_summary_run.py:5: 'Telegram gunluk raporu telegram.rapor_ogrenme onu okur' (yanlis). telegram-spec.md:148 gunluk raporda butce satiri ister; spec:195 'varsayilan bos' diyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/tg_sade.py",
+   "satir": 24,
+   "tur": "belge_farki",
+   "onem": "orta",
+   "sorun": "Gunluk zarar orani %5 diye belgelenmis ve sabitlenmis, ama gercek sinir ayar dosyasindan 0.08 (%8) okunuyor; sabit kullanilmiyor",
+   "kanit": "tg_sade.py:24 LIMIT_ORANI = 0.05 'risk kilidiyle ayni %5'; telegram.py:1439 GUNLUK_ZARAR_ORANI = 0.05 (kullanilmiyor). config/engine.paper.json:14 ve config/engine.live.json:14: \"daily_max_loss\": 0.08. limit_orani (tg_sade 179-198) bunu okuyor. docs/panel-spec.md:50 'gunluk zarar/butce %5, 0.05 x day_start_equity' diyor; panel daily_loss_rate (panel_data 78-81) ise 0.08 kullaniyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/scripts/yorumcu_run.py",
+   "satir": 2,
+   "tur": "belge_farki",
+   "onem": "orta",
+   "sorun": "Docstring 'dunun kararlarini' diyor, ama karar tablosu ve kollar tum tarihsel kararlar/islemler uzerinden hesaplaniyor; model gune ait gibi okuyabilir",
+   "kanit": "yorumcu_run.py:107 dec_all = led.list_decisions() (tarih filtresi yok); yorumcu.py:125 \"kararlar\": karar_tablosu(decisions) -> n_karar tum gecmis; yorumcu.py:124 \"kollar\": kol_tablosu(trades, now) tum zaman (n/toplam). Yalniz 'dun' tablosu (yorumcu.py:64-68) gune ait.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/telegram.py",
+   "satir": 1594,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "Kullanilmayan sabit ve fonksiyonlar: _BOLUM_SIRASI, GUNLUK_ZARAR_ORANI, section_ledger/section_budget/section_lesson/section_counterfactual (yalniz testlerden cagrilir)",
+   "kanit": "grep: _BOLUM_SIRASI (1594) yalniz tanim; GUNLUK_ZARAR_ORANI (1439) yalniz tanim; section_ledger (1762), section_budget (1806), section_lesson (1819), section_counterfactual (1877) uretim kodunda cagrilmiyor (tests/ disinda referans yok; test_telegram_report.py:65 ve test_panel_equivalence.py:36 cagiriyor).",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/tg_sade.py",
+   "satir": 489,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "ders_mesaji docstring'i 'uygulandi ve geri alindi kullaniciya gider' diyor; TelegramNotifier.notify bu iki kodu sessizce yutuyor",
+   "kanit": "tg_sade.py:489-490 docstring. telegram.py:2251 DERS_SESSIZ = {\"applied\",\"rolled_back\"}; telegram.py:514-516 bu kodlar icin 'Telegram'a gitmez' ve return True. Kod davranisi (sessiz) yorum satiri ile tutarli, docstring eski. Applied/rolled_back dallari uretimde ulasilmaz.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/telegram.py",
+   "satir": 264,
+   "tur": "hata",
+   "onem": "dusuk",
+   "sorun": "LEDGER_PATH varsayilani (user_data/ledger_learner.sqlite) diger her yerdeki ogrenen defter yoluyla (var/learner/ledger.sqlite) uyusmuyor; env yoksa islem bildirimleri sessizce durur",
+   "kanit": "telegram.py:264 _abs_path(here, env.get(\"LEDGER_PATH\") or \"user_data/ledger_learner.sqlite\"); config/panel.json:4-5 ve config/lesson.json:3 ve scripts/weekly_summary_run.py:305 var/learner/ledger.sqlite kullanir. islem_tick (telegram.py:2356-2357) dosya yoksa 0 doner ve zarar_tick (2406) da calismaz. Dagitim env'i dolduruyor (deploy/trader-telegram.env.example:12), etki yalniz env eksikse.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_core/telegram.py",
+   "satir": 2387,
+   "tur": "hata",
+   "onem": "dusuk",
+   "sorun": "Islem mesaji spool'a dustuğunde (teslim degil) 'gonderildi' kaydi yazilmiyor; spool sonra teslim eder ama mutabakat dosyasi eksik kalir ve islem bir daha bildirilmez",
+   "kanit": "telegram.py:2328 _saat_gonder: ok = notifier.send_text(...); return int(bool(ok)) -> spool durumunda 0. 2386-2387 ve 2399-2400: 'if gitti: gonderildi_yaz(...)'. telegram.py:484 _deliver: spool'a yazmak False doner, mesaj outbox'ta sonra gider. islem id'si acilan/kapanan kumesine eklendigi icin tekrar denenmez. Docstring 'Islem mesaji GITTI -> ... yazilir'.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_core/telegram.py",
+   "satir": 117,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "Telegram spesifikasyonu raporun 3500 sinirini 2. mesaja bolerek asacagini, acik pozisyonlari en fazla 10 satir gosterecegini yaziyor; kod metni kisaltiyor ve 4 pozisyon gosteriyor",
+   "kanit": "telegram.py:117-141 fit_text: 'kısaltıldı, N satır' ile kirpiyor, bolme yok. telegram.py:1697: pos[:4]. docs/telegram-spec.md:146 '(<= 10 satir, fazlasi \"+N\")' ve docs/telegram-spec.md:152 '3500 karakter sinirina tabidir; asarsa 2. mesaja bolunur' diyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/docs/butce-spec.md",
+   "satir": 242,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "Belge aylik uyari esigini 5 USD olarak yaziyor; canli butce ayari 10 USD",
+   "kanit": "docs/butce-spec.md:242 'monthly_warn_5usd ... > monthly_warn_usd (5 USD)'. config/budget.json:6 \"monthly_warn_usd\": 10.0. src/trader_core/budget.py:151 dataclass varsayilani 5.0 (yalniz anahtar yoksa kullanilir). Esik degeri config'ten okunuyor; belgedeki 5 USD ornek/eski.",
+   "emin_degil": false
+  }
+ ],
+ "maliyet_usd": 0.36619073
+}

@@ -1,0 +1,105 @@
+{
+ "alan": "ders",
+ "bulgular": [
+  {
+   "dosya": "trader/src/trader_core/lesson.py",
+   "satir": 2274,
+   "tur": "kagit_canli",
+   "onem": "orta",
+   "sorun": "ALWAYS_USER boş; canlı yolda stop_buffer_atr:up, trail_atr:down ve extrapolated kurallar (vol_ratio_max:up, rr_min:down) otomatik uygulanabilir oluyor. Belge bunları her zaman needs_user diyor.",
+   "kanit": "satır 45: ALWAYS_USER: frozenset = frozenset(); satır 2274: always_user = rule.menu_id in ALWAYS_USER; satır 2286: auto_cap = eligible and not always_user and ...; satır 2757 classify_route yalnız auto_capable'a bakıyor. ders-spec 273 ve 429 'stop_buffer_atr:up her zaman needs_user' diyor; Rev.3 'extrapolated => needs_user'. Canlı ders askıda (Rev.5 madde 6), bu yüzden orta.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/lesson.py",
+   "satir": 2754,
+   "tur": "kagit_canli",
+   "onem": "orta",
+   "sorun": "Kural karşı-olgusu kanıtı (cf_n) olan menü girdisi needs_user olmuyor; counterfactual_support hiç üretilmiyor. Rev.8 'canlı yolu bit düzeyinde eskisi' diyor, ama kaldırma koşulsuz.",
+   "kanit": "classify_route yalnız entry.extra.get('cf_exit_n') kontrol ediyor (satır 2754); cf_n yalnız extra'da bilgi olarak geçiyor (1773). _route yapısal engeli (5102) da yalnız cf_exit_n. ders-spec 100 (Rev.4 madde 5): 'cf_n mevcutsa needs_user, counterfactual_support'. tests/test_lesson_counterfactual.py 27-29 bu testleri OBSOLETE ile atlıyor.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_core/lesson.py",
+   "satir": 2759,
+   "tur": "kagit_canli",
+   "onem": "orta",
+   "sorun": "Kalibrasyon yokken/bayatken canlıda otomatik uygulama kapanmıyor. calibration_required hiçbir zaman reasons'a eklenmiyor; provisional yalnız metin olarak kullanılıyor.",
+   "kanit": "REASON_PRIORITY (2727) 'calibration_required' içerir ama classify_route (2741-2761) onu eklemiyor; provisional (2761) yalnız route.provisional -> onay metni (5260). ders-spec 116 ve 576: 'gölge dönem sonrası otomatik uygulama kapalı (calibration_required)'. Test (test_lesson_spec.py 1502-1505) OBSOLETE ile atlanıyor (test_lesson_spec.py 134). Kâğıtta Rev.5 kalibrasyon şartını kaldırdığı için kâğıt için tutarlı; canlı için boşluk.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/config/lesson.json",
+   "satir": 14,
+   "tur": "olu_ayar",
+   "onem": "orta",
+   "sorun": "max_pair_share 1.0 → kümelenme (çift yoğunluğu) koruması fiilen kapalı; belge 0.5 diyor. Rev.9 yalnız min_distinct_days'i 4'e indirdi, bunu belirtmedi.",
+   "kanit": "lesson.py 848: ok = ... and share <= cfg.max_pair_share + 1e-12; share en fazla 1.0 olduğundan koşul her zaman doğru. ders-spec 165 ve 223: 'max_pair_share ≤ 0.5' ve min_distinct_days 8 (config 4). Ayrıca lesson.py 244 varsayılanı da 1.0.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/lesson.py",
+   "satir": 1190,
+   "tur": "hata",
+   "onem": "orta",
+   "sorun": "Gevşetme kurallarında belgelenen 'mean_A ≥ 0.30' eşiği yok; yalnız ma > 0 kontrol ediliyor.",
+   "kanit": "_eval_ab (1189-1192): if need_sign and n_a: if loosen: if ma <= _EPS: fails.append('sign'). need_sign=True 1338 (vol_ratio_max:up, rr_min:down) için. ders-spec 258 ve 274: 'mean_A ≥ 0.30' zorunlu. Gevşetme, belgelenenden daha zayıf bir kapıyla geçiyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/lesson.py",
+   "satir": 1216,
+   "tur": "hata",
+   "onem": "orta",
+   "sorun": "Gevşetme A kümesi 'kaçırılan işlemler' değil, zaten alınmış işlemler (eşiğin üstü). Rev.3 'kaçırılan işlemler A için' diyor; rr_min:down için Rev.4b ise eşiğin hemen altını (kaçırılan) tanımlıyor. İki tanım çelişiyor.",
+   "kanit": "vol_ratio_max:up: a = lo < atr_ratio <= from_v (1216). rr_min:down: a = from_v <= rr < hi (1225), hi = from+(from-to). Örneklem girilmiş işlemler (trades_for, closed_only); bu bantlara giren işlemler zaten alınmış. Kaçırılan işlemler (rr < from) A'ya hiç girmiyor. ders-spec 274 tablosu da aynı tanımı yazıyor (A=(from−(to−from), from]), yani belge içinde tutarsızlık. Emin değilim: ekstrapolasyon bilinçli olabilir.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/tests",
+   "satir": 26,
+   "tur": "test",
+   "onem": "orta",
+   "sorun": "OBSOLETE_DD12_WP08 kümeleri (ve test_lesson_spec.py 134 atlaması) kaldırılan davranışların yanında canlı yol için hâlâ geçerli olan testleri de atlıyor. Always_user, kalibrasyon ve cf_n yönlendirmesi için etkin test kalmadı.",
+   "kanit": "tests/test_lesson_impl_smoke.py 26-47 listesinde test_stop_buffer_always_user_and_extrapolated_route; tests/test_lesson_spec.py 134 OBSOLETE ise pytest.skip; test_lesson_spec.py 1502-1505 kalibrasyon testleri; tests/test_lesson_counterfactual.py 27-29 cf_n testleri. Bu nedenle yukarıdaki üç kagit_canli sapma hiçbir etkin testle yakalanmıyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/docs/ders-spec.md",
+   "satir": 160,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "Belgedeki checkpoints varsayılanı [30,45,60] ve kilit 'ilk ≥ 30'; kod varsayılanı boş tuple, doğrulama ≥1 kabul ediyor.",
+   "kanit": "lesson.py 225: _CHECKPOINTS_DEFAULT: tuple = () ; lesson.py 332: isint(c, 'checkpoints', 1, 120). Boş checkpoints = her gece tüm örneklem (1432). Lesson.json'da checkpoints yok. Rev.5 kontrol noktalarını kâğıtta kaldırdığı için davranış tutarlı ama belge tablosu güncel değil.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/lesson.py",
+   "satir": 5173,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "_apply_more docstring 'haftalik/gecelik sinir yok' diyor; config max_changes_per_night=1 ile en çok bir değişiklik uygulanıyor. Ayrıca damped_mean'in shrink_n varsayılanı 10 (2865), 5837 yorumu ise 'varsayilan 0' diyor.",
+   "kanit": "5173 docstring; 5177: if cfg.max_changes_per_night == 1: return []; 2865: def damped_mean(sum_r, n, shrink_n: int = 10); 5837 yorumu: 'shrink_n varsayilan 0'. Gerçek davranış config ile belirleniyor; belgeler eski.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/lesson.py",
+   "satir": 3062,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "PARAM_REPLAY_PARAMS içinde post_stop_wait var ve 3173'te onun için bir dal var; ama post_stop_wait lesson=False olduğundan monitör parametresi olamaz, dal erişilemez.",
+   "kanit": "lesson.py 3062: PARAM_REPLAY_PARAMS = ('stop_buffer_atr', 'range_target_frac', 'post_stop_wait'); 3173: return None  # post_stop_wait: motor okumuyor. ledger.py 106: post_stop_wait lesson=False. Monitör param'ı yalnız LESSON_PARAMS'tan geliyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/scripts/lesson_run.py",
+   "satir": 82,
+   "tur": "kagit_canli",
+   "onem": "dusuk",
+   "sorun": "Telegram onayı (resolve_request) LogNotifier ile çalışıyor; onay sonrası 'Ders uygulandı' bildirimi (_after_apply → _notify) Telegram'a gitmiyor, yalnız log'a düşüyor. Yanıt JSON'u yine dönüyor, bu yüzden etki sınırlı.",
+   "kanit": "lesson_run.py 82: LS.LessonService(cfg, notifier=LS.LogNotifier(), ...) → resolve_request (lesson.py 5334) → _after_apply (5235) → self._notify(...) (5247). Telegram tarafının kendi yanıtı olup olmadığı doğrulanmadı.",
+   "emin_degil": true
+  }
+ ],
+ "maliyet_usd": 0.27552573
+}

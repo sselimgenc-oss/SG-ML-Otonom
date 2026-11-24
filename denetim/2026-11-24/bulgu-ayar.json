@@ -1,0 +1,69 @@
+{
+ "alan": "ayar",
+ "bulgular": [
+  {
+   "dosya": "trader/src/trader_engine/config.py",
+   "satir": 670,
+   "tur": "kagit_canli",
+   "onem": "yuksek",
+   "sorun": "Evren kaplamasi (var/universe/paper_pairs.json) yalniz paper'a uygulanir; canli, aylik evren guncellemesini almaz. Canli pairs/optional_pairs/clusters/cost_overrides statik kalir. Kasitli olabilir (WP-16, D-T28), ama '23.11 canli = kagit' kararina aykiri.",
+   "kanit": "apply_universe_overlay: `if universe_path is None or raw.get(\"mode\") != \"paper\": return dict(raw)`; load_engine_config (709) cagirir; scripts/universe_run.py kaplamayi yazar. tests/engine/test_canli_kagit_parite.py:20-39 bu anahtarlari PARITE_ISTISNA benzeri muafiyet ile atliyor, yani parite testi kaplama mekanizmasini dogrulamiyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/config/engine.testnet.json",
+   "satir": 1,
+   "tur": "kagit_canli",
+   "onem": "orta",
+   "sorun": "Testnet target_mode bu dosyada yazilmadigi icin base'den 'bar_close' alir; paper ve live 'resting' kullanir. Testnet, canli yolu (hedef bekleyen emir) denemeden canliya gecis yapiliyor olabilir.",
+   "kanit": "engine.base.json:10 \"target_mode\": \"bar_close\"; engine.paper.json:4 ve engine.live.json:4 \"target_mode\": \"resting\"; testnet.json'da target_mode yok. Testnet risk limitleri de (HARD_LIMITS, risk.py yorumu) canliyla ayni degil; bu ikisi kasitli olabilir.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_engine/config.py",
+   "satir": 621,
+   "tur": "olu_ayar",
+   "onem": "dusuk",
+   "sorun": "start_delay_s zorunlu anahtar olarak okunuyor ve EngineConfig'e yaziliyor, ama motor kodunda hicbir yerde kullanilmiyor.",
+   "kanit": "config.py:93 alan, :157 zorunlu sayi listesi, :621 atama; src/ ve scripts/ altinda start_delay kullanimi yok. Dosya: engine.base.json:14 \"start_delay_s\": 0.0.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/config/engine.live.json",
+   "satir": 530,
+   "tur": "olu_ayar",
+   "onem": "dusuk",
+   "sorun": "live.max_attempts ayar dosyasinda ve dogrulamada var (1..2), ama REST istemcisine iletilmiyor; emir yolu kodla 1'e sabitleniyor. Ayar hicbir etki yapmiyor.",
+   "kanit": "engine.py:150 `self.orders.max_attempts = 1  # ... (ayar olu: 1'e sabit)`; engine.py:2622-2625 SignedRestClient cagrisinda max_attempts yok (istemci varsayilani 4); config.py:406 yalniz parse eder.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/config/lesson.json",
+   "satir": 41,
+   "tur": "olu_ayar",
+   "onem": "dusuk",
+   "sorun": "notes_model dogrulaniyor (bos olamaz) ama hicbir yerde kullanilmiyor. Islem notu kodla yazilir, LLM cagrisi yoktur; 24 Kasim karari olu anahtarlari sildigini belirtiyor, bu anahtar kalmis.",
+   "kanit": "lesson.py:273 alan, lesson.py:320 dogrulama; trade_notes.py:4 \"LLM cagrisi YOK\"; notes_model icin baska kullanim yok (scripts/notes_run.py yalniz notes_enabled okur).",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/lesson.py",
+   "satir": 232,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "LessonConfig kod varsayilani ledger_path 'user_data/ledger_learner.sqlite' oldugu icin, config/lesson.json yoksa ders servisi motorun gercek defterinden (var/learner/ledger.sqlite) farkli bir defter okur.",
+   "kanit": "lesson.py:232 `ledger_path: str = \"user_data/ledger_learner.sqlite\"`; lesson.json:3 \"ledger_path\": \"var/learner/ledger.sqlite\"; lesson.py:477-489 dosya yoksa path None ise kod varsayilanlari kullanilir.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/tests/engine/test_engine_05_spec.py",
+   "satir": 1619,
+   "tur": "test",
+   "onem": "dusuk",
+   "sorun": "start_delay_s icin yalniz deger testi var (0.0 mi). Anahtarin motordaki etkisi test edilmiyor, olu anahtar test tarafindan korunuyor.",
+   "kanit": "`assert a.bot == \"learner\" and a.start_delay_s == 0.0`; ayni desen tests/readiness/test_readiness_paths.py:71 ve tests/test_engine_02_impl_smoke.py:105'te de var.",
+   "emin_degil": false
+  }
+ ],
+ "maliyet_usd": 0.36282529
+}

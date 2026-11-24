@@ -1,0 +1,78 @@
+{
+ "alan": "alinsaydi",
+ "bulgular": [
+  {
+   "dosya": "trader/src/trader_core/counterfactual.py",
+   "satir": 49,
+   "tur": "kagit_canli",
+   "onem": "orta",
+   "sorun": "Alinsaydi taban kaymasi kripto icin giris/cikis/stop 5 bp; motorun kagit tabani 2/2/5 bp. Iki karsi-olgu hesabi birbiriyle tutarsiz.",
+   "kanit": "BASE_SLIP = (SLIPPAGE_RATE, SLIPPAGE_RATE, SLIPPAGE_RATE), SLIPPAGE_RATE=0.0005 (satir 35, 49). config/engine.base.json:7-8 slip_entry_bps 2.0, slip_exit_bps 2.0, slip_stop_bps 5.0; trader_engine/config.py:32-34 ayni varsayilanlar; scripts/exit_counterfactual_run.py:59 cikis karsi-olgusu 2/5 kullanir. cost_overrides yalniz hisse/emtia icin tanimli, kripto bu tabana duser.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/counterfactual.py",
+   "satir": 198,
+   "tur": "hata",
+   "onem": "orta",
+   "sorun": "VERSION 1->2 gecisinde eski plan satirlari yeniden hesaplanmiyor; alinmayan raporu version>=2 istedigi icin bu kararlar kalici olarak 'cozulmedi' sayiliyor.",
+   "kanit": "done_ids (satir 196-200) COUNT(*)=2 olan kararlari 'tamam' sayar; run_once (satir 386) bunlari atlar. Surum kontrolu yok; DELETE yalniz journal_mode'da geciyor. alinmayan_sonuc.py:176 'AND version>=2' filtresi eski plan satirlarini disarida birakiyor.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_core/alinmayan_sonuc.py",
+   "satir": 198,
+   "tur": "hata",
+   "onem": "dusuk",
+   "sorun": "'tum_zamanlar' etiketli rapor, kapanan islemleri en fazla 10000 ile sinirlar; daha eski islemler sessizce disarida kalir ve bu not raporda yok.",
+   "kanit": "alinan = [... ledger.list_closed_trades(limit=ledger.LIST_CLOSED_MAX)]; ledger.py:2608 LIST_CLOSED_MAX = 10000; list_closed_trades en yeni N kaydi doner (ORDER BY exit_ts DESC LIMIT ?).",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/scripts/exit_counterfactual_run.py",
+   "satir": 235,
+   "tur": "kagit_canli",
+   "onem": "orta",
+   "sorun": "Ders yolunun cikis maliyeti yalniz taban maliyettir (cost_overrides yok, trigger 'last'); kagit yolu seans bazli override ve 'mark' kullanir. Ayni betikte iki farkli maliyet modeli var.",
+   "kanit": "satir 235-239: cost = {... c.get('slip_exit_bps', 2.0) ...}; cost_for=lambda t, cost=cost: cost; trigger_source=str(c.get('trigger_source','last')). Kagit yolu (satir 80-84, _paper_cfg) cost_overrides'i tarih/seansa gore uygular, trigger 'mark'.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/scripts/counterfactual_run.py",
+   "satir": 56,
+   "tur": "hata",
+   "onem": "dusuk",
+   "sorun": "Paper yapilandirmasi okunamazsa yalniz uyari yazilir: tum varliklar kripto sayilir, hisse/emtia kaymasi ve seans bilgisi kaybolur; koşu bozulmus (cikis 3) sayilmaz.",
+   "kanit": "log.warning(\"paper yapilandirmasi okunamadi ... taban kayma ve kripto varsayilir\"); return {}, (lambda pair: AG.CLASS_CRYPTO), [] (satir 56-57). main() bu durumda EXIT_DEGRADED dondurmez.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/gates.py",
+   "satir": 506,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "Cift duzeyi redde arm_conflict'in 'kazanan' alani engellenmis (girmeyen) adayi gosterir; 'kazanan' etiketi yanilticidir.",
+   "kanit": "veto_reason=f\"gate:arm_conflict:{winner.arm_id or winner.setup}\" (gates.py:506). engine.py:2092 cift-duzeyi redde _kalan_adaylar(..., fr.last, pre) cagirir; fr.last ilk, engellenmis aday satiridir.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_core/alinmayan_sonuc.py",
+   "satir": 129,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "Docstring 'motor onlari hic okumaz' diyor; KILIT_ACIK=True iken karsi-olgu kilitli donemi okur.",
+   "kanit": "counterfactual.py:37 KILIT_ACIK = True; counterfactual.py:405 ve 537 kilit kapali ise atlama yapar, acikken pencere okunur. alinmayan_sonuc.py:142 kilit() yalniz KILIT_ACIK false iken filtreler.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/tests/test_counterfactual.py",
+   "satir": 0,
+   "tur": "test",
+   "onem": "dusuk",
+   "sorun": "Alinsaydi taban kaymasini (BASE_SLIP) motorun config maliyetiyle karsilastiran test yok; bu nedenle 2 bp / 5 bp uyumsuzlugu testte yakalanmiyor.",
+   "kanit": "test_counterfactual.py, test_alinmayan_sonuc.py, test_arm_conflict_raporu.py icinde BASE_SLIP / slip_entry_bps / SLIPPAGE_RATE ile yapilan bir dogrulama bulunmadi (grep).",
+   "emin_degil": false
+  }
+ ],
+ "maliyet_usd": 0.143679575
+}

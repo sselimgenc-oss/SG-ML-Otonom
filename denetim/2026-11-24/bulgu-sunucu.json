@@ -1,0 +1,114 @@
+{
+ "alan": "sunucu",
+ "bulgular": [
+  {
+   "dosya": "trader/deploy/install.sh",
+   "satir": 245,
+   "tur": "hata",
+   "onem": "orta",
+   "sorun": "Kurulum yarida kalirsa kok 'current' ve trader deposu yeni commite gecer, ama /etc/trader-release yalniz sonda (satir 713) yazilir; trap yok",
+   "kanit": "set -euo pipefail (satir 10). 245-246: ln -sfn + mv -T current -> REL_DIR. 275: git checkout --detach COMMIT (engine WorkingDirectory deposu). 292: pip install requirements.lock. 713-715: RELEASE_FILE yazilir. Dosyada 'trap' yok. Pip/adim hatasinda eski surum sürer sanilir ama kok kod ve motor deposu yeni committe kalir; motor Restart=on-failure ile yeniden baslarsa dogrulanmamis yeni kodu kurulum isareti (kurulum.json) olmadan yukler.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/tg_sade.py",
+   "satir": 466,
+   "tur": "hata",
+   "onem": "orta",
+   "sorun": "OnFailure alarm metni yalniz engine/feed/backup birimleri icin uretilir; diger birimlerin basarisizligi (trader-health, telegram, oi, lesson, ml-retrain vb.) Telegram'a gitmez",
+   "kanit": "birim_metni: 'engine' / 'feed' / 'backup' disinda None doner. scripts/telegram_run.py 128-133: text None ise 'skipped' yazip cikar. deploy/*.service'lerin cogu OnFailure=trader-health-fail@%n.service kullanir. docs/sunucu-kurulum.md:240 ise 'trader-health-fail@deneme.service' testinin Telegram 'Birim basarisiz' mesaji verdigini yazar; kod bunu vermez. Dis nabiz (HEARTBEAT_FAIL_URL) yoksa sessizlik.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/deploy/install.sh",
+   "satir": 646,
+   "tur": "belge_farki",
+   "onem": "orta",
+   "sorun": "Kurulum ozeti HEARTBEAT_URL bos iken trader-health'in her 5 dk basarisiz olacagini soyler; kod bos adreste yalniz uyari verir ve cikis kodu 0 doner",
+   "kanit": "install.sh 646: 'bos iken trader-health her 5 dk basarisiz olur'. health_run.py 536-537: HEARTBEAT_URL bos -> yalniz log.warning. 932: hb_url yoksa NoHeartbeat; 97-104: ok() ve fail() True doner -> rc 0. docs/sunucu-kurulum.md:167 kodla uyumlu ('yalniz uyari yazar'); docs/saglik-spec.md:134 'zorunlu' diyor. Sonuc: dis nabiz (olu sunucu alarmi) bos ise sessizce kapali.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/docs/sunucu-kurulum.md",
+   "satir": 131,
+   "tur": "belge_farki",
+   "onem": "orta",
+   "sorun": "Dokuman otomatik guncellemenin gunde iki sabit pencerede (10:30 ve 22:30 TSI) calistigini yaziyor; kod 5 dakikada bir ve sabit saat yok (24.11 karari)",
+   "kanit": "docs: 'yalniz gunde iki kez calisir: 10:30 ve 22:30 Turkiye saati... Pencere disinda betik hicbir sey kurmaz'. deploy/trader-oto-guncelle.timer 149: OnCalendar=*:0/5, 146-147 yorum: sabit saat yok. oto_guncelle.sh 3: 'sabit pencere kalkti'. Kullanici karari oldugu icin tasarim hatasi degil, yalniz dokuman guncellenmemis.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/scripts/health_run.py",
+   "satir": 835,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "Saglik turu butce siniri (TOTAL_BUDGET_S=60) hic uygulanmaz; collect() deadline parametresini alir ama kullanmaz",
+   "kanit": "health_run.py 31: TOTAL_BUDGET_S = 60.0; 933: deadline = time.monotonic() + TOTAL_BUDGET_S; 934: collect(..., deadline=deadline); 835: def collect(..., *, deadline: float = 0.0) govdesinde deadline okunmuyor. scripts/health_recover.py 121 ayni parametreyi geciriyor. Yavas bir probe (ag/ag dosyasi) turu 5 dk zamanlayicidan uzatabilir.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/deploy/trader-engine-live.service",
+   "satir": 30,
+   "tur": "kagit_canli",
+   "onem": "dusuk",
+   "sorun": "Canli birim RestartSteps= ve RestartMaxDelaySec= kullanir (systemd 254+). Installer Ubuntu 22.04'u da destekler (systemd 249); bu sürümlerde anahtarlar bilinmez sayilip artan bekleme yerine sabit 5 sn olur",
+   "kanit": "trader-engine-live.service 29-31: RestartSec=5, RestartSteps=5, RestartMaxDelaySec=120; yorum: 'aralik 5 sn den 120 sn ye buyuyen'. install.sh 2: 'Ubuntu 22.04+'. Paper birimi (trader-engine@.service) RestartSec=20 kullanir; canli ve kagit yeniden baslama davranisi bu sürümde ayrisir.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/tests/test_oto_guncelle.py",
+   "satir": 453,
+   "tur": "test",
+   "onem": "dusuk",
+   "sorun": "Saat testleri OTO_SIMDI_SAAT ortam degiskenini kullanir; kodda bu degisken hic okunmaz, test 'her saatte kurulur' iddiasini dogrulamaz",
+   "kanit": "tests 447-456 (test_her_saatte_kurulur, parametre sa), 463/466/471/478: OTO_SIMDI_SAAT. oto_guncelle.sh yalniz OTO_SIMDI_DAKIKA ve OTO_SIMDI_SANIYE okur; grep ile OTO_SIMDI_SAAT yalniz testlerde bulundu. Saat kisiti yeniden getirilirse test gercek saate bagli olarak gecip kalabilir.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/deploy/trader-oto-ac",
+   "satir": 38,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "Belirtim trader-oto-ac'in Telegram mesaji gonderdigini yazar; betik mesaj gondermez",
+   "kanit": "trader-oto-ac 38-39: 'Otomatik guncelleme yeniden acildi.' (gunluk) ve 'Telegram mesaji yok'. docs/motor/oto-guncelleme-spec.md:36: 'Telegram: [ML] Otomatik güncelleme yeniden açıldı.'",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/deploy/oto_guncelle.sh",
+   "satir": 228,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "Basarisiz guncelleme mesaji belirtimden farkli: commit kisa kodu ve install.sh cikti ozeti yok",
+   "kanit": "oto_guncelle.sh 228: tg_send '[ML] ⚠️ Güncelleme kurulamadı; bot eski sürümle çalışıyor.' (commit kodu ve son 5 satir yok). docs/motor/oto-guncelleme-spec.md:26: '[ML] Güncelleme BAŞARISIZ (<yeni7>); <eski7> çalışmaya devam ediyor.' + install çıktısının son 5 satırı.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/lesson.py",
+   "satir": 232,
+   "tur": "hata",
+   "onem": "dusuk",
+   "sorun": "Telegram ve ders varsayilan defter yolu user_data/ledger_learner.sqlite; motorun ve diger betiklerin kullandigi var/learner/ledger.sqlite'dan farkli. LEDGER_PATH bossa yanlis dosya okunur",
+   "kanit": "lesson.py 232: ledger_path = 'user_data/ledger_learner.sqlite'; telegram.py 264: _abs_path(here, env.get('LEDGER_PATH') or 'user_data/ledger_learner.sqlite'); ml_retrain_run.py 158, weekly_summary_run.py 305 ve notes_run.py 61 varsayilani var/learner/ledger.sqlite. Kurulum env ornekleri LEDGER_PATH yazar; bu yalniz eksik env'de gecerli.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/docs/saglik-spec.md",
+   "satir": 271,
+   "tur": "olu_ayar",
+   "onem": "dusuk",
+   "sorun": "Dokuman, kodun okumadigi ortam anahtarlarini saglik ayari olarak listeler (FREQTRADE_API_*, LEARNER_API, TWIN_API, LEDGER_DIR)",
+   "kanit": "saglik-spec.md 271 bu anahtarlari sayar. grep -rn FREQTRADE src scripts deploy: sonuc yok. LEARNER_API ve LEDGER_DIR: src ve scripts icinde okunmuyor. trader-health.env.example bu anahtarlari icermiyor. Eski (freqtrade donemi) kalinti.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/scripts/kurulum_gozcu.py",
+   "satir": 243,
+   "tur": "hata",
+   "onem": "dusuk",
+   "sorun": "20 dk oz-kontrol, izleme sorun gorurken (fails>0) ertelenir ve selfcheck_done isaretlenmez; sorun gecince sonraki turda 'Güncellemeden 20 dk sonra kontrol' mesaji gecikmeli gonderilebilir",
+   "kanit": "kurulum_gozcu.py 243-251: 'if age_min >= OZ_KONTROL_DK and not selfcheck_done ...: if gs[\"fails\"] == 0: ... gs[\"selfcheck_done\"] = True'. fails>0 iken blok atlanir ve bayrak kalir. Yorum 'ikinci mesaj gitmez' ile uyumlu, ama mesaj etiketi gecikmis zamani (20 dk) yanlis anlatir.",
+   "emin_degil": true
+  }
+ ],
+ "maliyet_usd": 0.5185142400000001
+}

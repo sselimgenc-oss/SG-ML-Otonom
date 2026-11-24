@@ -1,0 +1,114 @@
+{
+ "alan": "m1",
+ "bulgular": [
+  {
+   "dosya": "trader/research/pa_proposer_build.py",
+   "satir": 75,
+   "tur": "hata",
+   "onem": "yuksek",
+   "sorun": "Kagit kaydi bar eslestirmesinde once tam eslesme deneniyor; bar_close_ts (karar aninin = sinyal mumunun kapanisi) acilis zamani gibi aranip sinyal mumundan SONRAKI mum seciliyor. Ileriye bakis ve yanlis bar.",
+   "kanit": "satir 75: i = idx.get(t0, idx.get(t0 - tf_delta)); t0 = bar_close_ts. Canli: strategy_runner.py:285 _to_row(pair, open_ts, D, ...) ve strategy_runner.py:249/353 trig.index[-1] == D - tf, yani bar_close_ts = D, sinyal mumu D-tf'de aciliyor. Gecmis feather 'date' kline acilis zamani (scripts/fetch_binance_vision.py:239). Tam eslesme, karar aninda henuz kapanmamis (D'de acilan) mumu seciyor; ozellik, giris c[i] ve ts bu mumdan geliyor. Nightly yolu scripts/ml_retrain_run.py icinde PB._paper_rows cagiriyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/scripts/ml_retrain_run.py",
+   "satir": 89,
+   "tur": "hata",
+   "onem": "orta",
+   "sorun": "KILIT_ACIK=True iken M1 hala tarihsel veriyi 2026-05-01'de kesiyor; kagit satirlarini da penceresi 2026-11-01'den once baslayan diye (no_window) dusuruyor. Boylece 2026-05..10 verisi M1 egitiminden tamamen cikiyor; DL1 (config EGITIM_KESIMI=HOLDOUT_END) ve 'kilit ACIK' karariyla celisiyor.",
+   "kanit": "satir 89: _hist_tail(bars, pair, cap, LOCK_START). research/pa_proposer_build.py:79: if ts[i - PF.WINDOW + 1] < LOCK_END (no_window). train.in_lock KILIT_ACIK'ta False donduruyor ama bu kol kendi kesimini uyguluyor. Belge trader/docs/motor/dd12-capraz-varlik-spec.md:136 'kilit donemi aynen disarida' diyor. Niyet belirsiz.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/scripts/ml_retrain_run.py",
+   "satir": 2,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "Docstring zamanlayiciyi 03:10 UTC diye yaziyor; trader-ml-retrain.timer 00:40 UTC. CSV etiketi (satir 108) 'paper>=kilit_sonrasi' yaziyor; kod artik kilit sonrasi kisitlamasi uygulamiyor ve docstring satir 11 'kilit donemi egitime GIRMEZ' diyor.",
+   "kanit": "deploy/trader-ml-retrain.timer: OnCalendar=*-*-* 00:40:00 UTC; satir 2 docstring '03:10 UTC'; satir 108 csv etiketi.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/tests/engine/test_dd12_wp10_impl.py",
+   "satir": 65,
+   "tur": "test",
+   "onem": "orta",
+   "sorun": "Kilit kapaliyken yazilmis testler, egitim_kilitli fixture'i kullanmadan kilit davranisini bekliyor: 2026-05-01 icin in_lock True, egitimde LockWindowError, split_lock icin dropped=5. KILIT_ACIK=True altinda bunlar basarisiz olur (statik okuma, calistirilmadi).",
+   "kanit": "test_in_lock parametreleri (satir 65-67) locked=True bekliyor; train.py:33-34 'if KILIT_ACIK: return False'. test_train_refuses_lock_rows_structurally (satir 69) LockWindowError bekliyor; test_split_lock_drops_and_counts (satir 77) dropped==5 bekliyor. conftest.py:60-65 egitim_kilitli bu testlerde kullanilmiyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/tests/engine/test_dd12_wp14_impl.py",
+   "satir": 91,
+   "tur": "test",
+   "onem": "orta",
+   "sorun": "Ayni nedenle iki test da kilit kapaliyken davranisi bekliyor: test_lock_rows_refused_structurally LockWindowError bekliyor; test_paper_rows_after_lock_accepted_and_lock_counted dropped==1 bekliyor. KILIT_ACIK=True altinda basarisiz olur (statik okuma).",
+   "kanit": "satir 91-95 ve 98-103; train.py:33-34; egitim_kilitli fixture'i kullanilmiyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/pa_features.py",
+   "satir": 53,
+   "tur": "hata",
+   "onem": "orta",
+   "sorun": "Short icin dist_hi / dist_lo fiyat aynasi degil. Aynada long formulu short icin min(low)-last (dist_hi) ve max(high)-last (dist_lo) olmali; kod tersini kullaniyor (dist_hi max(high), dist_lo min(low) ile hesaplaniyor). Egitim ve canli ayni fonksiyon oldugu icin parite bozulmuyor, ama docstring 'short = ayna' ile celisiyor.",
+   "kanit": "satir 53: dist_hi = s * (last - float(hw[-51:-1].max())) / atr; satir 54: dist_lo = s * (last - float(lw[-51:-1].min())) / atr. Satir 5-6 docstring: fiyat tabanli ozellikler yonle isaretlenir (short = ayna).",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_core/pa_features.py",
+   "satir": 47,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "wick_up / wick_dn short icin yonle isaretlenmiyor (body, range_pos ve dist yonlendiriliyor). Docstring 'fiyat tabanli ozellikler yonle isaretlenir' diyor. Aday wick'i (trader_engine/strategies/arms/m1.py:83-85) short'ta alt fitil olarak hesaplaniyor; iki tanim farkli.",
+   "kanit": "satir 47-48: wick_up = (hw[-1]-top)/rng, wick_dn = (bot-lw[-1])/rng; yonle carpma yok. m1.py:84-85 short icin (min(o,c)-l)/range.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/scripts/ml_retrain_run.py",
+   "satir": 64,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "_hist_tail belgesi 'son cap tanesi' ve 'tam etiketlemeyle bit bit ayni' diyor; ama dilimde etiketlenebilir bar sayisi k - s0 - 111 (ilk 63 bar ozellik icin, son 48 bar etiket icin harcanir), yani satir sayisi en fazla cap - 82. Bellek sinirinin altinda; belge ile tutarsiz.",
+   "kanit": "satir 64 fonksiyon; s0 = max(0, k - cap // 2 - 70); label_rows range(F.WINDOW-1, n) ve triple_barrier i+HORIZON > n-1 -> None (labels.py:16, 38).",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/scripts/export_paper_records.py",
+   "satir": 52,
+   "tur": "hata",
+   "onem": "dusuk",
+   "sorun": "Kapanan islemler LIST_CLOSED_MAX=10000 ile sessizce kesiliyor (en yeni 10000). Daha eski islemlerin sonucu disa aktarilamiyor, uyari yok; hacim artinca M1 egitim verisi sessizce daralir.",
+   "kanit": "satir 52: trades = led.list_closed_trades(limit=led.LIST_CLOSED_MAX); src/trader_core/ledger.py:2608 LIST_CLOSED_MAX = 10000; list_closed_trades limit ust sinirli.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_core/ml_package.py",
+   "satir": 102,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "view_from_package: threshold None ise sessizce 0.5 kullaniliyor. PackageSet.reload (require_gate=True) None esikli paketi zaten reddettigi icin dal olu; ama require_gate=False yolu kullanilirsa 0.5 esigi uydurulmus olarak devreye girer.",
+   "kanit": "satir 102: threshold=0.5 if thr is None else float(thr); load_package satir 68-69 threshold None -> PackageError; reload satir 167 load_package(p, now=now) varsayilan require_gate=True.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_ml/walkforward.py",
+   "satir": 1,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "make_folds ve guards.assert_pre_holdout uretimde cagrilmiyor; yalniz tests/ml/test_holdout_guard.py kullaniyor. research/dl1/cekirdek.py:1 'trader_ml.walkforward purge + embargo' diyor, ama cekirdek trader_core.stats.walk_forward_splits'i dogrudan kullaniyor (cekirdek.py:35, 341). trader_ml/config.py HORIZON_BARS=72 'etiket ufku' olarak yorumlu, pa_features HORIZON=48 ile celisiyor.",
+   "kanit": "Grep: make_folds yalniz walkforward.py ve tests/ml/test_holdout_guard.py:9,35,45; config.py HORIZON_BARS = 72; pa_features.py:16 HORIZON = 48.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/docs/ml-filtre-aktif-spec.md",
+   "satir": 2,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "Belge 24.11 kararini 'gece egitimi yapilmaz' diye yaziyor; ama trader-ml-retrain.timer (00:40 UTC) hala M1 egitir ve dd12 belgesi M1'i acik tutuyor. Kapsam belirsiz; M1 icin celisiyor.",
+   "kanit": "docs/ml-filtre-aktif-spec.md:2 'gece egitimi yapilmaz'; deploy/trader-ml-retrain.timer OnCalendar 00:40 UTC; docs/motor/dd12-capraz-varlik-spec.md:136 M1 gece egitimi acik.",
+   "emin_degil": true
+  }
+ ],
+ "maliyet_usd": 0.136299505
+}

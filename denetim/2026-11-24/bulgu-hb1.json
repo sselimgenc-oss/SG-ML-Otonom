@@ -1,0 +1,105 @@
+{
+ "alan": "hb1",
+ "bulgular": [
+  {
+   "dosya": "trader/src/trader_core/haber_sinyal.py",
+   "satir": 378,
+   "tur": "hata",
+   "onem": "orta",
+   "sorun": "Parti kismen basarisiz olursa odenmis sonuclar atiliyor, durum ilerlemiyor; ayni basliklar sonraki saat tekrar odenir ve butce surekli tukenebilir.",
+   "kanit": "kos: parti dongusunde her parti icin client.create + b.record yapiliyor (satir 356-373); dogrula(...) None donerse (satir 376-378) 'return atla(\"model yaniti sema disi\", \"api_hata\")' ile cikiliyor. Onceki partilerin sonuclari (sonuc.extend) ve son_alim/olaylar yazilmiyor. Ayni sekilde butce reddi 2. partide (satir 362) onceki partiyi odemis halde durdurur.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/haber_sinyal.py",
+   "satir": 191,
+   "tur": "hata",
+   "onem": "orta",
+   "sorun": "Tazelik kontrolu yok: yas yalniz alim zamanindan hesaplaniyor, yayin zamani (ts, veri_haber.py:167) hic kullanilmiyor. Ilk calismada RSS geriye donuk eski haberler 'taze' sayilip tam agirlikla puanlaniyor.",
+   "kanit": "birlestir: 'yas = (simdi_ms - e[\"alim\"]) / H_MS' (satir 191). haber_sinyal.py icinde \"ts\" hic okunmuyor; veri_haber.topla alim_ms'i tum ogeler icin ayni veriyor (satir 257), 6 saatlik pencere ve 2 saatlik yari omur yayin yasina gore degil. Tasarim geregi 'alim' secildigi icin bu bir tasarim boslugu olabilir.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/strategies/arms/hb1.py",
+   "satir": 13,
+   "tur": "belge_farki",
+   "onem": "orta",
+   "sorun": "Docstring HB1 zaman stopunu 24 mum diye yaziyor; motor ortak kuralda 48 mum uyguluyor.",
+   "kanit": "hb1.py:13 'zaman stopu 24 mum (ortak kural)'. trader_core/signals.py:31 'TIME_STOP_BARS = 48'; position_manager.py:97 target modunda 'signals.time_stop_due(ctx.n_closed)' (varsayilan limit 48) cagiriyor. ust-lig-tasarim.md:27 de 24 yaziyor ama 24.11 kararinda ortak zaman stopu 48 olarak gecer.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/tests/test_haber_sinyal.py",
+   "satir": 225,
+   "tur": "test",
+   "onem": "dusuk",
+   "sorun": "Test, yayin saati 30 saat once olan basligin 'YENI' sayildigini dogruluyor; tazelik acigini onaylayan bir beklenti.",
+   "kanit": "test_yalniz_alim_zamani_kullanilir: 'eski_yayin[\"ts\"] = NOW_MS - 30 * H' ve assert \"Bitcoin rallies\" in govde. Yayin zamani hic kontrol edilmedigi icin test, yayini 30 saat once olan haberin de girdiye alindigini dogruluyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/haber_sinyal.py",
+   "satir": 350,
+   "tur": "hata",
+   "onem": "dusuk",
+   "sorun": "MAX_OGE (120) asildiginda en eski basliklar sessizce atiliyor ama son_alim bunlari da kapsiyor; log/sayac yok. Ilk calismada (tum RSS geçmisi ayni alim zamanina sahip) hangi 120 ogenin kalacagi belirsiz.",
+   "kanit": "'yeni = sorted(yeni, key=lambda e: -e[\"alim\"])[:MAX_OGE]' (satir 350), ardindan 'yeni_son = max([r[\"alim\"] for r in ham], ...)' (satir 353) atilan ogeleri de kapsar. Ayni alim degerli ogeler arasinda siralama dizi sirasina bagli.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/strategies/arms/hb1.py",
+   "satir": 171,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "'eski_sinyal' dali uretici dosyalarda hic calismaz; uretici her zaman 'olaylar' yazar. Docstring bu dali aktif bir geri donus gibi anlatiyor.",
+   "kanit": "hb1.py:169-172 'if \"olaylar\" in s: ... elif D_ms - uretim > MAX_SINYAL_YASI_DK * 60_000: return _red(\"eski_sinyal\")'. haber_sinyal.py birlestir (satir 212-214) her sembol icin \"olaylar\" anahtarini ekliyor; dolayisiyla elif yalnizca elle yazilmis dosyalarda erisilir.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/haber_sinyal.py",
+   "satir": 36,
+   "tur": "olu_ayar",
+   "onem": "dusuk",
+   "sorun": "MAX_OZET sabiti hicbir yerde okunmuyor; ozet zaten istem parametrelerine girmiyor. Degeri degistirmek davranisi etkilemez.",
+   "kanit": "grep: MAX_OZET yalniz satir 36'da geciyor. istem_parametreleri (satir 305) yalniz id/kaynak/baslik gonderiyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_core/haber_sinyal.py",
+   "satir": 251,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "CALISMA_DURUMLARI tuple'i hicbir yerde kullanilmiyor; durum kodu dogrulamasi yok.",
+   "kanit": "grep: CALISMA_DURUMLARI yalnizca satir 251'de tanimli. calisma_yaz(kod) herhangi bir string kabul ediyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/config/seans_takvimi.json",
+   "satir": 130,
+   "tur": "olu_ayar",
+   "onem": "dusuk",
+   "sorun": "Olaylardaki 'durum' (confirmed/estimated) alani kodda okunmuyor; takvim 'estimated' tarihleri de 'confirmed' ile ayni sekilde engelliyor. Dosya notundaki 'dogrulanip guncellenmeli' uyarisi kodda karsiligi olmayan bir bilgi.",
+   "kanit": "seans_disi.yukle (satir 66-75) yalnizca tatiller[].tarih, erken_kapanislar[].tarih/kapanis_et ve olaylar[].ts okuyor; 'durum' hic okunmuyor.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/config/budget.json",
+   "satir": 19,
+   "tur": "olu_ayar",
+   "onem": "dusuk",
+   "sorun": "retry.deadline_s.haber_kolu (120 sn) muhtemelen hicbir cagri yolunda kullanilmiyor: haber istemcisi max_retries=0 ile kuruluyor ve kendi yeniden deneme dongusu yok.",
+   "kanit": "haber_sinyal.py:293-299 (AnthropicSyncClient max_retries=0) ve kos icinde tekrar deneme yok. budget.py:826 deadline yalnizca hata-eylem fonksiyonunda okunuyor; haber_sinyal bu fonksiyonu cagirmiyor.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_core/veri_haber.py",
+   "satir": 29,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "Yorum '21 hisse' diyor; evrendeki hisse sayisi 20 (engine.paper.json pairs; haber_sinyal.py:114 de 20 diyor).",
+   "kanit": "veri_haber.py:29-30 '21 hisse + 4 emtia icin tek tek beslemeye gerek yok'. engine.paper.json pairs: 19 kripto + 20 hisse + 4 emtia = 43.",
+   "emin_degil": false
+  }
+ ],
+ "maliyet_usd": 0.245994425
+}

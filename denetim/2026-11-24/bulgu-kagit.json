@@ -1,0 +1,132 @@
+{
+ "alan": "kagit",
+ "bulgular": [
+  {
+   "dosya": "trader/src/trader_engine/engine.py",
+   "satir": 1112,
+   "tur": "hata",
+   "onem": "orta",
+   "sorun": "Dakika isareti (MTM), ayni dakikada kapanan pozisyonu dislar; stop/gap ile kapanan pozisyonun dakika ici ters ucu equity_low'a girmez, 'temkinli alt sinir' iddiasi bozulur.",
+   "kanit": "engine.py:1112 opens = state.open_positions() olaylar islendikten SONRA; 1117 _mtm_minute(ts, step, opens). mtm.py:46-61 yalniz bu listeyi doner. Belge defter-ek-alanlar-spec.md:268-270 eq_worst'u 'temkinli alt sinir' olarak tanimlar.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/brokers/paper.py",
+   "satir": 408,
+   "tur": "hata",
+   "onem": "orta",
+   "sorun": "00/08/16 disi (1h/4h) funding kaydi eksikse funding_missing artmaz ve odeme sessizce atlanir; F2 fonlama saglik sayaci bu durumda kor kalir.",
+   "kanit": "paper.py:399 grid = due_funding_times (yalniz 00/08/16); 408 due = grid | {by_ts icindeki saatler}. Eksik nokta yalniz due'daki t icin 421-427 'p is None' dalina girer; off-grid saat due'ya yalniz kayit geldiyse girdiginden eksik 1h/4h kaydi hic sayilmaz. kagit-degerlendirme-plani.md:194 F2 = funding_missing.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/brokers/paper.py",
+   "satir": 548,
+   "tur": "hata",
+   "onem": "dusuk",
+   "sorun": "mark_fallbacks ayni bar icin iki kez artar: once dolum asamasinda (mark_c yok), sonra tetik asamasinda (mark OHLC yok, acik pozisyon var).",
+   "kanit": "paper.py:388-389 (_fills_pair: mark_c None -> +1) ve 547-548 (_triggers_pair: use_mark ve mark OHLC None -> +1). Ayni bar iki kez sayilir; ek olarak 431 fonlama fallback'i.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/brokers/paper.py",
+   "satir": 602,
+   "tur": "hata",
+   "onem": "dusuk",
+   "sorun": "Gap'te tasfiye (acilis liq'in otesinde) liq_price'tan dolduruluyor; gercek dolum acilis civarinda daha kotu olabilir. Kayip yalniz teminatla sinirli oldugu icin etkisi belirsiz.",
+   "kanit": "paper.py:563-564 liq_gap -> _liquidate; 602 _close(..., pos.liq_price, fee, ...). Belge 03 §4.3(4) 'kayma yok' diyor; gap senaryosu belgede ayri ele alinmamis.",
+   "emin_degil": true
+  },
+  {
+   "dosya": "trader/src/trader_engine/brokers/paper.py",
+   "satir": 602,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "Likidasyon dolumu tick'e yuvarlanmiyor; belge §7 degismez 4 ('Fill.price her zaman tick'in katidir') ve 03 ornek 5 (fill 67,08008) ile celisiyor.",
+   "kanit": "paper.py:494 liquidation_price(fp,...) ham deger; 602 liq_price dogrudan dolum. docs/motor/03-paper-broker.md:97,173,(degismez 4 satiri 147).",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/brokers/paper.py",
+   "satir": 583,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "Hedef dolumunda base = min(base, last_h) (long) / max(base, last_l) (short) kirpmasi kodda var (24.11), belge §4.3(3) bunu icermiyor.",
+   "kanit": "paper.py:580-583 yorum '24.11 (muhafazakar)'; docs/motor/03-paper-broker.md:96 'Gap -> base=last_o, aksi target' diyor, kirpma yok.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/funding.py",
+   "satir": 27,
+   "tur": "belge_farki",
+   "onem": "dusuk",
+   "sorun": "Belge funding eslemesini 8 saatlik izgaraya yuvarlama (funding.floor_funding_time) ve yalniz 00/08/16 anlari olarak tanimlar; kod saat tabanina yuvarlar (floor_funding_hour) ve 1h/4h kayitlarini da oder.",
+   "kanit": "paper.py:406 by_ts.setdefault(floor_funding_hour(p.ts)); paper.py:408 izgara-disi kayitlar. docs/motor/03-paper-broker.md:15 ve 87 ('00/08/16', 'floor_funding_time' ile 8 saatlik izgara). tests/engine/test_funding_dakika_besleme.py 4s kayit testleri bu davranisi kilitler.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/tests/engine/test_engine_mentor_fixes.py",
+   "satir": 66,
+   "tur": "test",
+   "onem": "dusuk",
+   "sorun": "test_floor_funding_helpers, uretimde kullanilmayan floor_funding_time'i (8 saatlik izgara) dogrular; uretim yolu floor_funding_hour kullanir, yani A1 yuvarlama davranisi bu testle sinanmiyor.",
+   "kanit": "test satir 11 import funding.floor_funding_time; 68-69 asserts. paper.py'de floor_funding_time cagrisi yok (grep ile dogrulandi).",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/funding.py",
+   "satir": 58,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "accrue uretim kodunda hic cagrilmiyor; yalniz testler (test_engine_03_spec.py:592, test_exit_cf_engine_parity.py:74) kullanir. floor_funding_time (satir 27) da yalniz testte.",
+   "kanit": "src'de 'accrue(' ve 'floor_funding_time(' ile tek eslesme tanim satirlari; belge 03 §5 accrue'u broker API'si olarak listeler.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/numeric.py",
+   "satir": 62,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "bps() yardimcisi hicbir uretim kodunda kullanilmiyor; yalniz test_engine_02_spec.py:263 cagirir.",
+   "kanit": "src'de 'bps(' tek eslesme tanim; kayma hesabi paper.py:464 'Decimal(slip_bps)/Decimal(10000)' ile yapilir.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/config/engine.base.json",
+   "satir": 14,
+   "tur": "olu_ayar",
+   "onem": "dusuk",
+   "sorun": "start_delay_s (paper dahil tum modlarda) motor davranisini etkilemiyor; config.py yalniz tasir, engine/gates/broker okumaz. Yalniz testler 0.0 degerini dogrular (twin kalintisi).",
+   "kanit": "config.py:93,157,621 (alan, dogrulama, atama); src/trader_engine altinda baska okuma yok. Testler: test_engine_05_spec.py:1619 'a.start_delay_s == 0.0', test_config_live_spec.py:408.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/config.py",
+   "satir": 164,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "_PAPER_ONLY_KEYS sabiti tanimli ama hicbir yerde kullanilmiyor. Gercek kisit 582-589'daki 'given' sozlugunde calisiyor, yani davranis dogru; sabit gereksiz/yaniltici.",
+   "kanit": "grep: _PAPER_ONLY_KEYS yalniz satir 164'te geciyor; config.py:582-589 mode not in (paper, live) kontrolu.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/brokers/paper.py",
+   "satir": 126,
+   "tur": "olu_kod",
+   "onem": "dusuk",
+   "sorun": "_last_step_ts yazilir ve snapshot'a girer ama karar/dolum mantiginda hic okunmaz.",
+   "kanit": "paper.py:364 yazim; 126, 670, 700, 710 yalniz init/serilestirme/geri yukleme. Baska okuma yok.",
+   "emin_degil": false
+  },
+  {
+   "dosya": "trader/src/trader_engine/engine.py",
+   "satir": 2242,
+   "tur": "kagit_canli",
+   "onem": "dusuk",
+   "sorun": "Tam piyasa bosluk dakikasinda advance_to yolu MinuteStep(nxt, {}) ile broker.advance cagirir ve minute_gaps sayar; minute_steps yolu (run_range/_steps) o dakikayi hic uretmez, sayac artmaz. Sayaclar iki yolda farkli.",
+   "kanit": "engine.py:2242 process_step(steps[0] if steps else MinuteStep(nxt, {})); marketdata/sources.py:190 yalniz mevcut dakikalar yield edilir; engine.py:892/2580 hangi yolun hangi modda kullanildigi tam dogrulanmadi.",
+   "emin_degil": true
+  }
+ ],
+ "maliyet_usd": 0.415694765
+}
