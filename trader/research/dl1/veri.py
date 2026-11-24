@@ -1,4 +1,4 @@
-"""DL1 egitim verisi: Binance Vision acik arsivi, 1h USDT-M vadeli klines (mevcut `scripts/fetch_binance_vision.py` yardimcilari yeniden kullanilir:
+"""DL1 egitim verisi: Binance Vision acik arsivi, USDT-M vadeli klines (15m/1h/4h/1d; `indir(..., tf=...)`) (mevcut `scripts/fetch_binance_vision.py` yardimcilari yeniden kullanilir:
 fetch_zip (sha256 .CHECKSUM dogrulamali, onbellekli), read_kline_zip, build). Sembol: BTC/USDT -> BTCUSDT; hisse/emtia da ayni adlandirma
 (NVDAUSDT, XAUUSDT, BZUSDT, COPPERUSDT ... arsivde listelendikleri aydan itibaren; once yoksa o enstrumanin gecmisi kisadir).
 
@@ -29,7 +29,7 @@ def arac():
     return _F
 
 
-def indir(pairs: list[str], bas_ay: str, kesim: date, ham_dir: Path, isci: int = 8, log=print) -> dict[str, pd.DataFrame]:
+def indir(pairs: list[str], bas_ay: str, kesim: date, ham_dir: Path, isci: int = 8, log=print, tf: str = "1h") -> dict[str, pd.DataFrame]:
     """pairs ("BTC/USDT") -> {pair: DataFrame(date, open, high, low, close, volume)} (date < kesim). Arsivde olmayan cift atlanir (raporlanir)."""
     from trader_ml.config import KILIT_ACIK
     if not KILIT_ACIK:
@@ -53,8 +53,8 @@ def indir(pairs: list[str], bas_ay: str, kesim: date, ham_dir: Path, isci: int =
 
     def is_(pair, mo):
         sym = F.vision_symbol(pair)
-        base = f"{F.BASE_URL}/monthly/klines/{sym}/1h/{sym}-1h-{mo}.zip"
-        dest = Path(ham_dir) / "monthly" / f"{sym}-1h-{mo}.zip"
+        base = f"{F.BASE_URL}/monthly/klines/{sym}/{tf}/{sym}-{tf}-{mo}.zip"
+        dest = Path(ham_dir) / "monthly" / f"{sym}-{tf}-{mo}.zip"
         dosyalar = []
         if mo != aylar[-1]:
             st = al(base, dest)
@@ -62,8 +62,8 @@ def indir(pairs: list[str], bas_ay: str, kesim: date, ham_dir: Path, isci: int =
                 return [dest]
         if mo in gunluk_ay:
             for gun in F.days_of(mo, son):
-                u = f"{F.BASE_URL}/daily/klines/{sym}/1h/{sym}-1h-{gun}.zip"
-                d = Path(ham_dir) / "daily" / f"{sym}-1h-{gun}.zip"
+                u = f"{F.BASE_URL}/daily/klines/{sym}/{tf}/{sym}-{tf}-{gun}.zip"
+                d = Path(ham_dir) / "daily" / f"{sym}-{tf}-{gun}.zip"
                 if al(u, d) not in ("missing", "atlandi"):
                     dosyalar.append(d)
         return dosyalar

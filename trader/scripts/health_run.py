@@ -798,25 +798,36 @@ def probe_haber_sinyal(var_dir: str, unit_path: str = HABER_SINYAL_UNIT) -> H.Ha
 
 
 def probe_dl1_paket(env: dict) -> H.Dl1PaketProbe:
-    """models/dl1/DL1@1h.json (veri kokunden; sha256 + kapi + sema dogrulamali) -> Dl1PaketProbe. Yok -> missing; gecersiz -> unreadable."""
+    """models/dl1/DL1@<tf>.json x 4 zaman dilimi (veri kokunden; sha256 + sema dogrulamali) -> Dl1PaketProbe (en kotu durum: bozuk > yok > ok;
+    ok ise en eski paket). Yok -> missing; gecersiz -> unreadable."""
+    from datetime import timedelta
     from trader_engine import dl1_cikarim as DL
-    yol = data_root(env) / "models" / "dl1" / "DL1@1h.json"
-    try:
-        p, neden = DL.paket_yukle(yol)           # son kullanma burada denetlenmez (saglik kendisi hesaplar)
-    except Exception:  # noqa: BLE001  (saglik turu paket okumasi yuzunden dusmez)
-        return H.Dl1PaketProbe("unreadable")
-    if p is None:
-        return H.Dl1PaketProbe("missing" if neden == "yok" else "unreadable")
-    return H.Dl1PaketProbe("ok", p.olusturma, p.son_kullanma)
+    durum, en_eski = "ok", None
+    for tf in DL.ZAMAN_DILIMLERI:
+        yol = data_root(env) / "models" / "dl1" / f"DL1@{tf}.json"
+        try:
+            p, neden = DL.paket_yukle(yol, tf=tf)
+        except Exception:  # noqa: BLE001  (saglik turu paket okumasi yuzunden dusmez)
+            return H.Dl1PaketProbe("unreadable")
+        if p is None:
+            if neden != "yok":
+                return H.Dl1PaketProbe("unreadable")
+            durum = "missing"
+            continue
+        if en_eski is None or p.olusturma < en_eski.olusturma:
+            en_eski = p
+    if durum != "ok" or en_eski is None:
+        return H.Dl1PaketProbe("missing")
+    return H.Dl1PaketProbe("ok", en_eski.olusturma, en_eski.olusturma + timedelta(days=DL.SON_KULLANMA_GUN))
 
 
 def dl1_kolda(env: dict) -> bool:
-    """DL1@1h kagit ayarinda kol olarak var mi? Yoksa DL1 paket denetimi uretilmez (kol kapaliyken 'paket yok' uyarisi gurultu olur).
+    """Herhangi bir DL1@<tf> kagit ayarinda kol olarak var mi? Yoksa DL1 paket denetimi uretilmez (kol kapaliyken 'paket yok' uyarisi gurultu olur).
     Okunamazsa True (temkinli: denetim uretilir)."""
     cdir = (env.get("ENGINE_CONFIG_DIR") or "").strip() or str(_ROOT / "config")
     try:
         with open(os.path.join(cdir, "engine.paper.json"), encoding="utf-8") as f:
-            return "DL1@1h" in (json.load(f).get("arms") or [])
+            return any(str(a).startswith("DL1@") for a in (json.load(f).get("arms") or []))
     except Exception:  # noqa: BLE001
         return True
 

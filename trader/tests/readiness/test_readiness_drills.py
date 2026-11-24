@@ -174,8 +174,8 @@ def test_rehearsal_empty_server_feed_rules_gate_status_health(tmp_path, capsys):
     rc = hr.run_once(env, now=clock.now(), state_path=str(tmp_path / "hs" / "state.json"), notifier=notifier, sender=sender)
     out = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
     assert rc == 0 and sender.calls == ["ok"] and out["overall"] in ("OK", "WARN")
-    # ilk saatte yalniz 'ledger_write_stale_warmup' (uyari) beklenir; baska bozuk kontrol yok
-    assert {f["code"] for f in out["failing"]} <= {"ledger_write_stale_warmup"}, out["failing"]
+    # ilk saatte yalniz 'ledger_write_stale_warmup' (uyari) beklenir; baska bozuk kontrol yok; 24.11: DL1 kolda iken ilk gece egitimine kadar `dl1_paket_yok` uyarisi da beklenir
+    assert {f["code"] for f in out["failing"]} <= {"ledger_write_stale_warmup", "dl1_paket_yok"}, out["failing"]
 
 
 def test_OPEN_health_is_not_crit_in_learner_only_deployment(tmp_path, capsys):

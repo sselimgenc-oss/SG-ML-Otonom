@@ -7,7 +7,7 @@ Durum: tasarım; kod yazılmadı. Kullanıcı kararı 23.11: üç parçalı "üs
 | Parça | Ne yapar | İşlem yetkisi | Aylık LLM maliyeti | Emek |
 |---|---|---|---|---|
 | Haber kolu `HB1@1h` | Haberi okuyup enstrüman başına yön/şiddet verir, kol buna göre işlem açar | Var (kâğıt + canlı yapılandırması) | ~1-2 $ | 6-8 gün |
-| Derin öğrenme kolu `DL1@1h` | Fiyat mumlarından önümüzdeki saatlerin yönünü tahmin eder | Var (kâğıt + canlı yapılandırması) | 0 $ | 10-14 gün |
+| Derin öğrenme kolu `DL1@15m/1h/4h/1d` | Fiyat mumlarından önümüzdeki saatlerin yönünü tahmin eder | Var (kâğıt + canlı yapılandırması) | 0 $ | 10-14 gün |
 | YZ yorumcu | Her gün sade Türkçe rapor yazar | YOK | ~2-3 $ | 3-4 gün |
 | Ortak altyapı | Bütçe payları, belge/test güncellemesi, karne bölümü | — | — | 2 gün |
 
@@ -31,16 +31,18 @@ Ortak kurallar:
 - **Maliyet:** ~1-2 $/ay (Sonnet ile ~12-15 $). **Emek:** 6-8 gün.
 - **Riskler:** haber fiyata çoktan girmiş olabilir; başlıklar güvenilmez girdi (katı şema + doğrulama + 3 pozisyon tavanı); aynı haber 4 kaynakta (tek olay say); yalnız kripto.
 
-## 2. Derin öğrenme kolu (`DL1@1h`)
+## 2. Derin öğrenme kolu (`DL1@15m`, `DL1@1h`, `DL1@4h`, `DL1@1d`)
 
 **Sade özet:** Küçük bir sinir ağı son birkaç günün mumlarına bakıp "fiyat önce 3 birim yukarı mı gider, önce 1,5 birim aşağı mı" sorusuna olasılık verir; yüksekse kol işlem açar. Model başka makinede eğitilir, sunucuya yalnız küçük ağırlık dosyası gider. Dürüst beklenti: yalnız mumla derin öğrenme çoğu zaman mevcut modeli geçmez; bu bir denemedir, kaldırma eşikleri baştan yazılı.
 
 - **Veri:** `var/history/*.feather`. Uyarı: bulut kopyasında yalnız 10 kripto var; 43 enstrümanın geçmişi sunucuda doğrulanmalı. Eğitim 2026-05-01 öncesinde biter (+ 2026-11-01 sonrası); 6 aylık boşluk = rejim kayması riski.
 - **Model:** küçük 1D-CNN/TCN (~30-50 bin parametre), son 96 saat × ~8 kanal, tüm enstrümanlar tek havuz. Çıktı: long/short "hedef stoptan önce" olasılığı (M1 etiketi) + ikincil 4 saatlik oynaklık başı. ONNX yok (bağımlılık kilidi, motor torch alamaz); eğitim PyTorch dışarıda, ağırlık JSON/npz paketi, sunucuda saf numpy ileri geçiş (sha256 + son kullanma).
-- **Nerede:** eğitim GitHub Action aylık (KARAR-4), çıkarım sunucuda kol içinde (< 10 MB).
-- **Doğrulama:** `trader_ml/walkforward.py` (purge = ufuk, embargo), `assert_pre_holdout`; ölçekleme yalnız eğitim diliminden; aynı saat tüm enstrümanlar aynı dilimde. Yayın kapısı: en üst %2 puanlı adaylarda masraf sonrası ort. R > 0 ve dilimlerin ≥ %60'ı pozitif; numpy-PyTorch farkı < 1e-5.
+- **Nerede:** eğitim GitHub Action'da her gece (KARAR-4'ün aylık/haftalık ifadesi 23.11'de günlüğe çevrildi; 24.11'de dört zaman dilimi), çıkarım sunucuda kol içinde (paket başına < 10 MB).
+- **Doğrulama:** `trader_ml/walkforward.py` (purge = ufuk, embargo), `assert_pre_holdout`; ölçekleme yalnız eğitim diliminden; aynı saat tüm enstrümanlar aynı dilimde. Kalite kapısı (24.11: yalnız bilgi, yayını engellemez): en üst %2 puanlı adaylarda masraf sonrası ort. R > 0 ve dilimlerin ≥ %60'ı pozitif; numpy-PyTorch farkı < 1e-5 (bütünlük, engeller).
 - **Giriş:** eşik = eğitim puanlarının %98'liği; stop/hedef/zaman etiketle aynı; M1 ile çakışmada `PRIORITY = 95`.
-- **Canlı:** paket depoda (`models/dl1/DL1@1h.json`), otomatik güncellemeyle iner; son kullanma 45 gün; yok/eski/hash tutmuyor → kol aday üretmez. Sağlıkta paket yaşı.
+- **Canlı:** paket depoda (zaman dilimi başına `models/dl1/DL1@<tf>.json`), otomatik güncellemeyle iner; yok/bozuk/hash tutmuyor → o zaman diliminde kol aday üretmez. Sağlıkta paket yaşı (en eski paket).
+- **24.11 kullanıcı kararı (bu bölümde önceki "kapı + iyileşme" ve "45 gün" kuralları geçersiz):** (1) DL1 kâğıtta ve canlıda 43 enstrümanın hepsinde **dört zaman diliminde** açık (15m, 1h, 4h, 1d); her zaman diliminin kendi modeli/paketi vardır, ağ ve kanallar aynı, "mum" = o zaman diliminin mumu (pencere 96, ufuk 48 mum; stop 1,5 ATR, hedef 3 ATR, zaman stopu 48 mum; her zaman diliminde eğitim etiketi canlı kuralla aynı). Karar, her zaman diliminin kendi son kapanmış mumunda verilir (M1 ile aynı). (2) **Kalite kapısı yayını engellemez:** her gece eğitilen en yeni paket otomatik yayınlanır; kapı/metrikler yalnız rapora ve özete yazılır; kapıyı geçmemiş paket de işlem yapar, sınıf elemesi yoktur (kapsam = 43 enstrümanın hepsi). Paket bütünlüğü (hash, biçim, numpy-PyTorch parite) engel olmaya devam eder. (3) **45 günlük son kullanma engel değildir:** eski paket işlem yapmaya devam eder; yalnız uyarı sayacı, günlük kaydı ve sağlık uyarısı (`dl1_paket_eski`) üretir. (4) **Zamanlama:** M1 gece eğitimi 00:40 UTC (03:40 TSI), DL1 eğitimi 01:00 UTC (04:00 TSI) arka arkaya; yedek cron 02:00 UTC (o UTC gününde başarılı DL1 koşusu varsa eğitimsiz erken çıkar; GitHub schedule güvenilir değil). Her gece eğitilebilen tüm paketler dala itilir ve `tests.yml` çalıştırılır.
+- **Eğitim veri pencereleri ve süre (24.11):** tek iş, zaman dilimi başına ayrı adım (ucuzdan pahalıya 1d, 4h, 1h, 15m; her adımın kendi zaman aşımı: 20/40/80/110 dk, iş 330 dk; bir adım düşse diğerleri çalışır). 1h/4h/1d: 2021-01'den, walk-forward 365/120/120 gün (genişleyen, test en az 30 gün); 1d'de ilk dilimin eğitimi ~170 gün × 43 çift (ilk 192 gün pencere + hacim ısınması). 15m çok mum olduğu için (43 çift × ~35 bin mum/yıl) 2024-01'den ve daha kısa dilimlerle: 180/60/60 gün (min test 15 gün). Örnek tavanları her zaman diliminde aynı (dilim başına 120 bin, nihai 300 bin), bu yüzden 4h/1d ucuzdur; süre esas olarak 1h ve 15m'dedir. Purge = ufuk + 24 = 72 mum, embargo 24 mum (mum biriminde).
 - **Başarı:** asgari 100 işlem. TUT: ort. R ≥ +0,05 VE rastgele yüzdelik ≥ 70 VE M1@1h'den kötü değil. KALDIR: 100'de ort. R < 0, 60'ta ≤ −0,15, ya da toplam ≤ −15 R.
 - **Maliyet:** 0 $ LLM. **Emek:** 10-14 gün.
 

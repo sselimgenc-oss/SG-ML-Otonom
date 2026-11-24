@@ -1,20 +1,29 @@
-# DL1@1h gunluk egitim (ust lig derin ogrenme kolu; tasarim fikirler/pazartesi-23-11/ust-lig-tasarim.md bolum 2/6; kullanici karari 23.11:
-# her gun egitim, yeni paket yalniz kapiyi gecer VE mevcuttan belirgin iyiyse yayinlanir).
-# Yalniz cron + elle (workflow_dispatch) tetiklenir; push/pull_request ile TETIKLENMEZ (sonsuz dongu yok: paketi bu is dala yazar, tests.yml
-# trader/models/** degisince kosar, tests.yml bu isi tetiklemez). PyTorch YALNIZ burada pip ile kurulur (trader requirements kilidine eklenmez).
+# DL1 gece egitimi, DORT zaman dilimi (15m, 1h, 4h, 1d; ust lig derin ogrenme kolu; tasarim fikirler/pazartesi-23-11/ust-lig-tasarim.md bolum 2/6).
+# 24.11 kullanici karari: (1) kalite kapisi yayini ENGELLEMEZ: her gece egitilen en yeni paket (zaman dilimi basina models/dl1/DL1@<tf>.json) otomatik yayinlanir,
+# kapi/metrikler yalniz ozete yazilir; (2) M1 (sunucu, trader-ml-retrain.timer 00:40 UTC) ve DL1 (burasi, 01:00 UTC = 04:00 TSI) gece arka arkaya egitilir.
+# Zamanlama: ana cron 01:00 UTC; yedek cron 02:00 UTC (GitHub schedule guvenilir degil; 23.11'de 06:20 kosusu hic tetiklenmedi). Yedek kosu, o UTC gunu basarili
+# bir DL1 kosusu varsa egitim yapmadan erken cikar (kontrol isi; research/dl1/gunluk_kontrol.py). Elle (workflow_dispatch) her zaman egitir.
+# Yalniz cron + elle tetiklenir; push/pull_request ile TETIKLENMEZ (sonsuz dongu yok: paketi bu is dala yazar, tests.yml trader/models/** degisince kosar,
+# tests.yml bu isi tetiklemez). PyTorch YALNIZ burada pip ile kurulur (trader requirements kilidine eklenmez).
 # NOT: cron yalniz varsayilan dalda (main) calisir; bu dosya main'de de bulunmali. Is, kodu ve paketi claude/charming-hawking-ab5w5q dalindan alir.
 # GITHUB_TOKEN itmesi baska is akislarini tetiklemez; bu yuzden itmeden sonra tests.yml elle (workflow_dispatch) calistirilir
 # (oto_guncelle yalniz tests.yml'in o dalda basarili kosusunu bekler).
+# Sure butcesi (isin zaman asimi 330 dk; GitHub siniri 360): zaman dilimi basina AYRI adim ve adim zaman asimi; ucuzdan pahaliya (1d, 4h, 1h, 15m). Bir adim hata
+# verse ya da zaman asimina ugrasa DIGERLERI calisir; itme adimi egitilebilen paketleri yine iter. Adim zaman asimlari: 1d 20, 4h 40, 1h 80, 15m 110 dk
+# (toplam 250) + kurulum/duman ~15 dk. Veri pencereleri (research/dl1/cekirdek.py AYARLAR): 1h/4h/1d 2021-01'den (walk-forward 365/120/120 gun);
+# 15m cok mum oldugu icin 2024-01'den (180/60/60 gun). Egitim ornek tavanlari tum zaman dilimlerinde ayni (dilim basina 120 bin, nihai 300 bin), bu yuzden
+# 4h ve 1d ucuzdur; sure esas olarak 1h ve 15m'dedir.
 name: dl1-egitim
 
 on:
   schedule:
-    - cron: "20 6 * * *"      # her gun 06:20 UTC (borsa sakin saat)
+    - cron: "0 1 * * *"       # ana: her gun 01:00 UTC (04:00 TSI; M1 sunucu egitimi 00:40 UTC'de biter/baslar)
+    - cron: "0 2 * * *"       # yedek: ana kosu basarili olmadiysa (tetiklenmediyse) 02:00 UTC'de dener
   workflow_dispatch:
 
 permissions:
   contents: write            # paketi dala itmek
-  actions: write             # itmeden sonra tests.yml'i workflow_dispatch ile calistirmak
+  actions: write             # itmeden sonra tests.yml'i workflow_dispatch ile calistirmak; gh run list (yedek kontrolu)
 
 concurrency:
   group: dl1-egitim
@@ -24,9 +33,37 @@ env:
   DAL: claude/charming-hawking-ab5w5q
 
 jobs:
-  egit:
+  kontrol:
+    # Yedek (02:00) kosu: bugun (UTC) basarili bir DL1 kosusu varsa egitimi atla. Ana kosu ve elle tetikleme her zaman egitir.
     runs-on: ubuntu-24.04
-    timeout-minutes: 150
+    timeout-minutes: 5
+    outputs:
+      atla: ${{ steps.kontrol.outputs.atla }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ env.DAL }}
+          persist-credentials: false
+
+      - name: "Yedek tetik denetimi (bugun basarili kosu var mi?)"
+        id: kontrol
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OLAY: ${{ github.event_name }}
+          CRON: ${{ github.event.schedule }}
+        run: |
+          if [ "$OLAY" = "schedule" ] && [ "$CRON" = "0 2 * * *" ]; then
+            gh run list --workflow dl1-egitim.yml --status success --limit 30 --json databaseId,createdAt,conclusion --repo "$GITHUB_REPOSITORY" > "$RUNNER_TEMP/runs.json"
+            python3 trader/research/dl1/gunluk_kontrol.py --bugun "$(date -u +%F)" --kendi-id "$GITHUB_RUN_ID" < "$RUNNER_TEMP/runs.json" | tee -a "$GITHUB_OUTPUT"
+          else
+            echo "atla=0" >> "$GITHUB_OUTPUT"
+          fi
+
+  egit:
+    needs: kontrol
+    if: needs.kontrol.outputs.atla != '1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 330
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -51,33 +88,80 @@ jobs:
           pip install --require-hashes -r requirements.lock
           pip install "torch==2.8.0" --index-url https://download.pytorch.org/whl/cpu
 
-      - name: "Duman (sentetik: egitim + numpy-PyTorch parite + paket turu)"
+      - name: "Duman (sentetik, dort zaman dilimi: egitim + numpy-PyTorch parite + paket turu)"
         working-directory: trader
         run: python research/dl1/duman.py
 
-      - name: Egitim (Vision indir, walk-forward, kapi, yayin karari)
-        id: egit
+      - name: "Egitim 1d (kapi bilgi; yayin engellenmez)"
+        id: egit_1d
+        continue-on-error: true
+        timeout-minutes: 20
         working-directory: trader
-        run: python research/dl1/egit.py --kesim "$(date -u +%F)" --cikti models/dl1 --rapor var/dl1_rapor
+        run: python research/dl1/egit.py --tf 1d --kesim "$(date -u +%F)" --cikti models/dl1 --rapor var/dl1_rapor
 
-      - name: Ozet (karar ve iki modelin metrikleri)
-        if: always()
+      - name: "Egitim 4h (kapi bilgi; yayin engellenmez)"
+        id: egit_4h
+        continue-on-error: true
+        timeout-minutes: 40
+        working-directory: trader
+        run: python research/dl1/egit.py --tf 4h --kesim "$(date -u +%F)" --cikti models/dl1 --rapor var/dl1_rapor
+
+      - name: "Egitim 1h (kapi bilgi; yayin engellenmez)"
+        id: egit_1h
+        continue-on-error: true
+        timeout-minutes: 80
+        working-directory: trader
+        run: python research/dl1/egit.py --tf 1h --kesim "$(date -u +%F)" --cikti models/dl1 --rapor var/dl1_rapor
+
+      - name: "Egitim 15m (kapi bilgi; yayin engellenmez)"
+        id: egit_15m
+        continue-on-error: true
+        timeout-minutes: 110
+        working-directory: trader
+        run: python research/dl1/egit.py --tf 15m --kesim "$(date -u +%F)" --cikti models/dl1 --rapor var/dl1_rapor
+
+      - name: Ozet (karar ve metrikler; zaman dilimi basina)
+        if: ${{ !cancelled() }}
         run: |
-          if [ -f trader/var/dl1_rapor/dl1_rapor.md ]; then cat trader/var/dl1_rapor/dl1_rapor.md >> "$GITHUB_STEP_SUMMARY"; else echo "DL1 raporu uretilmedi (egitim hatasi)" >> "$GITHUB_STEP_SUMMARY"; fi
+          for tf in 1d 4h 1h 15m; do
+            f="trader/var/dl1_rapor/dl1_rapor_${tf}.md"
+            if [ -f "$f" ]; then cat "$f" >> "$GITHUB_STEP_SUMMARY"; else echo "DL1@${tf} raporu uretilmedi (egitim hatasi ya da zaman asimi)" >> "$GITHUB_STEP_SUMMARY"; fi
+          done
 
-      - name: Paketi dala it (yalniz kapi + iyilesme kosulu saglandiysa)
+      - name: Paketleri dala it (egitilebilen her paket; kapi/iyilesme kosulu YOK)
         id: it
-        if: steps.egit.outputs.paket_yazildi == '1'
+        if: ${{ !cancelled() }}
         run: |
           git config user.name "dl1-egitim"
           git config user.email "dl1-egitim@users.noreply.github.com"
-          git add trader/models/dl1/DL1@1h.json
-          git commit -m "DL1 paket: $(date -u +%F)"
-          git pull --rebase origin "$DAL"
-          git push origin "HEAD:$DAL"
+          git add trader/models/dl1/DL1@*.json
+          if git diff --cached --quiet; then
+            echo "Yeni/degisen paket yok; itme yapilmadi"
+            echo "itildi=0" >> "$GITHUB_OUTPUT"
+          else
+            git commit -m "DL1 paketleri: $(date -u +%F)"
+            git pull --rebase origin "$DAL"
+            git push origin "HEAD:$DAL"
+            echo "itildi=1" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: tests.yml'i calistir (paket motoru etkiler; token itmesi tetiklemez)
-        if: steps.it.outcome == 'success'
+        if: steps.it.outputs.itildi == '1'
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run tests.yml --ref "$DAL" --repo "$GITHUB_REPOSITORY"
+
+      - name: Egitim hatalarini bildir (hata varsa is kirmizi; paketler yine itildi)
+        if: ${{ !cancelled() }}
+        env:
+          SONUC_1D: ${{ steps.egit_1d.outcome }}
+          SONUC_4H: ${{ steps.egit_4h.outcome }}
+          SONUC_1H: ${{ steps.egit_1h.outcome }}
+          SONUC_15M: ${{ steps.egit_15m.outcome }}
+        run: |
+          kotu=0
+          for kv in "1d=$SONUC_1D" "4h=$SONUC_4H" "1h=$SONUC_1H" "15m=$SONUC_15M"; do
+            echo "DL1@${kv%%=*}: ${kv#*=}"
+            if [ "${kv#*=}" != "success" ]; then kotu=1; fi
+          done
+          exit $kotu

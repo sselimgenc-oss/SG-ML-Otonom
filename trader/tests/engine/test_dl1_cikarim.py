@@ -117,13 +117,17 @@ def test_paket_gecerli_ve_son_kullanma(tmp_path):
     assert neden is None and p.esik == 0.5 and p.siniflar["NVDA/USDT"] == 1
     p2, n2 = DL.paket_yukle(yol, T0 + timedelta(days=43.5))
     assert n2 is None
-    assert DL.paket_yukle(yol, T0 - timedelta(days=1) + timedelta(days=45)) == (None, "eski")
+    # 24.11: 45 gun yalniz YAS UYARISI; eski paket yine yuklenir (aday uretir), Paket.eski() True doner
+    p3, n3 = DL.paket_yukle(yol, T0 - timedelta(days=1) + timedelta(days=45))
+    assert n3 is None and p3 is not None and p3.eski(T0 - timedelta(days=1) + timedelta(days=45)) and not p.eski(T0)
+    assert DL.paket_yukle(yol, T0 + timedelta(days=400))[1] is None
 
 
 def test_son_kullanma_alani_uzatilsa_da_45_gun_tavan(tmp_path):
     ol = T0 - timedelta(days=1)
     yol = S.yaz(tmp_path / "p.json", S.paket_sozlugu(ol, son=ol + timedelta(days=400)))
-    assert DL.paket_yukle(yol, ol + timedelta(days=46)) == (None, "eski")
+    p, neden = DL.paket_yukle(yol, ol + timedelta(days=46))
+    assert neden is None and p.eski(ol + timedelta(days=46)) and p.son_kullanma == ol + timedelta(days=45)
 
 
 @pytest.mark.parametrize("neden,degis", [
@@ -140,7 +144,7 @@ def test_paket_bozuk_reddedilir(tmp_path, neden, degis):
 def test_paket_yok_bozuk_json_buyuk_kapi_kanal_agirlik(tmp_path):
     assert DL.paket_yukle(tmp_path / "yok.json", T0) == (None, "yok")
     assert DL.paket_yukle(S.yaz(tmp_path / "a.json", "{bozuk"), T0) == (None, "bozuk")
-    assert DL.paket_yukle(S.yaz(tmp_path / "b.json", S.paket_sozlugu(T0, kapi=False)), T0) == (None, "kapi")
+    assert DL.paket_yukle(S.yaz(tmp_path / "b.json", S.paket_sozlugu(T0, kapi=False)), T0)[1] is None     # 24.11: kapi.gecti False engellemez
     assert DL.paket_yukle(S.yaz(tmp_path / "c.json", S.paket_sozlugu(T0, kanallar=["x"])), T0) == (None, "kanal")
     p = S.paket_sozlugu(T0)
     p["agirliklar"]["c1.w"]["veri"] = p["agirliklar"]["c1.w"]["veri"][:-1]
@@ -162,12 +166,40 @@ def test_paket_boyutu_10mb_alti(tmp_path):
     assert np.allclose(p.agirlik["c2.w"], np.round(ag["c2.w"], 7))
 
 
+def test_arm_id_ve_paket_yolu_dort_zaman_dilimi():
+    from trader_core.arm_time import ARM_TF_SECONDS
+    assert DL.ZAMAN_DILIMLERI == ("15m", "1h", "4h", "1d")
+    assert {tf: ns // 1_000_000_000 for tf, ns in DL.BAR_NS.items()} == ARM_TF_SECONDS
+    assert DL.arm_id("15m") == "DL1@15m" and DL.paket_yolu("1d").name == "DL1@1d.json" and DL.paket_yolu().name == "DL1@1h.json" == DL.PAKET_YOLU.name
+    with pytest.raises(ValueError):
+        DL.arm_id("2h")
+
+
+@pytest.mark.parametrize("tf", DL.ZAMAN_DILIMLERI)
+def test_paket_zaman_dilimine_baglidir(tmp_path, tf):
+    yol = S.yaz(tmp_path / "p.json", S.paket_sozlugu(T0 - timedelta(days=1), tf=tf))
+    p, neden = DL.paket_yukle(yol, T0, tf=tf)
+    assert neden is None and p.tf == tf
+    diger = "1h" if tf != "1h" else "4h"
+    DL._ONBELLEK.update(key=None)
+    assert DL.paket_yukle(yol, T0, tf=diger) == (None, "sema")            # baska zaman diliminin paketi bu dosyada kabul edilmez
+
+
+def test_doluluk_orani_mum_biriminde_dort_zaman_dilimi():
+    for tf, ns in DL.BAR_NS.items():
+        ok2 = DL.pencere_doluluk_ok((np.arange(96) * 2 * ns).astype(np.int64), bar_ns=ns)[-1]      # her 2 mumda 1 dolu: %50 -> gecer
+        ok3 = DL.pencere_doluluk_ok((np.arange(96) * 3 * ns).astype(np.int64), bar_ns=ns)[-1]      # her 3 mumda 1: gecmez
+        assert ok2 and not ok3, tf
+
+
 def test_paket_yasi(tmp_path):
     yol = S.yaz(tmp_path / "p.json", S.paket_sozlugu(T0 - timedelta(days=10)))
     d, yas, kalan = DL.paket_yasi_gun(yol, T0)
     assert d == "ok" and yas == pytest.approx(10) and kalan == pytest.approx(35)
     assert DL.paket_yasi_gun(tmp_path / "yok", T0)[0] == "yok"
     assert DL.paket_yasi_gun(S.yaz(tmp_path / "x.json", "{"), T0)[0] == "bozuk"
+    d, yas, kalan = DL.paket_yasi_gun(S.yaz(tmp_path / "e.json", S.paket_sozlugu(T0 - timedelta(days=60))), T0)
+    assert d == "eski" and kalan < 0                                             # 45 gunden yasli: durum eski (saglik uyarisi); paket yine yuklenir
 
 
 # ------------------------------------------------------------------------------------------- puanla

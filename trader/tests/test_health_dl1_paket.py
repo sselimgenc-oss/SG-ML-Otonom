@@ -34,11 +34,11 @@ def test_taze_ok_ve_yas_satiri():
     assert r.status is H.Status.OK and "3.0 gun" in r.detail
 
 
-def test_yaklasiyor_ve_eski_warn():
-    r = _ev(_p(40, 5))
-    assert r.status is H.Status.WARN and r.code == "dl1_paket_yaklasiyor"
+def test_eski_warn_ama_islem_durmaz_yaklasiyor_yok():
+    """24.11: son kullanma paketi durdurmaz; 45 gunden yasli -> WARN `dl1_paket_eski` (metin 'islem yapmaya devam'), yaklasirken uyari yok."""
+    assert _ev(_p(40, 5)).status is H.Status.OK
     r = _ev(_p(46, -1))
-    assert r.status is H.Status.WARN and r.code == "dl1_paket_eski"
+    assert r.status is H.Status.WARN and r.code == "dl1_paket_eski" and "devam" in r.detail and "durdu" not in r.detail
     assert _ev(_p(38, 7.5)).status is H.Status.OK
 
 
@@ -61,9 +61,12 @@ def test_probe_dl1_paket(tmp_path):
     d = tmp_path / "models" / "dl1"
     d.mkdir(parents=True)
     S.yaz(d / "DL1@1h.json", S.paket_sozlugu(NOW - timedelta(days=2)))
+    assert m.probe_dl1_paket(env).file_state == "missing"                       # dort zaman dilimi: biri eksikse eksik
+    for tf, yas in (("15m", 1), ("4h", 5), ("1d", 3)):
+        S.yaz(d / f"DL1@{tf}.json", S.paket_sozlugu(NOW - timedelta(days=yas), tf=tf))
     p = m.probe_dl1_paket(env)
-    assert p.file_state == "ok" and p.created_at == NOW - timedelta(days=2) and p.expires_at == NOW + timedelta(days=43)
-    S.yaz(d / "DL1@1h.json", "{bozuk")
+    assert p.file_state == "ok" and p.created_at == NOW - timedelta(days=5) and p.expires_at == NOW + timedelta(days=40)    # en eski paket
+    S.yaz(d / "DL1@4h.json", "{bozuk")
     assert m.probe_dl1_paket(env).file_state == "unreadable"
 
 
@@ -76,6 +79,6 @@ def test_dl1_kol_ayarda_yoksa_denetim_uretilmez(tmp_path):
     spec.loader.exec_module(m)
     (tmp_path / "engine.paper.json").write_text(json.dumps({"arms": ["T1@1h"]}), encoding="utf-8")
     assert m.dl1_kolda({"ENGINE_CONFIG_DIR": str(tmp_path)}) is False
-    (tmp_path / "engine.paper.json").write_text(json.dumps({"arms": ["T1@1h", "DL1@1h"]}), encoding="utf-8")
+    (tmp_path / "engine.paper.json").write_text(json.dumps({"arms": ["T1@1h", "DL1@4h"]}), encoding="utf-8")
     assert m.dl1_kolda({"ENGINE_CONFIG_DIR": str(tmp_path)}) is True
     assert m.dl1_kolda({"ENGINE_CONFIG_DIR": str(tmp_path / "yok")}) is True     # okunamazsa temkinli: denetle

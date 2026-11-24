@@ -3,6 +3,7 @@ Sentetik veri; ag/gercek veri yok."""
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -72,8 +73,7 @@ def test_etiket_hedef_once_stop_once_ayni_bar_zaman_asimi():
 
 def test_ufuk_canli_zaman_stopu_ile_ayni_ve_purge_yeterli():
     from trader_core import signals
-    from trader_ml.config import HORIZON_BARS
-    assert DL.UFUK == signals.TIME_STOP_BARS == 48 and HORIZON_BARS >= DL.UFUK + 24
+    assert DL.UFUK == signals.TIME_STOP_BARS == 48 and C.PURGE_MUM == DL.UFUK + 24 == 72 and C.EMBARGO_MUM == 24
 
 
 def test_etiket_ufuk_ve_gozlenmemis_ufuk_gecersiz():
@@ -143,6 +143,8 @@ def test_simule_masraf_enstruman_bazli():
 def test_maliyet_ve_cikis_kipleri_config_ile_ayni():
     m = C.maliyet_tablosu()
     assert len(m) == 43 and m["BTC/USDT"] == pytest.approx((0.0005, 2e-4, 2e-4, 5e-4)) and m["NVDA/USDT"] == pytest.approx((0.0005, 4e-4, 4e-4, 10e-4))
+    for tf in DL.ZAMAN_DILIMLERI:
+        assert C.cikis_kipleri(tf=tf).breakeven                                  # DL1 icin tum zaman dilimlerinde ortak varsayilan
     k = C.cikis_kipleri()
     assert k.breakeven and k.partial and (k.be_trigger_r, k.be_offset_bps, k.pt_trigger_r, k.pt_frac) == (1.0, 15.0, 1.5, 0.5)
 
@@ -176,10 +178,7 @@ def test_seyrek_pencere_ornek_vermez():
 # ------------------------------------------------------------------------------------------- walk-forward
 @pytest.fixture
 def kucuk(monkeypatch):
-    monkeypatch.setattr(C, "TRAIN_BARS", 24 * 40)
-    monkeypatch.setattr(C, "TEST_BARS", 24 * 10)
-    monkeypatch.setattr(C, "STEP_BARS", 24 * 10)
-    monkeypatch.setattr(C, "MIN_TEST_BARS", 24 * 5)
+    monkeypatch.setitem(C.AYARLAR, "1h", C.TfAyar("1h", "2025-01", 40, 10, 10, 5))
     monkeypatch.setattr(C, "ESIK_ORNEK", 3000)
     monkeypatch.setattr(C, "EGIT_TAVAN_FOLD", 3000)
     seri = {f"P{k}/USDT": _df(2200, tohum=k) for k in range(3)}
@@ -251,15 +250,16 @@ def test_kapi_sinif_eleme_ve_kapsam():
     k = C.kapi(dil)
     assert k["korunan"] == ["kripto"] and k["dusen"] == {"hisse": "ort_r_pozitif_degil", "emtia": "aday_az"}
     assert k["gecti"] is True and k["toplam_ort_r"] == pytest.approx(0.2) and k["toplam_aday"] == 100       # tum sinif ortalamasi (negatif) kapiyi bozmaz
-    # paket kapsami: yalniz korunan sinif ciftleri
+    # 24.11: kapi YALNIZ metrik; paket kapsami TUM egitilen ciftlerdir (sinif elemesi yok)
     ag = C.ilk_ag(1)
     sn = {"A/USDT": 0, "NVDA/USDT": 1, "XAU/USDT": 2}
     p = C.paket_kur(ag, np.zeros(DL.N_KANAL), np.ones(DL.N_KANAL), 0.7, sn, k, datetime(2026, 11, 24, tzinfo=UTC), {})
-    assert p["kapsam"]["siniflar"] == {"A/USDT": 0}
+    assert p["kapsam"]["siniflar"] == sn
 
 
 def test_aday_sec_cift_basina_ufukta_bir_en_iyi_yon():
     class V:  # yalniz aday_sec'in kullandigi alanlar
+        bar_ns = H
         ts = np.array([0, 1, 2, 47, 48, 49, 100, 0, 1]) * H
         cift = np.array([0, 0, 0, 0, 0, 0, 0, 1, 1], dtype=np.int16)
     rows = np.arange(9)
@@ -270,57 +270,13 @@ def test_aday_sec_cift_basina_ufukta_bir_en_iyi_yon():
     assert sorted(zip(pos.tolist(), yon.tolist())) == [(0, 0), (4, 0), (6, 1), (8, 1)]
 
 
-Y = {"n": 100, "ort_r": 0.30, "std": 1.0}
-M = {"n": 100, "ort_r": 0.20, "std": 1.0}
-
-
-@pytest.mark.parametrize("gecti,mevcut,kalan,gecen,rm,ry,yayin,neden", [
-    (False, "yok", None, None, None, None, False, "kapi_gecmedi"),
-    (False, "gecerli", 3.0, 40.0, M, Y, False, "kapi_gecmedi"),                  # kapi gecmediyse suresi yakin olsa da yayin yok
-    (True, "yok", None, None, None, None, True, "mevcut_yok"),
-    (True, "gecerli", 6.9, 2.0, M, {"n": 100, "ort_r": 0.0, "std": 1.0}, True, "mevcut_suresi_yakin"),   # <7 gun: iyilesme aranmaz
-    (True, "gecerli", 30.0, 13.9, M, {"n": 400, "ort_r": 0.9, "std": 1.0}, False, "karsilastirma_erken"),   # <14 gun gecmis: iyilesme yayini yok
-    (True, "gecerli", 30.0, 14.0, M, {"n": 400, "ort_r": 0.0, "std": 1.0}, False, "iyilesme_yok"),
-    (True, "gecerli", 30.0, 14.0, {"n": 400, "ort_r": 0.20, "std": 1.0}, {"n": 400, "ort_r": 0.26, "std": 1.0}, True, "iyilesme"),   # se_fark = sqrt(2)/20 = 0,0707 > 0,05 -> gerekli 0,0707: 0,06 yetmez
-    (True, "gecerli", 30.0, 14.0, M, {"n": 100, "ort_r": 0.9, "std": 1.0}, True, "iyilesme"),          # fark 0,7 >= max(0,05, 0,14)
-    (True, "gecerli", 30.0, 20.0, M, {"n": 29, "ort_r": 0.9, "std": 1.0}, False, "yetersiz_aday"),
-    (True, "gecerli", 30.0, 20.0, {"n": 29, "ort_r": 0.1, "std": 1.0}, Y, False, "yetersiz_aday"),     # mevcutta da n >= 30 sart
-    (True, "gecerli", 30.0, 20.0, M, None, False, "yetersiz_aday"),
-    (True, "gecerli", 30.0, 20.0, None, Y, False, "yetersiz_aday"),
-])
-def test_yayin_karari(gecti, mevcut, kalan, gecen, rm, ry, yayin, neden):
-    d = C.yayin_karari(gecti, mevcut, kalan, gecen, rm, ry)
-    if neden == "iyilesme" and rm["n"] == 400 and ry["ort_r"] == 0.26:
-        yayin = False
-        neden = "iyilesme_yok"
-    assert d["yayinla"] is yayin and d["neden"] == neden and d["esik_iyilesme"] == 0.05 and d["kars_min_gun"] == 14
-
-
-def test_yayin_karari_standart_hata_ve_esik_alt_siniri():
-    se = {"n": 10000, "ort_r": 0.20, "std": 1.0}
-    d = C.yayin_karari(True, "gecerli", 30.0, 20.0, se, {"n": 10000, "ort_r": 0.25, "std": 1.0})
-    assert d["yayinla"] and d["gerekli_fark"] == pytest.approx(0.05)                                   # se_fark = 0,014 < 0,05 -> sabit esik
-    d = C.yayin_karari(True, "gecerli", 30.0, 20.0, se, {"n": 10000, "ort_r": 0.249, "std": 1.0})
-    assert not d["yayinla"] and d["neden"] == "iyilesme_yok"
-
-
-def test_son_dilim_yalniz_olusturmadan_sonra_ve_ileriye_bakma_yok(kucuk):
-    v, kesim = kucuk
-    olus = kesim - pd.Timedelta(days=14)
-    tr, ev = C.son_dilim(v, olus)
-    assert len(ev) and len(tr) and (v.ts[ev] >= olus.value).all() and v.bitis[tr].max() < olus.value - 24 * H
-
-
-def test_aday_r_ve_mevcut_durum(kucuk, tmp_path):
-    v, kesim = kucuk
-    ag, (o, s) = C.ilk_ag(3), C.olcekleyici(v, np.arange(len(v.g)))
-    rows = np.arange(0, len(v.g), 4)                                           # (ayni zaman damgali ciftler ardisik: 3'luk adim tek cifti secerdi)
-    r = C.aday_r(v, rows, ag, o, s, 0.0)
-    assert 0 < r["n"] <= len(rows) and r["std"] is not None                  # esik 0: cift basina 48 saatte bir aday (ust uste binme yok)
-    assert C.aday_r(v, rows, ag, o, s, 1.1)["n"] == 0 and C.aday_r(v, rows, ag, o, s, 1.1)["ort_r"] is None
-    assert C.aday_r(v, rows, ag, o, s, 0.0, {"P0/USDT"})["n"] < r["n"]       # ciftler filtresi
-    now = datetime(2026, 11, 24, 6, 0, tzinfo=UTC)
-    assert C.mevcut_durum(tmp_path / "yok.json", now) == ("yok", None, None)
+def test_yayin_karari_kapi_engellemez():
+    """24.11 kullanici karari: kalite kapisi YAYINI ENGELLEMEZ; her gece en yeni paket yayinlanir (gecti True/False ve metrik bos olsa da)."""
+    for gecti in (True, False):
+        d = C.yayin_karari({"gecti": gecti, "toplam_ort_r": -1.0})
+        assert d["yayinla"] is True and d["kapi_gecti"] is gecti and d["neden"] == "otomatik_kapisiz"
+    assert C.yayin_karari({})["yayinla"] is True
+    assert not hasattr(C, "mevcut_durum") and not hasattr(C, "son_dilim") and not hasattr(C, "aday_r")        # iyilesme karsilastirmasi kaldirildi
 
 
 # ------------------------------------------------------------------------------------------- paket
@@ -336,11 +292,10 @@ def test_paket_kur_yaz_oku_idempotent(kucuk, tmp_path):
     pk, neden = DL.paket_yukle(yol, now + timedelta(days=1))
     assert neden is None and pk.esik == 0.7 and set(pk.siniflar) == set(v.siniflar)
     assert np.allclose(pk.agirlik["head.w"], np.round(ag["head.w"], 7))
-    d, kalan = C.mevcut_durum(yol, now + timedelta(days=1))[0], C.mevcut_durum(yol, now + timedelta(days=1))[2]
-    assert d == "gecerli" and kalan == pytest.approx(44.0)
     pk_kapi = C.paket_kur(ag, o, s, 0.7, v.siniflar, {"gecti": False, "toplam_ort_r": -1, "pozitif_oran": 0.1}, now, {})
     C.paket_yaz(pk_kapi, tmp_path / "k.json")
-    assert DL.paket_yukle(tmp_path / "k.json", now) == (None, "kapi")
+    pk2, neden2 = DL.paket_yukle(tmp_path / "k.json", now)                          # 24.11: kapi gecmemis paket de yuklenir (engellenmez)
+    assert neden2 is None and pk2 is not None and set(pk2.siniflar) == set(v.siniflar)
 
 
 def test_puanlar_motorla_ayni_ileri_gecis(kucuk):
@@ -354,16 +309,130 @@ def test_puanlar_motorla_ayni_ileri_gecis(kucuk):
 
 
 def test_workflow_ve_betik_sozlesmesi():
-    wf = "\n".join(x for x in (ROOT.parent / ".github" / "workflows" / "dl1-egitim.yml").read_text(encoding="utf-8").splitlines()
-                   if not x.lstrip().startswith("#"))
-    assert "schedule" in wf and "workflow_dispatch" in wf and "contents: write" in wf and "claude/charming-hawking-ab5w5q" in wf
-    assert "push:" not in wf.split("jobs:")[0] and "pull_request" not in wf.split("jobs:")[0]          # sonsuz dongu yok
-    assert "torch==" in wf and "DL1 paket:" in wf and "paket_yazildi" in wf
+    import yaml
+    yol = ROOT.parent / ".github" / "workflows" / "dl1-egitim.yml"
+    doc = yaml.safe_load(yol.read_text(encoding="utf-8"))               # gecerli YAML (':' iceren adlar tirnakli)
+    on = doc.get("on", doc.get(True))
+    crons = [x["cron"] for x in on["schedule"]]
+    assert crons == ["0 1 * * *", "0 2 * * *"] and "workflow_dispatch" in on          # 01:00 UTC ana, 02:00 UTC yedek
+    assert "push" not in on and "pull_request" not in on                               # sonsuz dongu yok
+    assert doc["permissions"]["contents"] == "write" and doc["env"]["DAL"] == "claude/charming-hawking-ab5w5q"
+    egit, kontrol = doc["jobs"]["egit"], doc["jobs"]["kontrol"]
+    assert 300 <= egit["timeout-minutes"] <= 360 and egit["needs"] == "kontrol" and "atla" in egit["if"]
+    adimlar = {a.get("id"): a for a in egit["steps"] if a.get("id")}
+    toplam = 0
+    for tf in DL.ZAMAN_DILIMLERI:
+        a = adimlar[f"egit_{tf}"]
+        assert f"--tf {tf}" in a["run"] and a["continue-on-error"] is True and "--cikti models/dl1" in a["run"]
+        toplam += a["timeout-minutes"]
+    assert toplam + 15 <= egit["timeout-minutes"]                                      # adim zaman asimlari + kurulum is zaman asimina sigar
+    it = adimlar["it"]
+    assert "!cancelled()" in it["if"] and "paket_yazildi" not in it["if"] and "DL1@*.json" in it["run"]   # kapi/iyilesme sarti YOK: egitilen her paket itilir
+    assert "push origin" in it["run"]
+    tst = [a for a in egit["steps"] if "tests.yml" in a.get("run", "")]
+    assert len(tst) == 1 and "itildi == '1'" in tst[0]["if"]
+    # yedek kosu bugun basarili kosu varsa atlar
+    kr = "\n".join(a.get("run", "") for a in kontrol["steps"])
+    assert "0 2 * * *" in kr and "gunluk_kontrol.py" in kr and "atla=0" in kr
+    wf = "\n".join(x for x in yol.read_text(encoding="utf-8").splitlines() if not x.lstrip().startswith("#"))
+    assert "torch==" in wf and "DL1 paketleri:" in wf
     t = (ROOT.parent / ".github" / "workflows" / "tests.yml").read_text(encoding="utf-8")
     assert "trader/models/**" in t
     assert "torch" not in (ROOT / "requirements.lock").read_text(encoding="utf-8").lower()
-    for ad in ("egit.py", "duman.py", "veri.py", "cekirdek.py"):
+    for ad in ("egit.py", "duman.py", "veri.py", "cekirdek.py", "gunluk_kontrol.py"):
         assert (ROOT / "research" / "dl1" / ad).exists()
+
+
+def test_gunluk_kontrol_yedek_kosu_mantigi():
+    import contextlib
+    import io
+
+    import gunluk_kontrol as G
+    bugun = "2026-11-25"
+    ana = {"databaseId": 11, "createdAt": "2026-11-25T01:03:00Z", "conclusion": "success"}
+    dun = {"databaseId": 10, "createdAt": "2026-11-24T01:03:00Z", "conclusion": "success"}
+    assert G.bugun_basarili_var([ana, dun], bugun, 12) is True                          # ana kosu basarili: yedek atlar
+    assert G.bugun_basarili_var([dun], bugun, 12) is False                               # yalniz dunku: yedek egitir (ana tetiklenmedi)
+    assert G.bugun_basarili_var([], bugun, 12) is False and G.bugun_basarili_var(None, bugun, 12) is False
+    assert G.bugun_basarili_var([ana], bugun, 11) is False                               # kendi kosusu sayilmaz
+    assert G.bugun_basarili_var([{**ana, "conclusion": "failure"}], bugun, 12) is False
+    for veri, beklenen in (("[]", "atla=0"), (json.dumps([ana]), "atla=1"), ("{bozuk", "atla=0")):
+        eski_stdin, sys.stdin = sys.stdin, io.StringIO(veri)
+        try:
+            with contextlib.redirect_stdout(io.StringIO()) as o:
+                G.main(["--bugun", bugun, "--kendi-id", "12"])
+        finally:
+            sys.stdin = eski_stdin
+        assert o.getvalue().strip() == beklenen
+
+
+def test_zaman_dilimi_ayarlari():
+    """Dort zaman dilimi icin veri penceresi: 15m kisa tarihce (cok mum), digerleri 2021'den; mum sayisi takvim gunune bagli."""
+    assert set(C.AYARLAR) == set(DL.ZAMAN_DILIMLERI)
+    assert C.AYARLAR["15m"].bas_ay == "2024-01" and C.AYARLAR["1h"].bas_ay == C.AYARLAR["4h"].bas_ay == C.AYARLAR["1d"].bas_ay == "2021-01"
+    assert C.AYARLAR["1h"].mum(365) == 365 * 24 and C.AYARLAR["15m"].mum(60) == 60 * 96 and C.AYARLAR["4h"].mum(120) == 720 and C.AYARLAR["1d"].mum(120) == 120
+    for tf in DL.ZAMAN_DILIMLERI:
+        assert C.AYARLAR[tf].bar_ns == DL.BAR_NS[tf]
+
+
+def _df_tf(tf, n, tohum=1):
+    rg = np.random.default_rng(tohum)
+    t = pd.date_range("2025-01-01", periods=n, freq={"15m": "15min", "1h": "h", "4h": "4h", "1d": "D"}[tf], tz="UTC").as_unit("ms")
+    c = 100 * np.exp(np.cumsum(rg.normal(0, 0.004, n)))
+    o = np.r_[c[0], c[:-1]]
+    h = np.maximum(o, c) * (1 + rg.uniform(0.0005, 0.003, n))
+    l = np.minimum(o, c) * (1 - rg.uniform(0.0005, 0.003, n))
+    return pd.DataFrame({"date": t, "open": o, "high": h, "low": l, "close": c, "volume": rg.uniform(10, 100, n)})
+
+
+@pytest.mark.parametrize("tf", ["15m", "4h", "1d"])
+def test_diger_zaman_dilimlerinde_ornek_etiket_ve_dilimler(tf, monkeypatch):
+    """15m/4h/1d: karar zamani = mum acilisi + 1 mum; ufuk 48 MUM; walk-forward o zaman diliminin izgarasinda, purge/embargo mum biriminde."""
+    ns = DL.BAR_NS[tf]
+    n = {"15m": 5000, "4h": 1500, "1d": 1000}[tf]
+    X, t = C.cift_ornekleri(_df_tf(tf, n), 0, bar_ns=ns)
+    assert len(t["i"]) > 0.5 * n and (np.diff(t["ts"]) == ns).all()                     # ardisik dolu mumlar: karar zamani adimi = mum suresi
+    ts0 = pd.Timestamp("2025-01-01", tz="UTC").value
+    assert t["ts"][0] == ts0 + (t["i"][0] + 1) * ns and t["ts"][-1] + (DL.UFUK - 1) * ns <= ts0 + n * ns
+    g = {"15m": C.TfAyar("15m", "2025-01", 20, 5, 5, 2), "4h": C.TfAyar("4h", "2025-01", 60, 20, 20, 10), "1d": C.TfAyar("1d", "2025-01", 100, 30, 30, 10)}[tf]
+    monkeypatch.setitem(C.AYARLAR, tf, g)
+    seri = {f"P{k}/USDT": _df_tf(tf, n, k) for k in range(2)}
+    v = C.veri_kur(seri, {p: i for i, p in enumerate(seri)}, bar_ns=ns)
+    assert v.bar_ns == ns and (v.bitis - v.ts == DL.UFUK * ns).all()
+    kesim = pd.Timestamp("2025-01-01", tz="UTC") + pd.Timedelta(ns, unit="ns") * n
+    fl = [f for f in C.foldlar(v, kesim) if len(f["test_rows"]) and len(f["train_rows"])]      # (yuru: orneksiz/bos dilimleri atlar; ilk ~192 mum isinma)
+    assert len(fl) >= 2
+    for f in fl:
+        t0 = pd.Timestamp(f["test_start"]).value
+        assert v.bitis[f["train_rows"]].max() < t0 - C.EMBARGO_MUM * ns and v.ts[f["train_rows"]].max() < t0
+        assert v.ts[f["test_rows"]].min() >= t0 and v.ts[f["test_rows"]].max() <= pd.Timestamp(f["test_end"]).value
+
+
+def test_paket_kur_dort_zaman_dilimi_arm_id_ve_tum_kapsam(tmp_path):
+    ag = C.ilk_ag(6)
+    sn = {"A/USDT": 0, "NVDA/USDT": 1, "XAU/USDT": 2}
+    now = datetime(2026, 11, 24, 6, 0, tzinfo=UTC)
+    for tf in DL.ZAMAN_DILIMLERI:
+        p = C.paket_kur(ag, np.zeros(DL.N_KANAL), np.ones(DL.N_KANAL), 0.7, sn, {"gecti": False, "toplam_ort_r": None, "pozitif_oran": 0.0, "korunan_idx": []}, now, {}, tf)
+        assert p["arm_id"] == f"DL1@{tf}" and p["tf"] == tf and p["kapsam"]["siniflar"] == sn and p["kapi"]["gecti"] is False
+        yol = tmp_path / f"DL1@{tf}.json"
+        assert C.paket_yaz(p, yol)
+        pk, neden = DL.paket_yukle(yol, now + timedelta(days=100), tf=tf)                 # kapisiz ve 100 gun yasli: yine yuklenir
+        assert neden is None and pk.tf == tf and pk.eski(now + timedelta(days=100))
+
+
+def test_veri_indir_url_plani_zaman_dilimine_gore(tmp_path, monkeypatch):
+    """15m/4h/1d: Vision yolu ve dosya adi zaman dilimini tasir (varsayilan 1h)."""
+    import veri as V
+    F = V.arac()
+    istekler = []
+    monkeypatch.setattr(F, "fetch_zip", lambda url, dest, req=False: (istekler.append(url), "missing")[1])
+    for tf in ("15m", "4h", "1d"):
+        istekler.clear()
+        V.indir(["BTC/USDT"], "2026-09", datetime(2026, 11, 23).date(), tmp_path, isci=1, log=lambda *_: None, tf=tf)
+        assert any(u.endswith(f"monthly/klines/BTCUSDT/{tf}/BTCUSDT-{tf}-2026-09.zip") for u in istekler)
+        assert any(u.endswith(f"daily/klines/BTCUSDT/{tf}/BTCUSDT-{tf}-2026-11-22.zip") for u in istekler)
+        assert not any("/1h/" in u for u in istekler)
 
 
 def test_veri_indir_url_plani_kilit_acik(tmp_path, monkeypatch):
@@ -400,3 +469,30 @@ def test_motor_puanla_egitim_puanlar_ayni(kucuk, tmp_path):
         motor = DL.puanla(paket, "P0/USDT", ts_ns[:k + 1], *a)
         egitim = C.puanlar(v, np.array([r]), ag, o, s)[0]
         assert motor is not None and motor[0] == pytest.approx(egitim[0], abs=1e-4) and motor[1] == pytest.approx(egitim[1], abs=1e-4)
+
+
+@pytest.mark.parametrize("tf", ["1h", "4h"])
+def test_egit_main_kapi_gecmese_de_paket_yazilir(tf, tmp_path, monkeypatch):
+    """Egitim betigi uctan uca (torch yerine numpy ilk agirlik, parite sahte): kapi GECMESE de paket yazilir, rapor + GITHUB_OUTPUT uretilir (24.11)."""
+    import egit as E
+    ns = DL.BAR_NS[tf]
+    n = {"1h": 2500, "4h": 1500}[tf]
+    monkeypatch.setitem(C.AYARLAR, tf, C.TfAyar(tf, "2025-01", 40 if tf == "1h" else 120, 10 if tf == "1h" else 30, 10 if tf == "1h" else 30, 5 if tf == "1h" else 10))
+    seri = {p: _df_tf(tf, n, k) for k, p in enumerate(["BTC/USDT", "NVDA/USDT", "XAU/USDT"])}
+    monkeypatch.setattr(E.V, "indir", lambda pairs, bas_ay, kesim, ham, tf="1h", **k: seri)
+    monkeypatch.setattr(E, "torch_trainer", lambda *a, **k: (lambda v, rows, ort, std, tohum: C.ilk_ag(tohum)))
+    monkeypatch.setattr(E, "parite", lambda *a, **k: {"n": 1, "max_fark_olasilik": 0.0, "max_fark_logit": 0.0})
+    monkeypatch.setattr(C, "ESIK_ORNEK", 3000)
+    monkeypatch.setattr(C, "EGIT_TAVAN_FOLD", 3000)
+    monkeypatch.setattr(C, "EGIT_TAVAN_SON", 5000)
+    cikti = tmp_path / "paketler" / "dl1"
+    out = tmp_path / "gh_out"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(out))
+    kesim = (pd.Timestamp("2025-01-01") + pd.Timedelta(ns, unit="ns") * n).date().isoformat()
+    assert E.main(["--tf", tf, "--kesim", kesim, "--cikti", str(cikti), "--rapor", str(tmp_path / "rapor")]) == 0
+    assert (cikti / f"DL1@{tf}.json").exists() and "paket_yazildi=1" in out.read_text()
+    rapor = json.loads((tmp_path / "rapor" / f"dl1_rapor_{tf}.json").read_text())
+    assert rapor["tf"] == tf and rapor["karar"]["yayinla"] is True and rapor["paket_yazildi"] is True
+    assert "(YALNIZ BILGI" in (tmp_path / "rapor" / f"dl1_rapor_{tf}.md").read_text()
+    pk, neden = DL.paket_yukle(cikti / f"DL1@{tf}.json", datetime.now(UTC) + timedelta(days=3), tf=tf)
+    assert neden is None and pk.tf == tf and set(pk.siniflar) == {"BTC/USDT", "NVDA/USDT", "XAU/USDT"}
