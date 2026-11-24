@@ -1,0 +1,15 @@
+# Derin denetim: is akisi claude/charming-hawking-ab5w5q dalindaki surumle (ref) elle calistirilir.
+# Bu dosya yalniz workflow_dispatch kaydi icin main'de durur.
+name: derin-denetim
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bilgi:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: echo "Bu is akisini ref=claude/charming-hawking-ab5w5q ile calistirin."
