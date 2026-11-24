@@ -1,24 +1,23 @@
 # İşlem mutabakatı
 
-Son kontrol: 2026-11-24 03:09 (TSİ). İşlem: 61 (kapanan 55, açık 6). Uyuşmazlık: 0.
+Son kontrol: 2026-11-24 07:40 (TSİ). İşlem: 69 (kapanan 62, açık 7). Uyuşmazlık: 0.
 
 ## Kontroller
 
 | Kontrol | Sonuç | Ayrıntı |
 |---|---|---|
-| Kasa = başlangıç + Σ net K/Z | geçti | Kasa 983,73 $ tutuyor |
-| Net K/Z: SQL toplamı = motor toplamı = brüt - komisyon - fonlama | geçti | Defter toplamları tutuyor (-15,19 $) |
+| Kasa = başlangıç + Σ net K/Z | geçti | Kasa 980,05 $ tutuyor |
+| Net K/Z: SQL toplamı = motor toplamı = brüt - komisyon - fonlama | geçti | Defter toplamları tutuyor (-18,62 $) |
 | Long toplamı (motor = panel) | geçti | Long işlemler panelle aynı (7 işlem) |
-| Short toplamı (motor = panel) | geçti | Short işlemler panelle aynı (48 işlem) |
-| Toplam kapanan (motor = panel 'tümü') | geçti | Kapanan işlemlerin toplamı panelle aynı (55 işlem) |
-| Açık pozisyon sayısı (motor = panel = şerit = durum) | geçti | 6 açık işlem, hepsi aynı |
-| Açık K/Z fiyat kaynağı (panel = motor mark) | geçti | Açık işlemlerin kâr/zararı panelle aynı; fiyat bekleniyor (piyasa kapalı/veri yok): #20, #39, #40, #80, #85 |
+| Short toplamı (motor = panel) | geçti | Short işlemler panelle aynı (55 işlem) |
+| Toplam kapanan (motor = panel 'tümü') | geçti | Kapanan işlemlerin toplamı panelle aynı (62 işlem) |
+| Açık pozisyon sayısı (motor = panel = şerit = durum) | geçti | 7 açık işlem, hepsi aynı |
+| Açık K/Z fiyat kaynağı (panel = motor mark) | geçti | Açık işlemlerin kâr/zararı panelle aynı |
 | Günlük zarar limiti oranı (panel = kâğıt ayarı) | geçti | Günlük zarar limiti %8,00 (panelle aynı) |
 
 ## Bilgi
 
-- Açık işlemlerin anlık kâr/zararı: kasada -14,56 $, panelde +0,30 $ · fark 14,86 $ (fiyat zamanlaması, uyuşmazlık sayılmaz)
-- Fiyatı gelmeyen açık işlemler: #20, #39, #40, #80, #85 · fiyat bekleniyor (piyasa kapalı/veri yok); uyuşmazlık sayılmaz
+- Açık işlemlerin anlık kâr/zararı: kasada -20,58 $, panelde -20,71 $ · fark 0,13 $ (fiyat zamanlaması, uyuşmazlık sayılmaz)
 
 ## Telegram kaynağı
 
@@ -91,5 +90,13 @@ Yok.
 | 81 | Sıkışma kırılımı · 15 dakika | WMT | long | kapalı | 2026-11-23 12:15 | 2026-11-23 17:00 | 127,960000 | 127,970000 | 0,0588 | 0,7524 | 0,0000 | -0,6936 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 82 | Sıkışma kırılımı · 15 dakika | ADA | short | kapalı | 2026-11-23 14:00 | 2026-11-23 16:56 | 0,145700 | 0,147600 | -4,6930 | 0,3622 | 0,0000 | -5,0552 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 83 | Sıkışma kırılımı · 15 dakika | HD | short | kapalı | 2026-11-23 17:00 | 2026-11-23 17:15 | 343,650000 | 343,090000 | 1,1648 | 0,7142 | 0,0000 | 0,4506 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
-| 84 | Trend geri çekilmesi · 15 dakika | BTC | short | açık | 2026-11-24 02:45 | — | 61.133,400000 | — | — | 0,4585 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
-| 85 | Yapay zekâ adayı · 15 dakika | XRP | short | açık | 2026-11-24 02:45 | — | 0,937500 | — | — | 0,2406 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
+| 84 | Trend geri çekilmesi · 15 dakika | BTC | short | kapalı | 2026-11-24 02:45 | 2026-11-24 04:10 | 61.133,400000 | 61.689,300000 | -8,3385 | 0,9212 | -0,0261 | -9,2335 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
+| 85 | Yapay zekâ adayı · 15 dakika | XRP | short | kapalı | 2026-11-24 02:45 | 2026-11-24 03:41 | 0,937500 | 0,945600 | -4,1577 | 0,4833 | 0,0616 | -4,7026 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
+| 86 | Yapay zekâ adayı · 15 dakika | TRX | short | kapalı | 2026-11-24 03:45 | 2026-11-24 04:34 | 0,311020 | 0,310710 | 0,9576 | 0,9603 | 0,0000 | -0,0027 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
+| 87 | Yapay zekâ adayı · 15 dakika | ETH | short | kapalı | 2026-11-24 04:15 | 2026-11-24 05:15 | 1.718,010000 | 1.706,470000 | 3,1735 | 0,4709 | 0,0000 | 2,7026 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
+| 88 | Yapay zekâ adayı · 15 dakika | SOL | short | kapalı | 2026-11-24 04:15 | 2026-11-24 05:30 | 72,390000 | 71,575000 | 5,1997 | 0,4592 | 0,0000 | 4,7405 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
+| 89 | Yapay zekâ adayı · 15 dakika | JPM | short | kapalı | 2026-11-24 04:45 | 2026-11-24 06:15 | 318,220000 | 317,530000 | 2,0631 | 0,9504 | 0,0000 | 1,1127 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
+| 90 | Yapay zekâ adayı · 15 dakika | XRP | short | kapalı | 2026-11-24 05:30 | 2026-11-24 06:29 | 0,943800 | 0,939050 | 2,4320 | 0,4820 | 0,0000 | 1,9500 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
+| 91 | İki bacaklı geri çekilme · 15 dakika | MSFT | short | açık | 2026-11-24 06:00 | — | 492,730000 | — | — | 0,2833 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
+| 92 | Sahte kırılım dönüşü · 15 dakika | TSLA | long | açık | 2026-11-24 06:30 | — | 386,180000 | — | — | 0,3398 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
+| 93 | Yapay zekâ adayı · 15 dakika | JPM | short | açık | 2026-11-24 06:30 | — | 317,580000 | — | — | 0,3589 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
