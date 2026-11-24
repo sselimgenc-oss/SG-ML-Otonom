@@ -188,7 +188,7 @@ class PanelData:
                 raise P.SectionError(s["code"])
             d = s["data"]
             return P.risk_usage(self._ledger_path(b), b, d.get("equity"), d.get("day_start_equity"),
-                                P.today_tr(self.now()))
+                                P.today_tr(self.now()), d.get("mode"))
         return self._wrap(fn)
 
     def _kill_file(self) -> bool | None:
@@ -227,7 +227,8 @@ class PanelData:
             safe = {}
             for k, f in (("health", lambda: P.health_view(self.cfg.health_state, now, self.cfg.health_stale_s)),
                          ("budget", lambda: P.budget_view(self.cfg.budget_config)),
-                         ("risk", lambda: P.risk_usage(lp, b, status["equity"], status["day_start_equity"], P.today_tr(now))["rows"]),
+                         ("risk", lambda: P.risk_usage(lp, b, status["equity"], status["day_start_equity"], P.today_tr(now),
+                                                 status.get("mode"))["rows"]),
                          ("tut", lambda: P.tutarlilik_view(self._tut_path(), now)),
                          ("mut", lambda: PP.mutabakat_view(self._mut_path())),
                          ("pbo", lambda: P.pbo_view(self._holdout_path("pbo_path", "pbo_ozet.json"),

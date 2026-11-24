@@ -1,0 +1,1 @@
+Koşular ilerliyor (parça 03 %96, 02 %8). Bitmelerini bekliyorum.

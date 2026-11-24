@@ -132,19 +132,16 @@ def _ladder_log(tmp_path, *, start_step=None, amount=1000.0):
     return lg
 
 
-def test_canli_kademe_yuzde_bir_baslar_ve_adim_adim_iner(tmp_path):
+def test_canli_kademe_yuzde_bir_baslar_inis_yok_durma_ve_taban_aynen(tmp_path):
+    """24.11 kullanici karari: risk dusurme kapali; tepeden -%10/-%15 eylem uretmez; -%20 durma ve %60 taban degismedi."""
     base = load_cli_config(CONFIG, "learner", "live").risk_config
     st = _ladder_log(tmp_path, start_step=RL.LIVE_START_STEP).state()
     assert st.step == 2 and RL.STEPS[st.step] == 0.010
-    assert RL.step_config(base, st.step).target_trade_risk == 0.01
-    # tepeden -%10 -> K1 (0.0075); -%15 -> K0 (0.005); -%20 durma; taban; hepsi degismedi
-    a = RL.evaluate(st, 1000.0 * 0.90)
-    assert [(x.kind, x.step) for x in a] == [("step_down", 1)]
-    a = RL.evaluate(st, 1000.0 * 0.85)
-    assert [(x.kind, x.step) for x in a] == [("step_down", 0)]
+    assert RL.step_config(base, st.step) is base
+    assert RL.evaluate(st, 1000.0 * 0.90) == () and RL.evaluate(st, 1000.0 * 0.85) == ()
     assert [x.kind for x in RL.evaluate(st, 1000.0 * 0.80)] == ["review_stop"]
     assert [x.kind for x in RL.evaluate(st, 1000.0 * 0.60)] == ["floor_stop"]
-    assert RL.step_config(base, 1).target_trade_risk == 0.0075 and RL.step_config(base, 0).target_trade_risk == 0.005
+    assert all(RL.step_config(base, s) is base for s in RL.STEPS)
 
 
 def test_kademe_varsayilan_baslangic_degismedi_ve_start_step_sinirli(tmp_path):
@@ -267,3 +264,87 @@ def test_canli_birim_bellek_tavani_kagitla_ayni():
         line = next(x for x in paper.splitlines() if x.startswith(key + "="))
         assert line in live.splitlines()
     assert "MemoryMax=750M" in live
+
+
+# ----------------------------------------------------------------------------------------------- 24.11: kagit de zorlar
+def _paper_engine(tmp_path):
+    import test_engine_live_spec as LS
+    from test_engine_05_spec import SynthView
+    from trader_engine.clock import SimClock
+    cfg = LS.make_cfg(tmp_path, "learner", "paper", (LS.BTC,), 1000.0)
+    from trader_engine.config import apply_overrides
+    cfg = apply_overrides(cfg, pause_file=str(tmp_path / "PAUSE"), kill_file=str(tmp_path / "KILL"))   # depo icindeki shared/ kirlenmesin
+    clock = SimClock(LS.BOOT)
+    view = SynthView((LS.BTC,), LS.BOOT - timedelta(days=1), LS.BOOT + timedelta(days=1), clock=None)
+    return cfg, build_engine(cfg, clock=clock, view=view, env={}), clock
+
+
+def _surdur(lad, t0, seq):
+    for i, eq in enumerate(seq):
+        lad.tick(t0 + timedelta(seconds=61 * (i + 1)), eq, eq)
+    return lad.gate_code(), sorted(h.reason for h in lad.pause.holds()), lad.risk_config.target_trade_risk
+
+
+def _kapat(eng):
+    eng.state.close()
+    eng.ledger.close()
+
+
+def test_kagit_ve_canli_ladder_zorlar_ayni_dizide_ayni_sonuc(tmp_path):
+    import test_engine_live_spec as LS
+    (tmp_path / "p").mkdir()
+    (tmp_path / "l").mkdir()
+    _, peng, _ = _paper_engine(tmp_path / "p")
+    lcfg, leng = _live_engine(tmp_path / "l")
+    try:
+        assert peng.ladder.enforce is True and leng.ladder.enforce is True
+        for eng, cfg in ((peng, None), (leng, lcfg)):
+            if cfg is not None and not eng.ladder.log.rows():
+                eng.ladder.log.append("initial", "test", LS.BOOT, amount=1000.0, start_step=RL.LIVE_START_STEP)
+        seq = [1000.0, 900.0, 900.0, 850.0, 850.0, 790.0, 790.0]          # -%10, -%15, sonra -%21
+        sonuc = []
+        for eng in (peng, leng):
+            lad = eng.ladder
+            lad.transfers_fn = None                        # tek fark (aktarim eslestirmesi) disarida: kalan davranis ayni
+            sonuc.append(_surdur(lad, LS.BOOT, seq))
+        assert sonuc[0][:2] == sonuc[1][:2]                                # ayni kapi kodu, ayni tutuslar
+        gate, holds, _ = sonuc[0]
+        assert "drawdown_review" in holds and "capital_latch" in holds
+        # etkin risk her kipte kendi yapilandirmasindaki deger (dusurme yok); gercek dosyalarda ikisi de %1
+        assert sonuc[0][2] == peng.cfg.risk_config.target_trade_risk and sonuc[1][2] == leng.cfg.risk_config.target_trade_risk
+        assert load_cli_config(CONFIG, "learner", "paper").risk_config.target_trade_risk == 0.01
+        assert load_cli_config(CONFIG, "learner", "live").risk_config.target_trade_risk == 0.01
+    finally:
+        _kapat(peng)
+        _kapat(leng)
+
+
+def test_kagit_gunlugu_yoksa_motor_initial_yazar_capital_missing_yok(tmp_path):
+    cfg, eng, clock = _paper_engine(tmp_path)
+    try:
+        rows = eng.ladder.log.rows()
+        assert [r["kind"] for r in rows] == ["initial"] and rows[0]["by"] == "engine:paper" and rows[0]["amount"] == cfg.wallet_start
+        eng.ladder.tick(clock.now() + timedelta(seconds=61), 1000.0, 1000.0)
+        assert eng.ladder.gate_code() is None             # capital_missing yok
+    finally:
+        _kapat(eng)
+
+
+def test_kagit_yeniden_baslatilinca_review_korunur(tmp_path):
+    import test_engine_live_spec as LS
+    cfg, eng, clock = _paper_engine(tmp_path)
+    try:
+        _surdur(eng.ladder, LS.BOOT, [790.0, 790.0, 790.0])
+        assert eng.ladder.log.state().status == "review"
+    finally:
+        _kapat(eng)
+    from test_engine_05_spec import SynthView
+    from trader_engine.clock import SimClock
+    view = SynthView((LS.BTC,), LS.BOOT - timedelta(days=1), LS.BOOT + timedelta(days=1), clock=None)
+    eng2 = build_engine(cfg, clock=SimClock(LS.BOOT + timedelta(hours=1)), view=view, env={})
+    try:
+        assert eng2.ladder.log.state().status == "review"                  # dosya gunlugu: yeniden baslatmada kalir
+        eng2.ladder.tick(LS.BOOT + timedelta(hours=1, seconds=61), 1000.0, 1000.0)
+        assert eng2.ladder.log.state().status == "review" and "drawdown_review" in [h.reason for h in eng2.ladder.pause.holds()]
+    finally:
+        _kapat(eng2)

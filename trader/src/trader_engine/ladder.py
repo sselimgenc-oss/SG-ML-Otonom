@@ -3,7 +3,8 @@
 Motor bu sinifi her karar adiminda ve canli dongude `tick` ile besler; kapi (`gate_code`), etkin risk (`risk_config`) ve
 durum (`status`) buradan okunur. Risk sayisi YOKTUR: basamaklar/esikler `trader_core.risk_ladder` kod sabitleridir.
 Motor yalniz `step_down`/`review_stop`/`floor_stop`/`peak` satirlari yazar ve duraklatma tutusu KURAR; tutus kaldirmak,
-sermaye/devam/yeniden baslatma satiri yazmak yalniz CLI'nin (ve Telegram'in) isidir. Paper kipi GOZLEM'dir (enforce=False).
+sermaye/devam/yeniden baslatma satiri yazmak yalniz CLI'nin (ve Telegram'in) isidir. 24.11: kagit da canli gibi ZORLAR (dosya gunlugu);
+risk dusurme kapali (etkin risk hep cfg %1); tek fark: kagitta borsa aktarimi olmadigi icin aktarim eslestirmesi yok.
 Sermaye mandali (`capital_latch`): equity <= 0.85 x dep_net -> yeni giris kapanir; TUM kiplerde (paper dahil, enforce'tan bagimsiz)
 kurulur, yeniden baslatmada kalir, yalniz kullanici acar; kaldirildiktan sonra esigin ustune cikilip yeniden inilmedikce tekrar kurulmaz.
 """
@@ -104,8 +105,6 @@ class RiskLadder:
             if self._follow_cfg is None:
                 self._refresh_follow()
             return self._follow_cfg if self._follow_cfg is not None else base
-        if not self.enforce:
-            return base                                   # gozlem: kagit sonuclari bit-bit ayni
         if not self._loaded:
             self._load()
         if self._st is None:
@@ -482,7 +481,7 @@ class RiskLadder:
             d["equity"] = eq
         else:
             d.update({
-                "step": st.step, "step_name": RL.STEP_NAMES[st.step], "step_risk": RL.STEPS[st.step],
+                "step": st.step, "step_name": RL.STEP_NAMES[st.step], "step_risk": self.risk_config.target_trade_risk,
                 "lowest_step": RL.lowest(st.dep_net), "step_since": RL.fmt_at(st.step_since),
                 "started_at": RL.fmt_at(st.started_at), "dep_net": st.dep_net, "base": st.base, "peak": st.peak,
                 "equity": eq,

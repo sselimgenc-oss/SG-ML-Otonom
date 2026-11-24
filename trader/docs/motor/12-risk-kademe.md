@@ -20,7 +20,7 @@ Kaynak kararlar: `otonom-trading-arastirma/risk-kademe-kurali.md` (v1; özellikl
 | Otomatik iniş | Tepeden −%10 → bir basamak; −%15 → K−1 (K0 üstündeyse K0). Onay beklemez |
 | K−1 (%0,35) | Yalnız `dep_net ≥ 1000` iken kullanılır. Küçük sermaye döneminde en alt basamak K0'dır (en küçük emir tutarı; mentor kararı) |
 | Etkin risk | `min(cfg.target_trade_risk, STEPS[step])`; yalnız `tightened` ile; risk kilidinin diğer alanlarına dokunulmaz |
-| Kipler | `backtest`: RK-1 yok (bit-bit aynı). `paper`: **gözlem** (hesaplar, raporlar, hiçbir şeyi durdurmaz). `testnet`/`live`: **zorlama** |
+| Kipler | `backtest`: RK-1 yok (bit-bit aynı). `paper`: **zorlama (24.11; eski: gözlem)**. `testnet`/`live`: **zorlama** |
 | Kim kaldırır | `drawdown_review`: yalnız kullanıcı — Telegram `/kademe_devam` (iki adımlı kod, en erken 24 saat sonra) ya da sunucuda CLI. `capital_floor`: yalnız sunucuda CLI + `tasarim-kararlari.md` karar referansı. Motor, ders servisi, ML, zamanlayıcı **hiçbirini** kaldıramaz |
 | Sermaye hareketi | Operatör CLI ile girer; Telegram'dan girilmez. Canlıda borsanın aktarım kayıtlarıyla eşleştirilir; eşleşmeyen aktarım → giriş kapalı |
 | Yanlış alarm koruması | Her tetik **art arda iki** değerlendirmede tutmalı (`CONFIRM_N = 2`) |
@@ -190,8 +190,8 @@ Yazan her komut sonucu ve yeni eşikleri yazdırır (`base`, durma seviyesi, tab
 | 2 | `equity <= round(FLOOR_RATIO * dep_net, 8)` | `floor_stop` (`ok` ya da `review`'dan) |
 | 3 | `st.status == "review"` | — |
 | 4 | `equity <= round(STOP_RATIO * base, 8)` | `review_stop` |
-| 5 | `equity <= round(DOWN_2_RATIO * peak, 8)` ve `"dd_peak_15" ∉ fired` | hedef = `max(lowest(dep_net), 0 if step > 0 else -1)`; hedef < `step` ise `step_down(hedef, "dd_peak_15")` |
-| 6 | `equity <= round(DOWN_1_RATIO * peak, 8)` ve `"dd_peak_10" ∉ fired` | hedef = `max(lowest(dep_net), step − 1)`; hedef < `step` ise `step_down(hedef, "dd_peak_10")` |
+| 5 | **[KALDIRILDI 24.11: `STEP_RISK_ENABLED=False` iken atlanır, `step_down` üretilmez]** `equity <= round(DOWN_2_RATIO * peak, 8)` ve `"dd_peak_15" ∉ fired` | hedef = `max(lowest(dep_net), 0 if step > 0 else -1)`; hedef < `step` ise `step_down(hedef, "dd_peak_15")` |
+| 6 | **[KALDIRILDI 24.11: aynı sabit]** `equity <= round(DOWN_1_RATIO * peak, 8)` ve `"dd_peak_10" ∉ fired` | hedef = `max(lowest(dep_net), step − 1)`; hedef < `step` ise `step_down(hedef, "dd_peak_10")` |
 
 Satır 5 koşulu tutuyor ama hedef `step`'e eşitse (zaten en altta) eylem yoktur ve satır 6'ya **geçilmez**. `equity` sonlu ve > 0 değilse `ValueError` (çağıran §8.2'de yakalar).
 
@@ -267,7 +267,7 @@ class RiskLadder:
 | Kip | `ladder` | `enforce` | Günlük | `transfers_fn` |
 |---|---|---|---|---|
 | `backtest` | `None` (hiç kurulmaz) | — | — | — |
-| `paper` | var | `False` | bellek (`LadderLog(None)`), açılışta sanal `initial = cfg.wallet_start` (`by="engine:paper"`) | yok |
+| `paper` | var | `True` (24.11) | dosya (`risk_ladder.jsonl`); günlük yoksa/boşsa motor açılışta bir kez `initial = cfg.wallet_start` (`by="engine:paper"`, `start_step=LIVE_START_STEP`) yazar | yok (tek fark: kâğıtta aktarım eşleştirmesi yok) |
 | `testnet` | var | `True` | dosya | yok |
 | `live` | var | `True` | dosya | `broker.transfers` |
 
@@ -287,7 +287,7 @@ class RiskLadder:
 8. **Tetik + onay:** `a = evaluate(state, equity)`. Eylem türü bir önceki değerlendirmedekiyle aynıysa sayaç +1, değilse 1 (eylem yoksa 0). Sayaç `CONFIRM_N`'e ulaşınca §6.2 uygulanır ve sayaç sıfırlanır.
 9. **Sayaçlar:** `trades_fn` varsa en çok 10 dakikada bir `counters` yenilenir.
 
-Gözlem kipinde (`enforce=False`) adım 3 ve 4 yoktur; adım 8'de günlük satırı belleğe yazılır, **tutuş kurulmaz, kapı kapanmaz, etkin risk değişmez**; `status()["would"]` = uygulanmış olacak son eylem (`"review_stop"` vb.) ve zamanı.
+**[KALDIRILDI 24.11 — kâğıt da zorlanır; etkin risk her kipte `cfg.risk_config` (%1)]** Eski gözlem kipinde (`enforce=False`) adım 3 ve 4 yoktu; adım 8'de günlük satırı belleğe yazılır, **tutuş kurulmaz, kapı kapanmaz, etkin risk değişmez**; `status()["would"]` = uygulanmış olacak son eylem (`"review_stop"` vb.) ve zamanı.
 
 ### 8.3 Kapı ve etkin risk
 
@@ -297,7 +297,7 @@ Gözlem kipinde (`enforce=False`) adım 3 ve 4 yoktur; adım 8'de günlük satı
 - `gates.py`: `K.check_entry(acct, cand, src.risk_config)`; `src = self.ladder if self.ladder is not None else self.cfg`. Risk sabiti tarayıcısı `.risk_config` ile biten ifadeyi kabul eder; başka biçim kullanılmaz. `ladder.py` içinde sayısal risk sabiti, `RiskConfig(...)`, `replace(...)` **yoktur** (hepsi `trader_core`'dadır).
 - Açık pozisyonlar, çıkışlar, stop yönetimi, KILL ve mutabakat bu belgeden **etkilenmez**.
 
-### 8.4 İkiz ve kağıt botlarının basamağı izlemesi
+### 8.4 İkiz ve kağıt botlarının basamağı izlemesi **[KALDIRILDI 24.11: risk düşürme yok, kademe izleme anlamsız; `ladder_follow` alanı kodda kalır, kâğıt dosyasında kullanılmaz]**
 
 `EngineConfig.ladder_follow: str | None = None` — başka bir botun günlük dosyasının yolu; yalnız `mode == "paper"` iken verilebilir (aksi `ConfigError`). Verilmişse her değerlendirmede o günlük katlanır: geçerliyse etkin risk `step_config(cfg.risk_config, s)`, `s = followed.step` (`followed.status != "ok"` ise `min(step, 0)`); dosya yok/bozuksa `cfg.risk_config` ve `ladder_follow_unreadable` sayacı. İzleyen bot günlüğe **yazmaz** ve izlenen botun durmasından etkilenmez (ikiz durmaz; kural belgesi §5 madde 4, §7). Bugün hiçbir yapılandırmada ayarlanmaz; canlıya geçiş adımında `engine.twin.json`'a (ve canlıyla birlikte çalışan kağıt botuna) canlı günlüğün yolu yazılır (11 §13 geçiş listesine eklenir).
 

@@ -109,7 +109,8 @@ def test_alinmayan_satiri(tmp_path):
     _write(p, {"sema": "ml.alinmayan_sonuc.v1", "tablolar": {"neden": [r("risk_limiti", 3, 4.5), r("dusuk_skor", 2, -1.0)]},
                "tum_zamanlar": {"neden": []}})
     s = W.alinmayan_satiri({"TRADER_DATA_ROOT": str(tmp_path)})
-    assert s == "Alınmayan sinyal (7g): 5 sinyal; en iyi risk_limiti +4,50 $ (n=3), en kötü dusuk_skor -1,00 $ (n=2)"
+    assert s == "Alınmayan sinyal (7g): 5 sinyal; en iyi risk_limiti +4,50R (n=3), en kötü dusuk_skor -1,00R (n=2)"
+    assert "$" not in s                                                    # 24.11 denetim: R dolar diye yazilmaz
     p.write_text("{", encoding="utf-8")
     assert W.alinmayan_satiri({"TRADER_DATA_ROOT": str(tmp_path)}).endswith("henüz veri yok")
 

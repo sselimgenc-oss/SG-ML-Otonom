@@ -102,6 +102,11 @@ def satir_gecerli(s) -> bool:
             and ("olaylar" not in s or (isinstance(s["olaylar"], list) and all(olay_gecerli(e) for e in s["olaylar"]))))
 
 
+def yayinci(kaynak: str) -> str:
+    """Besleme adi -> yayinci (24.11; trader_core.haber_sinyal.yayinci ile ayni kural): ayni yayincinin beslemeleri tek teyit."""
+    return str(kaynak).split("_", 1)[0]
+
+
 def yeniden_sonumle(s: dict, D_ms: int) -> dict:
     """Satirda ham olaylar varsa puan/teyit/max_siddet/olay_kimligi'ni karar zamanina (D) gore yeniden hesaplar (uretici `birlestir` ile
     ayni formul: pencere 6 sa, yari omur 2 sa, olay ufku). Olaylar yoksa satir aynen doner."""
@@ -119,7 +124,7 @@ def yeniden_sonumle(s: dict, D_ms: int) -> dict:
     yon = 1 if puan > 0 else -1 if puan < 0 else 0
     ayni = [e for e in canli if e["yon"] == yon] if yon else []
     en_yeni = max(ayni, key=lambda e: (e["alim_ms"], e["kimlik"]), default=None)
-    return {**s, "puan": puan, "teyit_kaynak": len({k for e in ayni for k in e["kaynaklar"]}),
+    return {**s, "puan": puan, "teyit_kaynak": len({yayinci(k) for e in ayni for k in e["kaynaklar"]}),
             "max_siddet": max((e["siddet"] for e in ayni), default=0), "olay_kimligi": en_yeni["kimlik"] if en_yeni else 0,
             "olay_kimlikleri": sorted({e["kimlik"] for e in ayni})}
 

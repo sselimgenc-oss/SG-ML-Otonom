@@ -225,8 +225,9 @@ def hist_dir(tmp_path):
     return h
 
 
-def test_m1_history_tail_excludes_lock_window(hist_dir):
+def test_m1_history_tail_excludes_lock_window(hist_dir, monkeypatch):
     import ml_retrain_run as R
+    monkeypatch.setattr(R, "KILIT_ACIK", False)                                  # 24.11 kullanici karari: denetim duzeltmeleri (kesim yalniz kilit kapaliyken)
     bars = R._load_bars(str(hist_dir), "BTC", "1h")
     rows = R._hist_tail(bars, "BTC/USDT", cap=400, cutoff=LOCK_START)
     assert rows and len(rows) <= 400

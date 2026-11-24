@@ -30,7 +30,7 @@ SEMA = "haber_sinyal/2"
 PENCERE_SAAT = 6.0
 YARI_OMUR_SAAT = 2.0                       # sonum: 2 saatte yariya
 GECERLILIK_SAAT = 3.0
-MAX_OGE = 120                              # bir turda en cok olay (en yeniler)
+MAX_OGE = 120                              # bir turda en cok olay (en ESKIler; kalanlar imlec geride kaldigi icin sonraki tura)
 PARTI = 30                                 # tek API cagrisinda en cok olay (120'lik tek cagri MAX_CIKTI_TOKEN'da kesiliyordu)
 MAX_BASLIK = 200
 MAX_OZET = 0                               # ozet gonderilmez: yalniz baslik (daha az enjeksiyon yuzeyi, daha ucuz)
@@ -180,6 +180,12 @@ def olay_kimligi(alim_ms: int, baslik: str) -> int:
     return int(hashlib.sha1(f"{int(alim_ms)}|{baslik}".encode("utf-8")).hexdigest()[:8], 16)
 
 
+def yayinci(kaynak: str) -> str:
+    """Besleme adi -> yayinci (24.11): cnbc_earnings/cnbc_energy ayni yayinci `cnbc`; ayni yayincinin beslemeleri tek teyit sayilir.
+    Kural hb1.py ile AYNI (motor bu modulu iceri almaz; esitlik tests/engine/test_hb1_kol.py)."""
+    return str(kaynak).split("_", 1)[0]
+
+
 def birlestir(olaylar: list[dict], simdi_ms: int) -> dict[str, dict]:
     """Puanlanmis olaylar -> {sembol: {puan, kaynak_sayisi, teyit_kaynak, max_siddet, oge_sayisi, olay_kimligi, olaylar}}.
     Son 6 saat, yari omur 2 saat; olay kendi ufkunu (ufuk_saat) astiysa katki vermez. puan = toplam(yon * siddet/3 * guven * sonum),
@@ -206,7 +212,7 @@ def birlestir(olaylar: list[dict], simdi_ms: int) -> dict[str, dict]:
         ayni = [e for e in a["ev"] if e["yon"] == yon] if yon else []
         en_yeni = max(ayni, key=lambda e: (e["alim"], e.get("baslik", "")), default=None)
         out[s] = {"puan": round(puan, 4), "kaynak_sayisi": len(a["k"]),
-                  "teyit_kaynak": len({k for e in ayni for k in e["kaynaklar"]}),
+                  "teyit_kaynak": len({yayinci(k) for e in ayni for k in e["kaynaklar"]}),
                   "max_siddet": max((e["siddet"] for e in ayni), default=0), "oge_sayisi": a["n"],
                   "olay_kimligi": olay_kimligi(en_yeni["alim"], en_yeni.get("baslik", "")) if en_yeni else 0,
                   "olaylar": [{"alim_ms": int(e["alim"]), "yon": e["yon"], "siddet": e["siddet"], "guven": e["guven"],
@@ -347,19 +353,24 @@ def kos(var_dir: Path, config_dir: Path, simdi_ms: int, env: Mapping[str, str], 
     ham = [r for r in _oku_jsonl(Path(var_dir) / "veri" / "haber" / "haber.jsonl")
            if _int(r.get("alim")) and son_alim < r["alim"] <= simdi_ms and r.get("baslik")]
     yeni = olaylara_topla(ham, olaylar)
-    yeni = sorted(yeni, key=lambda e: -e["alim"])[:MAX_OGE]
+    yeni = sorted(yeni, key=lambda e: e["alim"])           # eskiden yeniye: imlec yalniz islenenlerin onune ilerler
+    bekleyen = yeni[MAX_OGE:]                              # sinirdan tasan: puanlanmadi, sonraki tura kalir
+    yeni = yeni[:MAX_OGE]
     for i, e in enumerate(yeni):
         e["id"] = i
     yeni_son = max([r["alim"] for r in ham], default=son_alim)
 
     sonuc: list[dict] = []
+    hata: tuple[str, str] | None = None                   # (neden, kod): sonraki parti hatasi; onceki odenmis partiler korunur
+    islenen = 0
     for bas in range(0, len(yeni), PARTI):
         parti = yeni[bas:bas + PARTI]
         params = istem_parametreleri(parti, enst)
         est = b.estimate_cost(MODEL, max(1, (len(SYSTEM) + len(params["messages"][0]["content"])) // 3 + 400), MAX_CIKTI_TOKEN)
         grant = b.authorize(SERVIS, est)
         if not hasattr(grant, "grant_id"):                      # Denial: API'ye HIC gidilmez
-            return atla(f"butce reddi ({getattr(grant, 'reason', 'denied')})", "butce")
+            hata = (f"butce reddi ({getattr(grant, 'reason', 'denied')})", "butce")
+            break
         try:
             metin, usage = client.create(params)
         except Exception as e:  # noqa: BLE001
@@ -367,7 +378,8 @@ def kos(var_dir: Path, config_dir: Path, simdi_ms: int, env: Mapping[str, str], 
                 b.release(grant)
             except Exception:  # noqa: BLE001
                 log.error("butce serbest birakilamadi")
-            return atla(f"API hatasi ({type(e).__name__})", "api_hata")
+            hata = (f"API hatasi ({type(e).__name__})", "api_hata")
+            break
         try:
             from trader_core import lesson as _ls  # noqa: PLC0415
             b.record(SERVIS, grant, _ls.budget_usage(usage), MODEL, False)
@@ -375,8 +387,16 @@ def kos(var_dir: Path, config_dir: Path, simdi_ms: int, env: Mapping[str, str], 
             log.error("butce kaydi yazilamadi: %s", type(e).__name__)
         ps = dogrula(metin, enst, {e["id"] for e in parti})
         if ps is None:
-            return atla("model yaniti sema disi", "api_hata")
+            hata = ("model yaniti sema disi", "api_hata")
+            break
         sonuc.extend(ps)
+        islenen = bas + len(parti)
+    if hata is not None and islenen == 0:
+        return atla(*hata)                                 # hic parti tamamlanmadi: dosya yazilmaz, durum ilerlemez
+    bekleyen = yeni[islenen:] + bekleyen
+    yeni = yeni[:islenen]
+    if bekleyen:                                           # imlec en eski bekleyenin hemen oncesinde (esit zamanlilar da kalir)
+        yeni_son = max(son_alim, min(e["alim"] for e in bekleyen) - 1)
     if yeni:
         by_id = {e["id"]: e for e in yeni}
         for s in sonuc:
@@ -396,8 +416,11 @@ def kos(var_dir: Path, config_dir: Path, simdi_ms: int, env: Mapping[str, str], 
         onceki = durum.get("calisma") if isinstance(durum.get("calisma"), dict) else {}
         ilk = onceki.get("ilk_ms")
         _yaz(durum_yol, {"son_alim": yeni_son, "olaylar": olaylar,
-                         "calisma": {"durum": "ok", "zaman_ms": simdi_ms, "ilk_ms": int(ilk) if _int(ilk) else simdi_ms}})
+                         "calisma": {"durum": hata[1] if hata else "ok", "zaman_ms": simdi_ms, "ilk_ms": int(ilk) if _int(ilk) else simdi_ms}})
         _yaz(cikti_yol, belge)
     except OSError as e:
         return atla(f"yazilamadi ({type(e).__name__})")
+    if hata is not None:
+        log.warning("haber sinyali kismi: %s; %d olay yazildi, %d bekliyor", hata[0], len(yeni), len(bekleyen))
+        return {"durum": "kismi", "neden": hata[0], "yeni_olay": len(yeni), "bekleyen": len(bekleyen), "dosya": str(cikti_yol)}
     return {"durum": "ok", "yeni_olay": len(yeni), "enstruman": len(belge["enstrumanlar"]), "dosya": str(cikti_yol)}

@@ -125,7 +125,7 @@ def rows(r):
 # ------------------------------------------------------------------------------------------------ /kademe
 def test_kademe_values(rig):
     t = rig.say("/kademe")
-    assert "learner: basamak K0 (risk %0,50) | durum inceleme" in t
+    assert "learner: risk %1,00 (sabit) | durum inceleme" in t
     assert "yatırılan 1000,00 | taban 1000,00 | tepe 1000,00 | özsermaye 790,00" in t
     assert "tabandan %21,0" in t and "durma seviyesi 800,00 USD | son taban 600,00 USD" in t
     assert "işlem 37" in t and "bayat" not in t
@@ -140,7 +140,7 @@ def test_kademe_unconfigured(tmp_path):
 def test_kademe_stale_status_falls_back_to_log(rig):
     rig.write_status(age=121)
     t = rig.say("/kademe")
-    assert "motor durumu bayat" in t and "özsermaye ?" in t and "basamak K0" in t
+    assert "motor durumu bayat" in t and "özsermaye ?" in t and "risk %1,00 (sabit)" in t
 
 
 def test_kademe_gate_code_shown_and_uninitialized(rig, tmp_path):
@@ -224,7 +224,7 @@ def test_refuse_gate_code(rig):
 def test_request_shows_outcome_beforehand(rig):
     rig.write_status(equity=790.0)
     t = rig.say("/kademe_devam")
-    assert "yeni taban 790,00 USD" in t and "yeni durma seviyesi 632,00 USD" in t and "basamak K0" in t
+    assert "yeni taban 790,00 USD" in t and "yeni durma seviyesi 632,00 USD" in t and "risk %1,00 (sabit)" in t
     assert "son taban 600,00 USD" in t and "0427" in t
     assert rows(rig) == ["initial", "review_stop"] and rig.pause.active()          # istek hicbir sey yazmaz
 
@@ -237,7 +237,7 @@ def test_request_shows_km1_stays(tmp_path):
         r.pause.add("drawdown_review", "engine:rk1")
     r = Rig(tmp_path, build=build)
     r.write_status()
-    assert "basamak K-1" in r.say("/kademe_devam")
+    assert "risk %1,00 (sabit)" in r.say("/kademe_devam")
 
 
 # ------------------------------------------------------------------------------------------------ iki adim
@@ -355,7 +355,7 @@ def test_status_and_report_line_formats(tmp_path):
     r = Rig(tmp_path, build=lambda r: r.ok(250.0))
     r.write_status(equity=262.4)
     line = T.ladder_line("learner", T.ladder_view(r.d.ladders["learner"], T0))
-    assert line == ("learner: Kademe: K0 %0,50 | özsermaye 262,40 | taban 250,00 (düşüş %0,0) | durma 200,00 | "
+    assert line == ("learner: Kademe: risk %1,00 (sabit) | özsermaye 262,40 | taban 250,00 (düşüş %0,0) | durma 200,00 | "
                     "son taban 150,00 | işlem 37")
     assert line in r.say("/durum")
     sec = T.default_sections(r.cfg, T0, "2026-12-30", None, r.d.ladders)
@@ -367,10 +367,10 @@ def test_status_and_report_line_formats(tmp_path):
 def test_status_line_review_and_floor_prefix(tmp_path):
     r = Rig(tmp_path)
     r.write_status()
-    assert "learner: İNCELEME Kademe: K0" in r.say("/durum")
+    assert "learner: İNCELEME Kademe: risk %1,00 (sabit)" in r.say("/durum")
     r2 = Rig(tmp_path / "f", build=lambda r: r.floor())
     r2.write_status(590.0)
-    assert "learner: TABAN Kademe: K0" in r2.say("/durum")
+    assert "learner: TABAN Kademe: risk %1,00 (sabit)" in r2.say("/durum")
 
 
 def test_run_report_passes_ladders(tmp_path):

@@ -24,7 +24,6 @@ from . import ledger as L
 from . import lesson as LS
 from .health import DEFAULT_CFG as HEALTH_CFG
 from .arm_time import arm_id_of
-from .risk import LOCKED_CFG
 
 UTC = timezone.utc
 TR = timezone(timedelta(hours=3))        # Europe/Istanbul: sabit UTC+3 (DST yok), telegram.TR ile ayni
@@ -259,8 +258,9 @@ def equity_curve(path: str, bot: str, start_equity: Any, limit: int = 5000, max_
             "points": pts, "daily": cal[-calendar_days:] if calendar_days else cal}
 
 
-def risk_usage(path: str, bot: str, equity: Any, day_start_equity: Any, day: str) -> dict:
-    """Acik risk / limitler: risk kilidi oranlari x equity (sabit sayi yok); kullanilan = defterdeki planned_risk."""
+def risk_usage(path: str, bot: str, equity: Any, day_start_equity: Any, day: str, mode: Any = "paper") -> dict:
+    """Acik risk / limitler: kipin ayar dosyasindaki oranlar x equity (motorla ayni); kullanilan = defterdeki planned_risk.
+    Gunluk zarar = gun basi kasa - simdiki kasa (gerceklesmemis dahil; motor/Telegram ile ayni)."""
     closed, opened = ledger_day(path, bot, day)
     try:
         eq, dse = float(equity), float(day_start_equity)
@@ -269,12 +269,12 @@ def risk_usage(path: str, bot: str, equity: Any, day_start_equity: Any, day: str
     used_open = sum(t.planned_risk or 0.0 for t in opened)
     long_r = sum(t.planned_risk or 0.0 for t in opened if t.side == "long")
     short_r = sum(t.planned_risk or 0.0 for t in opened if t.side == "short")
-    pnl, _ = sum_pnl_r(closed)
-    c = LOCKED_CFG
+    from . import tg_sade as _TS  # noqa: PLC0415
+    c = _TS.risk_ayari(None, mode)
     rows = [("Toplam açık risk", used_open, c.max_open_risk * eq),
             ("Long açık risk", long_r, c.max_same_dir_risk * eq),
             ("Short açık risk", short_r, c.max_same_dir_risk * eq),
-            ("Günlük zarar", max(0.0, -pnl), daily_loss_rate() * dse)]
+            ("Günlük zarar", max(0.0, dse - eq), daily_loss_rate(mode) * dse)]
     return {"rows": [{"label": n, "used": u, "limit": lim, "pct": (u / lim * 100.0) if lim > 0 else None}
                      for n, u, lim in rows]}
 

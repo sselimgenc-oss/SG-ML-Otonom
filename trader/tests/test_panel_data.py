@@ -7,7 +7,11 @@ import pytest
 
 from panel_support import DAY, NOW, Env, Running, STD_LEARNER, status_doc, z
 from trader_core import panel_data as P
+from pathlib import Path
+
 from trader_core.risk import LOCKED_CFG
+
+ROOT_CFG = Path(__file__).resolve().parents[1] / "config"
 
 
 @pytest.fixture(scope="module")
@@ -151,9 +155,23 @@ def test_curve_without_engine_config_falls_back_to_pnl(tmp_path):
 def test_risk_rows_use_ledger_and_risk_config(run):
     rows = {x["label"]: x for x in run.get("/api/risk?bot=learner")["rows"]}
     assert rows["Toplam açık risk"]["used"] == pytest.approx(13.188)     # acik islemin planned_risk toplami
-    assert rows["Toplam açık risk"]["limit"] == pytest.approx(LOCKED_CFG.max_open_risk * 1003.5)
-    assert rows["Long açık risk"]["limit"] == pytest.approx(LOCKED_CFG.max_same_dir_risk * 1003.5)
+    cfg = json.loads((ROOT_CFG / "engine.paper.json").read_text())["risk"]        # 24.11: limitler kipin ayar dosyasindan (motorla ayni)
+    assert rows["Toplam açık risk"]["limit"] == pytest.approx(cfg["max_open_risk"] * 1003.5)
+    assert rows["Long açık risk"]["limit"] == pytest.approx(cfg["max_same_dir_risk"] * 1003.5)
     assert rows["Günlük zarar"]["limit"] == pytest.approx(P.daily_loss_rate() * 1000.0)
+
+
+@pytest.mark.parametrize("mode", ["paper", "live"])
+def test_risk_usage_ayar_dosyasi_ve_gerceklesmemis_zarar(monkeypatch, mode):
+    """24.11 denetim: limitler LOCKED_CFG degil ayar dosyasi (%12/%6); gunluk zarar = gun basi kasa - simdiki kasa (acik zarar dahil)."""
+    monkeypatch.setattr(P, "ledger_day", lambda path, bot, day: ([], []))
+    cfg = json.loads((ROOT_CFG / f"engine.{mode}.json").read_text())["risk"]
+    rows = {x["label"]: x for x in P.risk_usage("x", "learner", 970.0, 1000.0, DAY, mode)["rows"]}
+    assert rows["Toplam açık risk"]["limit"] == pytest.approx(cfg["max_open_risk"] * 970.0)
+    assert rows["Short açık risk"]["limit"] == pytest.approx(cfg["max_same_dir_risk"] * 970.0)
+    assert rows["Günlük zarar"]["used"] == pytest.approx(30.0)                    # gerceklesen pnl yok, acik zarar 30
+    assert rows["Günlük zarar"]["limit"] == pytest.approx(cfg["daily_max_loss"] * 1000.0)
+    assert cfg["max_open_risk"] != LOCKED_CFG.max_open_risk
 
 
 def test_compare_and_twin_endpoints_removed(run):

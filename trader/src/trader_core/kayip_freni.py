@@ -48,11 +48,17 @@ def ardisik_kayip(kapananlar_yeniden_eskiye: Sequence, ust: int) -> int:
     return n
 
 
-def _son_kazanc(kapananlar_yeniden_eskiye: Sequence) -> bool:
-    """En yeni anlamli (elle olmayan, pnl != 0) kapanis kazancli mi? (gunluk freni kaldirir; basa-bas notr)"""
+def _son_kazanc(kapananlar_yeniden_eskiye: Sequence, gun_basi=None) -> bool:
+    """En yeni anlamli (elle olmayan, pnl != 0) kapanis kazancli mi? (gunluk freni kaldirir; basa-bas notr)
+    `gun_basi` verilirse yalniz o gunun (UTC) kapanislari bakilir: dunku kazanc bugunku freni kaldirmaz."""
+    bugun = _gun(gun_basi) if gun_basi is not None else None
     for t in kapananlar_yeniden_eskiye:
         if getattr(t, "exit_reason", None) == "manual":
             continue
+        if bugun is not None:
+            ts = getattr(t, "exit_ts", None)
+            if ts is None or _gun(ts) < bugun:
+                continue
         pnl = getattr(t, "realized_pnl", None)
         if _fin(pnl) and float(pnl) != 0.0:
             return float(pnl) > 0.0
@@ -99,7 +105,7 @@ def karar(cfg: Mapping | None, kapananlar_yeniden_eskiye: Sequence, equity: floa
     carpan = float(cfg["carpan"])
     if aktif:
         return FrenKarari(True, "ardisik", carpan, n)
-    if _son_kazanc(kapananlar_yeniden_eskiye):          # gunluk fren de ilk kazancli kapanista kalkar
+    if _son_kazanc(kapananlar_yeniden_eskiye, gun_basi):   # gunluk fren de BUGUNKU ilk kazancli kapanista kalkar
         return FrenKarari(False, None, 1.0, n)
     if _fin(equity) and _fin(gun_basi_kasa) and float(gun_basi_kasa) > 0:
         zarar = (float(gun_basi_kasa) - float(equity)) / float(gun_basi_kasa)

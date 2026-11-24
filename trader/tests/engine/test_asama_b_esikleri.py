@@ -326,6 +326,18 @@ def test_fren_ardisik_seri_yeni_utc_gununde_kalkar(mk):
     assert _risk(_go(e, "ETH/USDT", D=D2)) == pytest.approx(temel, rel=1e-6)     # yeni gun: fren yok
 
 
+def test_fren_gunluk_dunku_kazanc_freni_kaldirmaz():
+    """24.11 denetim: gunluk fren yalniz BUGUNUN (UTC) kapanislarina bakar; dunku kazanc engellemez, bugunku kazanc kaldirir."""
+    cfg = {"ardisik": 5, "gunluk_oran": 0.04, "carpan": 0.5}
+    gun = datetime(2026, 11, 24, tzinfo=timezone.utc)
+    t = lambda pnl, ts: SimpleNamespace(realized_pnl=pnl, exit_reason="stop", exit_ts=ts)   # noqa: E731
+    dun = t(+5, gun - timedelta(hours=1))
+    bugun_kazanc = t(+5, gun + timedelta(hours=1))
+    assert KF.karar(cfg, [dun], 960.0, 1000.0, gun).neden == "gunluk"                 # dunku kazanc: fren duruyor
+    assert KF.karar(cfg, [t(-1, gun + timedelta(hours=2)), dun], 960.0, 1000.0, gun).aktif is True
+    assert KF.karar(cfg, [bugun_kazanc, dun], 960.0, 1000.0, gun).aktif is False       # bugunku kazanc: kalkar
+
+
 def test_fren_gunluk_yuzde4_ve_ertesi_gun_kalkar(mk):
     kw = {**BOS, "kayip_freni": {"ardisik": 5, "gunluk_oran": 0.04, "carpan": 0.5}}
     e = mk(PAPER, **kw)

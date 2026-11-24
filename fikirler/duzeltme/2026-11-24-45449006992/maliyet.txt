@@ -1,0 +1,3 @@
+.github/duzeltme/1_kademe.md	claude-fable-5-2	1.02
+.github/duzeltme/2_duzelt.md	claude-sonnet-5-5	5.23
+.github/duzeltme/3_incele.md	claude-fable-5-2	1.55

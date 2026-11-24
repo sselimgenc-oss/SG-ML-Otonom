@@ -94,8 +94,9 @@ class _Led:
         return []
 
 
-def test_nightly_produces_per_tf_packages_and_excludes_lock(tmp_path):
+def test_nightly_produces_per_tf_packages_and_excludes_lock(tmp_path, monkeypatch):
     import ml_retrain_run as R
+    monkeypatch.setattr(R, "KILIT_ACIK", False)                  # 24.11 kullanici karari: denetim duzeltmeleri (kesim yalniz kilit kapaliyken)
     h = tmp_path / "h"
     h.mkdir()
     for k, b in enumerate(("BTC", "ETH")):                       # kilit icine uzanan veri

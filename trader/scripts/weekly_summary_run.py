@@ -103,8 +103,9 @@ SABIT_BASLIK = "## Sabit bölüm"
 YORUM_BASLIK = "## Yorum"
 
 
-def _fmt_pnl(x) -> str:
-    return f"{float(x):+.2f} $".replace(".", ",")
+def _fmt_r(x) -> str:
+    """R bicimi (+4,50R): alinmayan sonuc tablosunun toplam_pnl alani R'dir, dolar degil."""
+    return f"{float(x):+.2f}R".replace(".", ",")
 
 
 def cikis_kaniti_satiri(env, lp: str, now: datetime, lesson_store=None) -> str:
@@ -158,7 +159,7 @@ def alinmayan_satiri(env, durum_path=None) -> str:
         if not rows:
             return yok
         iyi, kotu = max(rows, key=lambda r: r["toplam_pnl"]), min(rows, key=lambda r: r["toplam_pnl"])
-        f = lambda r: f"{r['etiket']} {_fmt_pnl(r['toplam_pnl'])} (n={r['n']})"  # noqa: E731
+        f = lambda r: f"{r['etiket']} {_fmt_r(r['toplam_pnl'])} (n={r['n']})"  # noqa: E731
         return f"Alınmayan sinyal (7g): {sum(int(r['n']) for r in rows)} sinyal; en iyi {f(iyi)}, en kötü {f(kotu)}"
     except Exception:  # noqa: BLE001
         return yok

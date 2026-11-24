@@ -167,7 +167,7 @@ def test_testnet_engine_enforces_without_transfers(tmp_path):
         eng.ledger.close()
 
 
-def test_paper_engine_observes_and_backtest_has_no_ladder(tmp_path):
+def test_paper_engine_enforces_with_file_log_and_backtest_has_no_ladder(tmp_path):
     import test_engine_live_spec as LS
     from test_engine_05_spec import SynthView
     cfg = LS.make_cfg(tmp_path, "learner", "paper", (LS.BTC,), 1000.0)
@@ -176,13 +176,14 @@ def test_paper_engine_observes_and_backtest_has_no_ladder(tmp_path):
     eng = build_engine(cfg, clock=clock, view=view, env={})
     try:
         lad = eng.ladder
-        assert lad is not None and lad.enforce is False and lad.log.path is None
-        assert lad.risk_config is cfg.risk_config                      # gozlem: boyutlama cfg ile (bit-bit ayni)
+        # 24.11 kullanici karari: kagit da zorlar; dosya gunlugu, ilk satiri motor yazar; etkin risk cfg (%1)
+        assert lad is not None and lad.enforce is True and lad.log.path == cfg.path("risk_ladder.jsonl")
+        assert lad.risk_config is cfg.risk_config
         st = lad.log.state()
-        assert st.dep_net == cfg.wallet_start and lad.log.rows()[0]["by"] == "engine:paper"
+        assert st.dep_net == cfg.wallet_start and lad.log.rows()[0]["by"] == "engine:paper" and st.step == rl.LIVE_START_STEP
         blk = eng.status.build(eng)["risk_ladder"]
-        assert blk["enforce"] is False and blk["state"] == "ok" and blk["would"] is None
-        assert not os.path.exists(cfg.path("risk_ladder.jsonl"))       # kagitta dosya yok
+        assert blk["enforce"] is True and blk["state"] == "ok" and blk["would"] is None and blk["transfer"] is None
+        assert os.path.exists(cfg.path("risk_ladder.jsonl"))
     finally:
         eng.state.close()
         eng.ledger.close()
@@ -291,19 +292,20 @@ def test_t29_paper_observation_sizing_unchanged_and_would(tmp_path):
         e.close()
 
 
-def test_t38_effective_risk_after_step_down_sizes_next_entry(tmp_path):
+def test_t38_24_11_step_down_satiri_riski_dusurmez_sizes_next_entry(tmp_path):
     def down(b):
         S.to_km1(b)
     e, lad, pause, b = _env05(tmp_path, enforce=True, steps=[down])
     e.start()
     try:
         lad.tick(e.clock.now() + M1, 1000.0, 1000.0)
-        assert lad.risk_config.target_trade_risk == 0.0035 and lad.gate_code() is None
+        # 24.11: eski gunlukte step_down satiri olsa da risk dusmez (cfg riski)
+        assert lad.risk_config.target_trade_risk == e.cfg.risk_config.target_trade_risk and lad.gate_code() is None
         e.signal(T0 + H)
         e.decide(T0 + H)
         d = [x for x in e.decisions() if x.final_action == "entered"]
         assert d, [x.skip_reason for x in e.decisions()]
-        assert d[0].size_risk_amount == pytest.approx(0.0035 * 1000.0, rel=3e-2)      # 0,0035 x ozsermaye
+        assert d[0].size_risk_amount == pytest.approx(e.cfg.risk_config.target_trade_risk * 1000.0, rel=3e-2)
     finally:
         e.close()
 
