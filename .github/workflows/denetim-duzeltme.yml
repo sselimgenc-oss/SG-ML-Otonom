@@ -1,0 +1,14 @@
+# Denetim duzeltmeleri. Asil surum claude/charming-hawking-ab5w5q dalinda; bu kopya yalniz elle tetiklemeyi mumkun kilar (ref = gelistirme dali).
+name: denetim-duzeltme
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  duzelt:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: echo "Gelistirme dalindan tetikleyin (ref = claude/charming-hawking-ab5w5q)."
