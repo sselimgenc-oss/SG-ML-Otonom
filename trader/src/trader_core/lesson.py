@@ -5842,6 +5842,9 @@ ARM_CLOSE_R = -0.15                   # sonumlu ortalama <= bu: kurulum kapanir 
 ARM_REOPEN_R = 0.05                   # sonumlu ortalama >= bu: kapali kurulum yeniden acilir
 ARM_WINDOW_MAX = 40                   # pencere ust siniri (alt siniri yok)
 ARM_STATE_SCHEMA = 1
+ARM_KAPAT_MIN_N = 3                   # 24.11: aile verisi varken kapatma icin kolun kendi cozulmus aday asgarisi
+ARM_CF_AGIRLIK = 0.5                  # 24.11: alinmayan adayin R'si toplamda ve sayida bu agirlikla girer
+ARM_KAPAT_MIN_GUN = 3                 # ... ve bu adaylarin ayri gun sayisi asgarisi
 
 
 def _arm_dt(s) -> datetime | None:
@@ -5855,7 +5858,8 @@ def _arm_dt(s) -> datetime | None:
 def arm_lifecycle_step(prev: Mapping | None, cands: Sequence[tuple[datetime, float, bool]], now: datetime, *,
                        shrink_n: int = 0, rollback_r: float = 3.0,
                        close_r: float = ARM_CLOSE_R, reopen_r: float = ARM_REOPEN_R,
-                       window_max: int = ARM_WINDOW_MAX) -> tuple[dict, str | None]:
+                       window_max: int = ARM_WINDOW_MAX, aile_ort: float | None = None,
+                       cf_weight: float = 1.0) -> tuple[dict, str | None]:
     """Bir kurulumun bir gecelik adimi. `prev`: {"state": open|closed, "epoch_start": iso|None, "closed_at": iso|None}
     ya da None (acik, yeni). `cands`: (karar_ts, R, alindi_mi) — yalniz COZULMUS adaylar (alinan: gercek R; alinmayan:
     "alinsaydi" R). Donus: (yeni durum, olay) olay: None | closed | reopened | rolled_back.
@@ -5865,7 +5869,14 @@ def arm_lifecycle_step(prev: Mapping | None, cands: Sequence[tuple[datetime, flo
       - kapali, geri alma: kapanistan sonraki adaylarda sonumlu etki = -sumR (n) <= -rollback_r -> acik (epoch = now)
       - kapali, yeniden acma: sonumlu ortalama >= reopen_r -> acik (epoch = now)
     Geri alma kapanis kararini degerlendirir (kapanmis kurulum kaybettirdiyse, kapanis 3 R'yi asan kayip olarak geri
-    alinir); yeniden acma karari yalniz ortalamaya bakar. Olaydan sonra yeni epoch baslar: eski adaylar sayilmaz."""
+    alinir); yeniden acma karari yalniz ortalamaya bakar. Olaydan sonra yeni epoch baslar: eski adaylar sayilmaz.
+
+    24.11 kullanici karari (ders hizi / aile destegi): `aile_ort` (ayni formasyonun, kolun kendisi HARIC diger ZD'lerdeki
+    cozulmus adaylarinin sonumlu ortalamasi, `toplam R / (n_aile + shrink)`) verilirse (None/0 = aile yok) karar olcutu
+    `m = (toplam_kol + shrink_n * aile_ort) / (n_kol + shrink_n)`; None/0 => bugunku davranis birebir. Aile verisi varken
+    KAPATMA icin kolun kendi cozulmus adayi en az `ARM_KAPAT_MIN_N` ve en az `ARM_KAPAT_MIN_GUN` ayri gunden olmali (yalniz aile
+    yuzunden kapanmaz). `cf_weight`: alinmayan ("alinsaydi") adayin toplamda ve sayida agirligi (varsayilan 1 = eski davranis;
+    kurulum dersi 0,5 verir). Acma ve geri alma kurali degismez (geri alma -3 R sigortasi aynen)."""
     st = dict(prev or {})
     state = st.get("state") if st.get("state") in ("open", "closed") else "open"
     epoch = _arm_dt(st.get("epoch_start"))
@@ -5873,14 +5884,19 @@ def arm_lifecycle_step(prev: Mapping | None, cands: Sequence[tuple[datetime, flo
     cs = sorted(((_aware(t), float(r), bool(tk)) for t, r, tk in cands), key=lambda c: c[0])
     win = [c for c in cs if epoch is None or c[0] >= epoch][-window_max:]
     n = len(win)
-    m = damped_mean(math.fsum(c[1] for c in win), n, shrink_n)
+    wts = [1.0 if c[2] else float(cf_weight) for c in win]
+    sum_w = math.fsum(w * c[1] for w, c in zip(wts, win))
+    n_w = math.fsum(wts)
+    aile = 0.0 if aile_ort is None or not math.isfinite(float(aile_ort)) else float(aile_ort)
+    m = damped_mean(sum_w + max(0, int(shrink_n)) * aile, n_w, shrink_n)
+    own_ok = aile == 0.0 or (n >= ARM_KAPAT_MIN_N and len({c[0].date() for c in win}) >= ARM_KAPAT_MIN_GUN)
     now = _aware(now)
     event = None
     if state == "open":
-        if n > 0 and m <= close_r + _EPS:
+        if n > 0 and own_ok and m <= close_r + _EPS:
             state, epoch, closed_at, event = "closed", now, now, "closed"
     else:
-        eff = damped_effect(-math.fsum(c[1] for c in win), n, shrink_n)
+        eff = damped_effect(-sum_w, n_w, shrink_n)
         if n > 0 and eff <= -rollback_r + _EPS:
             state, epoch, closed_at, event = "open", now, None, "rolled_back"
         elif n > 0 and m >= reopen_r - _EPS:
@@ -5889,6 +5905,31 @@ def arm_lifecycle_step(prev: Mapping | None, cands: Sequence[tuple[datetime, flo
            "closed_at": closed_at.isoformat() if closed_at else None, "n": n,
            "mean_r": round(m, 4) if n else None, "last_event": event or st.get("last_event")}
     return new, event
+
+
+def lesson_progress(checkpoints: Iterable[CheckpointResult], cfg: LessonConfig) -> dict | None:
+    """24.11: parametre dersinin EN YAKIN adayinin gercek ilerlemesi (panel karti; "0/10" etki sayaci degil). Her akis x yon icin
+    son kontrol noktasinin istatistiklerinden: en az isleme sahip grup `min(n_a, n_b)` / `cfg.min_affected`, ayri gun `g` /
+    `cfg.min_distinct_days`. En yakin = ilerleme orani en yuksek. Veri yoksa None. Saf; esikleri DEGISTIRMEZ."""
+    ma, md = max(1, int(cfg.min_affected)), max(1, int(cfg.min_distinct_days))
+    best: tuple | None = None
+    latest: dict[tuple[str, str], tuple[int, str, Mapping]] = {}
+    for cp in checkpoints:
+        for menu_id, d in cp.directions.items():
+            k = (cp.stream_key, menu_id)
+            if k not in latest or cp.c >= latest[k][0]:
+                latest[k] = (cp.c, cp.param, d)
+    for (stream, menu_id), (_c, param, d) in sorted(latest.items()):
+        st = d.get("stats", {}) if isinstance(d, Mapping) else {}
+        if st.get("n_a") is None or st.get("n_b") is None:
+            continue
+        n = min(int(st["n_a"]), int(st["n_b"]))
+        g = int(st.get("g") or 0)
+        score = min(n, ma) / ma + min(g, md) / md
+        if best is None or score > best[0]:
+            best = (score, {"akis": stream, "kural": menu_id, "param": param, "n": n, "n_hedef": ma,
+                            "gun": g, "gun_hedef": md, "gecen": bool(d.get("passed"))})
+    return best[1] if best else None
 
 
 def write_arms_state(path, arms: Mapping[str, Mapping], now: datetime) -> None:

@@ -1,0 +1,40 @@
+tests/engine/test_gosterge_parite_canli_geri_test.py::test_tekli_1s_windowed_precomputed_ayni_satir[BTC/USDT-kisa]
+tests/engine/test_gosterge_parite_canli_geri_test.py::test_tekli_1s_windowed_precomputed_ayni_satir[BTC/USDT-kisa]
+tests/engine/test_gosterge_parite_canli_geri_test.py::test_kurulumlar_canli_pencere_eq_tum_gecmis_1g[SOL/USDT]
+tests/engine/test_gosterge_parite_canli_geri_test.py::test_kurulumlar_canli_pencere_eq_tum_gecmis_1g[SOL/USDT]
+tests/engine/test_olu_mum_gostergeler.py::test_pazartesi_ilk_karar_atr_ve_stop_mesafesi[1h]
+tests/engine/test_olu_mum_gostergeler.py::test_pazartesi_ilk_karar_atr_ve_stop_mesafesi[1h]
+tests/engine/test_olu_mum_gostergeler.py::test_bars_1d_pencere_600_gun_ayni_sonuc_ve_zarif_dusus
+  /home/runner/work/SG-ML-Otonom/SG-ML-Otonom/trader/tests/engine/gosterge_support.py:81: Pandas4Warning: DatetimeIndex.dayofweek is deprecated and will be removed in a future version. Use DatetimeIndex.day_of_week instead.
+    return (grid.dayofweek < 5) & (mins >= 13 * 60 + 30) & (mins < 20 * 60)
+
+tests/engine/test_gosterge_parite_canli_geri_test.py::test_tekli_1s_windowed_precomputed_ayni_satir[BTC/USDT-uzun]
+tests/engine/test_gosterge_parite_canli_geri_test.py::test_tekli_1s_windowed_precomputed_ayni_satir[BTC/USDT-kisa]
+tests/engine/test_gosterge_parite_canli_geri_test.py::test_kurulumlar_canli_pencere_eq_tum_gecmis_1g[SOL/USDT]
+  /home/runner/work/SG-ML-Otonom/SG-ML-Otonom/trader/tests/engine/gosterge_support.py:86: Pandas4Warning: DatetimeIndex.dayofweek is deprecated and will be removed in a future version. Use DatetimeIndex.day_of_week instead.
+    dow, hr = grid.dayofweek, grid.hour
+
+tests/engine/test_pause_impl_smoke.py: 35 warnings
+  /opt/hostedtoolcache/Python/3.12.16/x64/lib/python3.12/multiprocessing/popen_fork.py:66: DeprecationWarning: This process (pid=10308) is multi-threaded, use of fork() may lead to deadlocks in the child.
+    self.pid = os.fork()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/engine/test_dd12_wp17_impl.py::test_learning_view_scorecard_lesson_m1_sessions_open - assert (2, 1, 1.0) == (3, 1, 1.0)
+  
+  At index 0 diff: 2 != 3
+  
+  Full diff: (-: missing in left side, +: extra in left side)
+    (
+  -     3,
+  ?     ^
+  +     2,
+  ?     ^
+        1,
+        1.0,
+    )
+FAILED tests/engine/test_dd12_wp17_impl.py::test_daily_sections_show_learning_and_scorecard - AssertionError: assert ('T1@1h: aday 3 · alınan 1' in '🧪 Kurulum karnesi (haftalık ayrıntı için /kurulumlar)\nT1@1h: aday 2 · alınan 1 · ort. R (alınan) +1,00 R · alınsaydı...0%)\nM1@1h: aday 2 · alınan 2 · ort. R (alınan) −0,50 R · alınsaydı −0,50 R · KAPALI · kasa 995.00 $ (en derin -0.50%)')
+FAILED tests/engine/test_dd12_wp17_impl.py::test_kurulumlar_and_ders_commands_reply_through_dispatch - AssertionError: assert (True and 'T1@1h: aday 3' in '🧪 Kurulum karnesi\nT1@1h: aday 2 · alınan 1 · ort. R (alınan) +1,00 R · alınsaydı +0,00 R · açık · kasa 1010.00 $ (en...0%)\nM1@1h: aday 2 · alınan 2 · ort. R (alınan) −0,50 R · alınsaydı −0,50 R · KAPALI · kasa 995.00 $ (en derin -0.50%)')
+ +  where True = <built-in method startswith of str object at 0x5588ffdabe90>('🧪 Kurulum karnesi')
+ +    where <built-in method startswith of str object at 0x5588ffdabe90> = '🧪 Kurulum karnesi\nT1@1h: aday 2 · alınan 1 · ort. R (alınan) +1,00 R · alınsaydı +0,00 R · açık · kasa 1010.00 $ (en...0%)\nM1@1h: aday 2 · alınan 2 · ort. R (alınan) −0,50 R · alınsaydı −0,50 R · KAPALI · kasa 995.00 $ (en derin -0.50%)'.startswith
+3 failed, 8462 passed, 145 skipped, 47 warnings in 2018.57s (0:33:38)

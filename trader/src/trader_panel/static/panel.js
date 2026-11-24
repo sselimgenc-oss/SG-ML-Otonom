@@ -514,6 +514,13 @@
       add(k, add(el('div'), rozetRenk(d.durum, d.renk)));
       if (d.son) add(k, satir('Son öğrendiği', d.son.tarih), el('div', 'yok', d.son.metin));
       add(k, satir('Son 7 günde etkilediği işlem', String(d.degisen_7g)), katkiSatir(d.katki));
+      if (d.ilerleme) {
+        var il = d.ilerleme;
+        add(k, satir('En yakın aday (' + il.ad + ')', il.n + '/' + il.n_hedef + ' işlem, ' + il.gun + '/' + il.gun_hedef + ' gün'));
+      }
+      (d.kol_dersleri || []).forEach(function (r) {
+        add(k, satir('Kol: ' + r.kol, r.metin + ' · ' + r.tarih + (num(r.n) ? ' · ' + r.n + ' aday' : ''), r.olay === 'closed' ? 'kotu' : ''));
+      });
       add(ig, k);
       if (d.son5.length) {
         var l = kart('Son dersler');
@@ -525,7 +532,11 @@
       var kk2 = kart('Kademeli küçültme');
       add(kk2, el('div', 'yok', 'Son işlemleri zararda olan kolların işlem riski küçültüldü (kol kapanmaz; kâra dönünce geri yükselir).'));
       p.kucultme.kollar.forEach(function (r) {
-        add(kk2, satir(r.kol, '%' + Math.round(r.carpan * 100) + ' boyut · son ' + (num(r.net_10) ? '10' : '5') + ': ' + sgn(num(r.net_10) ? r.net_10 : r.net_5) + ' R', 'kotu'));
+        var ml = '%' + Math.round(r.carpan * 100) + ' boyut · kendi ' + r.n + ' işlem';
+        if (!r.aile_nedeni && num(r.net_5)) ml += ' · son ' + (num(r.net_10) ? '10' : '5') + ': ' + sgn(num(r.net_10) ? r.net_10 : r.net_5) + ' R';
+        if (r.aile !== null && r.aile !== undefined) ml += ' · aile ort. ' + sgn(r.aile) + ' R';
+        if (r.aile_nedeni) ml += ' (aile nedeniyle)';
+        add(kk2, satir(r.kol, ml, 'kotu'));
       });
       add(ig, kk2);
     }

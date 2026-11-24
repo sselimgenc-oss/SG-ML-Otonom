@@ -152,7 +152,8 @@ def test_asgari_boyut_emir_altina_dusunce_kol_kapanmaz(env):
 def test_panel_karti(tmp_path):
     _defter(tmp_path, [False] * 5).close()
     v = PP.kucultme_view(str(tmp_path / "l.sqlite"), "learner")
-    assert v == {"kollar": [{"kol": AID, "carpan": 0.5, "n": 5, "net_5": v["kollar"][0]["net_5"], "net_10": None}]} and v["kollar"][0]["net_5"] < 0
+    assert v == {"kollar": [{"kol": AID, "carpan": 0.5, "n": 5, "net_5": v["kollar"][0]["net_5"], "net_10": None,
+                                      "aile": None, "aile_nedeni": False}]}      # 24.11 kullanici karari: aile destegi (ailesiz kol) and v["kollar"][0]["net_5"] < 0
 
 
 def test_check_entry_scaled_sinirlari():

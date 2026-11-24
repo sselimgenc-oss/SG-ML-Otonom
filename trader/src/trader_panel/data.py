@@ -221,7 +221,7 @@ class PanelData:
             except Exception:  # noqa: BLE001 - ders okunamazsa kart gizlenir
                 ders = None
             try:
-                kucultme = PP.kucultme_view(lp, b)
+                kucultme = PP.kucultme_view(lp, b, arms=P.paper_maps()[0], now=now)
             except Exception:  # noqa: BLE001 - kucultme karti istege bagli
                 kucultme = None
             try:
