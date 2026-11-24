@@ -99,7 +99,7 @@ def test_install_declares_expected_runtime_packages():
     d = _declared()
     assert set(d) == {"requests", "pandas", "numpy", "pyarrow", "anthropic"}, d
     txt = install_text()
-    assert "requirements-ml" not in re.sub(r"#.*", "", txt)             # ml_mode=off: ML kumesi sunucuya kurulmaz
+    assert "requirements-ml" not in re.sub(r"#.*", "", txt)             # ML kumesi (requirements-ml.txt) 24.11 kullanici karariyla silindi; sunucuya kurulmaz
 
 
 @pytest.mark.parametrize("name", sorted(ENTRIES))

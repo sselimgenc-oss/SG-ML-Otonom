@@ -357,11 +357,6 @@
     if (dd.son) add(d, el('div', 'yok', dd.son.metin));
     add(d, satir('Son 7 günde değiştirdiği işlem', String(dd.degisen_7g)), katkiSatir(dd.katki));
     add(ig, d);
-    var mm = p.ml || {durum: 'Kapalı', renk: 'gri', isabet: {olculemedi: 'Henüz ölçülemedi'}};
-    var m = kart('Makine öğrenmesi', link('Ayrıntı', 'ogrenme'));
-    add(m, add(el('div'), rozetRenk(mm.durum, mm.renk)));
-    add(m, el('div', 'yok', mm.isabet.olculemedi ? mm.isabet.olculemedi : 'Son ' + mm.isabet.n + ' tahminin ' + mm.isabet.tutan + ek(mm.isabet.tutan) + ' tuttu'));
-    add(ig, m);
     if (p.isik.renk !== 'kirmizi') add(ig, isikKart(p));
     add(root, ig);
   }
@@ -472,28 +467,6 @@
         add(ig, l);
       }
     }
-    if (p.ml) {
-      var m = p.ml, mk = kart('Makine öğrenmesi');
-      add(mk, add(el('div'), rozetRenk(m.durum, m.renk)));
-      add(mk, m.isabet.olculemedi ? satir('İsabet', m.isabet.olculemedi) : satir('İsabet', 'son ' + m.isabet.n + ' tahminin ' + m.isabet.tutan + ek(m.isabet.tutan) + ' tuttu'));
-      add(mk, satir('Son 7 gün', m.onay_7g + ' onay · ' + m.ret_7g + ' ret'), katkiSatir(m.katki));
-      if (m.kapsam && (m.kapsam.eksik.length || m.kapsam.bos)) {
-        add(mk, el('div', 'yok', 'Yapay zekâ filtresi için yeterli kapanmış işlem yok:'));
-        m.kapsam.eksik.forEach(function (e) { add(mk, satir(e.kol, e.n + '/' + e.en_az, 'sol')); });
-        if (m.kapsam.eksik_fazla) add(mk, el('div', 'yok', '… ve ' + m.kapsam.eksik_fazla + ' kol daha'));
-        if (m.kapsam.bos) add(mk, el('div', 'yok', m.kapsam.bos + ' kolda henüz işlem yok'));
-      }
-      if (m.egitim) add(mk, satir('Son eğitim', m.egitim.tarih + ' · ' + m.egitim.ornek + ' örnek'));
-      add(ig, mk);
-      if (m.son5.length) {
-        var ls = kart('Son 5 karar');
-        m.son5.forEach(function (s) {
-          add(ls, add(el('div', 'satir'), add(el('span'), el('b', '', s.coin), el('span', 'u sol', ' ' + s.tarih)),
-            add(el('b', ''), el('span', '', s.karar + ' · '), el('span', cls(s.kz), num(s.kz) ? usdS(s.kz) : s.sonuc))));
-        });
-        add(ig, ls);
-      }
-    }
     if (p.kucultme) {
       var kk2 = kart('Kademeli küçültme');
       add(kk2, el('div', 'yok', 'Son işlemleri zararda olan kolların işlem riski küçültüldü (kol kapanmaz; kâra dönünce geri yükselir).'));
@@ -502,7 +475,7 @@
       });
       add(ig, kk2);
     }
-    if (!p.ders && !p.ml && !p.kucultme) add(ig, yokKart('Henüz öğrenme verisi yok.'));
+    if (!p.ders && !p.kucultme) add(ig, yokKart('Henüz öğrenme verisi yok.'));
     add(root, ig);
   }
 

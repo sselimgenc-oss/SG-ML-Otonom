@@ -37,7 +37,7 @@ from .types import SymbolRules
 log = logging.getLogger("engine.gates")
 
 _YUKLENMEDI = object()
-_FILTERED_SKIPS = ("stop_width", "rr_below_min", "ml_filter")
+_FILTERED_SKIPS = ("stop_width", "rr_below_min")
 
 
 class VetoSource(Protocol):
@@ -171,7 +171,7 @@ def build_decision_event(row: SignalRow, tf: str, **override) -> L.DecisionEvent
         planned_target=row.planned_target, param_version_id=int(row.param_version_id),
         veto_status="not_evaluated", veto_reason=None, risk_allowed=None, risk_reason=None,
         size_qty=None, size_notional=None, size_margin=None, size_risk_amount=None, leverage=None,
-        final_action="skipped", skip_reason=None, ml_score=row.ml_score, arm_id=row.arm_id)
+        final_action="skipped", skip_reason=None, arm_id=row.arm_id)
     base.update(override)
     return L.DecisionEvent(**base)
 
@@ -194,9 +194,6 @@ class EntryGate:
         self.entry_ref_fn = entry_ref_fn
         self.counters: Counter = Counter()
         self.session_off: Mapping[str, Collection[str]] | Callable[[], Mapping[str, Collection[str]]] | None = None  # DD-12 D-T7: dersin kapattigi seanslar (sinif|cift -> etiketler); yok = hepsi acik
-        # 19.11 kullanici karari: kagitta ML filtresi AKTIF (ogrenme_filtre.FiltreDeposu ya da None). YALNIZ bir girisi atlatabilir
-        # (`ml_filter`); boyut/kaldirac/limit/risk yoluna girmez. Hata/paket yok => serbest.
-        self.ml_filtre = None
         # Kagitta rejim etiketi kurali girisi YALNIZ atlatabilir (docs/etiket-kurallari-spec.md); sabit kural (otomatik acma/kapama yok).
         # etiket_cfg = dogrulanmis cfg.etiket_kurallari ({} = kapali).
         self.etiket_cfg: Mapping | None = None
@@ -296,44 +293,6 @@ class EntryGate:
         except Exception as e:  # noqa: BLE001 - etiket hatasi giris engellemez
             log.warning("etiket kurallari hatasi, giris serbest: %s: %s", type(e).__name__, e)
             return None
-
-    def _ml_filtre_karari(self, row: SignalRow, tf: str, D: datetime, tk: dict) -> EntryOutcome | None:
-        """ML filtresi: esik alti puan => `ml_filter` ile atla (karar satiri + puan; karsi-olgu mevcut atlama yolundan).
-        KAGIT: baska her durum (filtre yok/paket yok/hata) => None (giris serbest, fail-open). Asla istisna yaymaz.
-        CANLI (23.11; yalniz ml_mode=active): filtre yok / paket yok / bozuk / suresi dolmus / hata => giris YOK (fail-closed;
-        `gate:ml_filter_unavailable`); cikislar etkilenmez. Saglik uyarisi: engine._ml_status (status.json ml -> health)."""
-        live_closed = self.cfg.mode == "live" and self.cfg.ml_mode == "active"
-        flt = self.ml_filtre
-        if flt is None:
-            return self._ml_kapali(row, tf, tk) if live_closed else None
-        try:
-            from .ogrenme_filtre import canlida_engelle, ozellikler
-            aid = row.arm_id or AG.arm_id_of(row.setup, tf)
-            feats = tk.get("features") or _features(row)
-            oz = ozellikler(side=row.side, regime=row.regime, atr_ratio=row.atr_ratio, session_tag=tk.get("session_tag"),
-                            pair=row.pair, planned_entry=row.planned_entry, planned_stop=row.planned_stop,
-                            planned_target=row.planned_target, rh_touches=int(row.rh_touches), rl_touches=int(row.rl_touches),
-                            features=feats)
-            k = flt.karar(aid, oz, self.clock.now())
-            if k.neden == "ok":
-                self.counters["ml_filtre_gecti"] += 1
-            if k.izin:
-                if live_closed and canlida_engelle(k.neden):
-                    return self._ml_kapali(row, tf, tk)
-                return None
-            self.counters["ml_filtre_atladi"] += 1
-            return self._skip(row, tf, "ml_filter", skip_reason="ml_filter", veto_reason="gate:ml_filter",
-                              ml_score=k.puan, **tk)
-        except Exception as e:  # noqa: BLE001
-            if live_closed:
-                log.error("ML filtre kapisi hatasi, CANLIDA giris yok: %s: %s", type(e).__name__, e)
-                return self._ml_kapali(row, tf, tk)
-            log.warning("ML filtre kapisi hatasi, giris serbest: %s: %s", type(e).__name__, e)
-            return None
-
-    def _ml_kapali(self, row: SignalRow, tf: str, tk: dict) -> EntryOutcome:
-        self.counters["ml_filtre_kapali_blok"] += 1
-        return self._skip(row, tf, "ml_filter", skip_reason="ml_filter", veto_reason="gate:ml_filter_unavailable", **tk)
 
     def _hb1_olay_karari(self, row: SignalRow, tf: str, D: datetime, tk: dict) -> EntryOutcome | None:
         """HB1: adayin olay kumesi (features["hb1_olay"]) son 6 saatte AYNI cift+yonde kapanmis TUM HB1 islemlerinin olay kumelerinin
@@ -608,10 +567,7 @@ class EntryGate:
             kg = self._korelasyon_karari(row, tf, D, tk)                                 # 23.11 asama B: korelasyon grubu yon tavani
             if kg is not None:
                 return kg
-            ml_skip = self._ml_filtre_karari(row, tf, D, tk)
-            if ml_skip is not None:
-                return ml_skip
-            et_skip = self._etiket_karari(row, tf, tk)                                   # rejim etiketi kurali (ML'den sonra, risk'ten once)
+            et_skip = self._etiket_karari(row, tf, tk)                                   # rejim etiketi kurali (risk'ten once)
             if et_skip is not None:
                 return et_skip
             lk = veto.VetoLookup("allowed", "not_evaluated:paper", False)

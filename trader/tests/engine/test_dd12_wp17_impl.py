@@ -103,7 +103,7 @@ def test_parse_ts_z_accepts_fractional_utc_and_rejects_naive_or_offset():
 
 
 # ---- ogrenme gorunumu -------------------------------------------------------------------------------------------
-def test_learning_view_scorecard_lesson_ml_sessions_open(world):
+def test_learning_view_scorecard_lesson_m1_sessions_open(world):
     lv = PD.learning_view(world.ledger, world.budget, NOW)
     arms = {r["arm"]: r for r in lv["scorecard"]}
     t1, m1, f1 = arms["T1@1h"], arms["M1@1h"], arms["F1@1h"]
@@ -114,9 +114,8 @@ def test_learning_view_scorecard_lesson_ml_sessions_open(world):
     assert lv["lesson"]["applied"] == 1 and lv["lesson"]["rollbacks"] == 0
     assert lv["lesson"]["brake_active"] is True and lv["lesson"]["brake_events"] == 1
     assert lv["lesson"]["closed_arms"] == ["M1@1h"]
-    assert lv["ml"]["eliminated"] == 1 and lv["ml"]["passed"] == 1
-    assert lv["ml"]["effect_r"] == pytest.approx(1.0)                         # -(alinsaydi R toplami) = -(-1.0)
-    assert (lv["ml"]["m1_candidates"], lv["ml"]["m1_taken"]) == (2, 2)
+    assert "ml" not in lv                                                      # 24.11: ML filtre sayilari (elenen/gecen/etki) silindi
+    assert (lv["m1"]["candidates"], lv["m1"]["taken"]) == (2, 2)
     assert lv["sessions"]["open"]["kripto"]["taken"] == 2
     assert lv["sessions"]["open"]["emtia"]["mean_r_taken"] == -0.5
     assert lv["sessions"]["closed"]["hisse"]["taken"] == 0
@@ -143,7 +142,7 @@ def test_daily_sections_show_learning_and_scorecard(world):
     cfg = _cfg(world)
     ogr = T.rapor_ogrenme(cfg, NOW)
     assert "Ders: uygulanan 1 · geri alınan 0 · −10 R freni AKTİF" in ogr
-    assert "alınsaydı etkisi +1,00 R" in ogr and "M1 aday 2, giriş 2" in ogr
+    assert "elenen" not in ogr and "M1: aday 2, giriş 2" in ogr
     assert "Haftalık özet (2026-W47)" in ogr
     karne = T.rapor_kurulum_karnesi(cfg, NOW)
     assert "T1@1h: aday 3 · alınan 1" in karne and "M1@1h: aday 2 · alınan 2" in karne and "KAPALI" in karne

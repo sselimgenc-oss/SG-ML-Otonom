@@ -12,7 +12,7 @@ import pytest
 
 from trader_core import ml_package as MP
 from trader_ml.pa_proposer import train as TR
-from trader_ml.setup_filter.train import LOCK_END, LOCK_START
+from trader_ml.pa_proposer.train import LOCK_END, LOCK_START
 
 ROOT = Path(__file__).resolve().parents[2]
 UTC = timezone.utc

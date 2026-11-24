@@ -52,7 +52,6 @@ def test_new_arm_file_found_without_registry_edit(tmp_path):
         SETUP = "X9"
         TIMEFRAMES = ("1h",)
         CORE = False
-        ML_SCORED = False
         EXIT_MODE = "trail"      # WP-12a (K-7): zorunlu
         PRIORITY = 99
         FEATURES = {}
@@ -81,8 +80,8 @@ def test_lab_rejects_unknown_arm_and_tf():
 
 def test_registry_and_defaults():
     assert list_strategies()[-1] == NAME == "price_action_lab_ml"
-    s = get_strategy(NAME, mode="paper", ml_mode="active")
-    assert s.info.paper_allowed and s.ml_mode == "active" and s.fail_open and s.decision_tf == "15m"
+    s = get_strategy(NAME, mode="paper")
+    assert s.info.paper_allowed and s.decision_tf == "15m"
     assert s.arm_ids == ("T1@1h", "R1@1h")                       # D-T18 varsayilani
     s2 = get_strategy(NAME, mode="paper", arms=ALL_ARMS)
     assert s2.tfs() == ("15m", "1h", "4h", "1d")
@@ -134,9 +133,9 @@ def test_config_arms_and_caps():
         with pytest.raises(ConfigError):
             apply_overrides(PAPER, **kw)
     with pytest.raises(ConfigError):                                    # yalniz kagit
-        apply_overrides(PAPER, mode="backtest", veto_mode="off", arms=["T1@1h"], optional_pairs=(), ml_pairs=(),
+        apply_overrides(PAPER, mode="backtest", veto_mode="off", arms=["T1@1h"], optional_pairs=(),
                         max_positions=None, risk={}, clusters={}, cost_overrides={}, contract_types=None,
-                        flat_bar_guard=False, arm_max_positions={}, ml_mode="off", ml_experimental=False)
+                        flat_bar_guard=False, arm_max_positions={})
 
 
 def test_arm_cap_helpers():
@@ -290,10 +289,10 @@ def _cfg(tmp: Path, **kw):
                 "kripto_diger": {"pairs": ["SOL/USDT"], "max_positions": 6},
                 "hisse": {"pairs": ["NVDA/USDT"], "max_positions": 5},
                 "hisse_teknoloji": {"pairs": ["NVDA/USDT"], "max_positions": 3}}
-    base = dict(pairs=tuple(PAIRS), optional_pairs=("NVDA/USDT",), ml_pairs=("BTC/USDT", "ETH/USDT"), clusters=clusters,
+    base = dict(pairs=tuple(PAIRS), optional_pairs=("NVDA/USDT",), clusters=clusters,
                 cost_overrides={"NVDA/USDT": PAPER.cost_overrides["NVDA/USDT"]}, var_dir=str(tmp / "var"),
                 kill_file=str(tmp / "KILL"), pause_file=str(tmp / "PAUSE"), veto_config=str(ROOT / "config/veto.live.json"),
-                ml_model_path=str(ROOT / "models/ml1-r03.json"), market_db=str(tmp / "m.sqlite"),
+                market_db=str(tmp / "m.sqlite"),
                 history_dir=str(tmp / "h"), cost=dict(fill_model="native", granularity="15m", trigger_source="last"))
     base.update(kw)
     return apply_overrides(PAPER, **base)
@@ -342,9 +341,7 @@ def test_end_to_end_multi_arm_paper_with_caps(tmp_path, hist):
     te = _rows(eng, "SELECT e.arm_id AS arm_id, e.trade_id AS trade_id, d.trigger_tf AS tf, d.setup AS setup "
                     "FROM trade_entries e JOIN decision_events d ON d.id = e.decision_id WHERE e.supersedes_id IS NULL")
     assert te and all(r["arm_id"] == f"{r['setup']}@{r['tf']}" for r in te)
-    # sadece 1s adaylari r03'ten gecer; diger zaman dilimleri puansiz (ml_filter yok)
-    assert all(r["skip_reason"] != "ml_filter" for r in rows if r["trigger_tf"] != "1h")
-    assert all(r["skip_reason"] != "ml_filter" for r in rows if r["pair"] in ("SOL/USDT", "NVDA/USDT"))
+    assert all(r["skip_reason"] != "ml_filter" for r in rows)                    # 24.11: ML filtreleri silindi
     # tavan atlamasi gerekce taşır
     caps = [r for r in rows if r["veto_reason"] and str(r["veto_reason"]).startswith("gate:arm_cap:")]
     for r in caps:
@@ -361,22 +358,3 @@ def test_end_to_end_multi_arm_paper_with_caps(tmp_path, hist):
     for p in eng.state.open_positions():
         assert p.trigger_tf in ("15m", "1h", "4h", "1d")
     eng.status.write(eng, force=True)
-
-
-def test_equivalence_with_v1_full_ml_on_t1_r1_1h(tmp_path, hist):
-    """D-T18: yalniz T1@1h + R1@1h ile bilesik strateji, ayni veride tekli T1+R1 (1s) stratejisiyle ayni girisleri uretir."""
-    common = dict(ml_mode="off", ml_experimental=False, ml_pairs=(), arm_max_positions={}, arms=("T1@1h", "R1@1h"))
-    a_dir, b_dir = tmp_path / "a", tmp_path / "b"
-    cfg_a = _cfg(a_dir, strategy="price_action_v1_full_ml", **{**common, "arms": ()})
-    eng_a = E.build_engine(cfg_a, clock=SimClock(START), view=_view(hist), env={})
-    eng_a.ledger.init_params(_pmap(), reason=f"strategy:{eng_a.strategy.info.name}@{eng_a.strategy.info.version} wp11")
-    eng_a.start()
-    eng_a.run_range(START, END)
-    eng_b, _ = _run(b_dir, hist, **{**common, "strategy": NAME})
-    eng_b.run_range(START, END)
-    sql = ("SELECT pair, bar_close_ts, side, setup, planned_entry, planned_stop, trigger_tf FROM v_decisions "
-           "WHERE final_action='entered' ORDER BY bar_close_ts, pair")
-    ea, eb = _rows(eng_a, sql), _rows(eng_b, sql)
-    assert ea == eb
-    ta = _rows(eng_a, "SELECT pair, entry_price, qty FROM v_trades ORDER BY entry_ts, pair") if False else None
-    assert eng_b.counters().get("callback_errors", 0) == 0

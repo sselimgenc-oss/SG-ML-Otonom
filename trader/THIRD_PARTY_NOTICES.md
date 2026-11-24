@@ -20,11 +20,6 @@
 - Kaynak: Aurum v2 `aurum/research/stats.py` ve `aurum/research/splits.py`, commit 49f073dfdb2f8831e2fcb39b321c1a02bc4bba5f (yerel klon `sselimgenc-oss/inceleme/tradingbot`; yalnız okunarak kopyalandı, çalıştırılmadı/kurulmadı), 2026-11-16.
 - Kopyalanan: `src/trader_core/stats/stats.py` (PSR/DSR, MinTRL, Holm/BH düzeltmeleri, PBO/CSCV, durağan bootstrap) ve `src/trader_core/stats/splits.py` (purged/anchored walk-forward, purged K-fold, CPCV). Değişiklik: `scipy` kaldırıldı (normal dağılım cdf/sf/ppf/isf ve çarpıklık/basıklık `math`/`numpy` ile yeniden yazıldı); yeni bağımlılık eklenmedi. Dosya başlarında MIT başlığı vardır.
 - Copyright (c) 2025 zero-was-here. MIT lisans metni ilgili dosyaların başındaki başlıkta atıf olarak yer alır.
-- ML-G2 (17 Kas 2026): `aurum/labels/triple_barrier.py` satır 618-687 (aynı commit 49f073d, MIT; yalnız okunarak uyarlandı, çalıştırılmadı) -> `src/trader_ml/weights.py`: `average_uniqueness`, `uniqueness_weights`, `time_decay_weights` (AFML 4.4/4.5). Değişiklik: aralıklar 1 saatlik ızgarada zaman damgası, mean=1 normalizasyonu, `oldest` parametresi; yeni bağımlılık yok.
-- ML-G4 (17 Kas 2026): `aurum/features/regime.py` satır 113-134 (`efficiency_ratio`, `variance_ratio`) + `aurum/features/volatility.py` `safe_div` (aynı commit 49f073d, MIT; yalnız okunarak uyarlandı, çalıştırılmadı) -> `src/trader_core/ml_features_v2.py`. Değişiklik: `safe_div` dosyaya gömüldü; yeni bağımlılık yok. Dosya başında MIT atıf başlığı vardır.
-
-## LightGBM (MIT) — yalnız ML eğitim/araştırma tarafı
-- Kod kopyalanmadı; `requirements-ml.txt` içinde tam sürüm (4.6.0) + hash sabitli isteğe bağlı bağımlılık. Motor ve bot süreci yüklemez; motor tarafı kendi ağaç okuyucumuzu (`src/trader_ml/treeeval.py`) kullanır. scipy yalnız lightgbm'in dolaylı bağımlılığıdır.
 
 ## CT haber/duygu çözücüleri (kullanıcının kendi projesi) — yalnız veri toplama
 - Kaynak: `copytrade/canli/haber.py` (CT projesi, kullanıcının kendi kodu; yalnız okunarak uyarlandı, çalıştırılmadı), 2026-11-19; 23 Kasım 2026'da yalnız VERİ TOPLAMA olarak yeniden eklendi (etiket/ton/kural yok; bkz. `docs/veri-toplama-spec.md`).

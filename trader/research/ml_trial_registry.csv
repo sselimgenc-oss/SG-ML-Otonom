@@ -1,6 +1,0 @@
-recipe_id,registered_at,note
-ml0c-baseline-v1,2026-11-16,ML-0c taban tarif (lojistik + LightGBM sabit tarif); n_trials = kayitli tarif x 2 model
-ml1-r01-v1b-native33,2026-11-17,ML-1 tarif 1: lojistik + sig LightGBM (LGBM_PARAMS aynen) 33 ozellik (ml_features.FEATURE_NAMES) 2R/72 mum uc-bariyer etiketi ileri Platt 4 dilim; 19c tek kosu
-diag-19c-univariate,2026-11-17,TANI-ONLY on kayit (ml-guclendirme-plani 2 / karar 4): 19c derleminin tamaminda tek-ozellik korelasyonuna bakildi; tarif degil; n_trials 4->6 (1 satir x 2 model; sikilastirma)
-ml1-r02-long-ctx-1r,2026-11-17,ML-1 tarif 2 ON KAYIT (derlem v2 kurulmadan once; docs/ml/r02-r03-on-kayit.md): lojistik + sig LightGBM (LGBM_PARAMS aynen) 40 ozellik (ml_features_v2.R02_FEATURE_NAMES) label_1r 1R/72 mum agirlik uniq_decay (en eski 0.3; dilim ici) Platt a>=0 genisleyen pencere 366g egitim + 4 x 394g sinav (2021-01..2026-04); derlem sha256 kurulumda dondurulur; tek kosu
-ml1-r03-long-regime8,2026-11-17,ML-1 tarif 3 ON KAYIT (derlem v2 kurulmadan once; docs/ml/r02-r03-on-kayit.md): lojistik + LightGBM (max_depth 2 num_leaves 4 min_data_in_leaf 100; gerisi LGBM_PARAMS) 8 ozellik (ml_features_v2.R03_FEATURE_NAMES) etiket/agirlik/Platt/pencere r02 ile ayni; yalniz r02 raporundan sonra ve r02 KABUL degilse; tek kosu

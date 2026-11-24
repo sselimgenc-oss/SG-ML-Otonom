@@ -84,19 +84,3 @@ def test_otomatik_olay_telegram_satiri_yok():
     satirlar = TG._aktivite_satirlari(st)
     assert any("rejim etiketi ters yöndeydi" in s for s in satirlar)
     assert not any("Etiket kuralı" in s for s in satirlar)
-
-
-def test_ml_ozellikleri_duygu_haber_ve_ct_alanlarini_almaz_eski_paket_puanlanir():
-    import numpy as np
-
-    from trader_core import ml_live_v2 as M
-    feats = {"rr": 2.0, "atr_1h": 5.0, "ct_long": 12, "ct_yon": 1,
-             "duygu": 12, "haber": 3, "fng": 15, "fng_deger": 15, "duygu_deger": 12, "haber_ton": 0.4, "fear_greed": 20,
-             "etiket_atlardi": 1}
-    d = M.setup_feature_dict(side="long", regime="trend_up", atr_ratio=1.0, session_tag=None, asset_class="kripto", pair="BTC/USDT",
-                             planned_entry=100.0, planned_stop=98.0, features=feats)
-    assert d["f_rr"] == 2.0 and d["f_atr_1h"] == 5.0
-    for k in d:
-        assert not any(x in k for x in ("duygu", "haber", "fng", "fear", "greed", "etiket_atlardi", "f_ct_")), k
-    v = M.setup_feature_vector(["f_rr", "f_duygu", "f_haber", "f_ct_yon"], d)         # eski paket: eksik ozellik NaN, hata yok
-    assert v[0] == 2.0 and np.isnan(v[1:]).all()

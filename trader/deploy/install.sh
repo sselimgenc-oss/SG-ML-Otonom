@@ -346,11 +346,11 @@ install -d -m 0750 -o "$TRADER_USER" -g "$TRADER_USER" "$TRADER_DIR/var" "$TRADE
   "$TRADER_DIR/var/telegram" "$TRADER_DIR/var-testnet" "$TRADER_DIR/shared/testnet" \
   "$TRADER_DIR/var-live" "$TRADER_DIR/shared/live"
 install -d -m 2770 -o "$TRADER_USER" -g "$TG_GROUP" "$TRADER_DIR/var/telegram/outbox"
-# gece egitimi calisma zamani ciktilari (git-izli models/ ve research/ yazilmaz): var/learner/models/{setup_filter,pa_proposer}
+# gece egitimi calisma zamani ciktilari (git-izli models/ ve research/ yazilmaz): var/learner/models/pa_proposer
 safe_tree_path "$TRADER_DIR/var/learner" "$TRADER_DIR/var/learner/models" \
-  "$TRADER_DIR/var/learner/models/setup_filter" "$TRADER_DIR/var/learner/models/pa_proposer"
+  "$TRADER_DIR/var/learner/models/pa_proposer"
 install -d -m 0750 -o "$TRADER_USER" -g "$TRADER_USER" "$TRADER_DIR/var/learner" "$TRADER_DIR/var/learner/models" \
-  "$TRADER_DIR/var/learner/models/setup_filter" "$TRADER_DIR/var/learner/models/pa_proposer"
+  "$TRADER_DIR/var/learner/models/pa_proposer"
 install -d -m 0750 -o root -g root /var/backups/trader
 # veto birimi artik trader olarak calisir (DD-9 §4.2): onceden root'un yazdigi dosyalar trader'a gecer
 chown -hR "$TRADER_USER:$TRADER_USER" "$TRADER_DIR/shared/veto" "$TRADER_DIR/user_data"

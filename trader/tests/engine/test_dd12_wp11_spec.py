@@ -35,7 +35,7 @@ from trader_core import ledger as L
 from trader_core import signals as S
 from trader_engine import bars as B
 from trader_engine.errors import ConfigError
-from trader_engine.strategies.base import StrategyContext, StrategyError
+from trader_engine.strategies.base import StrategyContext
 from trader_engine.strategies.registry import get_strategy, list_strategies
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -55,20 +55,17 @@ def _arms_mod():
     return pytest.importorskip("trader_engine.strategies.arms")
 
 
-def _make_lab(arms=None, ml_mode="off"):
+def _make_lab(arms=None):
     """Bilesik stratejiyi (isteğe bagli kurulum listesiyle) kurar; yol bulunamazsa skip."""
     _lab_mod()
-    st = get_strategy("price_action_lab_ml", ml_mode=ml_mode)
+    st = get_strategy("price_action_lab_ml")
     if arms is None:
         return st
     lab = sys.modules["trader_engine.strategies.lab"]
     for n in sorted(dir(lab)):
         f = getattr(lab, n)
         if n.startswith("make") and callable(f) and "arms" in inspect.signature(f).parameters:
-            s = f(arms=list(arms))
-            if ml_mode != "off" and hasattr(s, "set_ml_mode"):
-                s.set_ml_mode(ml_mode)
-            return s
+            return f(arms=list(arms))
     for n in ("set_arms", "with_arms", "configure_arms"):
         if hasattr(st, n):
             r = getattr(st, n)(list(arms))
@@ -141,18 +138,20 @@ def test_lab_registered_and_paper_allowed():
 
 
 def test_lab_label_and_unchanged_registry_names():
-    for n in ("price_action_v1", "price_action_v1_full", "price_action_v1_ml", "price_action_v1_full_ml"):
+    for n in ("price_action_v1", "price_action_v1_full"):
         assert n in list_strategies()
+    assert not {"price_action_v1_ml", "price_action_v1_full_ml"} & set(list_strategies())      # 24.11: ML sarmalayicilari silindi
     st = get_strategy("price_action_lab_ml") if "price_action_lab_ml" in list_strategies() else pytest.skip("lab yok")
     assert st.label().startswith("strategy:price_action_lab_ml@")      # param_versions.reason etiketi
 
 
-def test_lab_ml_mode_supported():
-    _lab_mod()
-    for m in ("off", "shadow", "active"):
-        get_strategy("price_action_lab_ml", ml_mode=m)                  # set_ml_mode var: StrategyError yok
-    with pytest.raises(StrategyError):
-        get_strategy("price_action_lab_ml", ml_mode="bogus")
+def test_lab_has_no_ml_surface():
+    """24.11 kullanici karari: ML filtreleri silindi; bilesik strateji ML kipi/evreni/yedek-gecis yuzeyi tasimaz."""
+    st = get_strategy("price_action_lab_ml")
+    for n in ("ml_mode", "set_ml_mode", "ml_universe", "set_ml_universe", "fail_open", "native_candidate"):
+        assert not hasattr(st, n), n
+    with pytest.raises(TypeError):
+        get_strategy("price_action_lab_ml", ml_mode="off")
 
 
 # ============================================================================================= kurulumlar adla bulunur

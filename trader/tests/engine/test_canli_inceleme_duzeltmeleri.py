@@ -1,17 +1,14 @@
 """23.11 canli = kagit: bagimsiz inceleme duzeltmeleri. (1) canli TF-kapanisi telafisi, (2) optional cift position_risk reddi acilisi
-durdurmaz, (3) canlida ML filtresi yoksa/suresi dolduysa giris YOK (fail-closed) + saglik bloku."""
+durdurmaz."""
 from __future__ import annotations
 
-import json
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from types import SimpleNamespace
 from decimal import Decimal
 
 import pytest
 import test_canli_kagit_parite as P
 import test_live_broker_impl_smoke as LB
-from trader_engine import ogrenme_filtre as OF
 from trader_engine.brokers.binance_futures import LiveBroker
 from trader_engine.errors import EngineExit
 from trader_engine.exchange.binance_rest import ExchangeReject
@@ -129,110 +126,3 @@ def test_build_live_broker_optional_pairs_gecirir():
     src = (P.ROOT / "src" / "trader_engine" / "engine.py").read_text(encoding="utf-8")
     assert "optional_pairs=cfg.optional_pairs" in src
 
-
-# ----------------------------------------------------------------------------------------------- 3. ML filtresi canlida fail-closed
-def _gate_outcome(tmp_path, *, mode, filtre):
-    import dataclasses
-
-    import test_etiket_kurallari_gate as G
-    e = G._kur(tmp_path)
-    e.g.cfg = dataclasses.replace(G.CFG, mode=mode, ml_mode="active")
-    e.g.ml_filtre = filtre
-    e.g._etiket_karari = lambda *a, **k: None
-    try:
-        return G._go(e), e
-    except Exception:
-        e.state.close()
-        e.led.close()
-        raise
-
-
-class _Yok:
-    def karar(self, arm, oz, simdi):
-        return OF.Karar(True, None, "filtre_yok")
-
-
-class _Hata:
-    def karar(self, arm, oz, simdi):
-        raise RuntimeError("bozuk")
-
-
-class _Ok:
-    def karar(self, arm, oz, simdi):
-        return OF.Karar(True, 0.9, "ok")
-
-
-def _kapat(e):
-    e.state.close()
-    e.led.close()
-
-
-@pytest.mark.parametrize("filtre", [None, _Yok(), _Hata()])
-def test_canlida_filtre_yoksa_bozuksa_giris_yok(tmp_path, filtre):
-    o, e = _gate_outcome(tmp_path, mode="live", filtre=filtre)
-    try:
-        assert o.action == "skip" and o.event.skip_reason == "ml_filter"
-        assert o.event.veto_reason == "gate:ml_filter_unavailable"
-        assert e.g.counters["ml_filtre_kapali_blok"] == 1
-    finally:
-        _kapat(e)
-
-
-@pytest.mark.parametrize("filtre", [None, _Yok(), _Hata()])
-def test_kagitta_filtre_yoksa_giris_serbest_fail_open(tmp_path, filtre):
-    o, e = _gate_outcome(tmp_path, mode="paper", filtre=filtre)
-    try:
-        assert o.action == "enter"
-    finally:
-        _kapat(e)
-
-
-def test_canlida_gecerli_filtre_girisi_engellemez(tmp_path):
-    o, e = _gate_outcome(tmp_path, mode="live", filtre=_Ok())
-    try:
-        assert o.action == "enter"
-    finally:
-        _kapat(e)
-
-
-def test_filtre_saglik_dizin_yok_paket_yok_suresi_dolmus(tmp_path):
-    now = datetime(2026, 11, 23, tzinfo=UTC)
-    dep = OF.FiltreDeposu(tmp_path / "yok")
-    if dep.calisiyor:
-        assert dep.saglik(now, {"M1"})[0] == "no_model" and "dizin" in dep.saglik(now, {"M1"})[1]
-    (tmp_path / "var").mkdir()
-    dep2 = OF.FiltreDeposu(tmp_path / "var")
-    st = dep2.saglik(now, {"M1"})[0]
-    assert st == "no_model"                                            # dizin var ama paket yok
-    # paket dosyasi var ama bozuk JSON => gecersiz (expired etiketi: gecerli paket yok)
-    if dep2.calisiyor:
-        (tmp_path / "var" / f"{dep2._mod[0]._guvenli_ad(OF.aile_kimligi('M1'))}.json").write_text("{bozuk")
-        assert dep2.saglik(now, {"M1"})[0] == "expired"
-    kapali = OF.FiltreDeposu(tmp_path / "var", kapali_=True)
-    assert kapali.saglik(now, {"M1"})[0] == "no_model"
-
-
-def test_canli_status_ml_blogu_saglik_icin_no_model_ve_entries_blocked(tmp_path):
-    cfg, eng = P._live_engine(tmp_path)
-    try:
-        m = eng._ml_status(datetime(2026, 11, 23, tzinfo=UTC))
-        assert m["mode"] == "active" and m["state"] in ("no_model", "expired") and m["entries_blocked"] is True
-        assert m["error"]
-        # health bu blogu CRIT ml_no_model/ml_expired olarak okur (IMMEDIATE_CODES: Telegram'a gider)
-        from trader_core import health as H
-        assert {"ml_no_model", "ml_expired"} <= set(H.IMMEDIATE_CODES)
-    finally:
-        eng.state.close()
-        eng.ledger.close()
-
-
-def test_canli_status_ml_blogu_gecerli_paketle_ok(tmp_path, monkeypatch):
-    cfg, eng = P._live_engine(tmp_path)
-    try:
-        exp = datetime(2026, 12, 20, tzinfo=UTC)
-        eng.gate.ml_filtre = SimpleNamespace(saglik=lambda now, aileler: ("ok", None, exp))
-        m = eng._ml_status(datetime(2026, 11, 23, tzinfo=UTC))
-        assert m["state"] == "ok" and m["entries_blocked"] is False and m["expires_at"] == exp.isoformat()
-    finally:
-        eng.state.close()
-        eng.ledger.close()

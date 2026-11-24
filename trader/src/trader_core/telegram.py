@@ -1591,7 +1591,7 @@ def _kasa_satiri(eq: Any, dse: Any) -> str | None:
     return f"💰 Kasa: {tr_sayi(eq)} $" + (f" (gün başı {tr_sayi(dse)} $)" if _num_ok(dse) else "")
 
 
-_BOLUM_SIRASI = ("Model", "Davranış", "Risk kademesi", "Bütçe", "Ders", "Öğrenme", "Kurulum karnesi",
+_BOLUM_SIRASI = ("Davranış", "Risk kademesi", "Bütçe", "Ders", "Öğrenme", "Kurulum karnesi",
                  "Alınmayan sinyaller (son 7 gün)")
 
 
@@ -1630,19 +1630,6 @@ def _ders_gunluk(cfg: TelegramConfig, day: str) -> tuple[int, int] | None:
     except Exception as e:  # noqa: BLE001
         log.warning("rapor: ders sayisi okunamadı: %s", type(e).__name__)
         return None
-
-
-def _model_ozet(st: Mapping[str, Any] | None) -> str:
-    """status.json `ml` blogu -> tek sade satir (yok/kapali -> bos)."""
-    ml = (st or {}).get("ml")
-    if not isinstance(ml, Mapping) or ml.get("mode") not in ("shadow", "active"):
-        return ""
-    state = ml.get("state")
-    if state == "ok":
-        return "Model: güncel, işlemlere etkili" if ml.get("mode") == "active" else "Model: güncel, gölgede izliyor"
-    if state in ("expired", "no_model"):
-        return "Model süresi doldu, kararlar kuralla veriliyor" if state == "expired" else "Model yüklenemedi, kararlar kuralla veriliyor"
-    return ""
 
 
 def _kucultulen_kollar(cfg: TelegramConfig) -> str:
@@ -1714,9 +1701,6 @@ def build_report(cfg: TelegramConfig, now: datetime, day: str, sections: Mapping
     dg = _ders_gunluk(cfg, day)
     if dg is not None:
         out.append(f"Dersler: bugün {dg[0]} uygulandı, {dg[1]} geri alındı · işlemlere etkili")
-    ml = _model_ozet(st)
-    if ml:
-        out.append(ml)
     kk = _kucultulen_kollar(cfg)
     if kk:
         out.append(kk)
@@ -2004,90 +1988,6 @@ def rapor_duraklatma(pauses: Mapping[str, Any]) -> str:
     return "\n".join(pause_lines(pauses, sadece_tutulan=True))
 
 
-def _ml_kalan_tr(kalan_s: float) -> str:
-    g = int(kalan_s // 86400)
-    return f"{g} gün" if g >= 1 else f"{max(1, int(kalan_s // 3600))} saat"
-
-
-def _ml_health_flags(cfg: TelegramConfig, bot: str) -> set[str]:
-    """Sağlık state.json: ml_seen[bot].stale ve son turdaki ml_package:<bot> kodları. Okunamazsa boş küme (satır yine yazılır)."""
-    flags: set[str] = set()
-    if not cfg.health_state:
-        return flags
-    try:
-        d = json.loads(Path(cfg.health_state).read_text(encoding="utf-8"))
-        seen = (d.get("ml_seen") or {}).get(bot)
-        if isinstance(seen, Mapping) and seen.get("stale") is True:
-            flags.add("ml_stale_data")
-        for fp in (d.get("fingerprints") or {}):
-            name, _, code = str(fp).partition("|")
-            if name == f"ml_package:{bot}":
-                flags.add(code)
-    except Exception as e:  # noqa: BLE001
-        log.warning("rapor: model sağlık durumu okunamadı: %s", type(e).__name__)
-    return flags
-
-
-_ML_EK = (("ml_restart_needed", "yeni model hazır, motorun yeniden başlatılması gerekiyor"),
-          ("ml_stale_data", "yeni model eski veriyle üretilmiş görünüyor"),
-          ("ml_score_errors", "bazı fırsatlar puanlanamadı"))
-
-
-def ml_line(cfg: TelegramConfig, ml: Any, now: datetime, bot: str = "learner") -> str:
-    """status.json `ml` bloğu -> tek satır sade Türkçe (16.5). Bozuk blok SectionError."""
-    if ml is None:
-        return "🤖 Model filtresi kapalı (bot filtresiz çalışıyor)"
-    if not isinstance(ml, Mapping):
-        raise SectionError("ml_blok")
-    mode, state = ml.get("mode"), ml.get("state")
-    if mode == "off":
-        return "🤖 Model filtresi kapalı (bot filtresiz çalışıyor)"
-    if mode not in ("shadow", "active") or state not in ("ok", "expired", "no_model"):
-        raise SectionError("ml_blok")
-    if state == "ok":
-        try:
-            kalan = (parse_ts_z(str(ml.get("expires_at"))) - now).total_seconds()
-        except Exception:  # noqa: BLE001
-            raise SectionError("ml_blok")
-        sure = _ml_kalan_tr(kalan)
-        if kalan > 7 * 86400:
-            line = (f"🤖 Model gölgede izliyor, kararları etkilemiyor · süresi {sure} sonra doluyor" if mode == "shadow"
-                    else f"🤖 Model filtresi açık · süresi {sure} sonra doluyor")
-        elif mode == "active":
-            line = f"⚠️ Model filtresi açık ama süresi {sure} sonra doluyor; yenilenmezse yeni işlemler durur"
-        else:
-            line = f"⚠️ Gölgedeki modelin süresi {sure} sonra doluyor (işlemler etkilenmez)"
-    elif mode == "shadow":
-        line = "⚠️ Gölgedeki model çalışmıyor (işlemler etkilenmiyor)"
-    elif state == "expired":
-        line = "🚨 Modelin süresi doldu: yeni işlem açılmıyor, açık pozisyonlar korunuyor"
-    else:
-        line = "🚨 Model yüklenemedi: yeni işlem açılmıyor, açık pozisyonlar korunuyor"
-    flags = _ml_health_flags(cfg, bot)
-    ek = [txt for kod, txt in _ML_EK if kod in flags]
-    return line + "".join(f" · {t}" for t in ek)
-
-
-def rapor_model(cfg: TelegramConfig, now: datetime, ladders: Mapping[str, LadderFiles] | None = None) -> str:
-    """Bot başına tek satır. Motor durumu okunamıyorsa boş (genel satırı build_report yazar)."""
-    kaynak: dict[str, str] = {"learner": cfg.status_path}
-    for b, lf in (ladders or {}).items():
-        if lf.status_path and lf.status_path != cfg.status_path and b not in kaynak:
-            kaynak[b] = lf.status_path
-    out = []
-    for bot, path in kaynak.items():
-        try:
-            st = json.loads(Path(path).read_text(encoding="utf-8"))
-        except Exception:  # noqa: BLE001 - build_report motor durumunu zaten "okunamadı" sayar
-            if bot == "learner":
-                continue
-            raise SectionError("durum")
-        if not isinstance(st, Mapping):
-            raise SectionError("durum")
-        out.append(ml_line(cfg, st.get("ml"), now, bot))
-    return "\n".join(out)
-
-
 DAVRANIS_YOK = "📐 Davranış değerlendirmesi henüz yok"
 DAVRANIS_MAX_YAS_S = 36 * 3600
 
@@ -2235,18 +2135,16 @@ def fmt_tsi_tr(iso: str | None) -> str:
 
 
 def rapor_ogrenme(cfg: TelegramConfig, now: datetime) -> str:
-    """Günlük rapor: ders etkisi, ML etkisi, M1, seans kırılımı, açık pozisyonlar, harcama (her zaman), haftalık özet."""
+    """Günlük rapor: ders etkisi, M1, seans kırılımı, açık pozisyonlar, harcama (her zaman), haftalık özet."""
     lv = _ogr_view(cfg, now)
     out: list[str] = []
     if lv.get("ledger_error"):
         pass                                  # defter yoksa Defter bölümü genel uyarıyı zaten yazar; yalnız harcama kalır
     else:
-        ders, ml, op = lv["lesson"], lv["ml"], lv["open"]
+        ders, m1, op = lv["lesson"], lv["m1"], lv["open"]
         out.append("📚 Ders: uygulanan " + str(ders["applied"]) + " · geri alınan " + str(ders["rollbacks"])
                    + (" · −10 R freni AKTİF" if ders["brake_active"] else "") + " · " + _ders_etki_satiri(ders))
-        etki = "" if ml["effect_r"] is None else f" (alınsaydı etkisi {tr_isaretli(ml['effect_r'])} R)"
-        out.append(f"🤖 Model: elenen {ml['eliminated']} · geçen {ml['passed']}{etki} · M1 aday {ml['m1_candidates']}, "
-                   f"giriş {ml['m1_taken']}")
+        out.append(f"🤖 M1: aday {m1['candidates']}, giriş {m1['taken']}")
         out.append(_seans_satiri(lv))
         sinif = [f"{_OGR_SINIF.get(k, k)} {_r_or_dash(b.get('mean_r_taken'))}" for k, b in (lv.get("asset_class") or {}).items()
                  if b.get("taken")]
@@ -2287,7 +2185,6 @@ def default_sections(cfg: TelegramConfig, now: datetime, day: str, pauses: Mappi
     if ladders:                                                  # 12 §9: bot basina tek satir
         out["Risk kademesi"] = lambda: "\n".join(
             "📶 " + ladder_line(b, ladder_view(lf, now)) for b, lf in ladders.items())
-    out["Model"] = lambda: rapor_model(cfg, now, ladders)
     out["Davranış"] = lambda: rapor_davranis(cfg, now, ladders)
     out.update({"Defter": lambda: rapor_defter(cfg, day), "Bütçe": lambda: rapor_butce(cfg),
                 "Ders": lambda: rapor_ders(cfg, now), "Öğrenme": lambda: rapor_ogrenme(cfg, now),

@@ -253,13 +253,13 @@ def test_pbo_rapor_builds_harness_family_and_marks_arms(tmp_path):
     arm = tmp_path / "arm"
     arm.mkdir()
     _fake_series(arm, pd.date_range("2024-01-01", periods=300, freq="D", tz="UTC"))
-    res = P.build(tmp_path / "bt", tmp_path / "ml", ["TF1@4h", "Q1@1h", "S1@1h"], arm_dir=arm)
+    res = P.build(tmp_path / "bt", ["TF1@4h", "Q1@1h", "S1@1h"], arm_dir=arm)
     fam = {f["aile"]: f for f in res["aileler"]}
     assert fam["Kural TF1 (harness)"]["durum"] == "tamam" and fam["Kural TF1 (harness)"]["n_yapilandirma"] == 8
     kay = {a["kurulum"]: a for a in res["kurulumlar"]}
     assert kay["TF1@4h"]["kayit"] == "harness" and kay["S1@1h"]["kayit"] == "yok" and kay["Q1@1h"]["neden"] == "veri yok"
     assert "Kural TF1 (harness)" in P.render_md(res)
-    assert P.build(tmp_path / "bt", tmp_path / "ml", ["TF1@4h"], arm_dir=arm) == P.build(tmp_path / "bt", tmp_path / "ml", ["TF1@4h"], arm_dir=arm)
+    assert P.build(tmp_path / "bt", ["TF1@4h"], arm_dir=arm) == P.build(tmp_path / "bt", ["TF1@4h"], arm_dir=arm)
 
 
 def test_pbo_rapor_refuses_series_touching_holdout(tmp_path, monkeypatch):

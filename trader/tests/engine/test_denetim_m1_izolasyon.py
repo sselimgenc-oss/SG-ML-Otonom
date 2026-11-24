@@ -50,14 +50,12 @@ def test_main_cikis_kodu_tf_hatasinda_3_ve_digerleri_yazilir(tmp_path, monkeypat
     _patch(monkeypatch, tmp_path)
     from trader_core import ledger as L
     monkeypatch.setattr(L, "open_ledger", lambda *a, **k: SimpleNamespace(close=lambda: None))
-    monkeypatch.setattr(R.T, "collect_rows", lambda led, cf: [])
-    monkeypatch.setattr(R.T, "train_all", lambda rows, created_at, max_rows: ({}, {"lock_dropped": 0}))
-    rc = R.main(["--once", "--ledger", str(tmp_path / "x.sqlite"), "--models-dir", str(tmp_path / "sf"),
+    rc = R.main(["--once", "--ledger", str(tmp_path / "x.sqlite"),
                  "--m1-models-dir", str(tmp_path / "m1"), "--paper-models-csv", str(tmp_path / "p.csv"),
                  "--history-dir", str(tmp_path / "h"), "--m1-tfs", "1h,4h,1d"], now_fn=lambda: NOW)
     assert rc == 3
     names = [r[0] for r in csv.reader(open(tmp_path / "p.csv", encoding="utf-8"))][1:]
-    assert names[0].startswith("setup_filter_nightly_")
+    assert len(names) == 3
     assert {"m1_nightly_1h_2026-11-20", "m1_nightly_4h_2026-11-20", "m1_nightly_1d_2026-11-20"} <= set(names)
 
 
@@ -65,9 +63,7 @@ def test_tum_tf_saglamsa_cikis_0(tmp_path, monkeypatch):
     _patch(monkeypatch, tmp_path)
     from trader_core import ledger as L
     monkeypatch.setattr(L, "open_ledger", lambda *a, **k: SimpleNamespace(close=lambda: None))
-    monkeypatch.setattr(R.T, "collect_rows", lambda led, cf: [])
-    monkeypatch.setattr(R.T, "train_all", lambda rows, created_at, max_rows: ({}, {"lock_dropped": 0}))
-    rc = R.main(["--once", "--ledger", str(tmp_path / "x.sqlite"), "--models-dir", str(tmp_path / "sf"),
+    rc = R.main(["--once", "--ledger", str(tmp_path / "x.sqlite"),
                  "--m1-models-dir", str(tmp_path / "m1"), "--paper-models-csv", str(tmp_path / "p.csv"),
                  "--history-dir", str(tmp_path / "h"), "--m1-tfs", "1h,1d"], now_fn=lambda: NOW)
     assert rc == 0

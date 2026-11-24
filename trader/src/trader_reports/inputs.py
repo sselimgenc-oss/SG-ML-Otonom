@@ -148,10 +148,8 @@ def _bound(ts: str | None, default: str) -> str:
 
 def load_decisions(conn, since: str | None, until: str | None) -> tuple[list[dict], int]:
     """Donemdeki yerine gecilmemis kararlar; kilitli donem satirlari SQL'de elenir. (satirlar, atlanan atlanmis-karar sayisi; girilen kararlar kendi islemiyle birlikte sayilir)."""
-    cols = {r[1] for r in conn.execute("PRAGMA table_info(v_decisions)")}
-    ml = "ml_score" if "ml_score" in cols else "NULL AS ml_score"
     sel = ("SELECT id, bar_close_ts, trigger_tf, pair, side, setup, regime, atr_ratio, features, planned_entry, planned_stop, "
-           f"veto_status, veto_reason, risk_reason, leverage, final_action, skip_reason, {ml} FROM v_decisions ")
+           "veto_status, veto_reason, risk_reason, leverage, final_action, skip_reason FROM v_decisions ")
     p = {"since": _bound(since, LOW_TS), "until": _bound(until, HIGH_TS), **guard.PARAMS}
     per = "bar_close_ts >= :since AND bar_close_ts < :until"
     lock = guard.ts_lock_sql("bar_close_ts")

@@ -1,5 +1,5 @@
 """HB1 'ayni haberle yeniden giris yok' kapisi: ayni olay -> red; yeni olay / ters yon / baska kol serbest; defter hatasi yalniz HB1'i durdurur;
-olay kimligi ML ozelliklerine girmez; canli = kagit parite."""
+olay kimligi metin ozellik olarak yazilir (sayisal ozellige girmez); canli = kagit parite."""
 from __future__ import annotations
 
 import dataclasses
@@ -10,8 +10,6 @@ from types import SimpleNamespace
 import pytest
 
 from trader_core import ledger as L
-from trader_core import ml_live_v2 as MV
-from trader_engine import ogrenme_filtre as OF
 from trader_engine.clock import SimClock
 from trader_engine.config import load_cli_config
 from trader_engine.gates import EntryGate, NoVeto, _features, hb1_olay_of
@@ -116,18 +114,12 @@ def test_defter_hatasi_yalniz_hb1_reddeder(e):
     assert _go(e, _row()).action == "enter"                              # T1 etkilenmez
 
 
-def test_olay_kimligi_ml_ozelliklerine_girmez(e):
+def test_olay_kimligi_metin_ozellik_olarak_yazilir(e):
     row = _hb1(4242)
     f = _features(row)
     assert f["hb1_olay"] == "4242" and isinstance(f["hb1_olay"], str)     # metin: sayisal ozellik cikarimi atlar
     for k in ("edge_dist_atr", "hb1_body", "hb1_wick", "hb1_rr"):
         assert f.get(k) != 4242.0
-    d = OF.ozellikler(side="long", regime="trend_up", atr_ratio=1.0, session_tag=None, pair="BTC/USDT", planned_entry=100.0,
-                      planned_stop=98.0, features=f)
-    assert not any("hb1_olay" in k for k in d)
-    for names in MV.RECIPE_NAMES.values():
-        assert not any("hb1_olay" in n for n in names)
-    assert not any("hb1_olay" in n for n in MV.SETUP_BASE_FEATURES)
     assert hb1_olay_of(_hb1(0)) is None and hb1_olay_of(_row()) is None
 
 
@@ -143,7 +135,6 @@ def test_canli_kagit_parite(e):
     _kapat(e, _hb1(4242), 1)
     paper = _go(e, _hb1(4242))
     e.g.cfg = dataclasses.replace(CFG, mode="live")
-    e.g.ml_filtre = type("F", (), {"karar": lambda self, arm, oz, simdi: OF.Karar(True, 0.9, "ok")})()
     live = _go(e, _hb1(4242))
     assert (paper.action, paper.code, paper.event.veto_reason) == (live.action, live.code, live.event.veto_reason)
     assert live.code == "hb1_ayni_olay"
@@ -186,7 +177,6 @@ def test_bekleyen_cikis_outbox_fail_closed_paper_ve_canli(e):
     paper = _go(e, _hb1(4242))
     assert paper.code == "hb1_olay_bekleyen_cikis" and paper.event.veto_reason == "gate:hb1_olay_bekleyen_cikis"
     e.g.cfg = dataclasses.replace(CFG, mode="live")
-    e.g.ml_filtre = type("F", (), {"karar": lambda self, arm, oz, simdi: OF.Karar(True, 0.9, "ok")})()
     assert _go(e, _hb1(4243)).code == "hb1_olay_bekleyen_cikis"                   # canli = kagit
     assert _go(e, _row()).action == "enter"                                       # T1 etkilenmez
     e.state.outbox_pending = lambda: []                                           # type: ignore[method-assign]

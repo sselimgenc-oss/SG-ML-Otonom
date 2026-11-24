@@ -120,7 +120,7 @@ def test_tsi_day_boundary(env):
 
 def test_empty_cards_hidden_and_unmeasured_text(pano):
     assert pano["ders"]["durum"].startswith("Açık, veri birikiyor (0/") and pano["ders"]["son"] is None   # veri yok: kart yine uretilir (OZET'te zorunlu)
-    assert pano["ml"] is not None and pano["ml"]["durum"] in ("Kapalı", "Açık, veri birikiyor (0/10)")
+    assert "ml" not in pano                                    # 24.11: makine ogrenmesi karti (ML filtresi) silindi
     z = pano["kz"]
     assert z["oran"]["kazanma_yuzde"] == 60.0                    # 5 islem >= asgari
     o = PP.olculemedi(8, 30)
@@ -208,26 +208,15 @@ def test_strip_has_start_not_kasa_pct_and_title_turkish(pano):
 
 
 def test_partial_state_is_not_healthy_and_says_why():
-    ml = {"kapsam": {"aktif": 4, "toplam": 9, "en_az": 10, "eksik": []}}
-    k = PP.kismi_durum({"renk": "sari"}, ml)
-    assert k == ["ML 4/9 kolda çalışıyor, diğerlerinde yeterli işlem yok (en az 10)"]
+    k = PP.kismi_durum({"renk": "kirmizi"})
+    assert k == ["ders işlemleri etkilemiyor"]
     y = PP.ne_yapmali("live", {"renk": "yesil"}, 3, k)
-    assert y.startswith("Bir şey yapmanız gerekmiyor; ML 4/9 kolda")
-    assert PP.kismi_durum({"renk": "kirmizi"}, None) == ["ders işlemleri etkilemiyor"]
-    assert PP.kismi_durum({"renk": "yesil"}, {"kapsam": {"aktif": 9, "toplam": 9, "en_az": 10, "eksik": []}}) == []
+    assert y.startswith("Bir şey yapmanız gerekmiyor; ders işlemleri")
+    assert PP.kismi_durum({"renk": "yesil"}) == [] and PP.kismi_durum(None) == []
 
 
 def test_katki_label_uses_resolved_count():
     assert PP.katki_olculemedi(0) == {"olculemedi": "Henüz ölçülemedi (sonucu belli 0 karar, en az 10)"}
-
-
-def test_ml_denominator_is_paper_config_arms_and_threshold_from_engine():
-    from trader_engine import ogrenme_filtre as OF
-    assert PP.min_kol_islem() == OF.MIN_ISLEM
-    arms = P.paper_maps()[0]
-    assert len(arms) >= 9                                         # payda: kagit ayarindaki gercek kol listesi
-    src = (ROOT / "src/trader_core/panel_pano.py").read_text(encoding="utf-8")
-    assert "paper_maps()[0]" in src and "trader_engine" not in src.replace("ogrenme_filtre.MIN_ISLEM", "")      # core motoru ice aktarmaz; sabit esitligi yukarida
 
 
 def _h(overall, *fps):
@@ -236,7 +225,7 @@ def _h(overall, *fps):
 
 
 def _tv(health):
-    return PP.teknik_view(health=health, risk_rows=None, budget=None, tut=None, pbo=None, ctx=None, ml_filtre=None, ders=None)
+    return PP.teknik_view(health=health, risk_rows=None, budget=None, tut=None, pbo=None, ctx=None, ders=None)
 
 
 def test_saglik_uyarisi_adiyla_gorunur_ve_isik_ne_yapmali():

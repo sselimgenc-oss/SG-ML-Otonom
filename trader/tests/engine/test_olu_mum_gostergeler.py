@@ -438,44 +438,6 @@ def test_exit_counterfactual_prepare_h1_kripto_ayni_hisse_motorla_ayni(stock):
     assert np.nanmean(np.abs(a - b) / a) > 1e-3               # eski yol seansli enstrumanda gercekten farkli (anlamli test)
 
 
-def test_ml_v2_ozellikleri_olu_mumlari_cikarir_kripto_ayni():
-    """A2: canli ML v2 baglami (LiveContextV2.features_for_bar) olu 1s mumlari ozellik girdisinden cikarir (v1 ile ayni; `ml_features_v2` dondurulmus
-    dosya, ayiklama cagirandadir). Seansli cift: sonuc == onceden ayiklanmis girdiyle `feature_frame_v2`; ayiklamasiz yol FARKLI. Kripto: ayni nesne
-    (strip_dead) => ayiklamasiz yolla birebir. Tutulan pencere ham kalir (delik denetimi takvim izgarasinda)."""
-    from trader_core import ml_live_v2 as LV
-    from trader_core.arm_time import strip_dead
-    from trader_core.ml_features_v2 import feature_frame_v2
-    days = 220
-    n = 96 * days
-    raw = {"BTC/USDT": GS.resample(GS.make_15m(1, n, START, 100.0), "1h"), "ETH/USDT": GS.resample(GS.make_15m(2, n, START, 50.0), "1h"),
-           "SOL/USDT": GS.resample(GS.make_15m(5, n, START, 60.0), "1h"), "NVDA/USDT": GS.resample(GS.make_stock_15m(3, days, START, 150.0, flat=True), "1h")}
-    assert strip_dead(raw["BTC/USDT"]) is raw["BTC/USDT"]
-    D = pd.Timestamp(START + timedelta(days=213, hours=17))                   # persembe 17:00 UTC: son bar (16:00) seansta -> dolu
-    assert AG.active_mask(raw["NVDA/USDT"]) is not None and bool(AG.active_mask(raw["NVDA/USDT"])[raw["NVDA/USDT"].index.get_loc(D - pd.Timedelta("1h"))])
-
-    def bars_fn(p, d, k):
-        g = raw[p]
-        return g[g.index + pd.Timedelta("1h") <= pd.Timestamp(d)].tail(k)
-    ctx = LV.LiveContextV2("r02", list(raw), bars_fn)
-    cands = pd.DataFrame([{"pair": "NVDA/USDT", "side": "long", "planned_entry": 150.0, "planned_stop": 148.0},
-                          {"pair": "SOL/USDT", "side": "short", "planned_entry": 60.0, "planned_stop": 61.0}])
-    bf = ctx.features_for_bar(D.to_pydatetime(), cands)
-    assert any(AG.active_mask(h) is not None for h in ctx._held.values())     # tutulan pencere ham (olu mumlar duruyor)
-    frames = {LV.internal_key(p): ctx._held[p] for p in raw}
-    c = pd.DataFrame({"ts": [D] * 2, "pair": [LV.internal_key(p) for p in cands["pair"]], "side": cands["side"].to_numpy(),
-                      "planned_entry": cands["planned_entry"].to_numpy(float), "planned_stop": cands["planned_stop"].to_numpy(float)})
-    pre = {k: (d[AG.active_mask(d)] if AG.active_mask(d) is not None else d) for k, d in frames.items()}
-    exp = feature_frame_v2(pre, c, recipe="r02")
-    legacy = feature_frame_v2(frames, c, recipe="r02")
-    for i, p in enumerate(cands["pair"]):
-        got = np.array([bf.rows[p][k] for k in ctx.names])
-        np.testing.assert_array_equal(got, exp.iloc[i][list(ctx.names)].to_numpy(float))
-    nv = np.array([bf.rows["NVDA/USDT"][k] for k in ctx.names])
-    assert not np.allclose(nv, legacy.iloc[0][list(ctx.names)].to_numpy(float), equal_nan=True)       # ayiklamasiz yol seansli ciftte farkli
-    sol = np.array([bf.rows["SOL/USDT"][k] for k in ctx.names])
-    ok = np.isfinite(sol) & np.isfinite(legacy.iloc[1][list(ctx.names)].to_numpy(float))
-    assert ok.any()
-
 
 def test_price_action_v1_4h_kripto_ayni_hisse_olu_mumsuz(stock):
     """A3: v1_4h tetik 4s: kripto eski dogrudan hesapla AYNI; seansli: 4s olu mumlar gosterge girdisinden cikar (v1 ile ayni desen)."""

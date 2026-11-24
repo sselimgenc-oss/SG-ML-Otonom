@@ -3,7 +3,7 @@
 
 Her karar icin: decision_id, arm_id, pair, side, bar_close_ts, outcome_ts, r (net R), taken (alindi mi), source
 ("trade" = kapanan islem R'si; "cf" = alinmayan adayin barrier sonucu). Egitim (research/pa_proposer_build.py) bu dosyayi okur.
-KILIT (2026-05-01..2026-11-01, trader_ml.setup_filter.train.in_lock): karar ile sonuc arasindaki aralik kilide kesisiyorsa
+KILIT (2026-05-01..2026-11-01, trader_ml.pa_proposer.train.in_lock): karar ile sonuc arasindaki aralik kilide kesisiyorsa
 satir DUSURULUR; sonucu (outcome_ts) ya da karar zamani bilinmeyen satir da dusurulur (dogrulanamaz = kilitli sayilir).
 Cikis: 0 basarili; 1 kullanim; 3 defter/okuma hatasi.
 """
@@ -20,7 +20,7 @@ _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE.parent / "src"))
 
 from trader_core import ledger as L  # noqa: E402
-from trader_ml.setup_filter.train import in_lock  # noqa: E402  (kilit penceresi tek kaynak)
+from trader_ml.pa_proposer.train import in_lock  # noqa: E402  (kilit penceresi tek kaynak)
 
 
 def _resolve(p: str) -> str:

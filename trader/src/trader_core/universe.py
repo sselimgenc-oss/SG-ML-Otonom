@@ -1,8 +1,7 @@
 """Aylik enstruman evreni (DD-12 WP-16; D-T28). Saf fonksiyonlar: ag, dosya ve saat yok.
 
 Kural (kullanici karari, 18 Kasim 2026):
-  * kripto 20: stabil ve sarili/stake kopyalar disarida; Binance vadelide TRADING olan, en yuksek siralama puanli 20;
-    `pinned` (ML evreni) once yerlestirilir ve sayiyi 20 icinde tutar.
+  * kripto 20: stabil ve sarili/stake kopyalar disarida; Binance vadelide TRADING olan, en yuksek siralama puanli 20.
   * hisse 20: sirali listeden (config/universe.json) TRADING olan ilk 20.
   * emtia 4 (XAU, XAG, BZ, COPPER): sabit; TRADING olmasa da listede kalir (motor o ciftte bekler).
   * `keep` (acik pozisyonu olan, artik listede olmayan ciftler): evrende kalir, `optional` olur (yonetim surer, yeni giris
@@ -26,15 +25,11 @@ def base_of(pair: str) -> str:
     return pair.split("/", 1)[0].upper()
 
 
-def select_crypto(candidates: Iterable[Mapping[str, Any]], *, exclude_bases: Iterable[str], n: int = N_CRYPTO,
-                  pinned: Sequence[str] = ()) -> list[str]:
+def select_crypto(candidates: Iterable[Mapping[str, Any]], *, exclude_bases: Iterable[str], n: int = N_CRYPTO) -> list[str]:
     """candidates: {"pair", "score", "trading"}. Stabil/sarili (exclude_bases) ve TRADING olmayanlar elenir.
-    Sira: once `pinned` (sirasiyla, TRADING olmasa da), sonra puan azalan (esitlikte pair adi)."""
+    Sira: puan azalan (esitlikte pair adi)."""
     excl = {b.upper() for b in exclude_bases}
     out: list[str] = []
-    for p in pinned:
-        if p not in out and base_of(p) not in excl:
-            out.append(p)
     ranked = sorted((c for c in candidates if c.get("trading") and base_of(c["pair"]) not in excl),
                     key=lambda c: (-float(c.get("score", 0.0)), c["pair"]))
     for c in ranked:

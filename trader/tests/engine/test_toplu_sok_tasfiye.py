@@ -12,7 +12,6 @@ import pytest
 
 from trader_core import health as H
 from trader_core import risk as K
-from trader_engine import ogrenme_filtre as OF
 from trader_engine import status as TS
 from trader_engine.config import load_cli_config
 from trader_engine.status import StatusWriter
@@ -142,15 +141,9 @@ def test_sinir_ve_max_kaldirac():
     assert t["guvenli"] is False and t["max_kaldirac"] == 2                      # kaldirac 2: mesafe 49,5 >= 45
 
 
-class _Ok:
-    def karar(self, arm, oz, simdi):
-        return OF.Karar(True, 0.9, "ok")
-
-
 def _gate(tmp_path, mode):
     e = G._kur(tmp_path)
-    e.g.cfg = dataclasses.replace(G.CFG, mode=mode, ml_mode="active")
-    e.g.ml_filtre = _Ok()                                                       # canlida ML filtresi zorunlu (fail-closed)
+    e.g.cfg = dataclasses.replace(G.CFG, mode=mode)
     e.g._etiket_karari = lambda *a, **k: None
     return e
 

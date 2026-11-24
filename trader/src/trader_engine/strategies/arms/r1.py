@@ -7,7 +7,6 @@ from . import ArmInput, mask_to_setups
 SETUP = "R1"
 TIMEFRAMES = ("15m", "1h", "4h", "1d")
 CORE = True
-ML_SCORED = True
 EXIT_MODE = "target"
 PRIORITY = 20
 FEATURES = {"wick_ratio": "wick_ratio", "rr": "rr", "edge_dist_atr": "edge_dist_atr"}

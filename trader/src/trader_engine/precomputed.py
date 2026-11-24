@@ -122,8 +122,7 @@ class PrecomputedSignalSource:
 
     def __init__(self, view: MarketView, strategy: Strategy, *, pairs: Sequence[str], tf: str,
                  params: Mapping[str, object], version_id: int, end: datetime, strict: bool = True,
-                 last_exit_fn: Callable[[str, datetime], tuple[datetime, str] | None] | None = None,
-                 model=None) -> None:
+                 last_exit_fn: Callable[[str, datetime], tuple[datetime, str] | None] | None = None) -> None:
         self.view = view
         self.strategy = strategy
         self.tf = tf
@@ -133,7 +132,6 @@ class PrecomputedSignalSource:
         self.end = end
         self.strict = strict
         self.last_exit_fn = last_exit_fn
-        self.model = model                      # ML-G5 (karar 3): MlModelView | None; stratejiye ctx.model olarak, SALT OKUNUR
         self.counters: Counter = Counter()
         self._t: dict[str, _PairTable] = {}
         self.build_errors: dict[str, str] = {}
@@ -160,8 +158,7 @@ class PrecomputedSignalSource:
         trig = self.view.bars(pair, tf, self.end, None)
         h4 = self.view.bars(pair, "4h", self.end, None)
         bars = {tf: trig, "4h": h4}
-        ctx = StrategyContext(pair=pair, D=self.end, tf=tf, params=self.params, bars=bars, last_exit=None,
-                              model=self.model)
+        ctx = StrategyContext(pair=pair, D=self.end, tf=tf, params=self.params, bars=bars, last_exit=None)
         sig = self.strategy.compute(ctx)
         validate_table(sig, info, trig.index)
         t = _PairTable()
@@ -212,8 +209,7 @@ class PrecomputedSignalSource:
             rec = t.recs[i]
             if bool(rec["signal"]):
                 last_exit = self.last_exit_fn(pair, D) if self.last_exit_fn is not None else None
-                fctx = StrategyContext(pair=pair, D=D, tf=self.tf, params=self.params, bars={}, last_exit=last_exit,
-                                       model=self.model)
+                fctx = StrategyContext(pair=pair, D=D, tf=self.tf, params=self.params, bars={}, last_exit=last_exit)
                 srow = pd.Series(rec)
                 last_row = self.strategy.post_filter(srow, fctx)
                 validate_row(last_row, self.strategy.info)

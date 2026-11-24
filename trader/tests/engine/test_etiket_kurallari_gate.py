@@ -121,12 +121,6 @@ def test_etiket_atlardi_notu_yok_sabit_kural(mk):
     assert not any("atlardi" in k for k in e.g.counters)
 
 
-def test_ml_filtre_sirasi_korunur_ve_testnet_live_kapisi_yok(mk):
-    e = mk()
-    e.g.ml_filtre = SimpleNamespace(karar=lambda *a, **k: SimpleNamespace(izin=False, neden="x", puan=0.1))
-    assert _go(e, regime="trend_down").code == "ml_filter"                # ML once
-
-
 def test_testnet_etiket_kurali_calismaz(mk):
     e = mk()
     e.g.cfg = dataclasses.replace(CFG, mode="testnet")
@@ -139,8 +133,6 @@ def test_canli_etiket_kurali_kagit_gibi_calisir(mk):
     # 23.11 kullanici karari: canli = kagit (rejim etiketi kurali canlida da girisi atlatir)
     e = mk()
     e.g.cfg = dataclasses.replace(CFG, mode="live")
-    from trader_engine import ogrenme_filtre as OF
-    e.g.ml_filtre = type("F", (), {"karar": lambda self, arm, oz, simdi: OF.Karar(True, 0.9, "ok")})()   # canli: filtre gecerli (yoksa fail-closed)
     o = _go(e, regime="trend_down", side="long")
     assert o.action == "skip" and o.code == "etiket_rejim"
 

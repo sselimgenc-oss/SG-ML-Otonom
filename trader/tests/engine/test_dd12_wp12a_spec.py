@@ -207,7 +207,6 @@ def test_contract_module_attributes(setup):
     assert mod.SETUP == setup
     assert tuple(mod.TIMEFRAMES) == ALL_TFS
     assert mod.CORE is False                              # kendi hesabi; ortak tablo satiri secmez
-    assert mod.ML_SCORED is False                         # WP-10 suzgeci gelene kadar puansiz (Ek-K K-9)
     assert callable(mod.compute)
     assert mod.EXIT_MODE in ("trail", "target")
     assert isinstance(mod.PRIORITY, int) and not isinstance(mod.PRIORITY, bool)

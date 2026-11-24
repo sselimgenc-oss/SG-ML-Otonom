@@ -15,7 +15,6 @@ from . import _pa as P
 SETUP = "S1"
 TIMEFRAMES = ("15m", "1h", "4h", "1d")
 CORE = False
-ML_SCORED = False
 EXIT_MODE = "trail"
 PRIORITY = 60
 # defter anahtari -> tasiyici sutun; kutu kenari -> ema_value (fiyat), tamsayi -> pullback_ema

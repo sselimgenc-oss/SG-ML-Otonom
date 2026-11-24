@@ -17,7 +17,6 @@ from . import _pa as P
 SETUP = "F1"
 TIMEFRAMES = ("15m", "1h", "4h", "1d")
 CORE = False
-ML_SCORED = False
 EXIT_MODE = "target"
 PRIORITY = 70
 # defter anahtari -> tasiyici sutun (SIGNAL_COLUMNS); seviye -> ema_value (fiyat), tamsayi -> pullback_ema

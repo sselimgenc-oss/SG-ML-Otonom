@@ -111,8 +111,8 @@ def test_ogrenme_sayilari():
     ic = GUN_BASI + timedelta(hours=1)
     acts = [a("apply", "lesson", ic), a("apply", "lesson", GUN_BASI - timedelta(days=2)), a("apply", "user", ic),
             a("rollback", "lesson", ic), a("apply", "lesson", GUN_BASI - timedelta(days=5))]
-    d = G.uret(G.Girdi(aktivasyonlar=acts, filtre_aktif=True), NOW)
-    assert d["ogrenme"] == {"aktif_ders": 2, "yeni_ders": 1, "emekli_ders": 1, "filtre_aktif": True}
+    d = G.uret(G.Girdi(aktivasyonlar=acts), NOW)
+    assert d["ogrenme"] == {"aktif_ders": 2, "yeni_ders": 1, "emekli_ders": 1, "filtre_aktif": None}   # 24.11: ML filtreleri silindi (sema anahtari hep null)
 
 
 def test_notlar_en_fazla_5_ve_sirsiz():
@@ -260,22 +260,3 @@ def test_duygu_notu_yok():
         G.Girdi(duygu={"deger": 28, "sinif": "Fear"})
     d = G.uret(G.Girdi(notlar=["a", "b"]), NOW)
     assert d["notlar"] == ["a", "b"] and not any("Duygu" in n for n in d["notlar"])
-
-
-def test_ortak_filtre_aktif_kurulum_sayisi(tmp_path):
-    """19.11: kagit ML filtresi paketleri (>=10 islem, gecerli) 'aktif kurulum' sayilir; dizin yoksa None."""
-    from datetime import datetime, timedelta, timezone
-
-    from ortak_ogrenme import filtre
-    from ortak_ogrenme.kayit import Aday
-    from trader_core.gunluk_ozet import _ortak_filtre
-
-    now = datetime(2026, 12, 1, tzinfo=timezone.utc)
-    assert _ortak_filtre(tmp_path, tmp_path, now) is None
-    d = tmp_path / "models" / "ortak_filtre"
-    for arm, n in (("T1@1h", 12), ("R1@1h", 6)):
-        ad = [Aday(id=str(i), proje="ML", kurulum=arm, enstruman="BTC/USDT", varlik_sinifi="kripto", yon="long",
-                   ts=now - timedelta(days=40, hours=i), alindi=True, r=1.0 if i % 2 else -1.0, ozellikler={"x": float(i)})
-              for i in range(n)]
-        filtre.kaydet(filtre.egit(arm, ad, olusturma=now), d)
-    assert _ortak_filtre(tmp_path, tmp_path, now) == ["T1@1h"]

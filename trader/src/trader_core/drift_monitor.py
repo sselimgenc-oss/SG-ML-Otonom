@@ -417,12 +417,10 @@ def evaluate(data: dict | None, status: dict | None, state: dict | None, now: da
         return out, {"schema": 1, "window": state.get("window")}
     good, skipped = _clean_trades(data["trades"])
     acts = data["activations"]
-    # pencere (plan 2): anahtar = bot, kip, strateji@surum, param_version_id, ml kipi (+active iken model_id)
+    # pencere (plan 2): anahtar = bot, kip, strateji@surum, param_version_id. `|ml=inactive` soneki 24.11 (ML filtreleri silindi)
+    # sonrasi sabit: eski pencere durum dosyalariyla anahtar uyumu icin korunur (degisirse tum pencereler bir kez sifirlanirdi).
     strat = status.get("strategy") if isinstance(status, dict) and isinstance(status.get("strategy"), dict) else {}
-    ml = status.get("ml") if isinstance(status, dict) and isinstance(status.get("ml"), dict) else {}
-    ml_mode = ml.get("mode") if isinstance(ml.get("mode"), str) else None
-    ml_part = f"active:{ml.get('model_id')}" if ml_mode == "active" else "inactive"
-    status_key = f"{strat.get('name')}@{strat.get('version')}|ml={ml_part}" if status is not None else None
+    status_key = f"{strat.get('name')}@{strat.get('version')}|ml=inactive" if status is not None else None
     pw = state.get("window") if isinstance(state.get("window"), dict) else {}
     runtime_start = pw.get("runtime_start")
     if status_key is not None and pw.get("status_key") not in (None, status_key):

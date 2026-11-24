@@ -22,9 +22,6 @@ from trader_core import risk as K  # noqa: E402
 from trader_core import signals as S  # noqa: E402
 from trader_core import telegram as T  # noqa: E402
 from trader_core import veto as V  # noqa: E402
-from trader_core.ml_features import FEATURE_NAMES  # noqa: E402
-from trader_core.ml_package import (MODEL_EXPIRY_DAYS, canon, feature_list_hash, sha256_text,  # noqa: E402
-                                    view_from_package)
 from trader_engine.brokers.paper import PaperBroker, PaperConfig  # noqa: E402
 from trader_engine.clock import SimClock  # noqa: E402
 from trader_engine.config import apply_overrides, load_engine_config  # noqa: E402
@@ -33,7 +30,6 @@ from trader_engine.killswitch import Killswitch  # noqa: E402
 from trader_engine.marketdata.sources import HistoricalSource  # noqa: E402
 from trader_engine.state import StateStore  # noqa: E402
 from trader_engine.status import StatusWriter  # noqa: E402
-from trader_engine.strategies.price_action_v1_ml import load_engine_model  # noqa: E402
 from trader_engine.strategies.registry import get_strategy  # noqa: E402
 from trader_engine.strategy_runner import WindowedSignalSource  # noqa: E402
 
@@ -112,42 +108,19 @@ class StubFileVeto:
         return lk
 
 
-# ------------------------------------------------------------------------------------------------ ML test paketi
-def make_pkg(*, intercept=-1.0, coef_atr=1.0, threshold=0.5, approved=True):
-    names = list(FEATURE_NAMES)
-    n = len(names)
-    coef = [0.0] * n
-    coef[names.index("f_atr_ratio")] = coef_atr
-    body = {"model": {"kind": "logistic", "n_features": n, "coef": coef, "intercept": intercept,
-                      "mean": [0.0] * n, "std": [1.0] * n, "fill": [0.0] * n},
-            "calibration": {"a": 1.0, "b": 0.0}, "threshold": threshold}
-    created = datetime(2025, 3, 1, tzinfo=UTC)
-    meta = {"version": "e2e-test", "created_at": created.isoformat(),
-            "expires_at": (created + timedelta(days=MODEL_EXPIRY_DAYS)).isoformat(), "features": names,
-            "feature_list_hash": feature_list_hash(names), "model_hash": sha256_text(canon(body)), "gate_passed": True}
-    if approved:
-        meta["user_approved"] = True
-    return {"meta": meta, **body}
-
-
 # ------------------------------------------------------------------------------------------------ zincir kurucu
 def _params():
     return {k: getattr(S.DEFAULT_SIGNAL_PARAMS, k) for k in L.PARAM_KEYS}
 
 
 class Chain:
-    def __init__(self, tmp: Path, hist: Path, *, strategy="price_action_v1", ml_mode=None, model_path=None,
-                 veto_doc=None, kill=False):
+    def __init__(self, tmp: Path, hist: Path, *, strategy="price_action_v1", veto_doc=None, kill=False):
         tmp.mkdir(parents=True, exist_ok=True)
         self.tmp = tmp
         cfg = load_engine_config(ROOT / "config" / "engine.base.json", ROOT / "config" / "engine.learner.json")
         kw = dict(mode="paper", pairs=PAIRS, var_dir=str(tmp / "var"), kill_file=str(tmp / "KILL"),
                   veto_mode="required", strategy=strategy, history_dir=str(hist),
                   cost=dict(fill_model="native", granularity="15m", trigger_source="last"))
-        if ml_mode is not None:
-            kw["ml_mode"] = ml_mode
-        if model_path is not None:
-            kw["ml_model_path"] = str(model_path)
         self.cfg = apply_overrides(cfg, **kw)
         self.clock = SimClock(START)
         self.view = HistoricalSource(str(hist), granularity="15m", synthetic_rules=True)
@@ -157,20 +130,16 @@ class Chain:
         for p in (self.cfg.ledger_path, self.cfg.state_path, self.cfg.status_path):
             Path(p).parent.mkdir(parents=True, exist_ok=True)
         self.ledger = L.open_ledger(self.cfg.ledger_path, "learner", create=True, clock=self.clock.now)
-        strat = get_strategy(strategy, ml_mode=self.cfg.ml_mode if strategy.endswith("_ml") else None)
+        strat = get_strategy(strategy)
         self.ledger.init_params(_params(), reason=f"strategy:{strat.info.name}@{strat.info.version} e2e")
         state = StateStore(self.cfg.state_path, bot="learner", durability="off")
-        model, err = (None, None)
-        if getattr(strat, "ml_mode", "off") != "off":
-            model, err = load_engine_model(self.cfg.ml_model_path, strat.ml_mode, START)
-        self.ml_error = err
         self.veto_path = tmp / "veto_result.json"
         self.veto_path.write_text(json.dumps(veto_doc or {"*": {"action": "allow"}}))
         self.veto = StubFileVeto(self.veto_path)
         self.kill = Killswitch(self.cfg.kill_file, self.clock)
         if kill:
             self.kill.set("e2e", "test")
-        src = WindowedSignalSource(self.view, strat, strict=True, ml_model=model, ml_error=err)
+        src = WindowedSignalSource(self.view, strat, strict=True)
         self.engine = Engine(self.cfg, clock=self.clock, view=self.view, broker=broker, ledger=self.ledger, state=state,
                              signals=src, strategy=strat, veto=self.veto, kill=self.kill,
                              status=StatusWriter(self.cfg.status_path, self.clock, self.cfg), strict=True)
@@ -214,16 +183,8 @@ def _veto_blocking(row) -> dict:
 
 @pytest.fixture(scope="module")
 def off(tmp_path_factory, hist):
-    """ML-sarmalayicili strateji, ml_mode=off, veto hepsine 'allow' (19d-a; ayrica ana zincir kosusu)."""
-    return Chain(tmp_path_factory.mktemp("off"), hist, strategy="price_action_v1_ml", ml_mode="off").run()
-
-
-@pytest.fixture(scope="module")
-def shadow(tmp_path_factory, hist):
-    mp = tmp_path_factory.mktemp("shadow_model") / "model.json"
-    mp.write_text(json.dumps(make_pkg()))
-    return Chain(tmp_path_factory.mktemp("shadow"), hist, strategy="price_action_v1_ml", ml_mode="shadow",
-                 model_path=mp).run()
+    """Ana zincir kosusu: veto hepsine 'allow'."""
+    return Chain(tmp_path_factory.mktemp("off"), hist).run()
 
 
 @pytest.fixture(scope="module")
@@ -231,15 +192,14 @@ def blocked(tmp_path_factory, hist, off):
     """Ayni veri; 'off' kosusunda girilen ILK adayin (cift, yon) veto sonucu 'block'."""
     entered = [r for r in off.decisions() if r["final_action"] == "entered"]
     assert entered, "fixture veri en az bir giris uretmeli"
-    c = Chain(tmp_path_factory.mktemp("blocked"), hist, strategy="price_action_v1_ml", ml_mode="off",
-              veto_doc=_veto_blocking(entered[0])).run()
+    c = Chain(tmp_path_factory.mktemp("blocked"), hist, veto_doc=_veto_blocking(entered[0])).run()
     c.target = entered[0]
     return c
 
 
 @pytest.fixture(scope="module")
 def killed(tmp_path_factory, hist):
-    return Chain(tmp_path_factory.mktemp("kill"), hist, strategy="price_action_v1_ml", ml_mode="off", kill=True).run()
+    return Chain(tmp_path_factory.mktemp("kill"), hist, kill=True).run()
 
 
 # ------------------------------------------------------------------------------------------------ zincir degismezleri
@@ -328,50 +288,12 @@ def test_veto_block_is_ignored_in_paper(blocked, off):
 
 def test_veto_result_file_missing_does_not_block_in_paper(tmp_path_factory, hist):
     """Eski davranis 'veto yok/eski -> islem yok' kagit yolundan cikti (WP-06a)."""
-    c = Chain(tmp_path_factory.mktemp("noveto"), hist, strategy="price_action_v1_ml", ml_mode="off")
+    c = Chain(tmp_path_factory.mktemp("noveto"), hist)
     c.veto_path.unlink()
     c.run()
     dec = c.decisions()
     assert c.trades() and not any(str(r["skip_reason"]).startswith("veto_") for r in dec)
     assert all(r["veto_status"] == "not_evaluated" for r in dec)
-
-
-# ------------------------------------------------------------------------------------------------ 19d: ML kapsami
-def test_ml_off_full_chain_unaffected(off):
-    assert off.q("SELECT COUNT(*) n FROM v_decisions WHERE ml_score IS NOT NULL")[0]["n"] == 0
-    assert off.engine.signals.ml_status(START)["state"] == "off"
-    assert off.trades()
-
-
-def test_ml_shadow_is_byte_identical_to_off_but_scores(off, shadow):
-    assert shadow.ml_error is None
-    assert shadow.digest() == off.digest()                         # ml_score/id/recorded_at disinda birebir
-    assert len(shadow.decisions()) == len(off.decisions())
-    entered = [r for r in shadow.decisions() if r["final_action"] == "entered"]
-    assert entered and all(r["ml_score"] is not None and 0.0 <= r["ml_score"] <= 1.0 for r in entered)
-    assert not any(r["skip_reason"] == "ml_filter" for r in shadow.decisions())
-    assert shadow.engine.counters().get("ml_shadow_scored", 0) >= len(entered)
-    # sag-salim: rakam kontrolu da ayni sonucu verir (digest bos degil, ml_score dahil edilirse FARKLI)
-    assert shadow.digest(drop=("id", "recorded_at")) != off.digest(drop=("id", "recorded_at"))
-
-
-def test_ml_active_without_user_approval_fails_closed(tmp_path_factory, hist):
-    mp = tmp_path_factory.mktemp("noapprove") / "model.json"
-    mp.write_text(json.dumps(make_pkg(approved=False)))
-    # paket duzeyinde: active icin onay yok -> reddedilir; shadow icin kabul
-    model, err = load_engine_model(str(mp), "active", START)
-    assert model is None and "onay" in err
-    assert load_engine_model(str(mp), "shadow", START)[0] is not None
-    # motor duzeyinde: aktif modda model yok => yeni giris YOK (fail-closed), adaylar ml_filter ile elenir
-    c = Chain(tmp_path_factory.mktemp("active_noapp"), hist, strategy="price_action_v1_ml", ml_mode="active",
-              model_path=mp)
-    assert c.ml_error and "onay" in c.ml_error
-    c.run()
-    dec = c.decisions()
-    assert dec and c.trades() == [] and not [r for r in dec if r["final_action"] == "entered"]
-    assert [r for r in dec if r["skip_reason"] == "ml_filter"]
-    st = c.engine.signals.ml_status(END)
-    assert st["entries_blocked"] is True
 
 
 # ------------------------------------------------------------------------------------------------ ders + Telegram raporu

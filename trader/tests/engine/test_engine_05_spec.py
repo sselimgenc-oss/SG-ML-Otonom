@@ -541,7 +541,7 @@ def only(decs, **match):
 class TestRegistry:
     def test_list_and_info_v1b(self):
         reg = mod("strategies.registry")
-        assert tuple(reg.list_strategies()) == ("price_action_v1", "price_action_v1_full", "price_action_v1_ml", "price_action_v1_full_ml", "price_action_lab_ml")
+        assert tuple(reg.list_strategies()) == ("price_action_v1", "price_action_v1_full", "price_action_lab_ml")
         s = reg.get_strategy("price_action_v1")
         assert s.info.name == "price_action_v1" and s.info.version == "1b.0"
         assert tuple(s.info.setups) == ("T1",) and tuple(s.info.allowed_trigger_tfs) == ("1h",)

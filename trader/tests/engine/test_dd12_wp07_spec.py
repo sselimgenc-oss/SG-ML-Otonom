@@ -265,8 +265,7 @@ def test_telegram_rapor_ikiz_satiri_yok(tmp_path, twin_dir):
         import shutil
         shutil.rmtree(tmp_path / "var/twin")
     cfg = _cfg(tmp_path, twin_dir)
-    for out in (T.section_ledger(cfg, DAY), T.rapor_defter(cfg, DAY), T.rapor_davranis(cfg, NOW),
-                T.rapor_model(cfg, NOW)):
+    for out in (T.section_ledger(cfg, DAY), T.rapor_defter(cfg, DAY), T.rapor_davranis(cfg, NOW)):
         low = out.lower()
         assert "ikiz" not in low and "twin" not in low and "👥" not in out, out
 

@@ -216,15 +216,10 @@ class PanelData:
             serit = PP.serit_view(ctx, status, s["state"], self._kill_file(), start, now, curve, s.get("age_s"))
             acik = PP.open_view(ctx, status, now)
             kz = PP.kz_view(ctx, start, now, curve, P.paper_maps()[0])
-            mlf = (status or {}).get("ml_filtre")
             try:
                 ders = PP.ders_view(lp, ctx, now, live)
             except Exception:  # noqa: BLE001 - ders okunamazsa kart gizlenir
                 ders = None
-            try:
-                ml = PP.ml_view(lp, ctx, now, mlf)
-            except Exception:  # noqa: BLE001
-                ml = None
             try:
                 kucultme = PP.kucultme_view(lp, b)
             except Exception:  # noqa: BLE001 - kucultme karti istege bagli
@@ -242,14 +237,14 @@ class PanelData:
                 except Exception:  # noqa: BLE001
                     safe[k] = None
             teknik = PP.teknik_view(health=safe["health"], risk_rows=safe["risk"], budget=safe["budget"], tut=safe["tut"],
-                                    pbo=safe["pbo"], ctx=ctx, ml_filtre=mlf, ders=ders, mutabakat=safe["mut"],
+                                    pbo=safe["pbo"], ctx=ctx, ders=ders, mutabakat=safe["mut"],
                                     dayaniklilik=(status or {}).get("dayaniklilik"))
             isik = PP._problem(teknik.get("saglik"), s["state"], serit["risk"], safe["budget"])
-            kismi = PP.kismi_durum(ders, ml)
+            kismi = PP.kismi_durum(ders)
             if kismi and isik["renk"] == "yesil":
                 isik = {"renk": "sari", "metin": "Sistem çalışıyor; bazı özellikler kısmen devrede"}
             return {"bot_durum": s["state"], "mod": (status or {}).get("mode"), "serit": serit, "acik": acik, "kz": kz,
-                    "son3": PP.closed_view(lp, b, "tumu", now, 3)["rows"], "ders": ders, "ml": ml, "kucultme": kucultme, "teknik": teknik,
+                    "son3": PP.closed_view(lp, b, "tumu", now, 3)["rows"], "ders": ders, "kucultme": kucultme, "teknik": teknik,
                     "isik": isik, "yapmali": PP.ne_yapmali(s["state"], serit["risk"], acik["n"], kismi, teknik.get("saglik"))}
         return self._wrap(fn)
 

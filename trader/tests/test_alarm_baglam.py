@@ -59,12 +59,6 @@ def _market(**kw):
     return H.MarketProbe(**base)
 
 
-def _ml(**kw):
-    base = dict(present=True, mode="active", state="ok", model_id="r02@aaaaaaaaaaaa", expires_at=NOW + timedelta(days=20))
-    base.update(kw)
-    return H.MlProbe(**base)
-
-
 _SCFG = dataclasses.replace(H.DEFAULT_CFG, veto_max_age_s=5400, veto_strict=True, budget_check_enabled=True, multiple_threshold=50)
 _CFG = dataclasses.replace(H.DEFAULT_CFG, multiple_threshold=50)
 
@@ -100,8 +94,6 @@ CASES = {
                           dict(market=_market(newest_bar_at={"BTC/USDT": NOW - timedelta(seconds=200)})), _CFG),
     "market_db_missing": (dict(market=_market(db_state="missing")), dict(market=_market()), _CFG),
     "rules_incomplete": (dict(market=_market(rules_count=0)), dict(market=_market(rules_count=1)), _CFG),
-    "ml_expired": (dict(ml={BOT: _ml(state="expired")}), dict(ml={BOT: _ml(expires_at=NOW + timedelta(days=20))}), _CFG),
-    "ml_no_model": (dict(ml={BOT: _ml(state="no_model", error="x")}), dict(ml={BOT: _ml()}), _CFG),
     "pause_hold_unaudited": (dict(pause={BOT: H.PauseProbe(holds=("manual",), last_ops={"manual": "remove"})},
                                   prev_pause_holds={BOT: ("manual",)}),
                              dict(pause={BOT: H.PauseProbe(holds=("manual",), last_ops={"manual": "add"})},
@@ -166,11 +158,11 @@ def _alerts(*pairs):
 
 def test_sessizlik_penceresinde_yalniz_olumcul_gider():
     until = NOW + timedelta(minutes=10)
-    al = _alerts((Status.CRIT, "api_unreachable"), (Status.CRIT, "veto_stale"), (Status.WARN, "ml_score_errors"),
+    al = _alerts((Status.CRIT, "api_unreachable"), (Status.CRIT, "veto_stale"), (Status.WARN, "rules_stale"),
                  (Status.OK, "api_unreachable"))
     send, held = H.quiet_split(al, _rep_with("api_unreachable", "veto_stale"), NOW, until)
     assert [(a.code, a.level) for a in send] == [("api_unreachable", Status.CRIT)]
-    assert {(a.code, a.level) for a in held} == {("veto_stale", Status.CRIT), ("ml_score_errors", Status.WARN),
+    assert {(a.code, a.level) for a in held} == {("veto_stale", Status.CRIT), ("rules_stale", Status.WARN),
                                                   ("api_unreachable", Status.OK)}
     # pencere bitti ya da yok: hepsi gider
     assert H.quiet_split(al, _rep_with("veto_stale"), NOW, NOW - timedelta(seconds=1)) == (al, [])

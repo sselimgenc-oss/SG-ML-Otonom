@@ -404,6 +404,8 @@ Kurtarma (§7): R5 `open_trade_ids`; R7 `open_positions[].stop` boş/≤0 → FA
 
 ## 16. ML model paketi süresi/tazeliği ve sapma izleyicisi kancası (ek, 17 Kasım 2026; onay listesi madde 8 ve 3)
 
+> **[24 Kasım 2026]** ML filtreleri silindi: `ml_package:<bot>` denetimi, `MlProbe`, `ml_*` kodları ve Telegram "Model" satırı koddan kaldırıldı; 16.1-16.5 ve 16.7 yalnız tarihçedir. Sapma izleyicisi kancası (16.6) geçerlidir.
+
 Kaynak: `repo-denetim-onay-listesi.md` madde 8 (A-18, D-06, B-25). Bu bölüm yalnız şartnamedir; uygulama WP-1 (ML kontrolü, rapor satırı, kanca yer tutucusu) ve WP-2'dir (kancanın doldurulması). Motor ve `trader_ml` kodu **değişmez**: kontrol yalnız okur.
 
 ### 16.1 Doğrulanmış olgular (kodda okundu)

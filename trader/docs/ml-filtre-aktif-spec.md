@@ -1,3 +1,4 @@
+> **[24 Kasım 2026 — kod SİLİNDİ]** Kullanıcı kararıyla üç ML giriş filtresinin (v1 = r01, v2 = r02/r03, kurulum filtresi) kodu, testleri ve `ml_mode`/`ml_model_path`/`ml_features`/`ml_experimental`/`ml_pairs` yapılandırma anahtarları kod tabanından kaldırıldı. Bu belge yalnız geçmiş kaydıdır; geri açmak için kod yeniden yazılmalıdır (git geçmişi: silme işleminden önceki commit).
 > **[24 Kasım 2026 — kullanıcı kararı: KAPALI]** Kâğıt ve canlıda `ml_mode: "off"`; gece eğitimi yapılmaz. Aşağıdaki metin geri açılış için kayıttır (bazı ayrıntılar eski: kod aile bazlı çalışır, eğitim 03:10 UTC).
 
 # ML filtresi kâğıtta aktif (19.11 kullanıcı kararı)

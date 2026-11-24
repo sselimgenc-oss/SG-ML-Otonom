@@ -1,5 +1,5 @@
 """DD-12 WP-05 (Motor entegrasyonu) bagimsiz sartname testleri: docs/motor/dd12-capraz-varlik-spec.md (v4) §2 (acilis kapisi,
-isteğe bagli ciftler), §4.3 (seansa gore kayma), §5.1 (ML `ml_pairs`), §9 WP-05, D-T5, D-T8, D-T12, D-T29, D-T31 (+ D-T13 tarafsizlik).
+isteğe bagli ciftler), §4.3 (seansa gore kayma), §9 WP-05, D-T5, D-T8, D-T12, D-T29, D-T31 (+ D-T13 tarafsizlik).
 Gerceklemenin farklarina BAKILMADI; yalniz sartname + HEAD'deki kod/testler. Sentetik veri; ag yok.
 
 SPEC-AMBIGUOUS (sartnamenin adlandirmadigi yerler; testler esnek kesfeder, bulunamazsa FAIL eder):
@@ -19,12 +19,9 @@ import json
 import re
 import subprocess
 import sys
-from collections import Counter
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-import numpy as np
-import pandas as pd
 import pytest
 
 import test_engine_05_spec as T5            # ayni dizin: mevcut sentetik gorunum/sahte sinyal kaynagi/kurulum yardimcilari
@@ -472,294 +469,15 @@ def test_dt12_state_and_ledger_survive_pairs_expansion(tmp_path):
         e2.close()
 
 
-# ================================================================================================ strateji kaydi + ML (D-T8)
-def test_registry_full_ml_wraps_t1_and_r1():
-    from trader_engine.strategies import registry as REG
-    assert "price_action_v1_full_ml" in REG.list_strategies()
-    s = REG.get_strategy("price_action_v1_full_ml", mode="paper", ml_mode="active")
-    assert s.info.name == "price_action_v1_full_ml" and tuple(s.info.setups) == ("T1", "R1")
-    assert s.info.paper_allowed is True and s.ml_mode == "active"
-    for old in ("price_action_v1", "price_action_v1_full", "price_action_v1_ml"):
-        assert old in REG.list_strategies()                  # eskiler kalir (tarafsizlik)
-    assert REG.get_strategy("price_action_v1_ml").info.version == "1b.0-ml0"
-
-
-def test_registry_full_ml_off_equals_full_signals():
-    """ml kapali: price_action_v1_full_ml ayni veride price_action_v1_full ile ayni kareleri uretir (T1+R1)."""
-    from trader_engine.strategies import registry as REG
-    from trader_engine.strategy_runner import WindowedSignalSource
-    view = T5.BarsOnlyView()
-    full = WindowedSignalSource(view, REG.get_strategy("price_action_v1_full"), strict=True)
-    wrap = WindowedSignalSource(view, REG.get_strategy("price_action_v1_full_ml", ml_mode="off"), strict=True)
-    params = {**{k: getattr(S.DEFAULT_SIGNAL_PARAMS, k) for k in L.PARAM_KEYS}, "trigger_tf": "1h"}
-    seen = 0
-    for k in range(1, 200):
-        D = (view.D - k * H).to_pydatetime() if hasattr(view.D, "to_pydatetime") else view.D - k * H
-        a, b = full.frame("BTC/USDT", D, params, 1), wrap.frame("BTC/USDT", D, params, 1)
-        assert a.status == b.status
-        if a.last is not None:
-            assert repr(dataclasses.asdict(a.last)) == repr(dataclasses.asdict(b.last)), D     # repr: NaN == NaN
-            seen += bool(a.last.signal)
-    assert seen > 0, "sentetik veride hic aday yok (test anlamsiz)"
-
-
-# ---- ML ortami: r03, 10 taban + ek ciftler (sentetik dunya, test_engine_ml_v2_context desenine gore)
-from trader_core.ml_features import BAR, BTC as BTC_I, ETH as ETH_I  # noqa: E402
-from trader_core.ml_features_v2 import R03_FEATURE_NAMES  # noqa: E402
-from trader_core.ml_package import canon, feature_list_hash, sha256_text  # noqa: E402
-from trader_engine.strategies.base import StrategyContext  # noqa: E402
-from trader_engine.strategies.price_action_v1_ml import make_v1b_ml  # noqa: E402
-from trader_engine.types import FundingPoint  # noqa: E402
-
-START = pd.Timestamp("2024-01-01", tz="UTC")
-NH = 24 * 235
-OHLC = {"open": "first", "high": "max", "low": "min", "close": "last"}
-EXTRA = ["HYPE", "NVDA", "XAU", "SUI"]
-ALL_ML = BASE10 + EXTRA
-PARAMS = {**{k: getattr(S.DEFAULT_SIGNAL_PARAMS, k) for k in L.PARAM_KEYS}, "trigger_tf": "1h"}
-
-
-def _p(b):
-    return f"{b}/USDT"
-
-
-class MlView:
-    """1s/4s mum + funding + 1m kuralli gorunum (tum ciftler ayni sentetik dunyadan)."""
-
-    def __init__(self, px, fund):
-        self.px, self.fund = px, fund
-
-    def bars(self, pair, tf, until, n=None, kind="last"):
-        d = self.px[pair]
-        u = pd.Timestamp(until)
-        if tf == "1h":
-            out = d[d.index + BAR <= u]
-        else:
-            h = d[["open", "high", "low", "close"]].resample("4h", label="left", closed="left").agg(OHLC).dropna()
-            out = h[h.index + pd.Timedelta("4h") <= u]
-        return out.iloc[-n:] if n else out
-
-    def contiguous_tail(self, pair, tf, until, max_n=5000):
-        return 10 ** 6
-
-    def funding(self, pair, start, end):
-        f = self.fund[pair]
-        f = f[(f.index >= pd.Timestamp(start)) & (f.index <= pd.Timestamp(end))]
-        return [FundingPoint(pair=pair, ts=t.to_pydatetime(), rate=float(r), mark=None) for t, r in zip(f.index, f["funding_rate"])]
-
-    def rules(self, pair):
-        return SymbolRules(pair=pair, symbol=pair.replace("/", ""), tick=0.01, step=0.001, min_qty=0.001, max_qty=1e6, min_notional=5.0)
-
-    def last_closed_minute(self, pair):
-        return None
-
-    def data_range(self, pair, tf):
-        return None
-
-    def step_seconds(self):
-        return 60
-
-    def minute_steps(self, pairs, a, b):
-        return iter(())
-
-
-def _ml_world():
-    rng = np.random.default_rng(23)
-    idx = pd.date_range(START, periods=NH, freq="1h", tz="UTC")
-    common = rng.normal(0, 0.004, NH)
-    px = {}
-    for i, b in enumerate(ALL_ML):
-        c = 100 * (i + 1) * np.exp(np.cumsum(common * (1 + 0.1 * i) + rng.normal(0, 0.006, NH)))
-        o = np.concatenate([[c[0]], c[:-1]])
-        px[_p(b)] = pd.DataFrame({"open": o, "high": np.maximum(o, c) * (1 + np.abs(rng.normal(0, 0.003, NH))),
-                                  "low": np.minimum(o, c) * (1 - np.abs(rng.normal(0, 0.003, NH))), "close": c,
-                                  "volume": rng.uniform(50, 150, NH)}, index=idx)
-    ft = pd.date_range(START, periods=NH // 8, freq="8h", tz="UTC")
-    fund = {_p(b): pd.DataFrame({"funding_rate": rng.normal(0.0001, 0.0003, len(ft))}, index=ft) for b in ALL_ML}
-    return px, fund
-
-
-@pytest.fixture(scope="module")
-def mlworld():
-    return _ml_world()
-
-
-def _native_cands(px, pairs):
-    """{D: [pair,...]} yerel v1b adaylari (egitim/gecmis tablo; ML'siz), >= 205 gun sonrasi."""
-    strat = make_v1b_ml()._inner
-    out: dict[pd.Timestamp, list] = {}
-    for p in pairs:
-        d = px[p]
-        h4 = d[["open", "high", "low", "close"]].resample("4h", label="left", closed="left").agg(OHLC).dropna()
-        sig = strat.compute(StrategyContext(pair=p, D=d.index[-1].to_pydatetime(), tf="1h", params=PARAMS,
-                                            bars={"1h": d[["open", "high", "low", "close"]], "4h": h4}, last_exit=None))
-        s = sig[sig["signal"].astype(bool) & (sig.index >= START + pd.Timedelta(days=205))]
-        for t in s.index:
-            out.setdefault(t + BAR, []).append(p)
-    return out
-
-
-@pytest.fixture(scope="module")
-def mlcands(mlworld):
-    return _native_cands(mlworld[0], list(mlworld[0]))
-
-
-def _model_file(path: Path, created: datetime, *, intercept=0.1, threshold=0.5, gated=True):
-    names = R03_FEATURE_NAMES
-    rng = np.random.default_rng(1)
-    n = len(names)
-    body = {"model": {"kind": "logistic", "n_features": n, "coef": list(rng.normal(0, 0.3, n)), "intercept": intercept,
-                      "mean": [0.0] * n, "std": [1.0] * n, "fill": [0.0] * n},
-            "calibration": {"a": 1.0, "b": 0.0}, "threshold": threshold}
-    meta = {"version": "t", "created_at": created.isoformat(), "expires_at": (created + timedelta(days=21)).isoformat(),
-            "features": list(names), "feature_list_hash": feature_list_hash(names), "model_hash": sha256_text(canon(body)),
-            "gate_passed": gated, "user_approved": gated}
-    path.write_text(json.dumps({"meta": meta, **body}))
-    return path
-
-
-def _ml_engine(tmp, world, base_pairs, *, extra=(), model=True, intercept=0.1, strategy="price_action_v1_ml",
-               D=None, ml_pairs=None, experimental=False):
-    px, fund = world
-    pairs = [_p(b) for b in base_pairs] + [_p(b) for b in extra]
-    D = D or datetime(2024, 9, 1, tzinfo=UTC)
-    clock = SimClock(D)
-    mp = tmp / "model.json"
-    if model:
-        _model_file(mp, D - timedelta(days=1), intercept=intercept, gated=not experimental)
-    over = dict(strategy=strategy, ml_mode="active", ml_features="r03", ml_model_path=str(mp), ml_experimental=experimental,
-                ml_pairs=ml_pairs or [_p(b) for b in BASE10], max_positions=16)
-    cfg = _cfg(tmp, pairs, **over,
-                      optional_pairs=[_p(b) for b in extra], clusters={"hisse": {"pairs": [_p(b) for b in extra], "max_positions": 4}}
-                      if extra else {})
-    view = MlView({k: v for k, v in px.items() if k in pairs}, fund)
-    eng = build_engine(cfg, clock=clock, view=view)
-    return eng, view
-
-
-def _frames(eng, D, pairs):
-    p = {k: getattr(S.DEFAULT_SIGNAL_PARAMS, k) for k in L.PARAM_KEYS}
-    p["trigger_tf"] = "1h"
-    return {x: eng.signals.frame(x, D, p, 1) for x in pairs}
-
-
-def _counters_text(eng):
-    c = Counter()
-    for src in (getattr(eng.signals, "counters", {}), getattr(eng.strategy, "counters", {}), eng.counters()):
-        try:
-            c.update({k: v for k, v in dict(src).items() if isinstance(v, (int, float))})
-        except Exception:  # noqa: BLE001
-            pass
-    return c
-
-
-def _pick_bar(cands, want_base, want_extra=False):
-    for D, ps in sorted(cands.items()):
-        b = [p for p in ps if p.split("/")[0] in BASE10]
-        x = [p for p in ps if p.split("/")[0] in EXTRA]
-        if (not want_base or b) and (not want_extra or x):
-            return D, b, x
-    return None
-
-
-def test_dt8_ml_context_is_ml_pairs_only(tmp_path, mlworld):
-    eng, _ = _ml_engine(tmp_path, mlworld, BASE10, extra=EXTRA)
-    ctx = eng.signals.ml_v2
-    assert ctx is not None, "ml_features=r03 -> v2 baglami kurulur"
-    assert {x.split("/")[0] for x in ctx.pairs} == set(BASE10), "r03 baglami yalniz ml_pairs (10 taban cift)"
-    eng.state.close()
-    eng.ledger.close()
-
-
-def test_dt8_score_bit_identical_pairs10_vs_44(tmp_path, mlworld, mlcands):
-    pick = _pick_bar(mlcands, want_base=True)
-    assert pick, "sentetik dunyada taban adayi yok"
-    D, base_c, _ = pick
-    d1, d2 = tmp_path / "a", tmp_path / "b"
-    d1.mkdir()
-    d2.mkdir()
-    eA, _ = _ml_engine(d1, mlworld, BASE10)                               # pairs = 10
-    eB, _ = _ml_engine(d2, mlworld, BASE10, extra=EXTRA)                  # pairs = 14 (>10), ml_pairs ayni 10
-    Dd = D.to_pydatetime()
-    fa, fb = _frames(eA, Dd, [_p(b) for b in BASE10]), _frames(eB, Dd, [_p(b) for b in BASE10])
-    scored = 0
-    for p in fa:
-        a, b = fa[p].last, fb[p].last
-        assert (a is None) == (b is None)
-        if a is None:
-            continue
-        assert a.ml_score == b.ml_score, f"{p}: puan bit bit ayni olmali ({a.ml_score} vs {b.ml_score})"   # == (yaklasik degil)
-        assert a.signal == b.signal and a.skip_reason == b.skip_reason
-        scored += a.ml_score is not None
-    assert scored >= 1, "en az bir taban aday puanlanmis olmali"
-    for e in (eA, eB):
-        e.state.close()
-        e.ledger.close()
-
-
-def test_dt8_experimental_package_scores_in_active_paper_with_ml_pairs(tmp_path, mlworld, mlcands):
-    """Kagit yapilandirmasi: ml_mode=active + ml_experimental=true (kapidan gecmemis paket) + ml_pairs -> paket yuklenir ve puanlar."""
-    D, base_c, _ = _pick_bar(mlcands, want_base=True)
-    eng, _ = _ml_engine(tmp_path, mlworld, BASE10, extra=EXTRA, experimental=True)
-    fr = _frames(eng, D.to_pydatetime(), base_c)
-    assert any(f.last is not None and f.last.ml_score is not None for f in fr.values()), "deneysel paket aktif modda puanlamali"
-    eng.state.close()
-    eng.ledger.close()
-
-
-def test_dt8_below_threshold_filtered_out_of_universe_passes(tmp_path, mlworld, mlcands):
-    pick = _pick_bar(mlcands, want_base=True, want_extra=True)
-    assert pick, "ayni mumda hem taban hem ek-cift adayi yok (sentetik veri)"
-    D, base_c, extra_c = pick
-    eng, _ = _ml_engine(tmp_path, mlworld, BASE10, extra=EXTRA, intercept=-60.0)     # puan ~0 < esik 0.5
-    fr = _frames(eng, D.to_pydatetime(), base_c + extra_c)
-    for p in base_c:
-        r = fr[p].last
-        assert r is not None and r.signal is False and r.skip_reason == "ml_filter", f"{p}: esik alti taban aday elenir"
-    for p in extra_c:
-        r = fr[p].last
-        assert r is not None and r.signal is True and r.skip_reason is None, f"{p}: evren disi aday elenmez"
-        assert r.ml_score is None, "evren disi aday puanlanmaz"
-        txt = f"{r.reasons} {sorted(_counters_text(eng))}"
-        assert "out_of_universe" in txt, "evren disi gecis `out_of_universe` olarak isaretlenir"
-    eng.state.close()
-    eng.ledger.close()
-
-
-def test_dt8_no_model_candidate_passes_as_ml_no_model(tmp_path, mlworld, mlcands):
-    pick = _pick_bar(mlcands, want_base=True)
-    D, base_c, _ = pick
-    eng, _ = _ml_engine(tmp_path, mlworld, BASE10, extra=EXTRA, model=False)         # model dosyasi yok
-    fr = _frames(eng, D.to_pydatetime(), base_c)
-    for p in base_c:
-        r = fr[p].last
-        assert r is not None and r.signal is True and r.skip_reason is None, "model yok: aday gecer (kapali-hata degil)"
-        assert r.ml_score is None
-    ctr = _counters_text(eng)
-    assert any("no_model" in k and v > 0 for k, v in ctr.items()), f"`ml_no_model` sayaci artmali: {dict(ctr)}"
-    eng.state.close()
-    eng.ledger.close()
-
-
+# ================================================================================================ kagit yapilandirmasi: golge satirlar (D-T8)
 def test_dt8_paper_config_has_shadow_rows_open(mk):
     cfg = load_cli_config(CONFIG, "learner", "paper")
-    assert tuple(cfg.shadow_blocks) == ("regime", "r1_disabled", "same_bar_reentry", "tf_15m") and cfg.ml_mode == "active"      # 19.11: ML kagitta aktif; golge satirlar acik
+    assert tuple(cfg.shadow_blocks) == ("regime", "r1_disabled", "same_bar_reentry", "tf_15m")      # golge satirlar acik
     e = mk([BTC, ETH], D_OPEN - H)
     e.enter(BTC, D_OPEN)
     e.step(D_OPEN + M1)
     e.step(D_OPEN + 2 * M1)
     assert e.led.list_shadow() == [], "(mk motoru kendi yapilandirmasiyla kurulur) golge satir 0"
-
-
-def test_dt8_non_paper_ml_active_without_model_stays_fail_closed():
-    """Tarafsizlik: `ml_no_model` gecisi yalniz paper+ml_pairs yolundadir; testnet/canli/geri test eski kapali-hata davranisini korur."""
-    s = make_v1b_ml()
-    s.set_ml_mode("active")
-    import pandas as _pd
-    row = _pd.Series({"signal": True, "skip_reason": None, "reasons": "x", "setup": "T1", "side": "long"})
-    ctx = StrategyContext(pair=BTC, D=datetime(2026, 12, 1, tzinfo=UTC), tf="1h", params=PARAMS, bars={}, last_exit=None, model=None)
-    out = s.post_filter(row, ctx)
-    assert bool(out["signal"]) is False and out["skip_reason"] == "ml_filter", "ml_pairs verilmeyen yolda model yok = eleme (HEAD davranisi)"
 
 
 # ================================================================================================ ikiz yok / tarafsizlik
@@ -776,9 +494,9 @@ def _run_pytest(*args):
 
 
 def test_neutrality_golden_digests_unchanged():
-    """D-T13: geri test altin ozeti (compat/native), t28 ozeti ve eski ML suzgec testleri bit bit ayni."""
+    """D-T13: geri test altin ozeti (compat/native) ve t28 ozeti bit bit ayni."""
     rc, out = _run_pytest("tests/engine/test_engine_compat_equity.py", "tests/engine/test_risk_ladder_impl.py",
-                          "-k", "digest or golden or t28 or equity", "tests/engine/test_engine_ml_filter.py")
+                          "-k", "digest or golden or t28 or equity")
     assert rc == 0, out
 
 
@@ -789,7 +507,7 @@ def test_neutrality_backtest_rejects_paper_only_cost_and_cluster_keys(tmp_path):
     ok = T5.make_cfg(tmp_path / "ok", "learner", "backtest", [BTC, ETH])
     assert ok.mode == "backtest" and not ok.cost_overrides and not ok.clusters
     for k, v in (("cost_overrides", _overrides([BTC])), ("clusters", {"kripto_buyuk": {"pairs": [BTC], "max_positions": 1}}),
-                 ("optional_pairs", [ETH]), ("ml_pairs", [BTC])):
+                 ("optional_pairs", [ETH])):
         (tmp_path / k).mkdir()
         with pytest.raises(ConfigError):
             T5.make_cfg(tmp_path / k, "learner", "backtest", [BTC, ETH], **{k: v})

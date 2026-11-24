@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
-"""Gece egitimi (DD-12 WP-10 kurulum suzgeci; WP-18 M1 gece egitimi). 03:10 UTC, tek oneshot birim (MemoryMax).
+"""Gece egitimi (DD-12 WP-18: M1). 03:10 UTC, tek oneshot birim (MemoryMax).
 
-1) Kurulum suzgeci (WP-10; yalniz numpy): defter salt okunur; `var/learner/models/setup_filter/<arm>.json` (+ `.prev.json`).
-2) M1 (`trader_ml.pa_proposer`, WP-18 (b)): tarihsel barlar (`var/history`, kilit baslangicindan ONCE kesilir) + kagit
-   kayitlari (`scripts/export_paper_records.py` ile AYNI disa aktarma: kilit penceresiyle kesisen satirlar dusurulur) ->
-   `var/learner/models/pa_proposer/M1@<tf>.json` (+ `.prev.json`). Bellek: ciftbasina kuyruk (tavan 50 000 satir; spec §5.2), feather
-   pyarrow ile okunur. Olcum (WP-18): tepe RSS ~263 MB; pandas `trader_core.indicators` (dondurulmus) uzerinden gelir
-   (~100 MB). Sert tavan: deploy/trader-ml-retrain.service MemoryMax=350M.
-Her iki kol `var/learner/paper_models.csv`'ye satir ekler.
+M1 (`trader_ml.pa_proposer`, WP-18 (b)): tarihsel barlar (`var/history`, kilit baslangicindan ONCE kesilir) + kagit
+kayitlari (`scripts/export_paper_records.py` ile AYNI disa aktarma: kilit penceresiyle kesisen satirlar dusurulur) ->
+`var/learner/models/pa_proposer/M1@<tf>.json` (+ `.prev.json`). Bellek: ciftbasina kuyruk (tavan 50 000 satir; spec §5.2), feather
+pyarrow ile okunur. Olcum (WP-18): tepe RSS ~263 MB; pandas `trader_core.indicators` (dondurulmus) uzerinden gelir
+(~100 MB). Sert tavan: deploy/trader-ml-retrain.service MemoryMax=350M.
+Her zaman dilimi `var/learner/paper_models.csv`'ye satir ekler.
 Ciktilar YALNIZ calisma zamani dizinine yazilir (git-izli dosya asla degismez); okuyucular once calisma zamani dizinine,
 sonra depodaki tohum paketlere (`models/pa_proposer/`, `research/paper_models.csv`) bakar. Kilit donemi (2026-05-01..2026-11-01) egitime GIRMEZ.
 Cikis: 0 basarili (model olusmayan kol hata degil: `ml_no_model`); 1 kullanim; 3 defter acilamadi/yazma/egitim hatasi.
@@ -16,7 +15,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import hashlib
 import json
 import os
 import sys
@@ -26,32 +24,12 @@ from pathlib import Path
 _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE.parent / "src"))
 sys.path.insert(0, str(_HERE))                       # export_paper_records (scripts/)
-sys.path.insert(0, str(_HERE.parent / "paket"))      # ortak_ogrenme (ML filtresi kagitta aktif, 19.11)
 sys.path.insert(0, str(_HERE.parent / "research"))   # pa_proposer_build (research/): tarihsel etiket + kagit satiri yardimcilari
 
 from trader_core import ledger as L  # noqa: E402
-from trader_ml.setup_filter import package as P  # noqa: E402
-from trader_ml.setup_filter import train as T  # noqa: E402
 from trader_ml.pa_proposer import package as PK  # noqa: E402
 from trader_ml.pa_proposer import train as TR  # noqa: E402
-from trader_ml.setup_filter.train import LOCK_START  # noqa: E402
-
-
-def cf_satirlari_oku(cf_yolu) -> list[dict]:
-    """counterfactual.sqlite `cf_outcomes` ('plan' yontemi, version>=2, learner) -> [{decision_id, hyp_r_net, window_end_ts: datetime}]
-    (salt okunur). 'plan' = planlanan stop/hedef (gercek islemin olcegine en yakin; 'barrier' sabit +2R/-1R/72 mum). Depo yok ya da HERHANGI
-    bir okuma hatasi (sqlite3.Error dahil) => [] (yalniz gercek islemlerle egit; gece birimi hata sayilmaz)."""
-    if not cf_yolu or not os.path.exists(cf_yolu):
-        return []
-    try:
-        from trader_core import counterfactual as CF
-        with CF.CounterfactualStore(cf_yolu, read_only=True) as st:
-            return [{"decision_id": int(r["decision_id"]), "hyp_r_net": float(r["hyp_r_net"]), "window_end_ts": L._parse_ts(r["window_end_ts"])}
-                    for r in st._db.execute("SELECT decision_id, hyp_r_net, window_end_ts FROM cf_outcomes WHERE bot=? AND method='plan' "
-                                            "AND version>=2 AND hyp_r_net IS NOT NULL ORDER BY decision_id", ("learner",))]
-    except Exception as e:  # noqa: BLE001 - counterfactual okunamadi: yalniz islemlerle devam
-        print(f"counterfactual okunamadi, yalniz islemlerle egitilir: {type(e).__name__}: {e}", file=sys.stderr)
-        return []
+from trader_ml.pa_proposer.train import LOCK_START  # noqa: E402
 
 
 def _resolve(p: str) -> str:
@@ -162,43 +140,15 @@ def m1_nightly(led, cf_path: str | None, *, history_dir: str, tfs, models_dir: s
     return out
 
 
-class _FiltreKapali(Exception):
-    """Kagit config `ml_mode: off`: kurulum filtresi (ortak_ogrenme) gece egitilmez (24.11 kullanici karari)."""
-
-
-def _config_ml_mode(path: Path) -> str | None:
-    """config/engine.paper.json `ml_mode`; okunamazsa None (eski davranis: egitim surer)."""
-    try:
-        v = json.loads(path.read_text(encoding="utf-8")).get("ml_mode")
-    except (OSError, ValueError, AttributeError):
-        return None
-    return v if isinstance(v, str) else None
-
-
-def _config_arms(path: Path) -> list[str] | None:
-    """config/engine.paper.json `arms` (liste ya da {kurulum: [tf]}); okunamazsa None (filtre uygulanmaz)."""
-    try:
-        raw = json.loads(path.read_text(encoding="utf-8")).get("arms")
-    except (OSError, ValueError, AttributeError):
-        return None
-    if isinstance(raw, dict):
-        return [f"{k}@{tf}" for k, tfs in raw.items() for tf in tfs]
-    return [str(a) for a in raw] if isinstance(raw, list) and raw else None
-
-
 def main(argv=None, *, now_fn=None, env=None) -> int:
     ap = argparse.ArgumentParser(prog="ml_retrain_run.py")
     ap.add_argument("--once", action="store_true", required=True)
     ap.add_argument("--ledger")
     ap.add_argument("--cf")
-    ap.add_argument("--models-dir", default="var/learner/models/setup_filter")
     ap.add_argument("--paper-models-csv", default="var/learner/paper_models.csv")
-    ap.add_argument("--max-rows", type=int, default=T.MAX_ROWS)
     ap.add_argument("--history-dir", default="var/history")
     ap.add_argument("--m1-models-dir", default="var/learner/models/pa_proposer")
     ap.add_argument("--m1-tfs", default=",".join(M1_TFS))
-    ap.add_argument("--paper-config", default=str(_HERE.parent / "config" / "engine.paper.json"), help="yapilandirilmis kollar (kaldirilmis kollara paket uretilmez)")
-    ap.add_argument("--no-m1", action="store_true", help="yalniz kurulum suzgeci (M1 atlanir)")
     try:
         args = ap.parse_args(argv)
     except SystemExit as e:
@@ -216,51 +166,19 @@ def main(argv=None, *, now_fn=None, env=None) -> int:
     m1: dict = {}
     m1_err: str | None = None
     try:
-        arms = _config_arms(Path(_resolve(args.paper_config)))
-        rows = T.collect_rows(led, cf if os.path.exists(cf) else None)
-        if arms is not None:                       # kaldirilmis kollarin tarihsel satirlari paket uretmez
-            rows = [r for r in rows if r.get("arm_id") in set(arms)]
-        pkgs, rep = T.train_all(rows, created_at=now, max_rows=args.max_rows)
-        mdir = _resolve(args.models_dir)
-        for pkg in pkgs.values():
-            P.save_package(pkg, mdir)
-        digest = hashlib.sha256("".join(sorted(p["meta"]["model_hash"] for p in pkgs.values())).encode()).hexdigest()
-        csv_rows.append([f"setup_filter_nightly_{now.date().isoformat()}", "nightly", f"ridge_logistic;arms={len(pkgs)}",
-                         f"rows={len(rows)};lock_dropped={rep['lock_dropped']}", "", digest, now.isoformat()])
-        ortak: dict = {}
-        try:   # 19.11: kagit ML filtresi (ortak_ogrenme) - kurulum basina >=10 kapanmis islem; hata digerlerini geri almaz
-            if _config_ml_mode(Path(_resolve(args.paper_config))) == "off":   # 24.11 kullanici karari: ML filtreleri kapali -> egitim yok
-                raise _FiltreKapali
-            from trader_engine import ogrenme_filtre as OF
-            ortak = OF.egit_hepsi(OF.adaylar_defterden(led, cf_satirlari_oku(cf), now), OF.model_dizini(lp), now, kollar=arms)
-        except _FiltreKapali:
-            ortak = {"durum": "kapali"}
+        tfs = [t.strip() for t in args.m1_tfs.split(",") if t.strip()]
+        if any(t not in PB_TFS for t in tfs):
+            print(f"gecersiz M1 zaman dilimi: {tfs}", file=sys.stderr)
+            return 1
+        try:   # M1 hatasi cikis kodu 3 (saglik alarmi); paper_models.csv satirlari yine yazilir
+            m1 = m1_nightly(led, cf, history_dir=_resolve(args.history_dir), tfs=tfs,
+                            models_dir=_resolve(args.m1_models_dir), now=now, max_rows=M1_MAX_ROWS, csv_rows=csv_rows)
         except Exception as e:  # noqa: BLE001
-            ortak = {"durum": f"hata:{type(e).__name__}"}
-            print(f"ortak filtre egitim hatasi: {type(e).__name__}: {e}", file=sys.stderr)
-        for aile, r in sorted((ortak.get("aileler") or {}).items()):   # aile durumu paper_models.csv'de gorunur (model yoksa nedeni)
-            kollar = ",".join(f"{k}={v}" for k, v in sorted(r.get("kollar", {}).items()))
-            sn = r.get("sinama")
-            sn_s = "" if not sn else (f";sinama={sn['karar']};n_egitim={sn.get('n_egitim')};n_sinama={sn.get('n_sinama')};n_kabul={sn.get('n_kabul')}"
-                                      f";ort_r_hepsi={sn.get('ort_r_hepsi')};ort_r_kabul={sn.get('ort_r_kabul')};neden={sn.get('neden')}")
-            print(f"ortak filtre sinamasi aile={aile} durum={r.get('durum')}{sn_s}", file=sys.stderr)
-            csv_rows.append([f"ortak_filtre_aile_{aile}_{now.date().isoformat()}", "nightly",
-                             "ridge_logistic;aile=" + aile + ";tf_ozellik=log2+onehot",
-                             f"n={r.get('n', 0)};n_cf={r.get('n_cf', 0)};min=10;durum={r.get('durum')};kollar={kollar}{sn_s}", "", r.get("model_hash", ""), now.isoformat()])
-        if not args.no_m1:
-            tfs = [t.strip() for t in args.m1_tfs.split(",") if t.strip()]
-            if any(t not in PB_TFS for t in tfs):
-                print(f"gecersiz M1 zaman dilimi: {tfs}", file=sys.stderr)
-                return 1
-            try:   # M1 hatasi kurulum suzgecini ve defter satirini geri almaz; cikis kodu 3 (saglik alarmi)
-                m1 = m1_nightly(led, cf, history_dir=_resolve(args.history_dir), tfs=tfs,
-                                models_dir=_resolve(args.m1_models_dir), now=now, max_rows=M1_MAX_ROWS, csv_rows=csv_rows)
-            except Exception as e:  # noqa: BLE001
-                m1_err = f"{type(e).__name__}: {e}"
-                print(f"M1 egitim hatasi: {m1_err}", file=sys.stderr)
-            failed = sorted(t for t, v in m1.items() if isinstance(v, dict) and v.get("status") == "error")
-            if failed and m1_err is None:
-                m1_err = f"tf hatasi: {','.join(failed)}"          # cikis kodu 3 (saglik gorunurlugu); digerleri egitildi
+            m1_err = f"{type(e).__name__}: {e}"
+            print(f"M1 egitim hatasi: {m1_err}", file=sys.stderr)
+        failed = sorted(t for t, v in m1.items() if isinstance(v, dict) and v.get("status") == "error")
+        if failed and m1_err is None:
+            m1_err = f"tf hatasi: {','.join(failed)}"          # cikis kodu 3 (saglik gorunurlugu); digerleri egitildi
         csvp = Path(_resolve(args.paper_models_csv))
         csvp.parent.mkdir(parents=True, exist_ok=True)
         new = not csvp.exists()
@@ -274,8 +192,7 @@ def main(argv=None, *, now_fn=None, env=None) -> int:
         return 3
     finally:
         led.close()
-    print(json.dumps({"status": "ok" if m1_err is None else "m1_error", "rows": len(rows), "ortak_filtre": ortak, "models": sorted(pkgs), "m1": m1,
-                      "m1_error": m1_err, **rep}, sort_keys=True, default=str))
+    print(json.dumps({"status": "ok" if m1_err is None else "m1_error", "m1": m1, "m1_error": m1_err}, sort_keys=True, default=str))
     return 0 if m1_err is None else 3
 
 

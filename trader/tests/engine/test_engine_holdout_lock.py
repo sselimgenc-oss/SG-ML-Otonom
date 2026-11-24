@@ -78,7 +78,7 @@ def test_kilit_bayragi_kopyalari_esit():
     from trader_core.ledger import Ledger
     from trader_ml import config
     from trader_ml import guards as mlg
-    from trader_ml.setup_filter import train
+    from trader_ml.pa_proposer import train
     v = H.KILIT_ACIK
     assert counterfactual.KILIT_ACIK is v and exit_counterfactual.KILIT_ACIK is v and strateji_veri.KILIT_ACIK is v
     assert Ledger.FAMILY_KILIT_ACIK is v and config.KILIT_ACIK is v and mlg.KILIT_ACIK is v and train.KILIT_ACIK is v

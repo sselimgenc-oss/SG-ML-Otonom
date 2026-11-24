@@ -1,11 +1,10 @@
 """Alinmayan sinyallerin varsayimsal sonucu (plan 25a; docs/alinmayan-sinyal-spec.md).
 
 Atlanan her karar (`final_action='skipped'`, her `skip_reason`), karar mumunun kapanisindan sonraki 1 saatlik mumlarda
-yeniden oynatilir: (a) `barrier` = ML etiketiyle AYNI uclu bariyer (trader_ml.labels.label_candidates; -1R stop, +2R hedef,
+yeniden oynatilir: (a) `barrier` = uclu bariyer (-1R stop, +2R hedef,
 72 mum zaman), (b) `plan` = defterdeki planned_stop/planned_target, 48 mumluk ufukta. Sonuc `counterfactual.sqlite`'e
 (var/<bot>/, bu isin TEK yazari) yazilir. Defter ve market.sqlite yalnizca `mode=ro` acilir. WP-13: kurulum zaman dilimleri (15dk/1s/4s/1g; 1g = 6 x 4s), kayma seansa gore (cost_overrides; yoksa taban 5 bp).
-Bagimlilik: trader_core.arm_time (saf, stdlib; eskiden trader_engine.bars/arm_guard). Ayrica pandas ve trader_ml ice aktarilmaz;
-trader_engine / trader_ml / pandas ice aktarilmaz (formul trader_ml.labels'ten kopyadir; esitlik tests/test_counterfactual.py).
+Bagimlilik: trader_core.arm_time (saf, stdlib; eskiden trader_engine.bars/arm_guard). trader_engine / trader_ml / pandas ice aktarilmaz.
 
 Sizinti kurali: bir karar ancak ufku (72 mum) TAMAMEN dolduktan ve pencere mumlari kapanis sonrasi yazilmis, eksiksiz
 bulunduktan sonra hesaplanir; erken bariyer vurusu bile beklenir. Bir kez yazilan satir degismez (idempotent).
@@ -28,7 +27,7 @@ __all__ = ["VERSION", "HORIZON_BARS", "PLAN_HORIZON_BARS", "TARGET_R", "FEE_RATE
            "ARM_TF_MS", "BASE_SLIP", "arm_rows", "arm_candidates", "arm_scorecard", "arm_virtual_bankroll"]
 
 VERSION = 2                          # 2: plan ufku 48 mum; target yanlis tarafta -> invalid_plan
-# --- trader_ml.config'in KOPYASI (parite testi esitligi kilitler); ML etiketi degisirse VERSION artar
+# --- etiket sabitleri (kilit bayragi trader_engine.holdout / trader_ml.config kopyalariyla testle esit); etiket degisirse VERSION artar
 HORIZON_BARS = 72
 PLAN_HORIZON_BARS = 48                # `plan` yontemi: planlanan stop/hedef icin ders kaniti ufku (<= HORIZON_BARS)
 TARGET_R = 2.0

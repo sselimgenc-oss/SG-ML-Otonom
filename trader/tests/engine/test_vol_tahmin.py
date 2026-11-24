@@ -1,8 +1,7 @@
-"""Fikir 10 (23.11): oynaklik tahmini ozellikleri (`f_vol_tahmin`, `f_vol_asim`) yalniz gece suzgecinin ek girdisi.
-Ileriye bakis yok, olcek degismez, NaN/kisa guvenli, eski ML1 paketi ve eski gece paketi etkilenmez."""
+"""Fikir 10 (23.11): oynaklik tahmini ozellikleri (`vol_tahmin`, `vol_asim`; karar ozelligi olarak deftere yazilir).
+Ileriye bakis yok, olcek degismez, NaN/kisa guvenli."""
 from __future__ import annotations
 
-import json
 import math
 import sys
 from datetime import datetime, timedelta, timezone
@@ -10,11 +9,6 @@ from pathlib import Path
 
 import numpy as np
 
-from ortak_ogrenme import filtre as PF
-from ortak_ogrenme.kayit import Aday
-from trader_core.ml_live_v2 import setup_feature_dict, setup_feature_vector
-from trader_core.ml_package import load_package
-from trader_engine import ogrenme_filtre as OF
 from trader_engine.gates import _features
 from trader_engine.vol_tahmin import MIN_GETIRI, vol_ozellikleri
 
@@ -75,53 +69,12 @@ def test_asimetri_isareti():
     assert vol_ozellikleri(100 * np.exp(np.cumsum(r)), 1.0)["vol_asim"] < -0.3
 
 
-def test_karar_ozelliklerinde_ve_egitim_matrisinde():
+def test_karar_ozelliklerinde():
     f = _features(_row(vol_tahmin=1.3, vol_asim=-0.2))
     assert f["vol_tahmin"] == 1.3 and f["vol_asim"] == -0.2
     f0 = _features(_row())                                      # eksik => yazilmaz, cokmez
     assert "vol_tahmin" not in f0 and "vol_asim" not in f0
     assert "vol_tahmin" not in _features(_row(vol_tahmin=float("nan")))
-    oz = OF.ozellikler(side="long", regime="trend_up", atr_ratio=1.0, session_tag=None, pair="BTC/USDT", planned_entry=100.0,
-                       planned_stop=98.0, features=f)
-    assert oz["f_vol_tahmin"] == 1.3 and oz["f_vol_asim"] == -0.2
-    ad = [Aday(id=f"a{i}", proje="ML", kurulum="T1@1h", enstruman="BTC/USDT", varlik_sinifi="kripto", yon="long",
-               ts=T0 + timedelta(hours=i), alindi=True, r=1.0 if i % 2 else -1.0,
-               ozellikler={**oz, "f_vol_tahmin": 1.0 + i * 0.01}) for i in range(40)]
-    adlar = PF.ozellik_adlari(ad)
-    assert "f_vol_tahmin" in adlar and "f_vol_asim" in adlar
-    X = PF.matris(adlar, ad)
-    assert np.isfinite(X[:, adlar.index("f_vol_tahmin")]).all()
-    pk = PF.egit("T1", [Aday(**{**a.__dict__, "kurulum": "T1"}) for a in ad], olusturma=T0)
-    assert "f_vol_tahmin" in pk["meta"]["ozellikler"]
-    # eksik ozellik: filtre `fill` ile doldurur, cokmez
-    p = PF.puan(pk, {k: v for k, v in oz.items() if not k.startswith("f_vol")})
-    assert 0.0 <= p <= 1.0
-
-
-def test_eski_ml1_paketinin_ozellik_vektoru_degismez():
-    pk = load_package(ROOT / "models" / "ml1-r03.json", check_expiry=False, require_gate=False)
-    names = pk["meta"]["features"] if isinstance(pk, dict) else pk.features
-    base = dict(side="long", regime="trend_up", atr_ratio=1.0, session_tag="eu", asset_class=None, pair="BTC/USDT",
-                planned_entry=100.0, planned_stop=98.0, rh_touches=1, rl_touches=2)
-    eski = {"atr_tf": 1.0, "stop_dist_atr": 2.0, "atr_4h": 2.0, "ema_value": 99.0, "body_ratio": 0.5, "pullback_ema": 3,
-            "btc_slope_4h": 0.1}
-    yeni = {**eski, "vol_tahmin": 1.4, "vol_asim": 0.3}
-    assert len(names) == 8
-    v0 = setup_feature_vector(names, setup_feature_dict(**base, features=eski))
-    v1 = setup_feature_vector(names, setup_feature_dict(**base, features=yeni))
-    assert np.array_equal(v0, v1, equal_nan=True)
-    assert np.isfinite(v0[names.index("f_btc_slope_4h")])
-    assert not any(n in ("f_vol_tahmin", "f_vol_asim") for n in names)
-
-
-def test_eski_gece_paketi_hala_skorlar():
-    ad = [Aday(id=f"a{i}", proje="ML", kurulum="T1", enstruman="BTC/USDT", varlik_sinifi="kripto", yon="long",
-               ts=T0 + timedelta(hours=i), alindi=True, r=1.0 if i % 2 else -1.0,
-               ozellikler={"x": 5.0 if i % 2 else -5.0}) for i in range(40)]
-    eski = PF.egit("T1", ad, olusturma=T0)                       # vol ozellikleri OLMADAN egitilmis paket
-    assert "f_vol_tahmin" not in eski["meta"]["ozellikler"]
-    p = PF.puan(eski, {"x": 5.0, "f_vol_tahmin": 1.2, "f_vol_asim": 0.1})
-    assert 0.0 <= p <= 1.0 and p == PF.puan(eski, {"x": 5.0})
 
 
 def test_runner_satira_yazar_yalniz_adayda():
@@ -138,45 +91,6 @@ def test_runner_satira_yazar_yalniz_adayda():
     s2 = s.copy(); s2["setup"] = None
     assert _to_row("BTC/USDT", T0, T0, s2, 1, trig, "1h").vol_tahmin is None
     assert _to_row("BTC/USDT", T0, T0, s, 1, None, "1h").vol_tahmin is None
-
-
-def _adaylar(n, kac_vol, arm="T1@1h"):
-    return [Aday(id=f"s{i}", proje="ML", kurulum=arm, enstruman="BTC/USDT", varlik_sinifi="kripto", yon="long",
-                 ts=T0 + timedelta(hours=i), alindi=True, r=1.0 if i % 2 else -1.0,
-                 ozellikler={"x": 5.0 if i % 2 else -5.0, **({"f_vol_tahmin": 1.0 + 0.01 * i} if i < kac_vol else {})},
-                 cikis={"kapanis": (T0 + timedelta(hours=i + 1)).isoformat()}) for i in range(n)]
-
-
-def test_seyrek_vol_ozelligi_egitimden_atilir_paket_ayni():
-    ad_seyrek = OF.aile_adaylari(_adaylar(60, 2))["T1"]
-    ad_yok = OF.aile_adaylari(_adaylar(60, 0))["T1"]
-    assert not any("f_vol_tahmin" in a.ozellikler for a in ad_seyrek)
-    p1 = PF.egit("aile:T1", ad_seyrek, olusturma=T0)
-    p0 = PF.egit("aile:T1", ad_yok, olusturma=T0)
-    assert "f_vol_tahmin" not in p1["meta"]["ozellikler"] and p1 == p0
-    # yeterli kapsam (>=30 ve >=%50): ozellik KALIR
-    dolu = OF.aile_adaylari(_adaylar(60, 40))["T1"]
-    assert PF.egit("aile:T1", dolu, olusturma=T0)["meta"]["ozellikler"].count("f_vol_tahmin") == 1
-    az = OF.aile_adaylari(_adaylar(60, 29))["T1"]            # 29 < 30
-    assert not any("f_vol_tahmin" in a.ozellikler for a in az)
-    yarim = OF.aile_adaylari(_adaylar(100, 40))["T1"]         # 40 < %50
-    assert not any("f_vol_tahmin" in a.ozellikler for a in yarim)
-
-
-def test_z_kirpma():
-    pk = PF.egit("aile:T1", OF.aile_adaylari(_adaylar(60, 0))["T1"], olusturma=T0)
-    i = pk["meta"]["ozellikler"].index("x")
-    ort, sd = pk["model"]["mean"][i], pk["model"]["std"][i]
-    k = OF.z_kirp(pk, {"x": 1e9})
-    assert math.isclose(k["x"], ort + 5 * sd) and OF.z_kirp(pk, {"x": ort})["x"] == ort
-    assert OF.z_kirp(pk, {"x": float("nan")})["x"] != OF.z_kirp(pk, {"x": float("nan")})["x"]   # NaN korunur (fill'e birakilir)
-
-
-def test_global_suzgec_vol_ozelligi_almaz():
-    from trader_ml.setup_filter.features import choose_feature_names
-    fd = [{"f_vol_tahmin": 1.0, "f_vol_asim": 0.1, "f_btc_vr": 2.0} for _ in range(5)]
-    n = choose_feature_names(fd)
-    assert "f_btc_vr" in n and "f_vol_tahmin" not in n and "f_vol_asim" not in n
 
 
 def test_deploy_sonrasi_ayni_karar_yeniden_yazilinca_cakisma_yok(tmp_path):

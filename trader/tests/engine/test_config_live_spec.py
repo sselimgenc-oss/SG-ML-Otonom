@@ -399,7 +399,7 @@ def test_cli_live_confirm_mismatch_exits_2(tmp_path, monkeypatch):
 
 _FROM_JSON = ("wallet_start", "stale_factor", "loop_sleep_s", "bar_wait_s", "minute_wait_s", "reconcile_open_s",
               "reconcile_flat_s", "start_delay_s", "var_dir", "market_db", "history_dir", "veto_config", "kill_file",
-              "strategy", "target_trade_risk", "ml_mode", "ml_model_path", "target_mode", "veto_mode",
+              "strategy", "target_trade_risk", "target_mode", "veto_mode",
               "record_filtered_candidates")
 
 

@@ -7,8 +7,6 @@
   "cost": {"fill_model": "native", "taker_fee": 0.0005, "slip_entry_bps": 2.0, "slip_exit_bps": 2.0,
            "slip_stop_bps": 5.0, "trigger_source": "mark", "granularity": "1m"},
   "strategy": "price_action_v1",
-  "ml_mode": "off",
-  "ml_model_path": null,
   "target_mode": "bar_close",
   "veto_mode": "required",
   "record_filtered_candidates": true,
