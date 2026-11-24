@@ -58,18 +58,18 @@ def test_config_evidence_thresholds_closed():
     raw = _raw()
     assert "checkpoints" not in raw
     assert "max_user_requests_per_week" not in raw
-    assert raw.get("min_affected", 1) <= 1
-    assert raw.get("min_distinct_days", 1) <= 1
-    assert raw.get("min_z", 0) == 0
-    assert raw.get("min_gap_r", 0) == 0
-    assert raw.get("early_min_n", 1) <= 1
-    assert raw.get("early_min_days", 1) <= 1
-    assert raw.get("max_changes_per_night") is None
+    # 24.11 kullanici karari: ders esikleri ve geri alma (esiksiz kagit kaldirildi; olu early_* anahtarlari silindi)
+    assert raw.get("min_affected") == 8
+    assert raw.get("min_distinct_days") == 4
+    assert raw.get("min_z") == 1.64
+    assert raw.get("min_gap_r") == 0.5
+    assert "early_min_n" not in raw and "early_min_days" not in raw
+    assert raw.get("max_changes_per_night") == 1
 
 
 def test_config_new_keys():
     raw = _raw()
-    assert raw.get("shrink_n") == 0  # koordinatör kararı: shrink_n varsayılan 0 (eşiksiz)
+    assert raw.get("shrink_n") == 10  # 24.11 kullanici karari: sonumleme 10 (az karar ile yanlis geri alma onlenir)
     assert raw.get("max_steps_from_ref") == 2
 
 
@@ -77,7 +77,7 @@ def test_config_loads_and_twin_disabled():
     cfg = LZ.load_config(LESSON_JSON)
     assert getattr(cfg, "twin_enabled", False) is False
     assert getattr(cfg, "shadow_weeks", 0) == 0
-    assert getattr(cfg, "shrink_n") == 0
+    assert getattr(cfg, "shrink_n") == 10
 
 
 def test_config_shrink_zero_accepted(tmp_path):

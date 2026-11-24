@@ -209,7 +209,18 @@ def _clip(v: float, bounds: tuple[float, float]) -> float:
 # Yapilandirma
 # ---------------------------------------------------------------------------
 
-_CAL_NUM = ("min_z", "min_gap_r", "min_affected", "monitor_z", "monitor_margin_r")
+_CAL_NUM = ("min_z", "min_gap_r", "min_affected", "monitor_z", "monitor_margin_r")   # kalibrasyon sonuc alanlari (bilgi)
+# 24.11 kullanici karari: olu yapilandirma anahtarlari (monitor_k, monitor_margin_r, monitor_z, early_*) SILINDI. Gece izleyicisi
+# bunlari hic okumuyordu (geri alma: etki <= -rollback_effect_r ve cikis karsi-olgusu). Asagidaki degerler yalniz (a) izleyici kayit
+# alani `k` ve (b) bilgi amacli kalibrasyon simulasyonu icin sabittir; yapilandirma degildir.
+MONITOR_K = 20
+_CAL_MONITOR_Z = 1.0
+_CAL_MONITOR_MARGIN_R = 0.30
+_CAL_EARLY_MIN_N = 10
+_CAL_EARLY_MEAN_R = -0.6
+_CAL_EARLY_Z = 1.645
+_CAL_EARLY_MIN_DAYS = 4
+_TWIN_MIN_DAYS = 1
 _CHECKPOINTS_DEFAULT: tuple = ()
 _MAX_CHECKPOINTS = 8
 
@@ -232,15 +243,8 @@ class LessonConfig:
     max_pair_share: float = 1.0
     recent_trades_n: int = 15
     history_n: int = 5
-    monitor_k: int = 20
-    monitor_margin_r: float = 0.30
-    monitor_z: float = 1.0
     monitor_recheck_n: int = 30
     recheck_max_days: int = 42
-    early_min_n: int = 1
-    early_mean_r: float = -0.6
-    early_z: float = 1.645
-    early_min_days: int = 1
     monitor_max_days: int = 28
     ref_max_n: int = 60
     blacklist_days: int = 14
@@ -279,6 +283,8 @@ class LessonConfig:
     exit_cf_min_n: int = 30                          # kilit: >= 30 islem
     exit_cf_days: int = 120                          # giris zamanina gore pencere (gun); kilit >= 63: 8 tam blok + suren blok
     exit_cf_reject_cooldown_days: int = 28           # trail_atr:up kaniti-yalniz girdisi: ret sonrasi bekleme
+    param_cf_enabled: bool = True                    # 24.11: stop_buffer_atr/range_target_frac geri alma karsi-olgusu ("ozgun vs yeni")
+    param_cf_market_path: str | None = None          # None => <defter dizininin ustu>/market.sqlite (salt okunur)
 
     def __post_init__(self) -> None:
         def bad(msg):
@@ -336,16 +342,9 @@ class LessonConfig:
         isnum(self.max_pair_share, "max_pair_share", 0.0, 1.0)
         isint(self.recent_trades_n, "recent_trades_n", 0)
         isint(self.history_n, "history_n", 0)
-        isint(self.monitor_k, "monitor_k", 1)
-        isnum(self.monitor_margin_r, "monitor_margin_r", 0.0, 0.50)
-        isnum(self.monitor_z, "monitor_z", 0.0, 1.64)
-        isint(self.monitor_recheck_n, "monitor_recheck_n", self.monitor_k if isinstance(self.monitor_k, int) else 1)
+        isint(self.monitor_recheck_n, "monitor_recheck_n", MONITOR_K)
         isint(self.monitor_max_days, "monitor_max_days", 1)
         isint(self.recheck_max_days, "recheck_max_days", self.monitor_max_days)
-        isint(self.early_min_n, "early_min_n", 1)
-        isnum(self.early_mean_r, "early_mean_r")
-        isnum(self.early_z, "early_z", 0.0)
-        isint(self.early_min_days, "early_min_days", 1)
         isint(self.ref_max_n, "ref_max_n", 1)
         isint(self.blacklist_days, "blacklist_days", 0)
         isint(self.user_request_ttl_days, "user_request_ttl_days", 1)
@@ -383,6 +382,9 @@ class LessonConfig:
         isint(self.exit_cf_min_n, "exit_cf_min_n", 30)
         isint(self.exit_cf_days, "exit_cf_days", 63)
         isint(self.exit_cf_reject_cooldown_days, "exit_cf_reject_cooldown_days", 0)
+        isbool(self.param_cf_enabled, "param_cf_enabled")
+        if self.param_cf_market_path is not None:
+            isstr(self.param_cf_market_path, "param_cf_market_path")
         if self.notifier is not None:
             isstr(self.notifier, "notifier")
         if self.calibration_file is not None:
@@ -1067,7 +1069,7 @@ def build_twin_report(ledger_ro, twin_ro, window, cfg: LessonConfig, *, unavaila
 
 
 def twin_verdict_of(n_keys: int, g: int, adv_mean, zr: ZResult, cfg: LessonConfig) -> str:
-    if n_keys < cfg.twin_min_keys or g < cfg.early_min_days or adv_mean is None:
+    if n_keys < cfg.twin_min_keys or g < _TWIN_MIN_DAYS or adv_mean is None:
         return "insufficient"
     se = zr.se
     if se is None or se == 0 or (zr.z is None and zr.code == "se_zero"):
@@ -2812,7 +2814,7 @@ def monitor_from_ledger(ledger_ro, cfg: LessonConfig, origin: str = "reconcile")
         return None
     return Monitor(version_id=v.id, base_version_id=par.id, param=p, from_value=_pv(par.params, p),
                    to_value=_pv(v.params, p), scope=scope_str(scope_of(p)), proposal_id=v.proposal_id,
-                   started_at=fmt_ts(ev.activated_at), k=cfg.monitor_k, recheck_n=cfg.monitor_recheck_n,
+                   started_at=fmt_ts(ev.activated_at), k=MONITOR_K, recheck_n=cfg.monitor_recheck_n,
                    origin="user" if ev.actor == "user" and origin == "reconcile" else origin)
 
 
@@ -2835,7 +2837,7 @@ def _time_verdict(p_rows, n_rows, cfg: LessonConfig) -> tuple[str, ZResult | Non
     zr = cluster_diff(_fmt_pair(p_rows), _fmt_pair(n_rows), cfg.min_distinct_days)
     if zr.z is None:
         return "unavailable", zr, zr.d
-    harm = zr.d <= -cfg.monitor_margin_r + _EPS and zr.z <= -cfg.monitor_z + _EPS
+    harm = zr.d <= -_CAL_MONITOR_MARGIN_R + _EPS and zr.z <= -_CAL_MONITOR_Z + _EPS
     return ("harm" if harm else "not_harm"), zr, zr.d
 
 
@@ -2844,8 +2846,8 @@ def time_arm_early(p_rows, sample, cfg: LessonConfig, twin_v: str):
     tv, zr, diff = _time_verdict(p_rows, sample, cfg)
     mean_n = mean([r.r for r in sample]) if sample else 0.0
     days_n = len({r.day for r in sample})
-    arm = (len(sample) >= cfg.early_min_n and mean_n <= cfg.early_mean_r + _EPS and zr is not None
-           and zr.z is not None and zr.z <= -cfg.early_z + _EPS and days_n >= cfg.early_min_days
+    arm = (len(sample) >= _CAL_EARLY_MIN_N and mean_n <= _CAL_EARLY_MEAN_R + _EPS and zr is not None
+           and zr.z is not None and zr.z <= -_CAL_EARLY_Z + _EPS and days_n >= _CAL_EARLY_MIN_DAYS
            and twin_v in ("harm", "insufficient"))
     return arm, tv, zr, diff
 
@@ -2876,6 +2878,19 @@ def damped_effect(effect_sum: float, n: int, shrink_n: int = 10) -> float:
     if n <= 0:
         return 0.0
     return float(effect_sum) * n / (n + max(0, int(shrink_n)))
+
+
+def changed_scope(cur_params: Mapping[str, Any], ref_params: Mapping[str, Any]) -> frozenset[str] | None:
+    """Iki ayar kumesi arasinda degisen ders parametrelerini okuyan kurulumlarin birlesimi (`ledger.LESSON_SCOPE`). Hicbiri
+    degismediyse None (filtre yok; etki zaten 0)."""
+    out: set[str] = set()
+    for p in LESSON_PARAMS:
+        try:
+            if abs(_pv(cur_params, p) - _pv(ref_params, p)) > _EPS:
+                out |= set(scope_of(p))
+        except (KeyError, TypeError, ValueError):
+            continue                                   # eksik/gecersiz anahtar: bu parametre icin kapsam daraltilmaz
+    return frozenset(out) if out else None
 
 
 def would_take(params: Mapping[str, Any], dec) -> bool:
@@ -2950,7 +2965,11 @@ def measure_effect(ledger_ro, cfg: LessonConfig, cur_params: Mapping[str, Any], 
     added: list[float] = []
     removed: list[float] = []
     unresolved = 0
+    # 24.11: etki, degisen parametreyi OKUYAN her kurulum uzerinden olculur (yalniz T1/R1 degil); kapsam ledger.LESSON_SCOPE'ta
+    setups = changed_scope(cur_params, ref_params)
     for d in decs:
+        if setups is not None and getattr(d, "setup", None) not in setups:
+            continue
         if d.final_action != "entered" and d.skip_reason not in ("rr_below_min", "session_closed", "other"):
             continue                                   # parametre disi nedenle atlananlar (kapi, tavan, ML ...) olcuye girmez
         if d.final_action != "entered" and d.skip_reason == "session_closed" and getattr(d, "veto_reason", None) != "gate:session_closed":
@@ -3030,9 +3049,131 @@ def exit_harm_verdict(cfg: LessonConfig, monitor: Monitor, started: datetime, as
                           f"cikis kotulesti: yeni {y:+.2f} R vs ozgun {o:+.2f} R (n={len(new_r)})")
 
 
+# 24.11 kullanici karari (ders esikleri ve geri alma): stop_buffer_atr / range_target_frac (ve post_stop_wait) hangi sinyallerin
+# alindigini DEGISTIRMEZ => `would_take` etkisi hep 0 idi ve bu dersler hic geri alinmiyordu (28 gun sonra kalici). Simdi, cikis
+# kipleri gibi, "ozgun vs yeni" karsi-olgusu: degisiklikten sonra ALINAN islemlerin plani yeni ayarla ve ozgun ayarla AYNI saf
+# bariyer oynatimiyla (`counterfactual.replay`, plan yontemi, 48 mum) yeniden oynatilir; olcut `exit_rollback_needed` (>= 10 islem,
+# ozgun toplam R >= yeni + max(2 R, |yeni| x %20) YA DA en kotu islem >= 1 R daha kotu). Iki plan ayni yaklasimla oynatildigi icin
+# oynatim yanliligi farkta buyuk olcude birbirini goturur. Not: iz suren stoplu kollar (T1, H2 ...) hedefsiz oynatilir (yalniz
+# stop/zaman); hedef ayari R1'e ozgudur. post_stop_wait: motor bu parametreyi okumaz (etkisi yok) => oynatilacak bir sey yok.
+PARAM_REPLAY_PARAMS = ("stop_buffer_atr", "range_target_frac", "post_stop_wait")
+_TARGET_FOLLOWS_RISK = ("B1",)       # hedef = giris + RR x risk (RR sabit): stop kayinca hedef de kayar
+
+
+def param_cf_market_path(cfg: LessonConfig) -> str:
+    if cfg.param_cf_market_path:
+        return cfg.param_cf_market_path
+    return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(cfg.ledger_path))), "market.sqlite")
+
+
+def original_plan(param: str, dec, from_v: float, to_v: float) -> tuple[float, float | None] | None:
+    """Karar kaydindaki (YENI ayarli) plandan OZGUN ayarin plani: (stop, hedef). Hesaplanamazsa None.
+    stop_buffer_atr: stop = uc -/+ tampon x ATR => ozgun stop = yeni stop +/- (yeni - ozgun) x ATR (ATR = |giris-stop| / stop_dist_atr).
+    range_target_frac (R1): hedef = rl + oran x (rh - rl) => ozgun hedef = yeni hedef +/- (ozgun - yeni) x (rh - rl)."""
+    if param not in ("stop_buffer_atr", "range_target_frac"):
+        return None
+    e, s, tg = dec.planned_entry, dec.planned_stop, dec.planned_target
+    side = dec.side
+    if side not in ("long", "short") or not all(isinstance(x, (int, float)) and math.isfinite(x) for x in (e, s)):
+        return None
+    sgn = 1.0 if side == "long" else -1.0
+    if param == "stop_buffer_atr":
+        sda = _feat(dec.features, "stop_dist_atr")
+        if sda is None or sda <= 0 or abs(e - s) <= 0:
+            return None
+        atr = abs(e - s) / sda
+        s0 = s + sgn * (to_v - from_v) * atr
+        if not (s0 < e if side == "long" else s0 > e):
+            return None
+        tg0 = tg
+        if tg is not None and dec.setup in _TARGET_FOLLOWS_RISK:
+            tg0 = e + sgn * (abs(tg - e) / abs(e - s)) * abs(e - s0)
+        return s0, tg0
+    if dec.setup != "R1" or tg is None or dec.rh is None or dec.rl is None or dec.rh <= dec.rl:
+        return None
+    tg0 = tg + sgn * (from_v - to_v) * (dec.rh - dec.rl)
+    if not (tg0 > e if side == "long" else tg0 < e):
+        return None
+    return s, tg0
+
+
+def _replay_pair(market, dec, from_v: float, to_v: float, param: str, now_ms: int):
+    """(yeni_net_r, ozgun_net_r) | None (plan/veri uygun degil ya da ufuk dolmadi)."""
+    tf = dec.trigger_tf
+    tf_ms = _cf_mod.ARM_TF_MS.get(tf)
+    if tf_ms is None:
+        return None
+    orig = original_plan(param, dec, from_v, to_v)
+    if orig is None:
+        return None
+    e, s, tg = dec.planned_entry, dec.planned_stop, dec.planned_target
+    n = _cf_mod.PLAN_HORIZON_BARS
+    start_ms = _cf_mod._ceil_ms(_aware(dec.bar_close_ts), tf_ms)
+    if now_ms < start_ms + n * tf_ms:
+        return None                                    # ufuk dolmadi: sizinti yok, bekle
+    bars = market.window(dec.pair, start_ms, n, tf)
+    if [b[0] for b in bars] != [start_ms + k * tf_ms for k in range(n)]:
+        return None
+    hi, lo, cl = [b[1] for b in bars], [b[2] for b in bars], [b[3] for b in bars]
+    out = []
+    for stop, target in ((s, tg), orig):
+        if target is not None and not ((target > e) if dec.side == "long" else (target < e)):
+            return None
+        r = _cf_mod._priced(_cf_mod.replay(hi, lo, cl, dec.side, e, stop, target, horizon=n, fee_rate=0.0,
+                                           slippage_rate=0.0), e, stop, _cf_mod.BASE_SLIP)
+        if r is None:
+            return None
+        out.append(float(r["r_net"]))
+    return out[0], out[1]
+
+
+def param_replay_verdict(ledger_ro, cfg: LessonConfig, monitor: Monitor, started: datetime, as_of: datetime,
+                         *, market=None) -> MonitorVerdict | None:
+    """stop_buffer_atr / range_target_frac: degisiklikten sonra alinan islemlerin (kapsamdaki kurulumlar) yeni vs ozgun oynatimi.
+    Kanit yok / yetersiz / zarar yok => None (olagan akis surer: sure sonunda kalici). `market`: `.window(pair, start_ms, n, tf)`
+    sunan nesne (testte enjekte); yoksa `market.sqlite` salt okunur acilir; yok/okunamaz => None (fail-safe)."""
+    if not cfg.param_cf_enabled or monitor.param not in ("stop_buffer_atr", "range_target_frac"):
+        return None                                    # post_stop_wait: motor okumuyor; oynatilacak plan degisikligi yok
+    own = market is None
+    try:
+        if own:
+            path = param_cf_market_path(cfg)
+            if not os.path.exists(path):
+                return None
+            market = _cf_mod._Market(path)
+        try:
+            scope = set(scope_of(monitor.param))
+            vals = {v.id: _pv(v.params, monitor.param) for v in ledger_ro.list_versions() if v.id >= monitor.version_id}
+            now_ms = int(as_of.timestamp() * 1000)
+            new_r: list[float] = []
+            orig_r: list[float] = []
+            for d in sorted(ledger_ro.list_decisions(since_ts=started, until_ts=as_of, final_action="entered"),
+                            key=lambda x: (x.bar_close_ts, x.id)):
+                if d.setup not in scope or abs(vals.get(d.param_version_id, float("nan")) - monitor.to_value) > _EPS:
+                    continue
+                pr = _replay_pair(market, d, monitor.from_value, monitor.to_value, monitor.param, now_ms)
+                if pr is None:
+                    continue
+                new_r.append(pr[0])
+                orig_r.append(pr[1])
+        finally:
+            if own:
+                market.close()
+    except Exception as e:  # noqa: BLE001  fail-safe: kanit yok
+        log.warning("parametre karsi-olgusu okunamadi: %s", scrub(e))
+        return None
+    if not exit_rollback_needed(new_r, orig_r):
+        return None
+    y, o = math.fsum(new_r), math.fsum(orig_r)
+    st = {"n": len(new_r), "effect": r4(y - o), "damped_effect": r4(y - o), "param": monitor.param, "new_sum_r": r4(y),
+          "orig_sum_r": r4(o), "new_worst_r": r4(min(new_r)), "orig_worst_r": r4(min(orig_r))}
+    return MonitorVerdict("rolled_back", "param_effect", st,
+                          f"{monitor.param} kotulesti: yeni {y:+.2f} R vs ozgun {o:+.2f} R (n={len(new_r)})")
+
+
 def evaluate_monitor(ledger_ro, twin_ro, monitor: Monitor, as_of: datetime, cfg: LessonConfig, *,
                      twin_code: str | None = None, caps: Caps | None = None,
-                     twin_report: TwinReport | None = None) -> MonitorVerdict:
+                     twin_report: TwinReport | None = None, _market=None) -> MonitorVerdict:
     """DD-12 WP-08: tek degisikligin geri alinmasi. O degisiklikten sonra (bugunku ayar vs degisiklik oncesi ayar) FARKLI karar
     verilen adaylarda sonumlu etki <= -`cfg.rollback_effect_r` (3 R) ise geri alinir. Asgari aday sayisi YOK; her gece olculur.
     Etki sonumsuz esige ulasmadikca bekler; `monitor_max_days` sonra kalici (veri gelmedi diye geri alinmaz). Ikiz yok."""
@@ -3048,6 +3189,9 @@ def evaluate_monitor(ledger_ro, twin_ro, monitor: Monitor, as_of: datetime, cfg:
     xh = exit_harm_verdict(cfg, monitor, started, as_of)
     if xh is not None:
         return xh
+    ph = param_replay_verdict(ledger_ro, cfg, monitor, started, as_of, market=_market)
+    if ph is not None:
+        return ph
     eff = measure_effect(ledger_ro, cfg, dict(ver.params), dict(base.params), started, as_of, caps=caps)
     st = {**eff.to_dict(), "param": monitor.param, "age_days": r4(age_days), "shrink_n": cfg.shrink_n,
           "threshold_r": -cfg.rollback_effect_r}
@@ -4439,7 +4583,7 @@ class LessonService:
             origin = "user" if ev.actor == "user" else "reconcile"
             m = Monitor(version_id=v.id, base_version_id=par.id, param=p, from_value=_pv(par.params, p),
                         to_value=_pv(v.params, p), scope=scope_str(scope_of(p)), proposal_id=v.proposal_id,
-                        started_at=fmt_ts(ev.activated_at), k=cfg.monitor_k, recheck_n=cfg.monitor_recheck_n,
+                        started_at=fmt_ts(ev.activated_at), k=MONITOR_K, recheck_n=cfg.monitor_recheck_n,
                         origin=origin)
             mid = store.add_monitor(m)
             if active_vid == v.id:
@@ -4462,7 +4606,7 @@ class LessonService:
                 continue
             m = Monitor(version_id=o["version_id"], base_version_id=o["base_version_id"], param=o["param"],
                         from_value=o["from_value"], to_value=o["to_value"], scope=o["scope"],
-                        proposal_id=o.get("proposal_id"), started_at=o["started_at"], k=self.cfg.monitor_k,
+                        proposal_id=o.get("proposal_id"), started_at=o["started_at"], k=MONITOR_K,
                         recheck_n=self.cfg.monitor_recheck_n, origin=o.get("origin", "ledger_only"))
             mid = store.add_monitor(m)
             ev = o.get("event")
@@ -5044,7 +5188,7 @@ class LessonService:
         new = led.get_version(ares.version_id)
         m = Monitor(version_id=ares.version_id, base_version_id=base_version_id, param=param,
                     from_value=float(base.params[param]), to_value=float(new.params[param]), scope=scope,
-                    proposal_id=pid, started_at=started, k=self.cfg.monitor_k, recheck_n=self.cfg.monitor_recheck_n,
+                    proposal_id=pid, started_at=started, k=MONITOR_K, recheck_n=self.cfg.monitor_recheck_n,
                     origin=origin)
         store.add_monitor(m)
         ev_txt = " ".join(f"{k}={v}" for k, v in (evidence or {}).items())
@@ -5424,8 +5568,7 @@ def calibrate(replay_ledger, twin_replay, cfg: LessonConfig, seed: int = 0, *, B
     """Deterministik (tohumlu) kalibrasyon; LLM ve butce yok. Kabul olcutleri 7.3.6, secim 7.3.7.
     DD-12 WP-08: yalniz BILGI (otomatik uygulamanin on sarti degil); eski kanit esikleriyle simule eder."""
     cfg = dataclasses.replace(cfg, min_distinct_days=max(8, cfg.min_distinct_days),
-                              early_min_n=max(10, cfg.early_min_n), early_min_days=max(4, cfg.early_min_days),
-                              monitor_k=max(15, cfg.monitor_k), monitor_recheck_n=max(30, cfg.monitor_recheck_n))
+                              monitor_recheck_n=max(30, cfg.monitor_recheck_n))
     rng = random.Random(seed)
     day = today or datetime.now(UTC).date().isoformat()
     caps = detect_caps(replay_ledger)
@@ -5517,7 +5660,7 @@ def calibrate(replay_ledger, twin_replay, cfg: LessonConfig, seed: int = 0, *, B
 
     for _ in range(B):
         p = draw_r(cfg.ref_max_n, "P")
-        n20 = draw_r(cfg.monitor_k, "N")
+        n20 = draw_r(MONITOR_K, "N")
         n30h = draw_r(cfg.monitor_recheck_n, "H", -0.50)
         z20 = cluster_diff(_fmt_pair(p), _fmt_pair(n20), mdays)
         z30 = cluster_diff(_fmt_pair(p), _fmt_pair(n30h), mdays)
@@ -5528,7 +5671,7 @@ def calibrate(replay_ledger, twin_replay, cfg: LessonConfig, seed: int = 0, *, B
         n10 = [_R(-1.0, "shock") for _ in range(5)] + [_R(rng.choice(pool).r, f"o{rng.choice((1, 2))}") for _ in range(5)]
         a, _tv, _zr, _df = time_arm_early(p, n10, cfg, "insufficient")
         shock_flags.append(a)
-        n10c = draw_r(cfg.early_min_n, "E")
+        n10c = draw_r(_CAL_EARLY_MIN_N, "E")
         a2, _tv2, _zr2, _df2 = time_arm_early(p, n10c, cfg, "insufficient")
         early_false.append(a2)
 
@@ -5569,7 +5712,7 @@ def calibrate(replay_ledger, twin_replay, cfg: LessonConfig, seed: int = 0, *, B
     def twin_rates(tz, tm):
         def harm(t):
             am, z, g = t
-            return z is not None and g >= cfg.early_min_days and am <= -tm + _EPS and z <= -tz + _EPS
+            return z is not None and g >= _CAL_EARLY_MIN_DAYS and am <= -tm + _EPS and z <= -tz + _EPS
 
         return (sum(harm(o["h"]) for o in twin_raw) / B, sum(harm(o["x"]) for o in twin_raw) / B)
 

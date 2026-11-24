@@ -171,7 +171,7 @@ def r1_scenario(env: Env, n=34, ver=1, twin=True, base=D0):
 
 
 LEGACY_CFG = dict(checkpoints=(30, 45, 60), min_affected=8, min_gap_r=0.5, min_z=2.0, min_distinct_days=8,
-                  max_pair_share=0.5, early_min_n=10, early_min_days=4, max_user_requests_per_week=1, shadow_weeks=4)
+                  max_pair_share=0.5, max_user_requests_per_week=1, shadow_weeks=4)
 
 
 def good_cal(day="2026-12-01", **over):
@@ -184,7 +184,7 @@ def good_cal(day="2026-12-01", **over):
 def mk_cfg(tmp_path, **over):
     d = dict(ledger_path=str(tmp_path / "learner.sqlite"), store_path=str(tmp_path / "lesson.sqlite"),
              mode="rule_proxy", checkpoints=(30, 45, 60), min_affected=8, min_gap_r=0.5, min_z=2.0,
-             min_distinct_days=8, max_pair_share=0.5, early_min_n=10, early_min_days=4,
+             min_distinct_days=8, max_pair_share=0.5,
              max_user_requests_per_week=1, shadow_weeks=4)      # eski esikli rejim (DD-12 WP-08 varsayilanlari esiksiz)
     d.update(over)
     for k in [k for k in d if k.startswith("twin_") or k in ("report_show_twin", "max_steps_from_twin")]:
@@ -299,7 +299,7 @@ def test_config_locks(tmp_path):
     LS.LessonConfig(**LEGACY_CFG)
     for bad in (dict(shadow_weeks=3), dict(shadow_weeks=7), dict(bot="twin"), dict(checkpoints=(20, 45)),
                 dict(checkpoints=(30, 30)), dict(checkpoints=(30, 130)), dict(min_gap_r=0.4), dict(min_z=1.5),
-                dict(monitor_k=10), dict(monitor_z=2.0), dict(early_min_days=2), dict(max_pair_share=0.6),
+                dict(max_pair_share=0.6),
                 dict(blacklist_days=7), dict(max_user_requests_per_week=3), dict(batch_max_age_h=12),
                 dict(max_output_tokens=4000), dict(mode="x"), dict(run_at_utc="25:00"), dict(paper_start_day="x"),
                 dict(twin_min_keys=5), dict(monitor_recheck_n=10), dict(prompt_max_est_tokens=30000)):
@@ -410,7 +410,7 @@ def test_pooling_and_scope_disjoint_change(env, tmp_path):
     cfg = mk_cfg(tmp_path)
     snap = LS.build_snapshot(env.led, cfg, "2026-12-20", twin_ro=env.twin)
     assert snap.scopes["T1"]["stats"]["n_closed"] == 38 and snap.scopes["R1"]["stats"]["n_closed"] == 0
-    t1_entries = [m for m in snap.menu if m.scope == "T1"]
+    t1_entries = [m for m in snap.menu if m.scope == "T1+H2+S1+TF1"]      # 24.11: kapsam = trail_atr okuyan kurulumlar
     assert t1_entries and all(m.n_scope == 38 for m in t1_entries)
     cps = [c for c in snap.new_checkpoints if c.param == "trail_atr"]
     assert [c.c for c in cps] == [30]
@@ -527,7 +527,7 @@ def test_shadow_period_needs_user_then_approve(env, tmp_path):
     assert env.led.get_active_params().params["rr_min"] == 1.75
     mon = store.monitor_by_version(2)
     assert mon is not None and mon.origin == "user" and mon.base_version_id == 1 and mon.param == "rr_min"
-    assert mon.scope == "R1" and mon.k == 20 and mon.recheck_n == 30
+    assert mon.scope == "R1+B1+F1" and mon.k == 20 and mon.recheck_n == 30      # 24.11: kapsam = rr_min'i okuyan tum kurulumlar
     store.close()
 
 
