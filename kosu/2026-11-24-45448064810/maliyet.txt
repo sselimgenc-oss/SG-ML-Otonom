@@ -1,0 +1,4 @@
+.github/kol-test/1_kodla.md	claude-sonnet-5-5	1.62
+.github/kol-test/2_analiz.md	claude-fable-5-2	1.65
+.github/kol-test/3_duzelt.md	claude-sonnet-5-5	0.98
+.github/kol-test/4_rapor.md	claude-fable-5-2	0.71
