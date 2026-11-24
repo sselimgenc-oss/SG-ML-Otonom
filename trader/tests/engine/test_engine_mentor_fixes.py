@@ -69,7 +69,7 @@ def test_floor_funding_helpers():
     assert floor_funding_time(datetime(2026, 12, 1, 15, 59, tzinfo=timezone.utc)) == datetime(2026, 12, 1, 8, tzinfo=timezone.utc)
     ms = int(T_F.timestamp() * 1000)
     assert _floor_funding_ms(ms + 3) == ms
-    assert _next_funding_boundary_ms(ms + 3) == ms + 8 * 3_600_000
+    assert _next_funding_boundary_ms(ms + 3) == ms + 3_600_000       # saat sinirlari: 4s/1s kayitlar da zamaninda cekilir
     assert _next_funding_boundary_ms(ms - 1) == ms
 
 

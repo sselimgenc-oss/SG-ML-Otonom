@@ -47,16 +47,16 @@ BAN_418_DEFAULT_S = 120         # 418 ve Retry-After okunamadi: en az bu kadar u
 BAN_MAX_WAIT_S = 3600           # yasakta surec ici uyku ust siniri; asilirsa cikis 3 (birim yeniden baslatmaz, alarm)
 FUNDING_FIRST_LOOKBACK_MS = 30 * 86_400_000
 _DAY_MS = 86_400_000
-_FUNDING_GRID_MS = 8 * 3_600_000
+_FUNDING_GRID_MS = 3_600_000     # funding kaydi kendi saatine yazilir (1s/4s/8s sembol); izgara sabiti saat
 
 
 def _floor_funding_ms(ms: int) -> int:
-    """fundingTime'i 8h izgaraya (00/08/16 UTC) tabana yuvarla: saat basini birkac ms gecen ham deger dusmesin."""
+    """fundingTime'i saat basina tabana yuvarla (aralik-bagimsiz; 12:00:00.005 -> 12:00): 4s/1s kayitlar 8s izgarasina dusmez."""
     return ms - ms % _FUNDING_GRID_MS
 
 
 def _next_funding_boundary_ms(now_ms: int) -> int:
-    """now_ms'den SONRAKI 00/08/16 UTC siniri."""
+    """now_ms'den SONRAKI saat siniri (her saat sorulur: 1s/4s/8s semboller icin kayit saat basinda gelir)."""
     return _floor_funding_ms(now_ms) + _FUNDING_GRID_MS
 
 
@@ -76,7 +76,7 @@ class FeedConfig:
     minute_fetch_limit: int = 5
     backfill_bars: Mapping[str, int] = field(default_factory=_default_backfill)
     funding_refresh_s: float = 3600.0      # yedek periyodik cekim
-    funding_boundary_delay_s: float = 5.0  # 00/08/16 UTC + birkac saniye
+    funding_boundary_delay_s: float = 5.0  # her saat basi + birkac saniye
     rules_refresh_s: float = 3600.0
     retention_1m_days: int = 14
     rules_start_backoff_s: tuple[float, ...] = (5.0, 15.0, 45.0)   # acilis kural cekimi: len+1 deneme, sonra cikis

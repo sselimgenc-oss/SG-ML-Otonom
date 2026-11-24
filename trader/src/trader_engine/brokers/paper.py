@@ -5,7 +5,7 @@ import math
 from collections import deque
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Callable, Literal
 
@@ -121,6 +121,7 @@ class PaperBroker:
         self._order_seq = 0
         self._events: deque[BrokerEvent] = deque()
         self._last_funding: dict[str, datetime | None] = {}
+        self._funding_paid: dict[str, set[datetime]] = {}      # cift -> odenmis funding saatleri (imlec geride tutulunca cift odeme yok)
         self._last_mark: dict[str, float] = {}
         self._last_step_ts: datetime | None = None
         self._ctr: dict[str, int] = {k: 0 for k in _COUNTER_KEYS}
@@ -405,11 +406,15 @@ class PaperBroker:
             by_ts.setdefault(floor_funding_hour(p.ts), p)      # kaydin kendi zamani; ham fundingTime saat basini birkac ms gecebilir
         # Aralik-bagimsiz: izgara disi (4s/1s) kayitlar da (last, ts] icinde kendi zamaninda bir kez odenir
         due = sorted(set(grid) | {t for t in by_ts if last < t <= ts})
+        paid = self._funding_paid.setdefault(pair, set())
         todo = []
         hold_at: datetime | None = None                        # son odenen/atlanan nokta; imlec buraya kadar ilerler
         held = False
         for t in due:
             if pos.opened_ts >= t:
+                hold_at = t
+                continue
+            if t in paid:                                      # bu saat zaten odendi (imlec saat basinda bekletilirken yeniden sorgu)
                 hold_at = t
                 continue
             p = by_ts.get(t)
@@ -435,9 +440,18 @@ class PaperBroker:
         for t, p, mark, pay in todo:
             self._wallet -= pay
             pos.funding_paid += pay
+            paid.add(t)
             self._events.append(BrokerEvent(kind="funding", ts=t, pair=pair, funding_paid=pay,
                                             rate=p.rate, mark=mark))
-        self._last_funding[pair] = hold_at if held and hold_at is not None else (last if held else ts)
+        cur = hold_at if held and hold_at is not None else (last if held else ts)
+        h0 = floor_funding_hour(ts)
+        if not held and (ts - h0).total_seconds() < self._cfg.funding_max_wait_s:
+            # saat basini birkac ms/sn gecen kayit (4s/1s semboller) henuz depoda olmayabilir: imlec saat basinin hemen
+            # oncesinde bekler, bekleme siniri dolana dek yeniden sorulur (odenen saatler `paid` ile tekrar odenmez)
+            cur = max(last, min(cur, h0 - timedelta(milliseconds=1)))
+        self._last_funding[pair] = cur
+        for t in [t for t in paid if t < h0 - timedelta(hours=3)]:
+            paid.discard(t)
         return
 
     def _slipped(self, base: float, order_side: str, slip_bps: float, tick: float,
@@ -649,6 +663,7 @@ class PaperBroker:
             "order_seq": self._order_seq,
             "events": [self._ser_event(e) for e in self._events],
             "last_funding_ts": {p: _iso(t) for p, t in self._last_funding.items()},
+            "funding_paid_ts": {p: sorted(_iso(t) for t in v) for p, v in self._funding_paid.items() if v},
             "last_mark": dict(self._last_mark),
             "last_step_ts": _iso(self._last_step_ts),
             "counters": dict(self._ctr),
@@ -679,6 +694,7 @@ class PaperBroker:
             events = deque(self._de_event(d) for d in snap["events"])
             lf = {p: _dt(t) for p, t in snap["last_funding_ts"].items()}
             lm = {p: float(v) for p, v in snap["last_mark"].items()}
+            fpaid = {p: {_dt(t) for t in v} for p, v in snap.get("funding_paid_ts", {}).items()}
             lst = _dt(snap["last_step_ts"])
             ctr = {k: int(snap["counters"][k]) for k in _COUNTER_KEYS}
             calls = {str(k): int(v) for k, v in snap["fault_calls"].items()}
@@ -688,6 +704,7 @@ class PaperBroker:
             raise BrokerError(f"gecersiz snapshot: {e!r}") from e
         self._wallet, self._lev, self._pos, self._orders, self._order_seq = wallet, lev, pos, orders, seq
         self._events, self._last_funding, self._last_mark = events, lf, lm
+        self._funding_paid = fpaid
         self._last_step_ts, self._ctr, self._calls = lst, ctr, calls
         self._live = {c: o for c, o in orders.items() if o.status == "new"}
         self._ord_ser = {}

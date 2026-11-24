@@ -111,7 +111,8 @@ def _parse_ts(s: str) -> datetime:
 
 def funding_grid_times(entry_ms: int, exit_ms: int) -> list[int]:
     """(entry, exit] araligindaki 00/08/16 UTC funding zamanlari (trader_engine.funding.due_funding_times + accrue ile ayni kume:
-    pozisyon acilisindan SONRAki zamanlar; esitlik testi)."""
+    pozisyon acilisindan SONRAki zamanlar; esitlik testi). Eksik kayit denetimi bu izgaraya baglidir; izgara disi (4s/1s)
+    kayitlar `_funding_fn` icinde kendi saatinde eklenir."""
     if exit_ms <= entry_ms:
         return []
     t = (entry_ms // H8_MS + 1) * H8_MS
@@ -651,11 +652,12 @@ def _alternatives(active: float, step: float, bounds: tuple[float, float]) -> li
 def _funding_fn(points: Sequence[tuple], now_ms: int, side: str, qty: float, fallback_mark: float):
     rates: dict[int, tuple[float, float | None]] = {}
     for ts, rate, mark in points:
-        rates.setdefault(ts - ts % H8_MS, (float(rate), mark))
+        rates.setdefault(ts - ts % HR_MS, (float(rate), mark))   # kaydin KENDI saati (1s/4s/8s; trader_engine.funding.floor_funding_hour ile ayni)
 
     def fn(entry_ms: int, exit_ms: int):
         total = 0.0
-        for t in funding_grid_times(entry_ms, exit_ms):
+        own = [t for t in rates if entry_ms < t <= exit_ms]       # izgara disi (4s/1s) kayit saatleri de odenir
+        for t in sorted(set(funding_grid_times(entry_ms, exit_ms)) | set(own)):
             r = rates.get(t)
             if r is None:
                 return None, t

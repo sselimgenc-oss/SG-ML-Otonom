@@ -104,6 +104,7 @@ class RunSummary:
 
 
 _TF_RANK = {"15m": 1, "1h": 2, "4h": 3, "1d": 4}      # giris sirasi: buyuk zaman dilimi once
+_TF_SECS = {"15m": 900, "1h": 3600, "4h": 14400, "1d": 86400}
 
 
 class Engine:
@@ -552,8 +553,14 @@ class Engine:
             held_arms = [AG.arm_id_of(p.setup, p.trigger_tf) for p in self.state.open_positions()]
             ids = list(self.cfg.arms) or list(getattr(self.strategy, "arm_ids", ()))
             ids += [a for a in dict.fromkeys(held_arms) if a not in ids]
-            res["arms"] = {a: {"open": sum(1 for h in held_arms if h == a),
-                               "max": AG.arm_cap(self.cfg.arm_max_positions, a, a.split("@")[0])} for a in ids}
+            def _arm_row(a: str) -> dict:
+                setup = a.split("@")[0]
+                tot = AG.arm_cap_is_setup_total(self.cfg.arm_max_positions, a, setup)
+                n_open = (sum(1 for h in held_arms if h.split("@")[0] == setup) if tot
+                          else sum(1 for h in held_arms if h == a))       # `M1: 4` gibi anahtar: acik sayisi kurulum toplami
+                return {"open": n_open, "max": AG.arm_cap(self.cfg.arm_max_positions, a, setup),
+                        "scope": "setup_total" if tot else "arm"}
+            res["arms"] = {a: _arm_row(a) for a in ids}
         return res
 
     def summary(self) -> RunSummary:
@@ -1848,25 +1855,35 @@ class Engine:
     # ------------------------------------------------------------------ girisler (kapili)
     def _entry_order(self, D: datetime, frames: Mapping[str, SignalFrame]) -> list[str]:
         """Giris adaylarinin sirasi (kagit/canli/geri test ayni yol): once buyuk zaman dilimi (1d > 4h > 1h > 15m; adayi olmayan
-        sona), esitlikte yapilandirma sirasi `D`'den turetilen DONEN baslangic ofsetiyle (her 15 dk adimda bir ilerler).
-        Boylece boyut tavanlari (toplam notional, ayni-yon risk) dolarken hep ayni ciftler (BTC, ETH ..) onde gitmez.
-        Yalniz `D`'ye bagli: ayni zaman damgasi ayni sirayi verir (tekrar oynatma tekrarlanabilir). Cift ici sira degismez."""
+        sona), esitlikte yapilandirma sirasi DONEN bir baslangic ofsetiyle. Ofset her grup icin KENDI zaman diliminden
+        turetilir: `(D // tf_saniye) % n` (buyuk tf adaylari yalniz kendi sinirlarinda gorundugunden, 15 dk ofseti n ile ortak
+        boleni olan sayilarda donusu durdururdu). Adayi olmayanlar 15 dk ofsetini kullanir. Yalniz `D`'ye bagli: ayni zaman
+        damgasi ayni sirayi verir. Boyut tavanlari dolarken hep BTC/ETH onde gitmez. Cift ici sira degismez."""
         pairs = list(self.cfg.pairs)
         n = len(pairs)
         if n <= 1:
             return pairs
-        off = int(D.timestamp() // 900) % n
+        epoch = int(D.timestamp())
+        idx = {p: i for i, p in enumerate(pairs)}
 
-        def rank(pair: str) -> int:
+        def tf_of(pair: str) -> str | None:
             fr = frames.get(pair)
             row = None if fr is None else fr.last
             if row is None:
-                return -1
+                return None
             try:
-                return _TF_RANK.get(_tf_of(row), 0)
+                return _tf_of(row)
             except Exception:  # noqa: BLE001 - tf cozulemezse en dusuk aday sirasi
-                return 0
-        return sorted(pairs, key=lambda p: (-rank(p), (pairs.index(p) - off) % n))
+                return ""
+
+        tfs = {p: tf_of(p) for p in pairs}
+
+        def key(p: str):
+            tf = tfs[p]
+            rank = -1 if tf is None else _TF_RANK.get(tf, 0)
+            secs = _TF_SECS.get(tf or "", 900)
+            return (-rank, (idx[p] - (epoch // secs) % n) % n)
+        return sorted(pairs, key=key)
 
     def _entries(self, D: datetime, frames: Mapping[str, SignalFrame]) -> None:
         pre = self.gate.pre(D, self.tf, self._params_ok, self._active_tf or self.tf)

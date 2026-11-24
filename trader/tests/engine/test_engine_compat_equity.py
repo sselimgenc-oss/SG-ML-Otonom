@@ -15,7 +15,7 @@ from tests.engine.test_engine_06_impl_smoke import PAIRS, _bt, _tpl, _wf, ws  # 
 NATIVE = ["--period", "20250301-20250303", "--tf", "1h", "--fill-model", "native", "--granularity", "1m",
           "--trigger-source", "last", "--synthetic-rules", "--no-record-filtered", "--strategy", "fake_clean"]
 # HEAD (legacy_compat degisikliginden once) kodla uretilen native trades.csv + ledger ozeti SHA-256'si
-NATIVE_GOLDEN = "c12b069c59ae649a90c64b4c2c303f70d58af2999234533f2d76928555ce24e2"
+NATIVE_GOLDEN = "a2967c4d007d48e7e5460fdf4bd7d0b4bec805b64c9db44ea151ccffe95ff159"   # 24.11 kullanici karari: giris sirasi adil (buyuk tf once + donen ofset) -> karar/islem siralamasi degisti
 
 
 def _add_1m(hist: Path) -> None:
