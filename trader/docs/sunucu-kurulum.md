@@ -26,9 +26,9 @@ Depo **ozel** (private) olursa bu komut sifre sorar ve olmaz. O durumda bir "dep
 4. Kodu `/home/trader/SG-Github-AB-proje` icine indirir (tekrar calistirinca gunceller).
 5. Yalniz calisma bagimliliklarini kurar (requests, pandas, numpy, pyarrow, anthropic); ccxt, websockets, freqtrade, ML paketleri (lightgbm/scipy) ve test paketleri yok (ML filtreleri 24.11 kullanici karariyla silindi; ML kumesi artik yok).
 6. Dizinleri ve ayar dosyalarini (`/etc/trader-*.env`, yoksa) olusturur; var olan ayar dosyasini asla ezmez.
-7. systemd birimlerini kurar. **Veri akisi** (`trader-feed.service`, en fazla 350 MB; Binance herkese acik REST -> `var/market.sqlite`) motordan once acilir. **Ogrenen motor** (`trader-engine@learner`, en fazla 350 MB), saglik kontrolu ve gunluk yedek acilir. **Ikiz motor** (`trader-engine@twin`, en fazla 350 MB) VARSAYILAN ACIKTIR (saglik ve yedek ikiz defterini bekler); kapatmak icin `--no-twin` (`--with-twin` geriye uyumluluk icin kabul edilir, etkisizdir). Kurulum baslarken `free -m` basar. `/etc/trader-health.env` icindeki `HEALTH_BOTS` her calistirmada ikiz durumuna gore (`learner,twin` / `learner`) guncellenir. Veto HMAC anahtari `/etc/trader-veto-hmac.env` (root:root 0600) dosyasina OTOMATIK uretilir (`openssl rand -hex 32`, ekrana yazilmaz); veto ve motor birimleri okur, Anthropic anahtari motora gecmez. `user_data/budget.sqlite` trader sahipli 0600 onceden olusturulur.
+7. systemd birimlerini kurar. **Veri akisi** (`trader-feed.service`, en fazla 350 MB; Binance herkese acik REST -> `var/market.sqlite`) motordan once acilir. **Ogrenen motor** (`trader-engine@learner`, en fazla 350 MB), saglik kontrolu ve gunluk yedek acilir. **Ikiz motor** (`trader-engine@twin`, en fazla 350 MB) VARSAYILAN ACIKTIR (saglik ve yedek ikiz defterini bekler); kapatmak icin `--no-twin` (`--with-twin` geriye uyumluluk icin kabul edilir, etkisizdir). Kurulum baslarken `free -m` basar. `/etc/trader-health.env` icindeki `HEALTH_BOTS` her calistirmada ikiz durumuna gore (`learner,twin` / `learner`) guncellenir. Eski kurulumdan kalan `/etc/trader-veto.env`, `/etc/trader-veto-hmac.env` ve veto/C1 birimleri varsa silinir (24 Kasim kullanici karari). `user_data/budget.sqlite` trader sahipli 0600 onceden olusturulur.
 8. Gecmis fiyat verisi yoksa Binance'in acik arsivinden indirir.
-9. Veto, ders ve Telegram **anahtarlar doldurulana kadar kapali** kalir; sonda Turkce bir "yapilacaklar" listesi basar. Anahtarlari sohbete yazmayin: `nano /etc/trader-telegram.env` ile dosyayi acip degeri yapistirin, sonra `COMMIT=<KOD> bash /usr/local/lib/trader-root/current/deploy/install.sh` komutunu yeniden calistirin.
+9. Ders ve Telegram **anahtarlar doldurulana kadar kapali** kalir; sonda Turkce bir "yapilacaklar" listesi basar. Anahtarlari sohbete yazmayin: `nano /etc/trader-telegram.env` ile dosyayi acip degeri yapistirin, sonra `COMMIT=<KOD> bash /usr/local/lib/trader-root/current/deploy/install.sh` komutunu yeniden calistirin.
 
 ## Ilk baslatma sirasi (feed -> kurallar 10/10 -> motor)
 
@@ -151,8 +151,6 @@ bash /usr/local/lib/trader-root/current/deploy/uninstall.sh
 Yalniz `trader-*` birimlerini durdurur ve siler; veri, ayar dosyalari ve kullanici kalir. Her seyi silmek icin `uninstall.sh --purge` (veri, `/etc/trader-*.env`, `trader` kullanicisi gider; `/swapfile` kalir).
 
 ## Notlar (16 Kasım 2026)
-- Veto ayarlanmadan öğrenen bot işlem açmaz (`veto_mode: required`, güvenli taraf). Bu beklenen davranıştır.
-- Veto artık piyasa verisini motorun ortak `var/market.sqlite` deposundan okur (ağ yok, ccxt yok).
 - Sunucuya geçmiş veri olarak 15m/1h/4h/1d indirilir; 1m verisi yalnız geçmiş test aracı için gerekir, sunucuda gerekmez.
 
 ## Ilk gun runbook (bos sunucu; 30 Kasim paper baslangici)
@@ -167,9 +165,8 @@ run_as_trader() { runuser -u trader -- sh -c "cd $T && PYTHONPATH=$T/src $*"; } 
 **0. Onceden hazirla** (degerleri sohbete degil, sunucuda `nano` ile yazin). `free -m` ile bos bellegi ve diger projenin payini kontrol edin (install.sh de basar). Anahtar SIRASI (her adimdan sonra `install.sh`'i yeniden calistirin; zamanlayicilar kendi anahtarlari tamamlaninca acilir):
 1. Telegram bot token + chat id (`/etc/trader-telegram.env`): daemon, gunluk rapor ve saglik uyarilari (NOTIFIER=auto) acilir.
 2. `HEARTBEAT_URL` (`/etc/trader-health.env`; https://, ornegin healthchecks.io; bos kalirsa saglik birimi calisir ama yalniz uyari yazar; sunucu tamamen olurse tek alarm budur).
-3. Veto icin Anthropic anahtari `ANTHROPIC_API_KEY_VETO` (`/etc/trader-veto.env`). HMAC anahtari OTOMATIK uretilir; elle yazmayin.
-4. Ders icin Anthropic anahtari `ANTHROPIC_API_KEY_LESSON` (`/etc/trader-lesson.env`); ders zamanlayicisi Telegram anahtarlari da doluysa acilir.
-5. Cloudflare (panel yayini) EN SON.
+3. Ders icin Anthropic anahtari `ANTHROPIC_API_KEY_LESSON` (`/etc/trader-lesson.env`); ders zamanlayicisi Telegram anahtarlari da doluysa acilir.
+4. Cloudflare (panel yayini) EN SON.
 Ikiz motor varsayilan ACIK (saglik/yedek icin gerekli; denetim OPEN-4); kapatmak icin `--no-twin`.
 
 **1. Kurulum**
@@ -177,9 +174,8 @@ Ikiz motor varsayilan ACIK (saglik/yedek icin gerekli; denetim OPEN-4); kapatmak
 COMMIT=<KOD> bash /root/trader-kurulum/trader/deploy/install.sh      # YALNIZ ilk kurulum (bir kez); sonrakiler root kopyadan
 nano /etc/trader-telegram.env ; COMMIT=<KOD> bash /usr/local/lib/trader-root/current/deploy/install.sh      # 1) Telegram
 nano /etc/trader-health.env   ; COMMIT=<KOD> bash /usr/local/lib/trader-root/current/deploy/install.sh      # 2) HEARTBEAT_URL
-nano /etc/trader-veto.env     ; COMMIT=<KOD> bash /usr/local/lib/trader-root/current/deploy/install.sh      # 3) veto anahtari (HMAC otomatik)
-nano /etc/trader-lesson.env   ; COMMIT=<KOD> bash /usr/local/lib/trader-root/current/deploy/install.sh      # 4) ders anahtari
-nano /etc/trader-panel-cf.env ; COMMIT=<KOD> bash /usr/local/lib/trader-root/current/deploy/install.sh      # 5) Cloudflare (son)
+nano /etc/trader-lesson.env   ; COMMIT=<KOD> bash /usr/local/lib/trader-root/current/deploy/install.sh      # 3) ders anahtari
+nano /etc/trader-panel-cf.env ; COMMIT=<KOD> bash /usr/local/lib/trader-root/current/deploy/install.sh      # 4) Cloudflare (son)
 systemctl list-units 'trader-*' --no-pager ; systemctl list-timers 'trader-*' --no-pager ; free -m
 ```
 Beklenen: ozetin sonundaki "YAPILACAKLAR" listesi bos (ya da yalniz bilerek ertelediklerin); `trader-feed`, `trader-engine@learner`, `trader-engine@twin`, `trader-panel` active.
@@ -245,14 +241,7 @@ systemctl start trader-health-fail@deneme.service ; journalctl -t trader-health-
 ```
 Telefonda `/durum` yaz: `kip=paper kill=False ... entries_open=True`. `spooled` = mesaj kuyruga yazildi, daemon gonderecek (`ls $T/var/telegram/outbox`). Anahtarlar bossa Telegram timer/daemon hic acilmaz; CRIT yalniz journal + `HEARTBEAT_FAIL_URL`'e gider (sessiz degil ama telefona dusmez).
 
-**9. Veto belgesi var + taze**
-```
-systemctl start trader-veto.service ; journalctl -u trader-veto -n 20 --no-pager ; systemctl show trader-veto -p ExecMainStatus   # 0 (belge yazildi), 10/11 (bu tur karar yok / butce) beklenen
-python3 -c "import json,datetime as d;x=json.load(open('$T/shared/veto/veto.json'));print(x['status'],x['reason'],x['generated_at'],x['expires_at'],len(x['decisions']),'karar')"
-stat -c '%y %U %a' $T/shared/veto/veto.json ; date -u ; systemctl list-timers trader-veto.timer --no-pager
-sqlite3 -readonly $T/var/learner/ledger.sqlite "select veto_status,veto_reason,count(*) from decision_events group by 1,2"     # ilk adaylardan sonra
-```
-Beklenen: `status=ok`, `expires_at` simdiden en fazla 45 dk ileride (ttl 2700 sn), dosya 30 dk'da bir yenilenir; 20 karar = 10 cift x long/short. Defterde `veto_status=missing/key_missing` goruluyorsa motor HMAC anahtarini gormuyor (`/etc/trader-veto-hmac.env` bos/eksik; `install.sh` yeniden calistirin) ve **hicbir giris acilmaz**; `stale/file_expired` = veto zamanlayicisi durmus; `missing/file_missing` = veto hic calismamis. Saglik `veto_file_age` kontrolu `VETO_FILE`/`VETO_MAX_AGE_S` (5400 sn) ile besleniyorsa eski belge uyari uretir; yine de bu sorguyu gunde bir kez calistirin.
+**9. (silindi)** AI veto 18 Kasim'da kaldirildi; 24 Kasim kullanici karariyla artiklari da silindi (veto belgesi, HMAC anahtari, `trader-veto*` birimleri yok). Giris kapisinda veto adimi yoktur.
 
 **10. Pano okuyor mu**
 ```
@@ -284,7 +273,6 @@ Beklenen: 4 dosya (`ledger_*`, `state_*` x learner/twin), `"ok": true`.
 | `trader-engine@*` failed, ExecMainStatus 7 | acilis kapisi: kural/veri eksik | adim 2-3, sonra `reset-failed` + `start` |
 | health CRIT `market_bars_stale` | feed durdu / yavas | `journalctl -u trader-feed`; `systemctl restart trader-feed` |
 | health CRIT `api_unreachable:twin` | ikiz kurulu degil | `install.sh` (ikiz varsayilan acik; `--no-twin` kullanildiysa `HEALTH_BOTS=learner`) |
-| veto `missing/key_missing` | motor HMAC anahtarini gormuyor | `/etc/trader-veto-hmac.env` bos: `install.sh` yeniden calistirin |
 | Telefona alarm gelmiyor | Telegram anahtari bos ya da `NOTIFIER=log` | adim 8; `NOTIFIER=auto` ve `/etc/trader-telegram.env` (saglik birimi bunu okur; outbox dosyalari trader-tg grubuna 0660) |
 
 

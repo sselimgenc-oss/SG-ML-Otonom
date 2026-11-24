@@ -27,7 +27,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from trader_core import risk, signals, veto
+from trader_core import risk, signals
+from trader_engine.gates import VetoLookup
 from trader_core import ledger as L
 from trader_engine.brokers.paper import PaperBroker, PaperConfig
 from trader_engine.clock import SimClock
@@ -352,8 +353,8 @@ class FakeVeto:
     def lookup(self, pair, side, now):
         self.lookups.append((pair, side, now))
         if self.status == "allowed":
-            return veto.VetoLookup("allowed", self.reason, False)
-        return veto.VetoLookup(self.status, self.reason if self.status == "blocked" else "x", True)
+            return VetoLookup("allowed", self.reason, False)
+        return VetoLookup(self.status, self.reason if self.status == "blocked" else "x", True)
 
 
 class LedgerProxy:
@@ -418,16 +419,14 @@ class CallLogBroker(PaperBroker):
 # =====================================================================================================
 # Ortam
 # =====================================================================================================
-def make_cfg(tmp: Path, bot="learner", mode="paper", pairs=PAIRS, wallet=1000.0, veto_mode=None, **over):
+def make_cfg(tmp: Path, bot="learner", mode="paper", pairs=PAIRS, wallet=1000.0, **over):
     raw = json.loads((ROOT / "config" / "engine.base.json").read_text())
     raw.update(pairs=list(pairs), wallet_start=wallet, mode=mode,
                var_dir=str(tmp / ("var-live" if mode in ("testnet", "live") else "var")),    # DD-8: testnet/live var_dir son bileseni `var` olamaz
-               market_db=str(tmp / "market.sqlite"), history_dir=str(tmp / "hist"),
-               veto_config=str(tmp / "veto.json"), kill_file=str(tmp / "KILL"))
+               market_db=str(tmp / "market.sqlite"), history_dir=str(tmp / "hist"), kill_file=str(tmp / "KILL"))
     if mode in ("testnet", "live"):
         raw["pause_file"] = str(tmp / "PAUSE")           # DD-8: testnet/live'de paylasimli `shared/PAUSE` yasak (yol kurali)
     raw["target_trade_risk"] = 0.014     # testler kilitli varsayilanla (shipped base 0.005); sevk edilen deger ayri test edilir
-    raw["veto_mode"] = veto_mode or ("off" if mode in ("backtest", "paper") else "required")   # DD-12 WP-06a: kagitta veto yok
     raw.update(over)
     b = tmp / "base.json"
     b.write_text(json.dumps(raw))
@@ -1369,67 +1368,9 @@ class TestLedgerRecords:
 
 
 # =====================================================================================================
-# 7. FileVeto / NoVeto (§4)
+# 7. NoVeto (§4; 24.11: FileVeto/HMAC belgesi silindi)
 # =====================================================================================================
 class TestVetoSources:
-    def _doc(self, tmp, gen, decisions=None, key=KEY, ttl=2700):
-        cfg = veto.VetoConfig(veto_path=str(tmp / "veto.json"), ttl_s=ttl)
-        pairs = [BTC, ETH]
-        decs = decisions or [veto.Decision(p, s, "allow", None, None) for p in pairs for s in ("long", "short")]
-        doc = veto.build_document(cfg, decs, gen, "0" * 64, pairs)
-        veto.write_veto_file(cfg.veto_path, veto.sign_document(doc, key))
-        return cfg
-
-    def test_allowed_blocked(self, tmp_path):
-        g = mod("gates")
-        now = T0
-        decs = [veto.Decision(BTC, "long", "block", "funding asiri negatif", 30)] + \
-               [veto.Decision(p, s, "allow", None, None) for p, s in ((BTC, "short"), (ETH, "long"), (ETH, "short"))]
-        cfg = self._doc(tmp_path, now - timedelta(minutes=5), decs)
-        fv = g.FileVeto(cfg, {cfg.hmac_key_env: KEY})
-        fv.begin_step(now)
-        a = fv.lookup(ETH, "long", now)
-        assert a.status == "allowed" and a.blocks is False
-        b = fv.lookup(BTC, "long", now)
-        assert b.status == "blocked" and b.blocks is True and b.reason == "funding asiri negatif"
-
-    def test_missing_cases_block(self, tmp_path):
-        g = mod("gates")
-        cfg = self._doc(tmp_path, T0 - timedelta(minutes=5))
-        cases = {"key_missing": {}, "bad_key": {cfg.hmac_key_env: "z" * 40}}
-        for name, envm in cases.items():
-            fv = g.FileVeto(cfg, envm)
-            fv.begin_step(T0)
-            r = fv.lookup(BTC, "long", T0)
-            assert r.blocks is True and r.status in ("missing", "stale"), name
-        cfg2 = veto.VetoConfig(veto_path=str(tmp_path / "yok.json"))
-        fv = g.FileVeto(cfg2, {cfg2.hmac_key_env: KEY})
-        fv.begin_step(T0)
-        assert fv.lookup(BTC, "long", T0).blocks is True
-
-    def test_stale_expired_document_blocks(self, tmp_path):
-        g = mod("gates")
-        cfg = self._doc(tmp_path, T0 - timedelta(hours=3))
-        fv = g.FileVeto(cfg, {cfg.hmac_key_env: KEY})
-        fv.begin_step(T0)
-        r = fv.lookup(BTC, "long", T0)
-        assert r.blocks is True and r.status in ("stale", "missing")
-
-    def test_unsigned_or_tampered_blocks(self, tmp_path):
-        g = mod("gates")
-        cfg = self._doc(tmp_path, T0 - timedelta(minutes=5))
-        doc = json.loads(Path(cfg.veto_path).read_text())
-        doc["decisions"][0]["reason"] = "oynama"
-        doc["decisions"][0]["action"] = "block"
-        Path(cfg.veto_path).write_text(json.dumps(doc))
-        fv = g.FileVeto(cfg, {cfg.hmac_key_env: KEY})
-        fv.begin_step(T0)
-        assert fv.lookup(BTC, "long", T0).blocks is True
-        doc.pop("sig")
-        Path(cfg.veto_path).write_text(json.dumps(doc))
-        fv.begin_step(T0)
-        assert fv.lookup(BTC, "long", T0).blocks is True
-
     def test_noveto(self):
         nv = mod("gates").NoVeto()
         nv.begin_step(T0)

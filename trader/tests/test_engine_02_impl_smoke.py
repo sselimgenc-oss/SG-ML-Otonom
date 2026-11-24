@@ -112,11 +112,12 @@ def test_config():
         config.apply_overrides(cfg, cost={"fill_model": "legacy_compat"})
     with pytest.raises(errors.ConfigError):
         config.apply_overrides(cfg, max_trade_risk=0.03)
-    assert config.apply_overrides(cfg, veto_mode="off").veto_mode == "off"      # DD-12 WP-06a: kagitta veto kapali gecerli
-    # 23.11 kullanici karari: canli = kagit (canlida veto_mode='off' gecerli; live blogu yine zorunlu)
+    # 23.11 kullanici karari: canli = kagit; 24.11: veto_mode anahtari silindi
+    with pytest.raises(errors.ConfigError):
+        config.apply_overrides(cfg, veto_mode="off")
     with pytest.raises(errors.ConfigError, match="live blogu"):
-        config.apply_overrides(cfg, mode="live", veto_mode="off")
-    ok = config.apply_overrides(cfg, mode="backtest", veto_mode="off",
+        config.apply_overrides(cfg, mode="live")
+    ok = config.apply_overrides(cfg, mode="backtest",
                                 cost={"fill_model": "legacy_compat", "trigger_source": "last",
                                       "granularity": "15m"})
     assert ok.cost.fill_model == "legacy_compat"

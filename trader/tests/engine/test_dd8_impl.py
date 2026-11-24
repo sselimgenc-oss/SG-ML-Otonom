@@ -44,7 +44,7 @@ def _tree(tmp: Path, mode="testnet", **over):
 @pytest.mark.parametrize("mode", ["testnet", "live"])
 @pytest.mark.parametrize("vd", ["var", "./var", "var/", "/x/y/var"])
 def test_var_dir_var_rejected_for_testnet_live(tmp_path, mode, vd):
-    cdir = _tree(tmp_path, mode, var_dir=vd, **({"veto_mode": "required"} if mode == "live" else {}))
+    cdir = _tree(tmp_path, mode, var_dir=vd)
     with pytest.raises(ConfigError, match="var_dir"):
         load_engine_config(cdir / "engine.base.json", cdir / "engine.learner.json", overlay_path=cdir / f"engine.{mode}.json")
 

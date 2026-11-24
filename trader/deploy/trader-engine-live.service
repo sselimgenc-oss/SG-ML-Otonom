@@ -19,8 +19,6 @@ WorkingDirectory=/opt/trader
 # Canli anahtarlar: AYRI dosya (root:root 0600; systemd root olarak okur). Testnet anahtar dosyasi BURADA ASLA kullanilmaz.
 # config/engine.live.json: var_dir=var-live, kill=shared/live/KILL, pause=shared/live/PAUSE; LIVE_CONFIRM = live.account_tag
 EnvironmentFile=/etc/trader-live.env
-# Veto belgesini dogrulayan HMAC anahtari (kagit motoruyla ayni; Anthropic anahtari degil)
-EnvironmentFile=/etc/trader-veto-hmac.env
 Environment=PYTHONPATH=/opt/trader/src
 Environment=PYTHONUNBUFFERED=1
 # Feed market.sqlite'i olusturana kadar (en fazla 60 sn) bekler; defter/damga isi --ensure-ledger ile motor surecinde yapilir

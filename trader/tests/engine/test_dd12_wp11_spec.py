@@ -327,7 +327,7 @@ def test_paper_config_uses_lab_with_arms_and_caps():
         assert isinstance(cap, dict) and cap
         for k, v in cap.items():
             setup = str(k).split("@")[0].upper()
-            assert v == {"M1": 4, "L1": 4, "HB1": 3, "DL1": 4}.get(setup, 6), (k, v)   # 20 Kasim: tavanlar 6 / 4; 23.11: HB1 3; 24.11: DL1 toplam 4
+            assert v == {"M1": 4, "HB1": 3, "DL1": 4}.get(setup, 6), (k, v)   # 20 Kasim: tavanlar 6 / 4; 23.11: HB1 3; 24.11: DL1 toplam 4
         assert setup != "C1", k          # CT/ML ayriligi: C1 kolu kaldirildi
 
 
@@ -351,7 +351,6 @@ def test_arm_config_validation_rejects_garbage(tmp_path):
     for over in ({"arms": ["T1@2h"]}, {"arms": ["nope"]}, {"arm_max_positions": 0}, {"arm_max_positions": -1}):
         d = tmp_path / ("c%d" % abs(hash(json.dumps(over))))
         d.mkdir()
-        (d / "veto.json").write_text((ROOT / "config" / "veto.live.json").read_text())
         with pytest.raises(ConfigError):
             W5._cfg(d, T5.PAIRS, strategy="price_action_lab_ml", **over)
 
@@ -497,7 +496,6 @@ class _E(W5.E):
         self.pairs = list(pairs)
         self.clock = T5.SimClock(start)
         (self.tmp).mkdir(parents=True, exist_ok=True)
-        (self.tmp / "veto.json").write_text((ROOT / "config" / "veto.live.json").read_text())
         self.cfg = T5.make_cfg(self.tmp, "learner", "paper", self.pairs, **over)
         self.view = T5.SynthView(self.pairs, start - timedelta(days=2), start + timedelta(days=4), clock=self.clock)
         self.eng = W5.build_engine(self.cfg, clock=self.clock, view=self.view)

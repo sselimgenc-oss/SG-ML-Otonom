@@ -9,7 +9,7 @@ Tek LLM kullanimi yorumdur ve 24 Kas 2026'dan beri MESSAGE BATCHES API ile yapil
 2. TOPLA (`--collect`, `trader-weekly-collect.timer`, 3 saatte bir; her normal kosu da once bekleyenleri toplar): batch bitince
    "## Yorum" dosyaya eklenir + Telegram mesaji; butce `record(batch=True)`. Batch basarisiz/suresi dolmus/36 saatte bitmemisse rezerv
    serbest birakilir, Telegram'a "yorum atlandi" notu gider (sabit bolum yine vardir).
-Butce payi `haftalik_ozet` (aylik tavan; pay bitince DURUR, motor/not/ders etkilenmez): `budget.authorize` (batch fiyatli tahmin) -> gonderim -> `budget.record(..., True)`.
+Butce payi `haftalik_ozet` (aylik tavan 20 $; pay bitince DURUR, motor/not/ders etkilenmez): `budget.authorize` (batch fiyatli tahmin) -> gonderim -> `budget.record(..., True)`.
 API anahtari (budget.api_key_env("haftalik_ozet")) yoksa yorum atlanir (sabit bolum yine yazilir).
 Cikti: `<defter dizini>/weekly_summaries/YYYY-Www.md` (hafta basina bir kez). Test: `main(argv, client=, budget=, now_fn=, env=, sleep=)`;
 `client.submit(bundle, custom_id)` / `client.poll(batch_id)` / `client.cancel(batch_id)`.

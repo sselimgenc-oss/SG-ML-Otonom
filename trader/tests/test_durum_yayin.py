@@ -24,7 +24,6 @@ def _trader(tmp: Path) -> Path:
     (t / "var" / "learner").mkdir(parents=True)
     (t / "var" / "durum" / "mutabakat_v1.json").write_text('{"sema": "x", "islem_sayisi": 3}\n', encoding="utf-8")
     (t / "var" / "durum" / "strateji-veri-ml.md").write_text("# Strateji\n", encoding="utf-8")
-    (t / "var" / "durum" / "c1_goc_raporu.json").write_text('{"eski_kasa": 1000.0, "yeni_kasa": 990.0, "tetikler_dogrulandi": true}\n', encoding="utf-8")
     (t / "var" / "durum" / "baska_dosya.json").write_text("{}\n", encoding="utf-8")            # izin listesinde yok
     (t / "var" / "learner" / "status.json").write_text('{"bot": "learner", "open_positions": []}\n', encoding="utf-8")
     (t / "var" / "learner" / "ledger.sqlite").write_bytes(b"SQLite")                              # defter yayimlanmaz
@@ -69,7 +68,7 @@ def test_ilk_yayin_yetim_dal_izin_listesi_ve_ikinci_yayin(tmp_path):
     r = _kos(trader, repo, tmp_path)
     assert r.returncode == 0, r.stderr
     assert "yayimlandi" in r.stdout
-    assert _dosyalar(repo) == ["ml/c1_goc_raporu.json", "ml/durum.json", "ml/model_paketleri.txt", "ml/mutabakat_v1.json",
+    assert _dosyalar(repo) == ["ml/durum.json", "ml/model_paketleri.txt", "ml/mutabakat_v1.json",
                                "ml/paper_models_son.csv", "ml/strateji-veri-ml.md", "ml/uretim.txt"]
     pk = subprocess.run(["git", "--git-dir", str(repo), "show", "canli-durum:ml/model_paketleri.txt"], capture_output=True, text=True, check=True)
     assert "pa_proposer/M1@1h.json" in pk.stdout and "gizli_icerik" not in pk.stdout and " UTC " in pk.stdout   # yalniz ad/boyut/zaman

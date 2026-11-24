@@ -21,7 +21,7 @@ from trader_core import lesson as LS  # noqa: E402
 from trader_core import risk as K  # noqa: E402
 from trader_core import signals as S  # noqa: E402
 from trader_core import telegram as T  # noqa: E402
-from trader_core import veto as V  # noqa: E402
+from trader_engine.gates import VetoLookup  # noqa: E402
 from trader_engine.brokers.paper import PaperBroker, PaperConfig  # noqa: E402
 from trader_engine.clock import SimClock  # noqa: E402
 from trader_engine.config import apply_overrides, load_engine_config  # noqa: E402
@@ -78,32 +78,24 @@ def write_history(hist: Path) -> None:
 
 # ------------------------------------------------------------------------------------------------ sahte veto (sonuc dosyasi)
 class StubFileVeto:
-    """Veto sonuc dosyasini (JSON: {"PAIR:side": {"action","reason"}}, '*' = varsayilan) her adimda okur ve GERCEK
-    `trader_core.veto.lookup` ile cozer (allow -> allowed; block -> blocked + neden; dosya yok -> missing, giris yok)."""
+    """Kagitta hic sorgulanmamasi gereken veto vekili: sorgulari kaydeder (allow -> allowed; block -> blocked; dosya yok -> missing).
+    24.11: trader_core.veto silindi; vekil yalniz `gates.VetoLookup` doner."""
 
     def __init__(self, path: Path) -> None:
         self.path = Path(path)
-        self._state: V.VetoState | None = None
         self.lookups: list[tuple[str, str, str]] = []
 
     def begin_step(self, now: datetime) -> None:
+        return None
+
+    def lookup(self, pair: str, side: str, now: datetime) -> VetoLookup:
         try:
             doc = json.loads(self.path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
-            self._state = V.VetoState(False, "file_missing")
-            return
-        exp = now + timedelta(hours=1)
-        recs = {}
-        for pair in PAIRS:
-            for side in ("long", "short"):
-                d = doc.get(f"{pair}:{side}") or doc.get(f"{pair}:*") or doc.get("*") or {"action": "allow"}
-                recs[(V.pair_key(pair), side)] = V.DecisionRec(d["action"], d.get("reason"), exp)
-        self._state = V.VetoState(True, "ok", now, exp, recs, None)
-
-    def lookup(self, pair: str, side: str, now: datetime) -> V.VetoLookup:
-        if self._state is None:
-            self.begin_step(now)
-        lk = V.lookup(self._state, pair, side, now)
+            lk = VetoLookup("missing", "file_missing", True)
+        else:
+            d = doc.get(f"{pair}:{side}") or doc.get(f"{pair}:*") or doc.get("*") or {"action": "allow"}
+            lk = VetoLookup("allowed", None, False) if d["action"] == "allow" else VetoLookup("blocked", d.get("reason"), True)
         self.lookups.append((pair, side, lk.status))
         return lk
 
@@ -118,8 +110,7 @@ class Chain:
         tmp.mkdir(parents=True, exist_ok=True)
         self.tmp = tmp
         cfg = load_engine_config(ROOT / "config" / "engine.base.json", ROOT / "config" / "engine.learner.json")
-        kw = dict(mode="paper", pairs=PAIRS, var_dir=str(tmp / "var"), kill_file=str(tmp / "KILL"),
-                  veto_mode="required", strategy=strategy, history_dir=str(hist),
+        kw = dict(mode="paper", pairs=PAIRS, var_dir=str(tmp / "var"), kill_file=str(tmp / "KILL"), strategy=strategy, history_dir=str(hist),
                   cost=dict(fill_model="native", granularity="15m", trigger_source="last"))
         self.cfg = apply_overrides(cfg, **kw)
         self.clock = SimClock(START)

@@ -11,11 +11,11 @@ from datetime import datetime, timedelta, timezone
 import numpy as np
 import pandas as pd
 
-from trader_core import veto as V
 
 from .bars import tf_delta, to_ms
 from .clock import Clock
 from .errors import DataError, EngineError
+from .gates import VetoLookup
 from .marketdata.sources import MarketView, MinuteStep
 from .position_manager import ExitContext
 from .strategies.base import Strategy, StrategyContext, StrategyError, validate_row, validate_table
@@ -282,15 +282,15 @@ class LedgerReplayVeto:
     def begin_step(self, now: datetime) -> None:
         return None
 
-    def lookup(self, pair: str, side: str, now: datetime) -> V.VetoLookup:
+    def lookup(self, pair: str, side: str, now: datetime) -> VetoLookup:
         key = (canon_pair(pair), side, self._iso(now))
         rec = self._map.get(key)
         if rec is None:
             self.counters["no_paper_record"] += 1
             self.no_paper_record.append(key)
-            return V.VetoLookup("missing", "no_paper_record", True)
+            return VetoLookup("missing", "no_paper_record", True)
         st, rs = rec
         if st == "not_evaluated":                       # paper'da kapi kapaliydi (paper_gap): veto verisi yok
             self.counters["not_evaluated"] += 1
-            return V.VetoLookup("allowed", rs or "not_evaluated:replay", False)
-        return V.VetoLookup(st, rs, st != "allowed")
+            return VetoLookup("allowed", rs or "not_evaluated:replay", False)
+        return VetoLookup(st, rs, st != "allowed")

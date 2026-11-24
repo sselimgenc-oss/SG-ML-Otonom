@@ -81,7 +81,6 @@ def _cfg(work: Path, hist: Path):
     cfg0 = load_cli_config(ROOT / "config", "learner", "paper")
     return apply_overrides(
         cfg0, var_dir=str(work / "var"), kill_file=str(work / "KILL"), pause_file=str(work / "PAUSE"),
-        veto_config=str(ROOT / "config/veto.live.json"),
         market_db=str(work / "m.sqlite"), history_dir=str(hist),
         cost=dict(fill_model="native", granularity="15m", trigger_source="last"))
 

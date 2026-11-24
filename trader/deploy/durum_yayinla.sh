@@ -37,7 +37,7 @@ PYTHONPATH="$trader_dir/src" "$py" -m trader_core.rejim_yayini --config-dir "$tr
 PYTHONPATH="$trader_dir/src" "$py" -m trader_core.gunluk_ozet --config-dir "$trader_dir/config" --env paper --out "$cikti/gunluk_ozet_v1.json" >/dev/null || uyari "gunluk_ozet_v1.json uretilemedi"
 PYTHONPATH="$trader_dir/src" "$py" -m trader_panel --config "$trader_dir/config/panel.json" snapshot --out "$cikti/pano.html" >/dev/null || uyari "pano.html uretilemedi"
 # 2) Hazir dosyalar (izin listesi; baska hicbir sey kopyalanmaz)
-for f in mutabakat_v1.json mutabakat.md strateji-veri-ml.md tutarlilik_v1.json c1_goc_raporu.json tur1_olcum_v1.json tur1_olcum.md; do
+for f in mutabakat_v1.json mutabakat.md strateji-veri-ml.md tutarlilik_v1.json tur1_olcum_v1.json tur1_olcum.md; do
   if [ -s "$trader_dir/var/durum/$f" ]; then cp "$trader_dir/var/durum/$f" "$cikti/$f"; fi
 done
 # YZ yorumcu: en son gunluk rapor (yalniz kendi dizininden; yorumcu_son.md). Yalniz metin; anahtar/sir kalibi son kapida taranir

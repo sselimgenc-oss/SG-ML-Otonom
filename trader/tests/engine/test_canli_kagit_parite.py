@@ -50,7 +50,6 @@ def test_parite_canliya_ozgu_anahtarlar_canlida_kalir():
 def test_canli_ml_stratejisi_ve_43_cift_yuklenir():
     live, paper = load_cli_config(CONFIG, "learner", "live"), load_cli_config(CONFIG, "learner", "paper")
     assert live.mode == "live" and live.strategy == "price_action_lab_ml"
-    assert live.veto_mode == "off"
     assert len(live.pairs) == 43 and "TON/USDT" not in live.pairs and list(live.pairs) == list(paper.pairs)
     assert len(live.optional_pairs) == 24 and set(live.optional_pairs) <= set(live.pairs)   # eski hisse verisi acilisi bloklamaz
     assert live.contract_types == ("PERPETUAL", "TRADIFI_PERPETUAL")
@@ -190,7 +189,7 @@ def test_cli_capital_init_canlida_k2_testnette_k0(tmp_path):
 # ----------------------------------------------------------------------------------------------- motor kablolamasi
 def _live_engine(tmp_path, **over):
     paper = load_cli_config(CONFIG, "learner", "paper")
-    base_over = dict(strategy="price_action_lab_ml", veto_mode="off", target_trade_risk=0.01,
+    base_over = dict(strategy="price_action_lab_ml", target_trade_risk=0.01,
                      risk={"max_open_risk": 0.24, "max_same_dir_risk": 0.16, "daily_max_loss": 0.08},
                      arms=list(paper.arms), arm_max_positions=dict(paper.arm_max_positions), max_positions=24,
                      flat_bar_guard=True, contract_types=["PERPETUAL", "TRADIFI_PERPETUAL"],
@@ -245,7 +244,7 @@ def test_broker_extract_all_rules_tradifi_perpetual_alir(tmp_path, monkeypatch):
         return {}
     monkeypatch.setattr(BF, "extract_all_rules", spy)
     cfg = LS.make_live_cfg(tmp_path, mode="live", contract_types=["PERPETUAL", "TRADIFI_PERPETUAL"], max_positions=24,
-                           risk={"max_open_risk": 0.24}, target_trade_risk=0.01, veto_mode="off")
+                           risk={"max_open_risk": 0.24}, target_trade_risk=0.01)
     clock, b, _ = LS._injected(tmp_path, cfg)
     b2 = BF.LiveBroker(cfg.live, "live", cfg.leverage, list(cfg.pairs), b._rest, clock, 0.0005, environ={},
                        contract_types=cfg.contract_types)

@@ -432,12 +432,11 @@ def strip_stop_and_restart(denv_factory, tmp, *, mode, high_wallet):
 # ====================================================================================== CLI yapilandirma agaci
 def make_tree(tmp, env="testnet", *, tag="testnet-sub", absolute=True, overlay_over=None, base_over=None, cname="config"):
     """<tmp>/root/<cname>/{engine.base,engine.learner,engine.<env>}.json. absolute=True: var/kill/pause/market mutlak (tmp icinde);
-    False: gercek `config/` dosyalarindaki goreli degerler (E1; yalniz veto_config mutlak: `run` yolu cwd'den bagimsiz acilsin)."""
+    False: gercek `config/` dosyalarindaki goreli degerler (E1; 24.11: veto_config silindi)."""
     root = Path(tmp) / "root"
     cdir = root / cname
     cdir.mkdir(parents=True, exist_ok=True)
     base = json.loads((ROOT / "config" / "engine.base.json").read_text())
-    base["veto_config"] = str(ROOT / "config" / "veto.live.json")
     if absolute:
         base["var_dir"] = str(root / "var")
         base["market_db"] = str(root / "var" / "market.sqlite")      # `run` yolunda StoreSource bos da olsa acilabilir bir market.sqlite ister
@@ -453,7 +452,6 @@ def make_tree(tmp, env="testnet", *, tag="testnet-sub", absolute=True, overlay_o
     ov["live"]["account_tag"] = tag
     if env == "live":
         ov["mode"] = "live"
-        ov["veto_mode"] = "required"        # testnet overlay'i veto_mode='off' tasir; canli veto'yu zorunlu tutar
         ov["var_dir"] = "var-live"
         ov["kill_file"] = "shared/live/KILL"
         ov["pause_file"] = "shared/live/PAUSE"
@@ -876,7 +874,7 @@ def test_o8_10_state_stamp_ok_ledger_other_stamp_is_ledger_stamp_mismatch(tmp_pa
 def _paper_engine_pieces(tmp, clock):
     import test_engine_05_spec as E5
     Path(tmp).mkdir(parents=True, exist_ok=True)
-    cfg = E5.make_cfg(Path(tmp), "learner", "paper", (E5.BTC,), 1000.0, veto_config=str(ROOT / "config" / "veto.live.json"))
+    cfg = E5.make_cfg(Path(tmp), "learner", "paper", (E5.BTC,), 1000.0)
     view = E5.SynthView((E5.BTC,), T.BOOT - timedelta(days=1), T.BOOT + timedelta(days=1), clock=None)
     return cfg, view
 
@@ -968,7 +966,7 @@ def test_o8_15_backtest_never_imports_or_calls_stamp_golden_unchanged(tmp_path, 
     monkeypatch.setattr(S, "verify_or_init_stamp", lambda *a, **k: calls.append(a))
     monkeypatch.setattr(E, "verify_or_init_stamp", lambda *a, **k: calls.append(a), raising=False)
     import test_engine_05_spec as E5
-    cfg = E5.make_cfg(tmp_path, "learner", "backtest", (E5.BTC,), 1000.0, veto_config=str(ROOT / "config" / "veto.live.json"))
+    cfg = E5.make_cfg(tmp_path, "learner", "backtest", (E5.BTC,), 1000.0)
     view = E5.SynthView((E5.BTC,), T.BOOT - timedelta(days=1), T.BOOT + timedelta(days=1), clock=None)
     eng = E.build_engine(cfg, clock=SimClock(T.BOOT), view=view, env={})
     eng.state.close()
@@ -1496,8 +1494,8 @@ def test_e1_01_load_cli_config_absolute_paths_paper_var_dir_raw(tmp_path):
     raw = cli_cfg(cdir, None)
     assert p.kill_file == f"{r}/shared/KILL" and p.pause_file == f"{r}/shared/PAUSE"
     assert os.path.isabs(p.kill_file) and os.path.isabs(p.pause_file)
-    assert p.var_dir == "var" and p.market_db == raw.market_db and p.history_dir == raw.history_dir \
-        and p.veto_config == raw.veto_config, "paper: var_dir/market_db/history_dir/veto_config oldugu gibi kalmali"
+    assert p.var_dir == "var" and p.market_db == raw.market_db and p.history_dir == raw.history_dir, \
+        "paper: var_dir/market_db/history_dir oldugu gibi kalmali"
     assert raw.kill_file == "shared/KILL" and raw.pause_file == "shared/PAUSE"       # saf yukleyici ham degeri dondurur
 
 

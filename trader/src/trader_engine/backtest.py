@@ -336,7 +336,7 @@ class BacktestRunner:
             cfg = _validate_cfg(raw)
         cost = build_cost(s.fill_model, s.fee_mult, s.slip_bps, s.granularity, s.trigger_source)
         # backtest/capraz dogrulama kilitli hedef riskle kosar (taban yapilandirmadaki paper degeri 0.005 sonuclari kaydirmasin)
-        kw = dict(mode="backtest", veto_mode="off", bot="learner", strategy=s.strategy, cost=cost,
+        kw = dict(mode="backtest", bot="learner", strategy=s.strategy, cost=cost,
                   target_trade_risk=(K.LOCKED_CFG.target_trade_risk if s.target_trade_risk is None else s.target_trade_risk),
                   record_filtered_candidates=bool(s.record_filtered),
                   shadow_blocks=(("regime", "r1_disabled", "same_bar_reentry") if s.record_shadow else ()))
