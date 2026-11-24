@@ -3,7 +3,7 @@
 
 Haftalik dosya SABIT BOLUM (LLM'siz: tutarlilik, cikis kaniti, PBO, alinmayan sinyal) + istege bagli "Yorum"
 paragrafindan olusur; sabit bolum anahtar olsun olmasin her hafta yazilir (Telegram gunluk raporu `telegram.rapor_ogrenme` onu okur).
-Tek LLM kullanimi yorumdur. Butce payi `haftalik_ozet` (aylik tavan 10 $; pay bitince DURUR, motor/not/ders etkilenmez):
+Tek LLM kullanimi yorumdur. Butce payi `haftalik_ozet` (aylik tavan 20 $; pay bitince DURUR, motor/not/ders etkilenmez):
 `budget.authorize` -> cagri -> `budget.record` (hata/sapmada `release`). API anahtari (budget.api_key_env("haftalik_ozet"))
 yoksa yorum atlanir (sabit bolum yine yazilir). Mevcut yardimcilar: `lesson.AnthropicBatchClient` (hata esleme), `lesson.budget_usage`; yeni SDK yok.
 Cikti: `<defter dizini>/weekly_summaries/YYYY-Www.md` (hafta basina bir kez). Test: `main(argv, llm=, budget=, now_fn=, env=)`;

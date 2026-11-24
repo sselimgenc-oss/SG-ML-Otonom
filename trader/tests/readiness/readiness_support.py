@@ -187,10 +187,5 @@ def write_config(tmp: Path, *, startup_wait_s: float = 0.0, relative: bool = Fal
     if not relative:
         for k in ("var_dir", "market_db", "history_dir", "kill_file"):
             raw[k] = str(tmp / raw[k])
-        raw["veto_config"] = str(cfg / "veto.live.json")
-        v = json.loads((cfg / "veto.live.json").read_text())
-        v["veto_path"] = str(tmp / v["veto_path"])
-        v["market_db"] = raw["market_db"]
-        (cfg / "veto.live.json").write_text(json.dumps(v))
     (cfg / "engine.base.json").write_text(json.dumps(raw))
     return cfg

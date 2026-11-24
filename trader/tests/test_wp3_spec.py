@@ -1904,8 +1904,7 @@ def test_T3_static_name_isolation():
     names = ("shadow_decisions", "v_shadow_decisions", "cf_shadow_outcomes")
     allowed = {"src/trader_core/ledger.py", "src/trader_core/counterfactual.py", "src/trader_engine/engine.py",
                "src/trader_engine/shadow.py", "scripts/counterfactual_run.py", "src/trader_reports/inputs.py",
-               "src/trader_reports/gates.py",
-               "src/trader_core/kol_kaldirma.py"}   # C1 kaldirma gocu: golge satirlari da siler (tek seferlik)
+               "src/trader_reports/gates.py"}
     hits = set()
     for top in ("src", "scripts", "research"):
         for p in (TRADER / top).rglob("*.py"):

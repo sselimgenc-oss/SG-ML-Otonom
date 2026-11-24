@@ -889,8 +889,7 @@ def write_cfg(tmp: Path, mode: str = "testnet", extra: dict | None = None):
     cfgd = tmp / "cfg"
     cfgd.mkdir(exist_ok=True)
     raw = json.loads((ROOT / "config" / "engine.base.json").read_text())
-    raw.update(var_dir=str(tmp / "var"), market_db=str(tmp / "market.sqlite"), history_dir=str(tmp / "hist"),
-               veto_config=str(tmp / "veto.json"), kill_file=str(tmp / "shared" / "KILL"),
+    raw.update(var_dir=str(tmp / "var"), market_db=str(tmp / "market.sqlite"), history_dir=str(tmp / "hist"), kill_file=str(tmp / "shared" / "KILL"),
                pause_file=str(tmp / "shared" / "PAUSE"), target_trade_risk=0.005, wallet_start=1000.0)
     raw.update(extra or {})
     (cfgd / "engine.base.json").write_text(json.dumps(raw))

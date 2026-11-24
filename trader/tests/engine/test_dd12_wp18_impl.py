@@ -119,10 +119,10 @@ FROZEN_SHA256 = {
     "src/trader_core/regime.py": "1c68c7624ad39cc9ef883fd5e2953acc1ed26dfb03513b55e1b19413303d7ecf",
     "src/trader_core/indicators.py": "aa4c6e4c5b19ad26eb6ee0be5f604f439a09310f931fd6ba3d7d475b533a4e4c",
     "src/trader_engine/holdout.py": "c03925100fe903bf11bb4fcb692cf27255a138220be552bee9b6ffae28fec475",
-    "config/engine.base.json": "aa364bad7141613cf8d2e7898343079a2a6e15f89b31b462d15113fc97e89eb0",   # 24.11 kullanici karari: ML filtreleri silindi (ml_mode/ml_model_path anahtarlari kalkti)
+    "config/engine.base.json": "2ccdf97d21842f2dc54f682e66d65762f7957a7615befd932fbad8c68f49325e",   # 24.11 kullanici karari: veto ve C1 artiklari silindi;   # 24.11 kullanici karari: ML filtreleri silindi (ml_mode/ml_model_path anahtarlari kalkti)
     "config/engine.learner.json": "30ca2842c40cacafbf6cdd90c9e6f1f54fc62b9a9ec913476d1399ac5352cb12",
-    "config/engine.testnet.json": "54247bbd4d0fcea5eda5add465809938178ec4a1decf7f61cb9aa838daa4e952",
-    "config/engine.live.json": "98d19aeeb52dc4b91ba6f9383da6ee697ba6f0866fd95e19dad79389a3cad44a",   # 24.11 kullanici karari: DL1 dort zaman dilimi acik; onceki 24.11 ML filtreleri silindi; onceki 23.11 asama B + uzun_yon + HB1 (canli = kagit)
+    "config/engine.testnet.json": "eff9eb61dcd9018bf86c195a02f7f25f08960473e705cbd114e104c26a956c9c",
+    "config/engine.live.json": "a9aae0f895bf9a3f825a74606e734e4dd19cece801b4eec9e11aec4347e993fb",   # 24.11 kullanici karari: DL1 dort zaman dilimi acik; onceki 24.11 ML filtreleri silindi; onceki 23.11 asama B + uzun_yon + HB1 (canli = kagit)
     "src/trader_engine/order_manager.py": "1a8a93daf39dabacd62356fb59a3a09d87634fe6a7ada7afa94171d100605077",
     "research/s2_run.py": "66710418f9be36225b757f9d4a1158b1e9093db5f7df131572c639e3958b21a7",
 }

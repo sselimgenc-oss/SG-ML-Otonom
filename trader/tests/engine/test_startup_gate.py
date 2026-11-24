@@ -49,7 +49,7 @@ def _engine(tmp_path, *, rules=PAIRS, last_open=None, mark_for=PAIRS, data_for=P
     store.close()
     raw = json.loads((ROOT / "config" / "engine.base.json").read_text())
     raw.update(pairs=list(PAIRS), var_dir=str(tmp_path / "var"), market_db=str(tmp_path / "market.sqlite"),
-               history_dir=str(tmp_path / "hist"), veto_config=str(ROOT / "config" / "veto.live.json"),
+               history_dir=str(tmp_path / "hist"),
                kill_file=str(tmp_path / "KILL"), startup_wait_s=wait, bot="learner")
     b = tmp_path / "engine.json"
     b.write_text(json.dumps(raw))

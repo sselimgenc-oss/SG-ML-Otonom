@@ -21,8 +21,6 @@ def _raw(mode="paper", **extra):
     if mode in ("testnet", "live"):
         raw.update(json.loads((CFG / f"engine.{mode}.json").read_text()))
     raw["mode"] = mode
-    if mode == "backtest":
-        raw["veto_mode"] = "off"
     raw.update(extra)
     return raw
 

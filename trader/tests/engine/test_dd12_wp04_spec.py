@@ -598,15 +598,14 @@ def test_neutrality_testnet_live_configs_unchanged_and_veto_required():
         except Exception as ex:  # noqa: BLE001 - canli onay/anahtar gibi nedenlerle yuklenemeyebilir
             pytest.skip(f"{env} yuklenemedi: {ex}")
         if env == "live":                  # 23.11 kullanici karari: canli = kagit (veto yok; kume/tavan/tatil bari korumasi acik)
-            assert c.veto_mode == "off" and c.clusters and c.max_positions == 24 and c.flat_bar_guard is True
+            assert c.clusters and c.max_positions == 24 and c.flat_bar_guard is True
             continue
-        assert c.veto_mode == "off"          # DD-12 QC: LLM veto kaldirildi, testnet veto'suz
         assert not c.clusters and c.max_positions is None and c.flat_bar_guard is False
 
 
 def test_neutrality_testnet_gate_still_applies_veto(tmp_path):
     """Testnet kapisi: veto engelliyorsa bugunku gibi veto_* ile reddedilir (kume/seans adimlari etkisiz)."""
-    from trader_core import veto as V
+    from trader_engine.gates import VetoLookup as V_
     try:
         cfg = load_cli_config(CONFIG, "learner", "testnet")
     except Exception as ex:  # noqa: BLE001
@@ -619,7 +618,7 @@ def test_neutrality_testnet_gate_still_applies_veto(tmp_path):
             pass
 
         def lookup(self, pair, side, now):
-            return V.VetoLookup("missing", "none", True)
+            return V_("missing", "none", True)
     D = utc(2026, 12, 2, 12, 0)
     clock = SimClock(D + timedelta(seconds=5))
     led = L.open_ledger(str(tmp_path / "l.sqlite"), "learner", create=True, clock=clock.now)

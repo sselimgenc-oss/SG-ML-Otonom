@@ -136,9 +136,6 @@ def _bring_up(tmp_path, bots=("learner",)):
 def _health_env(tmp_path, cfgd):
     (tmp_path / "bk").mkdir(exist_ok=True)
     (tmp_path / "hs").mkdir(exist_ok=True)
-    veto = tmp_path / "veto.json"
-    veto.write_text("{}")
-    os.utime(veto, (NOW0.timestamp(), NOW0.timestamp()))             # benzetim saatine gore taze
     # M1 paketi: sunucuda paket dagitimdan hemen sonra tazedir. Depodaki models/pa_proposer kopyalanir ve created_at
     # benzetim saatine (NOW0) cekilir; aksi halde depo paketi (gercek tarihli) benzetim zamaninda 8 gunden eski sayilip
     # pa_proposer_stale WARN'i uretir ve bu tatbikatlarin beklenen alarm kumesini kirar.
@@ -149,7 +146,7 @@ def _health_env(tmp_path, cfgd):
             d = json.loads(mp.read_text(encoding="utf-8"))
             d["meta"]["created_at"] = NOW0.isoformat()
             mp.write_text(json.dumps(d), encoding="utf-8")
-    return {"PA_PROPOSER_MODELS_DIR": str(models), "VETO_FILE": str(veto), "ENGINE_VAR_DIR": str(tmp_path / "var"), "BACKUP_DIR": str(tmp_path / "bk"), "HEARTBEAT_URL": "https://hb.invalid/x",
+    return {"PA_PROPOSER_MODELS_DIR": str(models), "ENGINE_VAR_DIR": str(tmp_path / "var"), "BACKUP_DIR": str(tmp_path / "bk"), "HEARTBEAT_URL": "https://hb.invalid/x",
             "MARKET_DB": str(tmp_path / "var" / "market.sqlite"), "ENGINE_CONFIG_DIR": str(cfgd), "NOTIFIER": "log",
             "STATE_DIR": str(tmp_path / "hs")}
 
@@ -310,49 +307,6 @@ def test_drill_gate_passes_with_all_rules_and_fresh_data_then_terminates_cleanly
             p.kill()
             rc = -9
     assert rc == 0
-
-
-# ------------------------------------------------------------------ 5.4 veto anahtari/belgesi yok -> giris kapali, gorunur kodla
-@pytest.mark.parametrize("env_key,make_doc,want_status,want_reason", [
-    (None, None, "missing", "key_missing"),                          # HMAC anahtari motorun ortaminda yok
-    ("k" * 40, None, "missing", "file_missing"),                     # anahtar var, belge yok (veto servisi hic calismamis)
-    ("k" * 40, "expired", "stale", "file_expired"),                  # belge eski (veto servisi durmus)
-    ("k" * 40, "wrongkey", "missing", "bad_signature"),              # belge baska anahtarla imzali
-    ("k" * 40, "unavailable", "missing", "unavailable:budget_daily_cap"),   # butce siniri
-])
-def test_drill_veto_failure_modes_block_entries_visibly(tmp_path, env_key, make_doc, want_status, want_reason):
-    from trader_core import veto as V
-    from trader_engine.gates import FileVeto
-    vcfg = V.load_config(ROOT / "config/veto.live.json")
-    path = tmp_path / "veto.json"
-    vcfg = V.VetoConfig(**{**vcfg.__dict__, "veto_path": str(path)}) if hasattr(vcfg, "__dict__") else vcfg
-    pairs = V.load_pairs(vcfg, ROOT)
-    gen = NOW0
-    if make_doc:
-        if make_doc == "unavailable":
-            doc = V.build_document(vcfg, [], gen, "0" * 64, pairs, status="unavailable", reason="budget_daily_cap")
-        else:
-            decs = [V.Decision(p, s, "allow", None, None) for p in pairs for s in ("long", "short")]
-            doc = V.build_document(vcfg, decs, gen - (timedelta(hours=2) if make_doc == "expired" else timedelta(0)), "0" * 64, pairs)
-        V.write_veto_file(path, V.sign_document(doc, "z" * 40 if make_doc == "wrongkey" else "k" * 40))
-    fv = FileVeto(vcfg, {"TRADER_VETO_HMAC_KEY": env_key} if env_key else {})
-    fv.begin_step(gen + timedelta(minutes=1))
-    lk = fv.lookup("BTC/USDT", "long", gen + timedelta(minutes=1))
-    assert (lk.status, lk.reason, lk.blocks) == (want_status, want_reason, True)
-
-
-def test_drill_veto_fresh_valid_document_allows(tmp_path):
-    from trader_core import veto as V
-    from trader_engine.gates import FileVeto
-    vcfg = V.load_config(ROOT / "config/veto.live.json")
-    vcfg = V.VetoConfig(**{**vcfg.__dict__, "veto_path": str(tmp_path / "veto.json")})
-    pairs = V.load_pairs(vcfg, ROOT)
-    decs = [V.Decision(p, s, "allow", None, None) for p in pairs for s in ("long", "short")]
-    V.write_veto_file(tmp_path / "veto.json", V.sign_document(V.build_document(vcfg, decs, NOW0, "0" * 64, pairs), "k" * 40))
-    fv = FileVeto(vcfg, {"TRADER_VETO_HMAC_KEY": "k" * 40})
-    fv.begin_step(NOW0 + timedelta(minutes=5))
-    lk = fv.lookup("ETH/USDT", "short", NOW0 + timedelta(minutes=5))
-    assert (lk.status, lk.blocks) == ("allowed", False)
 
 
 # ------------------------------------------------------------------ 5.5 Telegram anahtarlari yok -> CRIT nereye gider?

@@ -15,7 +15,6 @@ from pathlib import Path
 from trader_core import exit_modes as XM
 from trader_core import ledger as L
 from trader_core import risk as K
-from trader_core import veto
 from trader_core.signals import SignalParams
 
 from .bars import arm_floor_tf, arm_is_tf_close, arm_tf_delta, floor_tf, is_tf_close, tf_delta
@@ -25,7 +24,7 @@ from .config import EngineConfig
 from .arm_guard import asset_class, load_arms_off, session_tag
 from .errors import ClockError, ConfigError, DataError, EngineExit, FailClosed, StateError
 from .holdout import check_holdout
-from .gates import EntryGate, EntryOutcome, FileVeto, NoVeto, VetoSource, _tf_of, entry_leverage
+from .gates import EntryGate, EntryOutcome, NoVeto, VetoSource, _tf_of, entry_leverage
 from .killswitch import Killswitch
 from .pause import EntryPause
 from . import shadow as SH
@@ -2531,7 +2530,7 @@ def build_engine(cfg: EngineConfig, *, clock: Clock | None = None, view: MarketV
 
 def _assemble_engine(cfg: EngineConfig, clock: Clock, view: MarketView, broker: Broker, led: L.Ledger, state: StateStore,
                      strategy, env: Mapping[str, str], live_broker_new: bool) -> Engine:
-    vsrc: VetoSource = FileVeto(veto.load_config(cfg.veto_config), env) if cfg.veto_mode == "required" else NoVeto()
+    vsrc: VetoSource = NoVeto()
     kill = Killswitch(cfg.kill_file, clock)
     pause = EntryPause(f"{cfg.pause_file}.{cfg.bot}", clock, audit_path=cfg.path("pause_audit.jsonl"), bot=cfg.bot)
     status = StatusWriter(cfg.status_path, clock, cfg)

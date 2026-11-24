@@ -14,7 +14,7 @@ import pytest
 from trader_core import ledger as L
 from trader_core import risk as K
 from trader_core import signals as S
-from trader_core import veto
+from trader_engine.gates import VetoLookup
 from trader_engine.brokers.paper import PaperBroker, PaperConfig
 from trader_engine.clock import SimClock
 from trader_engine.config import apply_overrides, load_engine_config
@@ -163,7 +163,7 @@ class _Veto:
         pass
 
     def lookup(self, pair, side, now):
-        return veto.VetoLookup(self.status, self.reason, self.status != "allowed")
+        return VetoLookup(self.status, self.reason, self.status != "allowed")
 
 
 def _row(**kw) -> SignalRow:
@@ -311,7 +311,6 @@ class _CachedSource:
 def _build(tmp, pairs, start, *, mode="backtest", strict=True, state_path=None, bot="learner"):
     cfg = load_engine_config(ROOT / "config" / "engine.base.json", ROOT / "config" / f"engine.{bot}.json")
     cfg = apply_overrides(cfg, mode=mode, pairs=list(pairs), var_dir=str(tmp), kill_file=str(tmp / "KILL"),
-                          veto_mode="off" if mode == "backtest" else "required",
                           cost=dict(fill_model="native", granularity="15m", trigger_source="last"))
     clock = SimClock(start)
     view = _CachedSource(str(DATA), granularity="15m", synthetic_rules=True)

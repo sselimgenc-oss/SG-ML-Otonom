@@ -52,21 +52,22 @@ COMMODITY4 = METAL | ENERJI
 CAPS = {"kripto_buyuk": 6, "kripto_diger": 9, "hisse": 8, "hisse_teknoloji": 5, "metal": 3, "enerji_sanayi": 3}   # 20 Kasim: kagit tavanlari gevsetildi
 
 PINNED_SHA = {
-    "engine.base.json": "aa364bad7141613cf8d2e7898343079a2a6e15f89b31b462d15113fc97e89eb0",   # WP-06a: yalniz veto_config yolu; 24.11 kullanici karari: ML filtreleri silindi (ml_mode/ml_model_path kalkti)
+    "engine.base.json": "2ccdf97d21842f2dc54f682e66d65762f7957a7615befd932fbad8c68f49325e",   # 24.11 kullanici karari: veto ve C1 artiklari silindi (veto_mode/veto_config kalkti);   # WP-06a: yalniz veto_config yolu; 24.11 kullanici karari: ML filtreleri silindi (ml_mode/ml_model_path kalkti)
     "engine.learner.json": "30ca2842c40cacafbf6cdd90c9e6f1f54fc62b9a9ec913476d1399ac5352cb12",
-    "engine.testnet.json": "54247bbd4d0fcea5eda5add465809938178ec4a1decf7f61cb9aa838daa4e952",
-    "engine.live.json": "98d19aeeb52dc4b91ba6f9383da6ee697ba6f0866fd95e19dad79389a3cad44a",   # 24.11 kullanici karari: DL1 dort zaman dilimi acik; onceki 24.11 ML filtreleri silindi
+    "engine.testnet.json": "eff9eb61dcd9018bf86c195a02f7f25f08960473e705cbd114e104c26a956c9c",   # 24.11 kullanici karari: veto ve C1 artiklari silindi
+    "engine.live.json": "a9aae0f895bf9a3f825a74606e734e4dd19cece801b4eec9e11aec4347e993fb",   # 24.11 kullanici karari: veto ve C1 artiklari silindi (veto_mode, arm_max_positions L1 kalkti);   # 24.11 kullanici karari: DL1 dort zaman dilimi acik; onceki 24.11 ML filtreleri silindi
 }
 # 23.11 kullanici karari: canli = kagit. engine.live.json'a eklenen kagit sistem anahtarlari (+ pairs yerine kagit evreni).
-LIVE_PAPER_SYSTEM_KEYS = {"veto_mode", "pairs", "optional_pairs", "strategy", "arms", "arm_max_positions", "shadow_blocks",
+LIVE_PAPER_SYSTEM_KEYS = {"pairs", "optional_pairs", "strategy", "arms", "arm_max_positions", "shadow_blocks",
                           "exit_modes", "max_positions", "target_trade_risk", "risk", "clusters", "etiket_kurallari",
                           "flat_bar_guard", "contract_types", "cost_overrides",
                           "korelasyon", "kayip_freni", "toplam_buyukluk_kat",   # 23.11 kullanici karari: asama B esikleri
                           "uzun_yon"}   # 23.11 kullanici karari: fikir 7 uzun donem yon kapisi
+VETO_KEYS_REMOVED = {"veto_mode", "veto_config"}   # 24.11 kullanici karari: veto ve C1 artiklari silindi
 ML_KEYS_REMOVED = {"ml_mode", "ml_model_path", "ml_features", "ml_experimental", "ml_pairs"}   # 24.11 kullanici karari: ML filtreleri silindi
 UNIT_SHA = {
-    "trader-engine-testnet.service": "c753d965c4b8e4a239f6ca44fa83a17e3824ed501583aadc8c7a21c27c5ac07d",
-    "trader-engine-live.service": "c847990df3760c790df8418b771679f59a4256d0c902b9d6d990a23a55474549",   # 23.11 kullanici karari: canli = kagit (MemoryMax 750M, MemoryHigh 600M)
+    "trader-engine-testnet.service": "2fa9d51bb0301cadc3339cbbaf9dc1b61dbbbdd3f52b79531fdbb3dd0d587413",   # 24.11 kullanici karari: veto ve C1 artiklari silindi (EnvironmentFile veto-hmac satiri kalkti)
+    "trader-engine-live.service": "7cf61d50e932b92905d37910f7fdf59177bcd77ac3fabd05abca703f2c3068a1",   # 24.11 kullanici karari: veto ve C1 artiklari silindi (EnvironmentFile veto-hmac satiri kalkti);   # 23.11 kullanici karari: canli = kagit (MemoryMax 750M, MemoryHigh 600M)
 }
 
 
@@ -122,7 +123,7 @@ def _clusters_of(cfg):
 def baseline(tmp_path_factory):
     """HEAD 0fc8b5c kaynak agaci + onun yukledigi configlerin dokumu."""
     d = tmp_path_factory.mktemp("baseline")
-    # src VE config birlikte: eski yukleyici eski config ile calisir (testnet veto_mode=off yeni konfigurasyon, DD-12 veto kaldirma)
+    # src VE config birlikte: eski yukleyici eski config ile calisir (testnet DD-12 veto kaldirma)
     tar = subprocess.run(["git", "-C", str(ROOT), "archive", BASELINE_COMMIT, "src", "config"], check=True, capture_output=True).stdout
     subprocess.run(["tar", "-x", "-C", str(d)], input=tar, check=True)
     script = textwrap.dedent("""
@@ -159,11 +160,8 @@ def test_dt1_katmansiz_yukleme_onceki_engineconfig_ile_esit(baseline, envname):
             continue
         if envname == "live" and k in LIVE_PAPER_SYSTEM_KEYS:   # 23.11 kullanici karari: canli = kagit (parite testi: test_canli_kagit_parite.py)
             continue
-        if envname == "testnet" and k == "veto_mode":      # tek beklenen fark: testnet veto kaldirildi (off)
-            assert v == "required" and cur["cfg"][k] == "off"
-            continue
-        if k == "veto_config" and v == "config/veto.json":  # WP-06a yeniden adlandirma (engine.base.json), beklenen
-            assert cur["cfg"][k] == "config/veto.live.json"
+        if k in VETO_KEYS_REMOVED:                         # 24.11 kullanici karari: veto ve C1 artiklari silindi; anahtarlar EngineConfig'ten kalkti
+            assert k not in cur["cfg"], k
             continue
         if k == "pairs" and envname in ENV_PAIRS:           # 22.11: tek beklenen fark: kendi pairs listesi (kripto)
             assert len(v) == 10 and cur["cfg"][k] == ENV_PAIRS[envname]
@@ -195,10 +193,8 @@ def test_dt1_dt13_config_dosyalari_degismedi(name):
     assert _sha(p) == PINNED_SHA[name]
     head = _git_show(f"config/{name}")
     if name == "engine.base.json":      # DD-12 WP-06a: config/veto.json -> config/veto.live.json (testnet/canli veto yapilandirmasi); baska fark yok
-        head = head.replace(b'"config/veto.json"', b'"config/veto.live.json"')
+        head = head.replace(b'  "veto_mode": "required",\n', b"", 1).replace(b'"veto_config": "config/veto.json", "kill_file"', b'"kill_file"', 1)   # 24.11 kullanici karari: veto ve C1 artiklari silindi
         head = head.replace(b'  "ml_mode": "off",\n  "ml_model_path": null,\n', b"", 1)      # 24.11 kullanici karari: ML filtreleri silindi
-    if name == "engine.testnet.json":   # DD-12 QC: LLM veto kaldirildi, testnet veto_mode "off"; baska fark yok
-        head = head.replace(b'  "mode": "testnet",\n', b'  "mode": "testnet",\n  "veto_mode": "off",\n', 1)
     if name in ("engine.testnet.json", "engine.live.json"):   # 22.11: kendi "pairs" satiri (kill_file'dan once); baska fark yok
         env = name.split(".")[1]
         head = head.replace(b'  "kill_file"', ENV_PAIRS_LINE[env] + b'  "kill_file"', 1)
@@ -416,7 +412,7 @@ NEW_KEYS = {
 @pytest.mark.parametrize("key", sorted(NEW_KEYS))
 def test_dt2_dt30_yeni_anahtarlar_testnet_canli_geri_testte_configerror(tmp_path, env, key):
     if env == "backtest":
-        layer = {"mode": "backtest", "veto_mode": "off"}
+        layer = {"mode": "backtest"}
     else:
         layer = json.loads((CONFIG / f"engine.{env}.json").read_text())
     _load_overlay(_write(tmp_path, "ctl.json", layer))              # kontrol: anahtarsiz yuklenir
@@ -426,7 +422,7 @@ def test_dt2_dt30_yeni_anahtarlar_testnet_canli_geri_testte_configerror(tmp_path
 
 @pytest.mark.parametrize("env", ["testnet", "backtest"])        # 23.11 kullanici karari: canli = kagit
 def test_dt30_risk_anahtarlari_tek_tek_testnet_canli_geri_testte_configerror(tmp_path, env):
-    layer = ({"mode": "backtest", "veto_mode": "off"} if env == "backtest"
+    layer = ({"mode": "backtest"} if env == "backtest"
              else json.loads((CONFIG / f"engine.{env}.json").read_text()))
     for k, v in (("max_open_risk", 0.12), ("max_same_dir_risk", 0.08), ("daily_max_loss", 0.08)):
         with pytest.raises(ConfigError):

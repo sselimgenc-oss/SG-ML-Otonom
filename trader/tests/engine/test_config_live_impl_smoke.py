@@ -180,7 +180,7 @@ def test_init_ledger_reconcile_live_config_ok_and_config_error_exit_2(tmp_path, 
 
 def test_apply_overrides_backtest_paper_drop_live():
     t = load_engine_config(CFG / "engine.base.json", CFG / "engine.learner.json", overlay_path=CFG / "engine.testnet.json")
-    assert apply_overrides(t, mode="backtest", veto_mode="off").live is None
+    assert apply_overrides(t, mode="backtest").live is None
     assert apply_overrides(t, mode="paper").live is None
     assert apply_overrides(t, mode="paper").mode == "paper"
 

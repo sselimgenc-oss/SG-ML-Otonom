@@ -198,7 +198,6 @@ def test_k_01_live_layer_loads_with_fixed_contract_values():
     assert cfg.live.expected_wallet_max == 2000.0   # 23.11 kullanici karari (d): 1500 -> 2000
     assert cfg.live.max_attempts == 1
     assert cfg.leverage == LOCKED_CFG.min_leverage
-    assert cfg.veto_mode == "off"      # 23.11 kullanici karari: canli = kagit (LLM veto yok)
     assert cfg.cost.trigger_source == "mark"
 
 
@@ -206,7 +205,7 @@ def test_k_02_live_json_exact_key_sets():
     live = json.loads(read(CONFIG / "engine.live.json"))
     testnet = json.loads(read(CONFIG / "engine.testnet.json"))
     # 23.11 kullanici karari: canli = kagit (kagit sistem anahtarlari eklendi; ayrinti: test_canli_kagit_parite.py)
-    assert set(live) == {"mode", "var_dir", "kill_file", "pause_file", "live", "pairs", "veto_mode", "optional_pairs", "strategy", "arms",
+    assert set(live) == {"mode", "var_dir", "kill_file", "pause_file", "live", "pairs", "optional_pairs", "strategy", "arms",
                          "arm_max_positions", "shadow_blocks", "exit_modes", "max_positions", "target_trade_risk", "risk",
                          "clusters", "etiket_kurallari", "flat_bar_guard", "contract_types", "cost_overrides",
                          "korelasyon", "kayip_freni", "toplam_buyukluk_kat",   # 23.11 kullanici karari: asama B esikleri
@@ -391,7 +390,7 @@ def test_u_06_unit_restart_and_hardening_contract(unit, env):
     assert "Conflicts" not in {k for _s, k, _v in parse_unit(text)}
     assert unit_get(text, "ConditionPathExists") == [f"/etc/trader-{env}.env"]
     assert unit_get(text, "EnvironmentFile")[0] == f"/etc/trader-{env}.env"
-    assert "/etc/trader-veto-hmac.env" in unit_get(text, "EnvironmentFile")
+    assert "/etc/trader-veto-hmac.env" not in unit_get(text, "EnvironmentFile")      # 24.11: AI veto artiklari silindi
 
 
 def test_u_06b_unit_difference_rows_per_spec_table():
@@ -592,7 +591,7 @@ def test_e_03_every_env_file_ends_0600_and_existing_0640_file_is_hardened_byte_i
     out = run_env_step(tmp_path, pre={"trader-veto.env": (content, 0o640)})
     assert "trader-live.env" in out, "canli env ornekten olusturulmadi"
     files = sorted(tmp_path.glob("trader-*.env"))
-    assert len(files) >= 8
+    assert len(files) >= 7      # 24.11: veto-hmac env artik olusturulmaz (pre'daki trader-veto.env dahil)
     for p in files:
         assert stat.S_IMODE(p.stat().st_mode) == 0o600, p.name
     assert (tmp_path / "trader-veto.env").read_bytes() == content.encode()
@@ -638,7 +637,7 @@ def test_e_06_telegram_group_bridge_units_keep_supplementary_group():
 
 def test_e_07_uninstall_purge_lists_the_four_new_paths():
     t = read(DEPLOY / "uninstall.sh")
-    for p in ("/etc/trader-live.env", "/etc/trader-veto-hmac.env", "/etc/trader-release", "/usr/local/lib/trader-root"):
+    for p in ("/etc/trader-live.env", "/etc/trader-release", "/usr/local/lib/trader-root"):
         assert p in t, p
 
 
@@ -731,12 +730,12 @@ def test_r_05_install_sh_uses_root_owned_release_tree_text():
     assert "$TRADER_DIR/deploy/install.sh" not in t
 
 
-def test_r_06_install_chowns_veto_and_user_data_to_trader():
+def test_r_06_install_chowns_user_data_to_trader():
     t = install_text().replace("\\\n", " ")
     lines = [ln for ln in t.splitlines() if "chown" in ln and "-hR" in ln.replace("-R -h", "-hR").replace("-Rh", "-hR")]
     assert lines, "chown -hR yok"
     joined = "\n".join(lines)
-    assert "shared/veto" in joined and "user_data" in joined
+    assert "shared/veto" not in joined and "user_data" in joined
     assert re.search(r"trader:trader|\$\{?TRADER_USER\}?:\$\{?TRADER_USER\}?", joined)
 
 
@@ -809,14 +808,12 @@ def test_r_09_run_calls_proc_guard_only_for_testnet_and_live(tmp_path, monkeypat
 
 
 def _no_http_main_args(name, tmp_path):
-    if name == "veto_run":
-        return ["--root", str(tmp_path)], {"env": {}}
     if name == "lesson_run":
         return ["--once", "--dry-run"], {"env": {"LEDGER_PATH": str(tmp_path / "l.sqlite"), "LESSON_STORE_PATH": str(tmp_path / "s.sqlite")}}
     return ["daemon"], {"env": {}}
 
 
-@pytest.mark.parametrize("name", ["lesson_run", "telegram_run"])     # DD-12 WP-06a: veto_run artik anahtar okumaz (devre disi betik)
+@pytest.mark.parametrize("name", ["lesson_run", "telegram_run"])     # 24.11: veto_run silindi
 def test_r_10_script_mains_call_set_nondumpable_exactly_once(tmp_path, monkeypatch, name):
     mod = load_script(name)
     argv, kw = _no_http_main_args(name, tmp_path)

@@ -338,10 +338,10 @@ fi
 
 # ---- 6. dizinler -------------------------------------------------------------------
 say "Dizinler"
-safe_tree_path "$TRADER_DIR/var" "$TRADER_DIR/shared" "$TRADER_DIR/shared/veto" "$TRADER_DIR/user_data" "$TRADER_DIR/var/history" \
+safe_tree_path "$TRADER_DIR/var" "$TRADER_DIR/shared" "$TRADER_DIR/user_data" "$TRADER_DIR/var/history" \
   "$TRADER_DIR/var/telegram" "$TRADER_DIR/var-testnet" "$TRADER_DIR/shared/testnet" "$TRADER_DIR/var-live" "$TRADER_DIR/shared/live" \
   "$TRADER_DIR/var/telegram/outbox" "$TRADER_DIR/user_data/budget.sqlite"
-install -d -m 0750 -o "$TRADER_USER" -g "$TRADER_USER" "$TRADER_DIR/var" "$TRADER_DIR/shared" "$TRADER_DIR/shared/veto" \
+install -d -m 0750 -o "$TRADER_USER" -g "$TRADER_USER" "$TRADER_DIR/var" "$TRADER_DIR/shared" \
   "$TRADER_DIR/user_data" "$TRADER_DIR/var/history" \
   "$TRADER_DIR/var/telegram" "$TRADER_DIR/var-testnet" "$TRADER_DIR/shared/testnet" \
   "$TRADER_DIR/var-live" "$TRADER_DIR/shared/live"
@@ -352,9 +352,9 @@ safe_tree_path "$TRADER_DIR/var/learner" "$TRADER_DIR/var/learner/models" \
 install -d -m 0750 -o "$TRADER_USER" -g "$TRADER_USER" "$TRADER_DIR/var/learner" "$TRADER_DIR/var/learner/models" \
   "$TRADER_DIR/var/learner/models/pa_proposer"
 install -d -m 0750 -o root -g root /var/backups/trader
-# veto birimi artik trader olarak calisir (DD-9 §4.2): onceden root'un yazdigi dosyalar trader'a gecer
-chown -hR "$TRADER_USER:$TRADER_USER" "$TRADER_DIR/shared/veto" "$TRADER_DIR/user_data"
-# budget.sqlite'i trader sahipli onceden olustur (yoksa): ilk olusturan veto (root) olursa dosya root:root 0600 kalir ve ders/telegram acamaz (OPEN-8).
+# user_data trader sahibi olmali (onceden root yazdiysa duzelt)
+chown -hR "$TRADER_USER:$TRADER_USER" "$TRADER_DIR/user_data"
+# budget.sqlite'i trader sahipli onceden olustur (yoksa): ilk olusturan root olursa dosya root:root 0600 kalir ve ders/telegram acamaz (OPEN-8).
 # Sifir bayt dosya gecerlidir: budget.py bos dosyayi 'ilk olusturma' sayip semayi kendisi kurar.
 if [ ! -e "$TRADER_DIR/user_data/budget.sqlite" ]; then
   safe_tree_path "$TRADER_DIR/user_data/budget.sqlite"
@@ -383,21 +383,11 @@ REL_DIR="${REL_DIR:-${ROOT_DIR:-/usr/local/lib/trader-root}/releases/${COMMIT:-u
 copy_env "$REL_DIR/deploy/trader-health.env.example"    /etc/trader-health.env    "root:root" 0600
 copy_env "$REL_DIR/deploy/trader-lesson.env.example"    /etc/trader-lesson.env    "root:root" 0600
 copy_env "$REL_DIR/deploy/trader-telegram.env.example"  /etc/trader-telegram.env  "root:root" 0600
-copy_env "$REL_DIR/deploy/trader-veto-hmac.env.example" /etc/trader-veto-hmac.env "root:root" 0600
 copy_env "$REL_DIR/deploy/trader-panel-cf.env.example"  /etc/trader-panel-cf.env  "root:root" 0600
 # testnet golge motoru anahtarlari: AYRI dosya (canli anahtar dosyasi degil); anahtarlar bos kalirsa birim acilmaz (WP-B8)
 copy_env "$REL_DIR/deploy/trader-testnet.env.example"   /etc/trader-testnet.env   "root:root" 0600
 # CANLI anahtar dosyasi (DD-9): bos ornekten her kurulumda olusturulur (var olan ezilmez); degerleri kullanici nano ile yazar
 copy_env "$REL_DIR/deploy/trader-live.env.example"      /etc/trader-live.env      "root:root" 0600
-# veto HMAC anahtari (YALNIZ testnet/canli motoru dogrular; kagitta veto yok): bos ise otomatik uret (ekrana YAZILMAZ)
-if ! grep -Eq '^TRADER_VETO_HMAC_KEY=[^[:space:]]+' /etc/trader-veto-hmac.env; then
-  HMAC_NEW="$(openssl rand -hex 32)"
-  sed -i '/^TRADER_VETO_HMAC_KEY=/d' /etc/trader-veto-hmac.env
-  printf 'TRADER_VETO_HMAC_KEY=%s\n' "$HMAC_NEW" >> /etc/trader-veto-hmac.env
-  unset HMAC_NEW
-  chmod 0600 /etc/trader-veto-hmac.env
-  echo "Uretildi: /etc/trader-veto-hmac.env (veto HMAC anahtari; gosterilmez)"
-fi
 # yol alanlarini bu sunucunun gercek yoluna cevir (yalniz /opt/trader on eki ve bos ENGINE_VAR_DIR)
 for f in /etc/trader-health.env /etc/trader-lesson.env /etc/trader-telegram.env; do
   sed -i "s#/opt/trader/#${TRADER_DIR}/#g" "$f"
@@ -496,12 +486,6 @@ fi
 # ---- 10. servisleri baslat --------------------------------------------------------
 say "Servisler"
 # DD-12 WP-07: ikiz kaldirma. Ikiz birimleri durdurulur ve devre disi birakilir; var/twin SILINMEZ, var/arsiv/twin-<tarih>/ altina tasinir (tekrar calistirmada no-op).
-# DD-12 WP-06a: LLM veto kagit botta kaldirildi. Veto birimleri durdurulur/devre disi birakilir ve birim dosyalari silinir
-# (/etc/trader-veto.env'e dokunulmaz; shared/veto/ okunmaz). Tekrar calistirmada no-op.
-for u in trader-veto.timer trader-veto.service; do
-  systemctl disable --now "$u" >/dev/null 2>&1 || true
-done
-rm -f "${UNIT_DIR}/trader-veto.service" "${UNIT_DIR}/trader-veto.timer"
 for u in trader-engine@twin.service trader-engine-retry@twin.timer trader-counterfactual@twin.timer trader-drift@twin.timer trader-exit-counterfactual@twin.timer; do
   systemctl disable --now "$u" >/dev/null 2>&1 || true
 done
@@ -512,58 +496,17 @@ if [ -d "$TRADER_DIR/var/twin" ]; then
   [ -e "$TWIN_ARCH" ] && TWIN_ARCH="${TWIN_ARCH}-$(date -u +%H%M%S)"
   mv "$TRADER_DIR/var/twin" "$TWIN_ARCH" && echo "Ikiz verisi arsive tasindi (silinmedi): $TWIN_ARCH"
 fi
-# CT/C1 ayriligi (docs/motor/ct-ayrilik-spec.md): CT kadro okuyucu kaldirildi. Birimler durdurulur, devre disi birakilir, dosyalari silinir
-# (tekrar calistirmada no-op). C1 verisi tek seferlik temizlenir (isaret dosyasi var/c1_temizle_v2.done; defter dosyasina DOKUNULMAZ).
-for u in trader-ct-kadro.timer trader-ct-kadro.service; do
-  systemctl disable --now "$u" >/dev/null 2>&1 || true
+# 24.11 kullanici karari: AI veto ve C1 artiklari tamamen silindi. Eski kurulumdaki birimler/dosyalar burada temizlenir
+# (her adim varlik kontrollu ve idempotent; defter/state dosyalarina DOKUNULMAZ, shared/veto/ okunmaz ve silinmez).
+for u in trader-veto.timer trader-veto.service trader-ct-kadro.timer trader-ct-kadro.service trader-c1-goc.service; do
+  if [ -e "${UNIT_DIR}/$u" ] || systemctl is-enabled --quiet "$u" 2>/dev/null || systemctl is-active --quiet "$u" 2>/dev/null; then
+    systemctl disable --now "$u" >/dev/null 2>&1 || true
+  fi
+  rm -f "${UNIT_DIR}/$u"
 done
-rm -f "${UNIT_DIR}/trader-ct-kadro.service" "${UNIT_DIR}/trader-ct-kadro.timer"
-# C1 defter/state gocu (docs/motor/ct-ayrilik-spec.md bolum 5): motor DURDURULUR, goc yedekli ve dogrulamali calisir (hata halinde yedekten
-# geri yuklenir, isaret yazilmaz), basariliysa yedek silinir ve var/durum/c1_goc_raporu.json yazilir. Acik C1 pozisyonu varsa goc
-# REDDEDILIR (hicbir sey degismez): motor yeni kodla baslar, acilista C1'i piyasadan kapatir; kapaninca (en cok ~15 dk) goc yeniden denenir.
-c1_acik_sayisi() { # state.sqlite'ta kapanmamis C1 pozisyonu (salt okunur); okunamazsa 0
-  as_trader /usr/bin/python3 -I -c "import sqlite3,sys; c=sqlite3.connect('file:'+sys.argv[1]+'?mode=ro',uri=True); print(c.execute(\"SELECT COUNT(*) FROM positions WHERE setup='C1' AND status!='closed'\").fetchone()[0])" "$TRADER_DIR/var/learner/state.sqlite" 2>/dev/null || echo 0
-}
-c1_goc_dene() { # motoru durdurur, gocu calistirir; basariliysa 0
-  systemctl stop trader-engine@learner.service trader-engine-retry@learner.timer trader-notes.service trader-lesson.service >/dev/null 2>&1 || true
-  systemctl start trader-c1-goc.service >/dev/null 2>&1 || true
-  [ -e "$TRADER_DIR/var/c1_goc.done" ]
-}
-if [ ! -e "$TRADER_DIR/var/c1_goc.done" ] && [ -f "$TRADER_DIR/var/learner/state.sqlite" ] && [ -f "$TRADER_DIR/var/learner/ledger.sqlite" ]; then
-  if [ "$LIVE" -eq 1 ] && systemctl is-active --quiet trader-engine@learner.service 2>/dev/null; then
-    echo "UYARI: C1 gocu ertelendi: canli kipte kagit learner calisiyor (durdurulmadan goc yapilmaz)"
-  else
-    say "C1 gocu"
-    safe_tree_path "$TRADER_DIR/var" "$TRADER_DIR/var/durum"
-    if c1_goc_dene; then
-      echo "C1 gocu tamamlandi (rapor: var/durum/c1_goc_raporu.json)"
-    elif [ "$(systemctl show -p ExecMainStatus --value trader-c1-goc.service 2>/dev/null)" = "3" ]; then
-      echo "C1 gocu ertelendi: acik C1 pozisyonu var; motor baslatilip C1 piyasadan kapatilacak"
-      systemctl start trader-feed.service trader-engine@learner.service >/dev/null 2>&1 || true
-      for _ in $(seq 1 30); do
-        sleep 30
-        [ "$(c1_acik_sayisi)" = "0" ] && break
-      done
-      if [ "$(c1_acik_sayisi)" = "0" ] && c1_goc_dene; then
-        echo "C1 gocu tamamlandi (rapor: var/durum/c1_goc_raporu.json)"
-      else
-        echo "UYARI: C1 gocu tamamlanamadi (acik C1 pozisyonu kapanmadi ya da goc reddedildi); sonraki kurulumda yeniden denenir"
-        MISSING+=("C1 gocu bekliyor: acik C1 pozisyonu kapaninca 'systemctl stop trader-engine@learner; systemctl start trader-c1-goc; systemctl start trader-engine@learner' (ya da install.sh'i yeniden calistirin)")
-      fi
-    else
-      echo "CRIT: C1 gocu BASARISIZ; yedekten geri yuklendi, isaret yazilmadi (journalctl -u trader-c1-goc; Telegram'a da bildirildi). Sonraki kurulumda yeniden denenir."
-      MISSING+=("C1 gocu basarisiz oldu (veri yedekten geri yuklendi): journalctl -u trader-c1-goc")
-    fi
-  fi
-fi
-if [ ! -e "$TRADER_DIR/var/c1_temizle_v2.done" ]; then
-  safe_tree_path "$TRADER_DIR/var"
-  if as_trader /usr/bin/python3 -I "$REL_DIR/scripts/c1_temizle.py" --var-dir "$TRADER_DIR/var" --saglik-durum /var/lib/trader-health/state.json; then
-    echo "C1 temizligi tamamlandi"
-  else
-    echo "UYARI: C1 temizligi tamamlanamadi (isaret yazilmadi; sonraki kurulumda yeniden denenir)"
-  fi
-fi
+for f in /etc/trader-veto.env /etc/trader-veto-hmac.env; do
+  if [ -e "$f" ] || [ -L "$f" ]; then rm -f "$f" && echo "Silindi (AI veto kaldirildi): $f"; fi
+done
 LIVE_WARN=""
 # kod degistiyse yeniden baslatilacak, su an CALISAN motor birimleri (enable_now'dan once alinir; yeni acilanlar zaten yeni kodla baslar)
 ACTIVE_ENGINES=""
@@ -748,14 +691,14 @@ if has_value /etc/trader-testnet.env BINANCE_API_KEY && has_value /etc/trader-te
 else MISSING+=("/etc/trader-testnet.env  -> BINANCE_API_KEY ve BINANCE_API_SECRET (Binance Futures TESTNET anahtari; testnet golge motoru, ikisi de dolu olmadan acilmaz)"); fi
 
 # ---- 11. ozet ---------------------------------------------------------------------
-# DD-12 WP-18: kâgit kapanis denetimi (yalniz UYARI; kurulumu durdurmaz). DD-12 zamanlayicilari etkin olmali; veto ve ikiz
+# DD-12 WP-18: kâgit kapanis denetimi (yalniz UYARI; kurulumu durdurmaz). DD-12 zamanlayicilari etkin olmali; veto, C1 ve ikiz
 # birimleri kalmamali (kaldirma yukarida yapildi; eski bir kopya kaldiysa burada gorunur).
 say "DD-12 zamanlayici denetimi"
 for t in trader-notes.timer trader-weekly-summary.timer trader-ml-retrain.timer trader-universe.timer \
          trader-counterfactual@learner.timer trader-exit-counterfactual@learner.timer trader-tutarlilik.timer trader-mutabakat.timer trader-tur1-olcum.timer trader-tur1-haftalik.timer trader-yorumcu.timer trader-durum-yayin.timer trader-haber.timer trader-haber-sinyal.timer trader-piyasa-veri.timer trader-bakim.timer trader-strateji-veri.timer; do
   if systemctl is-enabled --quiet "$t" 2>/dev/null; then echo "  etkin: $t"; else echo "UYARI: $t etkin degil (systemctl enable --now $t)"; fi
 done
-for u in trader-veto.service trader-veto.timer trader-engine@twin.service trader-engine-retry@twin.timer; do
+for u in trader-veto.service trader-veto.timer trader-c1-goc.service trader-engine@twin.service trader-engine-retry@twin.timer; do
   if [ -e "${UNIT_DIR}/$u" ]; then echo "UYARI: eski birim duruyor: $u (install.sh'i yeniden calistirin veya elle kaldirin)"; fi
 done
 say "OZET"

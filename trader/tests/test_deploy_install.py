@@ -140,7 +140,6 @@ def test_every_unit_handled_by_install():
                         "trader-strateji-veri.service",  # strateji verisi: kurulum sonrasi tek seferlik sessiz Telegram belgesi (zamanlayici 6 saatte bir dosyayi yeniler; install.sh servisi ayrica kurulum sonrasi tetikler)
                         "trader-durum-yayin.service",  # canli durum yayini: saatlik zamanlayici etkinlestirilir; servis tetiklenir
                         "trader-bakim.service",  # haftalik disk bakimi (zamanlayici etkinlestirilir; servis tetiklenir)
-                        "trader-c1-goc.service",  # C1 kaldirma gocu: tek seferlik, zamanlayicisiz; yalniz install.sh baslatir (motor durdurulmusken)
                         "trader-engine-live.service", "trader-engine-env-retry@.service",
                         "trader-oto-guncelle.service", "trader-kurulum-gozcu.service"}  # tetikleyici/sablon birimler (DD-9: canli birim yalniz --live ile, enable_now ile degil; oto-guncelle servisi zamanlayicidan tetiklenir)
     for u in UNITS:
@@ -180,11 +179,15 @@ def test_placeholder_gated_timers():
 
 
 def test_veto_units_removed_and_disabled_on_install():
-    """DD-12 WP-06a: veto birimi/ornek env dosyasi dagitimda yok; install.sh mevcut birimleri durdurur/devre disi birakir."""
+    """24.11 kullanici karari: AI veto artiklari silindi; dagitimda birim/env ornegi yok; install.sh eski kurulumdaki birimleri ve
+    /etc dosyalarini varlik kontrolu ile (idempotent) temizler; HMAC anahtari artik uretilmez."""
     t = (DEPLOY / "install.sh").read_text(encoding="utf-8")
     assert not (DEPLOY / "trader-veto.service").exists() and not (DEPLOY / "trader-veto.timer").exists()
-    assert not (DEPLOY / "trader-veto.env.example").exists()
-    assert re.search(r"for u in trader-veto\.timer trader-veto\.service", t) and "disable --now" in t
+    assert not (DEPLOY / "trader-veto.env.example").exists() and not (DEPLOY / "trader-veto-hmac.env.example").exists()
+    assert "for u in trader-veto.timer trader-veto.service" in t and "disable --now" in t
+    assert "for f in /etc/trader-veto.env /etc/trader-veto-hmac.env; do" in t and 'if [ -e "$f" ] || [ -L "$f" ]' in t
+    assert "openssl rand" not in t and "TRADER_VETO_HMAC_KEY" not in t and 'copy_env "$REL_DIR/deploy/trader-veto' not in t
+    assert "shared/veto" not in t.split("# ---- 6. dizinler", 1)[1].split("# ---- 7.", 1)[0]
 
 
 def test_twin_removed_options_gone_and_archived():
@@ -414,35 +417,27 @@ def test_exit_counterfactual_units_and_install():
     assert "trader-exit-counterfactual@twin.timer" in t                                            # ikiz birimi (varsa) kapatilir
 
 
-def test_ct_kadro_units_removed_and_c1_cleanup_wired_once():
-    """CT/ML ayriligi: CT birimleri depoda yok; install.sh sunucuda durdurur/devre disi birakir/siler (idempotent) ve C1 temizligini
-    isaret dosyasiyla tek seferlik calistirir (defter dosyasina dokunmadan)."""
+def test_ct_kadro_and_c1_units_removed_and_cleaned_on_install():
+    """CT/ML ayriligi + 24.11 kullanici karari: CT/C1 birimleri depoda yok; install.sh sunucuda durdurur/devre disi birakir/siler
+    (varlik kontrollu, idempotent); C1 goc/temizlik betikleri ve cagrilari silindi (defter dosyalarina dokunulmaz)."""
     t = (DEPLOY / "install.sh").read_text(encoding="utf-8")
     assert not (DEPLOY / "trader-ct-kadro.service").exists() and not (DEPLOY / "trader-ct-kadro.timer").exists()
-    assert "enable_now trader-ct-kadro" not in t
-    assert 'systemctl disable --now "$u"' in t and "trader-ct-kadro.timer trader-ct-kadro.service" in t
-    assert 'rm -f "${UNIT_DIR}/trader-ct-kadro.service" "${UNIT_DIR}/trader-ct-kadro.timer"' in t
-    assert 'if [ ! -e "$TRADER_DIR/var/c1_temizle_v2.done" ]' in t and "scripts/c1_temizle.py" in t
+    assert not (DEPLOY / "trader-c1-goc.service").exists()
+    assert "enable_now trader-ct-kadro" not in t and "enable_now trader-c1-goc" not in t
+    assert 'systemctl disable --now "$u"' in t and "trader-ct-kadro.timer trader-ct-kadro.service trader-c1-goc.service" in t
+    assert 'rm -f "${UNIT_DIR}/$u"' in t
+    for gone in ("c1_goc_dene", "c1_acik_sayisi", "c1_temizle", "c1_goc.done", "scripts/c1_goc.py"):
+        assert gone not in t, gone
+    assert not (ROOT / "scripts" / "c1_goc.py").exists() and not (ROOT / "scripts" / "c1_temizle.py").exists()
+    assert not (ROOT / "src" / "trader_core" / "kol_kaldirma.py").exists()
     assert "var/ct" not in t.replace("var/ct/kadro", "")                       # var/ct artik olusturulmaz
     assert not (ROOT / "scripts" / "ct_kadro_cek.py").exists() and not (ROOT / "src" / "trader_core" / "ct_kadro.py").exists()
     assert not (ROOT / "src" / "trader_engine" / "strategies" / "arms" / "c1.py").exists()
 
 
-def test_c1_goc_wired_motor_stopped_marker_and_refusal_retry():
-    t = (DEPLOY / "install.sh").read_text(encoding="utf-8")
-    u = (DEPLOY / "trader-c1-goc.service").read_text(encoding="utf-8")
-    assert "scripts/c1_goc.py" in u and "SuccessExitStatus=3" in u and "EnvironmentFile=-/etc/trader-telegram.env" in u
-    assert "--motor-birimi trader-engine@learner.service" in u and "ReadWritePaths=/opt/trader/var" in u
-    assert "c1_goc_dene()" in t and "systemctl stop trader-engine@learner.service" in t and "systemctl start trader-c1-goc.service" in t
-    assert 'if [ ! -e "$TRADER_DIR/var/c1_goc.done" ]' in t and "c1_acik_sayisi()" in t       # isaretli, acik C1 varsa reddet + yeniden dene
-    # goc, motorlar enable_now ile (yeniden) baslamadan ONCE
-    assert t.index("c1_goc_dene()") < t.index("enable_now trader-engine@learner.service") < t.index("enable_now trader-drift@learner.timer")
-    assert t.index("c1_goc_dene()") < t.index("enable_now trader-feed.service")
-
-
-def test_durum_yayinla_whitelists_c1_goc_raporu():
+def test_durum_yayinla_no_longer_whitelists_c1_goc_raporu():
     t = (DEPLOY / "durum_yayinla.sh").read_text(encoding="utf-8")
-    assert "c1_goc_raporu.json" in t.split("for f in", 1)[1].split("; do", 1)[0]
+    assert "c1_goc_raporu.json" not in t
 
 
 def test_uzun_omurlu_daemonlar_reboot_sonrasi_acilir():

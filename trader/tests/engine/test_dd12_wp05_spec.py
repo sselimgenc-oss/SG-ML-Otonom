@@ -85,10 +85,9 @@ def _paper_over(pairs, **kw):
 
 
 def _cfg(tmp, pairs, **over):
-    """veto_mode paper'da 'required' kalir (WP-06a'ya kadar); veto.json kopyalanir (motor veto kullanmaz/okumaz)."""
+    """Kagit yapilandirmasi (24.11: veto anahtarlari silindi)."""
     tmp = Path(tmp)
     tmp.mkdir(parents=True, exist_ok=True)
-    (tmp / "veto.json").write_text((CONFIG / "veto.live.json").read_text())
     return T5.make_cfg(tmp, "learner", "paper", list(pairs), **over)
 
 

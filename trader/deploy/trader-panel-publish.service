@@ -13,7 +13,7 @@ WorkingDirectory=/opt/trader
 Environment=PYTHONPATH=/opt/trader/src
 Environment=HOME=/var/lib/trader-panel-publish
 StateDirectory=trader-panel-publish
-# Yalniz Cloudflare anahtarlari (panel/telegram/veto anahtarlari yok)
+# Yalniz Cloudflare anahtarlari (panel/telegram anahtarlari yok)
 EnvironmentFile=/etc/trader-panel-cf.env
 ExecStart=/bin/bash /opt/trader/deploy/panel_yayinla.sh
 TimeoutStartSec=240

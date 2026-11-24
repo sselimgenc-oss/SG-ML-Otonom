@@ -58,7 +58,7 @@ def test_testnet_unit_hardening_matches_paper_engine():
 def test_testnet_unit_uses_only_testnet_key_file():
     files = [v.lstrip("-") for k, v in unit_kv(UNIT.read_text(encoding="utf-8")) if k == "EnvironmentFile"]
     assert "/etc/trader-testnet.env" in files
-    assert set(files) <= {"/etc/trader-testnet.env", "/etc/trader-veto-hmac.env"}
+    assert set(files) <= {"/etc/trader-testnet.env"}
     # canli anahtar dosyasi yok (canli birim/dosya adi henuz yok; yine de ad ipucu verilmez)
     assert not any("live" in f for f in files)
     assert "LIVE_CONFIRM" not in UNIT.read_text(encoding="utf-8")

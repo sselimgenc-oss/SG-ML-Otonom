@@ -8,12 +8,11 @@
            "slip_stop_bps": 5.0, "trigger_source": "mark", "granularity": "1m"},
   "strategy": "price_action_v1",
   "target_mode": "bar_close",
-  "veto_mode": "required",
   "record_filtered_candidates": true,
   "stale_factor": 1.0,
   "loop_sleep_s": 5.0, "bar_wait_s": 120.0, "minute_wait_s": 20.0, "reconcile_open_s": 15.0, "reconcile_flat_s": 60.0,
   "start_delay_s": 0.0,
   "shadow_blocks": ["regime", "r1_disabled", "same_bar_reentry", "tf_15m"],
   "var_dir": "var", "market_db": "var/market.sqlite", "history_dir": "var/history",
-  "veto_config": "config/veto.live.json", "kill_file": "shared/KILL"
+  "kill_file": "shared/KILL"
 }

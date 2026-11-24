@@ -50,17 +50,15 @@ def test_testnet_mode_accepted(tmp_path):
     assert cfg.live is not None and cfg.live.account_tag == "sub-acct-01"
 
 
-def test_testnet_veto_off_accepted(tmp_path):
-    """DD-12 (veto kaldirildi): testnet veto_mode='off' ile calisir (veto.json gerekmez)."""
-    cfg = _load(tmp_path, {"mode": "testnet", "live": LIVE_OK, "veto_mode": "off"})
-    assert cfg.mode == "testnet" and cfg.veto_mode == "off"
+def test_testnet_loads_without_veto_keys(tmp_path):
+    """24.11 kullanici karari: veto_mode/veto_config anahtarlari silindi; testnet bunlar olmadan yuklenir."""
+    cfg = _load(tmp_path, {"mode": "testnet", "live": LIVE_OK})
+    assert cfg.mode == "testnet" and not hasattr(cfg, "veto_mode")
 
 
-def test_live_veto_off_accepted(tmp_path, monkeypatch):
-    # 23.11 kullanici karari: canli = kagit (LLM veto yok; veto_mode 'off' canlida gecerli)
-    cfg = _load(tmp_path, {"mode": "live", "live": LIVE_OK, "veto_mode": "off"}, env={"LIVE_CONFIRM": "sub-acct-01"},
-                monkeypatch=monkeypatch)
-    assert cfg.mode == "live" and cfg.veto_mode == "off"
+def test_live_loads_without_veto_keys(tmp_path, monkeypatch):
+    cfg = _load(tmp_path, {"mode": "live", "live": LIVE_OK}, env={"LIVE_CONFIRM": "sub-acct-01"}, monkeypatch=monkeypatch)
+    assert cfg.mode == "live" and not hasattr(cfg, "veto_mode")
 
 
 def test_live_mode_accepted_with_matching_confirm(tmp_path, monkeypatch):
@@ -91,8 +89,6 @@ def test_live_block_mandatory(tmp_path, monkeypatch, mode):
 @pytest.mark.parametrize("mode", ["paper", "backtest"])
 def test_live_block_refused_in_other_modes(tmp_path, mode):
     over = {"mode": mode, "live": LIVE_OK}
-    if mode == "backtest":
-        over["veto_mode"] = "off"
     with pytest.raises(ConfigError):
         _load(tmp_path, over)
 
@@ -175,11 +171,11 @@ def test_twin_overlay_rejected_everywhere(tmp_path):
         _load(tmp_path, {}, bot="twin")
 
 
-def test_live_veto_required_still_valid(tmp_path, monkeypatch):
-    # 23.11 kullanici karari: canli = kagit (veto 'off' artik gecerli; 'required' da gecerli kalir)
-    cfg = _load(tmp_path, {"mode": "live", "live": LIVE_OK, "veto_mode": "required"}, env={"LIVE_CONFIRM": "sub-acct-01"},
-                monkeypatch=monkeypatch)
-    assert cfg.veto_mode == "required"
+def test_veto_keys_are_unknown_keys(tmp_path, monkeypatch):
+    # 24.11 kullanici karari: veto_mode / veto_config silindi => bilinmeyen anahtar (ConfigError)
+    for k, v in (("veto_mode", "off"), ("veto_mode", "required"), ("veto_config", "config/veto.live.json")):
+        with pytest.raises(ConfigError):
+            _load(tmp_path, {"mode": "live", "live": LIVE_OK, k: v}, env={"LIVE_CONFIRM": "sub-acct-01"}, monkeypatch=monkeypatch)
 
 
 def test_live_requires_mark_trigger(tmp_path, monkeypatch):
@@ -398,8 +394,8 @@ def test_cli_live_confirm_mismatch_exits_2(tmp_path, monkeypatch):
 # ---------------- paper config unchanged ----------------
 
 _FROM_JSON = ("wallet_start", "stale_factor", "loop_sleep_s", "bar_wait_s", "minute_wait_s", "reconcile_open_s",
-              "reconcile_flat_s", "start_delay_s", "var_dir", "market_db", "history_dir", "veto_config", "kill_file",
-              "strategy", "target_trade_risk", "target_mode", "veto_mode",
+              "reconcile_flat_s", "start_delay_s", "var_dir", "market_db", "history_dir", "kill_file",
+              "strategy", "target_trade_risk", "target_mode",
               "record_filtered_candidates")
 
 
@@ -423,9 +419,10 @@ def test_paper_config_loads_unchanged(bot, start_delay):
     assert cfg.ledger_path == f"var/{bot}/ledger.sqlite" and cfg.state_path == f"var/{bot}/state.sqlite"
 
 
-def test_paper_accepts_veto_off_and_still_refuses_unknown_keys(tmp_path):
-    """DD-12 WP-06a: kagitta veto yok -> veto_mode='off' gecerli (testnet/canli icin hala yasak: ayri testler)."""
-    assert _load(tmp_path, {"veto_mode": "off"}).veto_mode == "off"
+def test_paper_refuses_removed_veto_keys_and_unknown_keys(tmp_path):
+    """24.11 kullanici karari: veto_mode silindi; bilinmeyen anahtar gibi reddedilir."""
+    with pytest.raises(ConfigError):
+        _load(tmp_path, {"veto_mode": "off"})
     with pytest.raises(ConfigError):
         _load(tmp_path, {"nonsense_key": 1})
 

@@ -33,9 +33,9 @@ echo "Birimler kaldirildi (canli ve env-retry birimleri dahil). Veri ($REPO_DIR,
 if [ "$PURGE" -eq 1 ]; then
   echo "==> --purge: veri siliniyor"
   rm -rf "$REPO_DIR" /var/backups/trader /var/lib/trader-health /var/lib/trader-oto-guncelle
-  rm -f /etc/trader-health.env /etc/trader-lesson.env /etc/trader-telegram.env /etc/trader-veto.env /etc/trader-panel-cf.env /etc/trader-testnet.env
-  # DD-9: canli anahtar dosyasi, veto HMAC anahtari, surum sabitlemesi ve root sahipli kod/venv/klon agaci
-  rm -f /etc/trader-live.env /etc/trader-veto-hmac.env /etc/trader-release
+  rm -f /etc/trader-health.env /etc/trader-lesson.env /etc/trader-telegram.env /etc/trader-panel-cf.env /etc/trader-testnet.env
+  # DD-9: canli anahtar dosyasi, surum sabitlemesi ve root sahipli kod/venv/klon agaci
+  rm -f /etc/trader-live.env /etc/trader-release
   rm -rf /usr/local/lib/trader-root
   id "$TRADER_USER" >/dev/null 2>&1 && userdel -r "$TRADER_USER" 2>/dev/null || true
   getent group "$TG_GROUP" >/dev/null && groupdel "$TG_GROUP" 2>/dev/null || true

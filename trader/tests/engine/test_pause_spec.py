@@ -761,8 +761,7 @@ def _cli_dir(tmp: Path) -> Path:
     cfgd = tmp / "cfg"
     cfgd.mkdir()
     raw = json.loads((ROOT / "config" / "engine.base.json").read_text())
-    raw.update(var_dir=str(tmp / "var"), market_db=str(tmp / "market.sqlite"), history_dir=str(tmp / "hist"),
-               veto_config=str(tmp / "veto.json"), kill_file=str(tmp / "KILL"),
+    raw.update(var_dir=str(tmp / "var"), market_db=str(tmp / "market.sqlite"), history_dir=str(tmp / "hist"), kill_file=str(tmp / "KILL"),
                pause_file=str(tmp / "shared" / "PAUSE"), target_trade_risk=0.014)
     (cfgd / "engine.base.json").write_text(json.dumps(raw))
     (cfgd / "engine.learner.json").write_text(json.dumps({"bot": "learner"}))

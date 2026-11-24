@@ -22,8 +22,6 @@ ENTRIES = {
     "health": ("script:scripts/health_run.py", ["trader_core.ledger", "trader_core.market_probe", "trader_core.telegram",
                                                 "health_backup", "requests"]),
     "lesson": ("script:scripts/lesson_run.py", ["trader_core.lesson", "trader_core.budget", "anthropic"]),
-    "veto": ("script:scripts/veto_run.py", ["pandas", "trader_core.regime", "trader_core.signals", "trader_core.budget",
-                                            "trader_engine.marketdata.sources", "anthropic"]),
     "telegram": ("script:scripts/telegram_run.py", ["trader_core.telegram", "requests"]),
     "telegram-report": ("script:scripts/telegram_run.py", ["trader_core.telegram"]),
     "counterfactual": ("script:scripts/counterfactual_run.py", ["trader_core.counterfactual", "trader_core.ledger"]),

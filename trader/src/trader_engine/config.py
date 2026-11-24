@@ -82,7 +82,6 @@ class EngineConfig:
     wallet_start: float
     cost: CostModel
     target_mode: Literal["bar_close"]
-    veto_mode: Literal["required", "off"]
     record_filtered_candidates: bool
     stale_factor: float
     loop_sleep_s: float
@@ -94,7 +93,6 @@ class EngineConfig:
     var_dir: str
     market_db: str
     history_dir: str
-    veto_config: str
     kill_file: str
     strategy: str = "price_action_v1"
     target_trade_risk: float = LOCKED_CFG.target_trade_risk
@@ -156,7 +154,7 @@ _COST_KEYS = {f.name for f in dataclasses.fields(CostModel)}
 _TOP_KEYS = {f.name for f in dataclasses.fields(EngineConfig)}
 _NUM = ("wallet_start", "stale_factor", "loop_sleep_s", "bar_wait_s", "minute_wait_s",
         "reconcile_open_s", "reconcile_flat_s", "start_delay_s")
-_STR = ("var_dir", "market_db", "history_dir", "veto_config", "kill_file")
+_STR = ("var_dir", "market_db", "history_dir", "kill_file")
 _OPTIONAL_KEYS = {"strategy", "target_trade_risk", "startup_wait_s", "pause_file",
                   "leverage", "live", "ladder_follow", "shadow_blocks", "mtm_marks",
                   "optional_pairs", "retired_pairs", "max_positions", "risk", "clusters", "flat_bar_guard", "contract_types",
@@ -512,10 +510,6 @@ def _validate(raw: Mapping[str, Any]) -> EngineConfig:
             raise ConfigError(f"{n} >= 0 olmali")
     if raw["target_mode"] != "bar_close":
         raise ConfigError(f"target_mode yalniz 'bar_close': {raw['target_mode']!r}")
-    veto_mode = _choice("veto_mode", raw["veto_mode"], ("required", "off"))
-    # 23.11 kullanici karari: canli = kagit (live: veto_mode 'off' da gecerli)
-    if veto_mode == "off" and mode not in ("backtest", "paper", "testnet", "live"):   # DD-12: LLM veto kaldirildi
-        raise ConfigError("veto_mode='off' yalniz mode='backtest'|'paper'|'testnet'|'live' ile gecerli")
     if not isinstance(raw["record_filtered_candidates"], bool):
         raise ConfigError("record_filtered_candidates bool olmali")
     for n in _STR:
@@ -620,7 +614,6 @@ def _validate(raw: Mapping[str, Any]) -> EngineConfig:
     return EngineConfig(
         schema=SCHEMA, mode=mode, bot=bot, pairs=pairs,  # type: ignore[arg-type]
         wallet_start=nums["wallet_start"], cost=cost, target_mode="bar_close",
-        veto_mode=veto_mode,  # type: ignore[arg-type]
         record_filtered_candidates=raw["record_filtered_candidates"],
         stale_factor=nums["stale_factor"], loop_sleep_s=nums["loop_sleep_s"],
         bar_wait_s=nums["bar_wait_s"], minute_wait_s=nums["minute_wait_s"],
@@ -653,7 +646,7 @@ def absolutize_paths(cfg: EngineConfig, base_path: Any) -> EngineConfig:
     """DD-2 (D7) + DD-8 (E1): goreli `kill_file` ve `pause_file` (her kipte) ile, testnet/live'da ayrica `var_dir`, yapilandirma
     dizinine gore mutlak yola cevrilir; boylece `trader_engine kill|pause|...` baska bir dizinden calistirilsa da motorun
     izledigi dosyalara yazar. Dizin `config/` ise kok onun ustudur (`<kok>/shared/KILL`), degilse dizinin kendisidir. Zaten mutlak
-    alan degismez. paper/backtest'te `var_dir`, `market_db`, `history_dir`, `veto_config` OLDUGU GIBI kalir.
+    alan degismez. paper/backtest'te `var_dir`, `market_db`, `history_dir` OLDUGU GIBI kalir.
     `load_engine_config` ham degeri aynen dondurur ("paper config loads unchanged" sozlesmesi)."""
     cdir = Path(base_path).resolve().parent
     root = cdir.parent if cdir.name == "config" else cdir

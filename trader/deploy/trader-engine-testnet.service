@@ -19,8 +19,6 @@ WorkingDirectory=/opt/trader
 # Testnet anahtarlari: AYRI dosya (root:root 0600; systemd root olarak okur). Canli anahtar dosyasi BURADA ASLA kullanilmaz.
 # config/engine.testnet.json: var_dir=var-testnet, kill=shared/testnet/KILL, pause=shared/testnet/PAUSE
 EnvironmentFile=/etc/trader-testnet.env
-# Veto belgesini dogrulayan HMAC anahtari (kagit motoruyla ayni; Anthropic anahtari degil)
-EnvironmentFile=/etc/trader-veto-hmac.env
 Environment=PYTHONPATH=/opt/trader/src
 Environment=PYTHONUNBUFFERED=1
 # Feed market.sqlite'i olusturana kadar (en fazla 60 sn) bekler; defter/damga isi --ensure-ledger ile motor surecinde yapilir

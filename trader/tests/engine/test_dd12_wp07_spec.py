@@ -108,7 +108,10 @@ def test_feed_birimi_paper_ve_tavanlar():
                                  "deploy/trader-testnet.env.example", "deploy/trader-live.env.example",
                                  "deploy/trader.slice"])
 def test_testnet_canli_slice_birimleri_degismedi(rel):
-    assert (ROOT / rel).read_bytes() == _git_show(rel)
+    want = _git_show(rel)
+    if rel in ("deploy/trader-engine-testnet.service", "deploy/trader-engine-live.service"):   # 24.11 kullanici karari: veto ve C1 artiklari silindi
+        want = re.sub(rb"(# Veto belgesini[^\n]*\n)?EnvironmentFile=/etc/trader-veto-hmac\.env\n", b"", want)
+    assert (ROOT / rel).read_bytes() == want
 
 
 def test_slice_tavani_aynen():

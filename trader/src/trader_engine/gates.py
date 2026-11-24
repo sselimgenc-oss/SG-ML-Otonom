@@ -1,4 +1,4 @@
-"""Giris kapisi (05 §4): kapi zinciri, veto kaynaklari, hesap durumu ve risk. Risk sayisi yoktur: tek kaynak
+"""Giris kapisi (05 §4): kapi zinciri, hesap durumu ve risk. Risk sayisi yoktur: tek kaynak
 trader_core.risk.LOCKED_CFG (cfg.risk_config: yalniz daha siki target_trade_risk). Strateji yalniz SignalRow verir; kapi kararini ve boyutu etkileyemez."""
 from __future__ import annotations
 
@@ -16,7 +16,6 @@ from trader_core import kayip_freni as KF
 from trader_core import kol_kucultme as KK
 from trader_core import ledger as L
 from trader_core import risk as K
-from trader_core import veto
 
 from . import arm_guard as AG
 from .bars import tf_delta
@@ -40,37 +39,29 @@ _YUKLENMEDI = object()
 _FILTERED_SKIPS = ("stop_width", "rr_below_min")
 
 
+@dataclass(frozen=True)
+class VetoLookup:
+    """Giris karar satirina yazilan veto durumu. AI veto 18.11'de kaldirildi; yalniz backtest tekrar-oynatma ve ledger semasi
+    (eski satirlar) bu alani tasir."""
+    status: str
+    reason: str | None
+    blocks: bool
+
+
 class VetoSource(Protocol):
     def begin_step(self, now: datetime) -> None: ...
 
-    def lookup(self, pair: str, side: str, now: datetime) -> veto.VetoLookup: ...
-
-
-class FileVeto:
-    """paper/canli: veto_mode="required". Anahtar yok/dosya bozuk/bayat -> lookup missing|stale (giris yok)."""
-
-    def __init__(self, vcfg: veto.VetoConfig, env: Mapping[str, str]) -> None:
-        self.cfg = vcfg
-        self._key = env.get(vcfg.hmac_key_env)
-        self._state: veto.VetoState | None = None
-
-    def begin_step(self, now: datetime) -> None:
-        self._state = veto.read_veto_file(self.cfg.veto_path, self._key, now, self.cfg)
-
-    def lookup(self, pair: str, side: str, now: datetime) -> veto.VetoLookup:
-        if self._state is None:
-            return veto.VetoLookup("missing", "not_loaded", True)
-        return veto.lookup(self._state, pair, side, now)
+    def lookup(self, pair: str, side: str, now: datetime) -> VetoLookup: ...
 
 
 class NoVeto:
-    """Yalniz backtest (veto_mode="off")."""
+    """Backtest/testnet: veto degerlendirilmez."""
 
     def begin_step(self, now: datetime) -> None:
         return None
 
-    def lookup(self, pair: str, side: str, now: datetime) -> veto.VetoLookup:
-        return veto.VetoLookup("allowed", "not_evaluated:backtest", False)
+    def lookup(self, pair: str, side: str, now: datetime) -> VetoLookup:
+        return VetoLookup("allowed", "not_evaluated:backtest", False)
 
 
 @dataclass(frozen=True)
@@ -570,7 +561,7 @@ class EntryGate:
             et_skip = self._etiket_karari(row, tf, tk)                                   # rejim etiketi kurali (risk'ten once)
             if et_skip is not None:
                 return et_skip
-            lk = veto.VetoLookup("allowed", "not_evaluated:paper", False)
+            lk = VetoLookup("allowed", "not_evaluated:paper", False)
         else:
             lk = self.veto.lookup(pair, row.side, now)                                  # 10
         vs = "not_evaluated" if paper else "allowed"                                    # DD-12 WP-06a: kagitta veto yok

@@ -45,19 +45,14 @@ def _covered(path, allowed):
 
 # ------------------------------------------------------------------ yapilandirma anahtarlari
 def test_engine_config_loads_and_twin_is_rejected_and_pairs_agree_everywhere():
-    from trader_core import veto
     from trader_engine.errors import ConfigError
     learner = _cfg("learner")
-    assert learner.bot == "learner" and learner.mode == "paper" and learner.veto_mode == "required"
+    assert learner.bot == "learner" and learner.mode == "paper"
     assert len(learner.pairs) == 10
     assert not (ROOT / "config/engine.twin.json").exists()
     with pytest.raises(ConfigError):                                                         # DD-12: ikiz reddedilir
         from trader_engine.config import load_cli_config
         load_cli_config(ROOT / "config", "twin")
-    vcfg = veto.load_config(ROOT / "config/veto.live.json")
-    vp = veto.load_pairs(vcfg, ROOT)
-    assert sorted(veto.pair_key(p) for p in learner.pairs) == vp, "veto pair listesi (config/engine.base.json) motorun ciftleriyle ayni olmali"
-    assert vcfg.hmac_key_env == "TRADER_VETO_HMAC_KEY"
 
 
 def test_other_configs_load():
@@ -163,16 +158,13 @@ def test_every_timer_has_a_service_and_is_enabled_or_gated(units):
 
 
 # ------------------------------------------------------------------ eski ACIK kusurlar (duzeltildi; regresyon testleri)
-def test_OPEN_engine_unit_veto_hmac_only_for_testnet_live():
-    """DD-12 WP-06a: kagit motor birimi veto HMAC anahtarini yuklemez; testnet/canli birimleri bugunku gibi yukler."""
+def test_OPEN_engine_units_have_no_veto_env():
+    """24.11 kullanici karari: AI veto artiklari silindi; hicbir motor birimi veto env dosyasi yuklemez, ornek dosya yok."""
     def files(n):
         return {Path(v.lstrip("-")).name for k, v in unit_kv((DEPLOY / n).read_text(encoding="utf-8")) if k == "EnvironmentFile"}
-    assert "trader-veto-hmac.env" not in files("trader-engine@.service") and "trader-veto.env" not in files("trader-engine@.service")
-    for n in ("trader-engine-testnet.service", "trader-engine-live.service"):
-        assert "trader-veto-hmac.env" in files(n), n
-    assert "TRADER_VETO_HMAC_KEY" in (DEPLOY / "trader-veto-hmac.env.example").read_text(encoding="utf-8")
-    assert "ANTHROPIC" not in (DEPLOY / "trader-veto-hmac.env.example").read_text(encoding="utf-8")
-    assert not (DEPLOY / "trader-veto.env.example").exists() and not (DEPLOY / "trader-veto.service").exists()
+    for n in ("trader-engine@.service", "trader-engine-testnet.service", "trader-engine-live.service"):
+        assert not {f for f in files(n) if "veto" in f}, n
+    assert not (DEPLOY / "trader-veto-hmac.env.example").exists() and not (DEPLOY / "trader-veto.service").exists()
 
 
 def test_OPEN_lesson_and_telegram_ledger_path_is_the_engine_ledger(envs):
@@ -217,11 +209,10 @@ def test_lesson_and_telegram_sandbox_ledger_access(units):
     assert _covered(f"{T}/var", _rw(units, "trader-backup.service"))                  # OPEN-10
 
 
-def test_budget_db_precreated_and_hmac_generated_without_echo():
+def test_budget_db_precreated_and_no_hmac_generation():
     t = install_text()
     assert re.search(r'install -m 0600 -o "\$TRADER_USER" -g "\$TRADER_USER" /dev/null "\$TRADER_DIR/user_data/budget.sqlite"', t)
-    assert "openssl rand -hex 32" in t
-    assert not re.search(r"echo[^\n]*HMAC_NEW|printf[^\n]*HMAC_NEW(?!.*>>)", t)
+    assert "HMAC_NEW" not in t and "TRADER_VETO_HMAC_KEY" not in t
 
 
 def test_telegram_pause_env_and_unit_match_engine(envs, units, tmp_path):
