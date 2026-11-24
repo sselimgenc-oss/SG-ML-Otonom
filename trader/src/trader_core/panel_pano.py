@@ -420,6 +420,117 @@ def kucultme_view(ledger_path: str, bot: str) -> dict | None:
                        for a, k in sorted(az.items())]}
 
 
+# ----------------------------------------------------------------------------- ogrenme (kol x zaman dilimi, model kollari)
+_REPO = Path(__file__).resolve().parents[2]
+MODEL_KURULUMLARI = ("M1", "DL1")           # paketle calisan (egitilen) kollar
+DL1_ZD = ("15m", "1h", "4h", "1d")          # DL1: dort zaman dilimi, her biri kendi paketi
+_DURUM_AD = {"acik": "Açık", "kucultulmus": "Küçültülmüş", "karantina": "Karantinada"}
+
+
+def _arm_kimlik(d: Any) -> str:
+    from .arm_time import arm_id_of  # noqa: PLC0415
+    return getattr(d, "arm_id", None) or arm_id_of(d.setup, d.trigger_tf)
+
+
+def _paket_zamani(yol: Path, alan: tuple[str, ...]) -> tuple[str, datetime | None]:
+    """Paket dosyasindan egitim (olusturma) zamani: ('var', dt) | ('yok', None) | ('okunamadi', None). Uydurma yok."""
+    try:
+        doc = json.loads(yol.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return "yok", None
+    except (OSError, ValueError):
+        return "okunamadi", None
+    cur: Any = doc
+    for k in alan:
+        cur = cur.get(k) if isinstance(cur, dict) else None
+    try:
+        dt = datetime.fromisoformat(str(cur).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return "okunamadi", None
+    return "var", (dt if dt.tzinfo else dt.replace(tzinfo=P.UTC))
+
+
+def _model_paketi(arm: str, m1_dizinleri: list[Path], dl1_dizin: Path) -> tuple[str, datetime | None]:
+    if arm.startswith("DL1@"):
+        return _paket_zamani(dl1_dizin / f"{arm}.json", ("olusturma",))
+    son: tuple[str, datetime | None] = ("yok", None)
+    for d in m1_dizinleri:                    # calisma zamani paketi once, sonra depodaki tohum (m1.py ile ayni sira)
+        son = _paket_zamani(d / f"{arm}.json", ("meta", "created_at"))
+        if son[0] != "yok":
+            return son
+    return son
+
+
+def ogrenme_view(ledger_path: str, ctx: Ctx, now: datetime, *, arms: list[str] | None = None,
+                 m1_dizinleri: list[Path] | None = None, dl1_dizin: Path | None = None) -> dict:
+    """OZET 'Ogrenme' karti + OGRENME sekmesi tablolari. Tum kollar (ayar `arms` + defterde gorulen + karantina dosyasi + model
+    kollari) icin kol x zaman dilimi satirlari; model kollari icin son egitim / paket yasi / bugun aday-giris. Hepsi defterden,
+    `arms_off.json`dan ve paket dosyalarindan aynen okunur; bulunamayan alan None (arayuzde 'bilinmiyor')."""
+    from . import kol_kucultme as KK  # noqa: PLC0415
+    from . import lesson as LS  # noqa: PLC0415
+    import os  # noqa: PLC0415
+    sonuc: dict[str, list[float]] = {}            # arm -> net R (yeniden eskiye)
+    son_ders: dict[str, datetime] = {}
+    for t in ctx.closed:
+        d = ctx.dec.get(t.decision_id)
+        r = _f(t.r_multiple)
+        if d is not None and r is not None:
+            sonuc.setdefault(_arm_kimlik(d), []).append(r)
+    for d in ctx.decisions:
+        if d.final_action == "entered" and d.lesson_ids:
+            a = _arm_kimlik(d)
+            if a not in son_ders or d.bar_close_ts > son_ders[a]:
+                son_ders[a] = d.bar_close_ts
+    kapali = {a for a, st in LS.read_arms_state(Path(ledger_path).parent / "arms_off.json").items()
+              if st.get("state") == "closed"}
+    gun0 = gun_basi(now)
+    bugun: dict[str, list[int]] = {}
+    for d in ctx.decisions:
+        if d.bar_close_ts >= gun0:
+            b = bugun.setdefault(_arm_kimlik(d), [0, 0])
+            b[0] += 1
+            b[1] += 1 if d.final_action == "entered" else 0
+    tum = set(arms or []) | set(sonuc) | set(son_ders) | set(bugun) | kapali
+    tum |= {f"DL1@{tf}" for tf in DL1_ZD}
+    tum |= {f"M1@{tf}" for tf in DL1_ZD} if any(a.startswith("M1@") for a in tum) else set()
+    kollar = []
+    for a in sorted(tum, key=lambda x: (x.partition("@")[0], DL1_ZD.index(x.partition("@")[2]) if x.partition("@")[2] in DL1_ZD else 9, x)):
+        vals = sonuc.get(a, [])
+        aile = KK.aile_ortalamasi(sonuc, haric=a).get(a.partition("@")[0])
+        k = KK.karar(vals, aile)
+        n = len(vals)
+        durum = "karantina" if a in kapali else ("kucultulmus" if k.carpan < 1.0 else "acik")
+        kur, _, zd = a.partition("@")
+        kollar.append({"arm": a, "kol": TS.kurulum_adi(kur), "zd": TS.kol_adi(a).partition(" · ")[2] or (zd or "—"),
+                       "n": n, "net_r": round(math.fsum(vals), 4) if n else None,
+                       "kazanma": round(100.0 * sum(1 for v in vals if v > 0) / n, 1) if n else None,
+                       "carpan": k.carpan, "durum": durum, "durum_ad": _DURUM_AD[durum],
+                       "son_ders": tsi_gun(son_ders[a]) if a in son_ders else None,
+                       "son_ders_ts": son_ders[a].timestamp() if a in son_ders else None})
+    olcu = [r for r in kollar if r["n"]]
+    iyi = sorted(olcu, key=lambda r: (-r["net_r"], r["arm"]))[:3]
+    kotu = sorted((r for r in olcu if r not in iyi), key=lambda r: (r["net_r"], r["arm"]))[:3]
+    kisa = lambda r: {"arm": r["arm"], "kol": r["kol"], "zd": r["zd"], "net_r": r["net_r"], "n": r["n"]}  # noqa: E731
+    ozet = {"toplam": len(kollar), **{d: sum(1 for r in kollar if r["durum"] == d) for d in _DURUM_AD},
+            "en_iyi": [kisa(r) for r in iyi], "en_kotu": [kisa(r) for r in kotu],
+            "kapanan": sum(r["n"] for r in kollar)}
+    m1_d = m1_dizinleri if m1_dizinleri is not None else [
+        Path(os.environ.get("TRADER_ML_RUNTIME_DIR") or (_REPO / "var" / "learner" / "models")) / "pa_proposer",
+        _REPO / "models" / "pa_proposer"]
+    dl1_d = dl1_dizin if dl1_dizin is not None else _REPO / "models" / "dl1"
+    modeller = []
+    for r in kollar:
+        if r["arm"].partition("@")[0] not in MODEL_KURULUMLARI:
+            continue
+        durum, dt = _model_paketi(r["arm"], m1_d, dl1_d)
+        b = bugun.get(r["arm"], [0, 0])
+        modeller.append({"arm": r["arm"], "kol": r["kol"], "zd": r["zd"], "paket": durum,
+                         "egitim": tsi_kisa(dt) if dt else None, "egitim_ts": dt.timestamp() if dt else None,
+                         "yas_gun": round(max((now - dt).total_seconds(), 0.0) / 86400.0, 1) if dt else None,
+                         "bugun_aday": b[0], "bugun_giris": b[1]})
+    return {"ozet": ozet, "kollar": kollar, "modeller": modeller}
+
+
 # ----------------------------------------------------------------------------- teknik
 def _testnet_alarmi(a: Mapping) -> bool:
     """Testnet golge botuna ait kontrol (ad ':<bot>' ekinde 'testnet'): kagit botu etkilemez; yalniz TEKNIK'te gri bilgi."""

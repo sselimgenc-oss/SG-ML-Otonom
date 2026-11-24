@@ -110,3 +110,7 @@ details>div{padding-bottom:12px}
   .ks .b{font-size:16.5px}.ks.risk .b{font-size:13.5px}.ks .e{font-size:9.5px;letter-spacing:.02em}
 }
 @media print{.tabs,.un{display:none}.sek{display:block}}
+
+/* ogrenme tablolari: 5 sutun, ilk sutun (kol adi) genis; dar ekranda kol adi satir atlar */
+.og table.n5 col.c1{width:32%}.og table.n5 col.c2{width:19%}.og table.n5 col.c3{width:17%}.og table.n5 col.c4{width:16%}.og table.n5 col.c5{width:16%}
+.og .kolad .n{white-space:normal;overflow-wrap:anywhere}
