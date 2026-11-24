@@ -602,6 +602,7 @@ class LadderFiles:
     log: Any
     status_path: str
     pause: Any
+    risk: float | None = None     # kipin ayarindaki islem basi risk (durum blogu yokken yedek); None: RL.LIVE_START_STEP
 
 
 def _tr(x: Any, nd: int = 2) -> str:
@@ -617,6 +618,12 @@ def _tr(x: Any, nd: int = 2) -> str:
 
 def _num_ok(x: Any) -> bool:
     return isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x)
+
+
+def _cfg_risk(lf: LadderFiles) -> float:
+    """Etkin risk yedegi: kipin ayarindan (LadderFiles.risk), yoksa canli baslangic basamagi."""
+    r = getattr(lf, "risk", None)
+    return float(r) if _num_ok(r) and r > 0 else RL.STEPS[RL.LIVE_START_STEP]
 
 
 def ladder_view(lf: LadderFiles, now: datetime) -> dict:
@@ -651,7 +658,7 @@ def ladder_view(lf: LadderFiles, now: datetime) -> dict:
         out["state"] = "uninitialized"
     else:
         sa = st.stopped_at
-        out.update(state=st.status, step=st.step, step_name=RL.STEP_NAMES[st.step], step_risk=RL.STEPS[RL.LIVE_START_STEP],
+        out.update(state=st.status, step=st.step, step_name=RL.STEP_NAMES[st.step], step_risk=_cfg_risk(lf),
                    dep_net=st.dep_net, base=st.base, peak=st.peak, stopped_at=sa,
                    stop_at=round(RL.STOP_RATIO * st.base, 8), floor_at=round(RL.FLOOR_RATIO * st.dep_net, 8))
         e = out["equity"]
@@ -1065,7 +1072,7 @@ class TelegramDaemon:
             e = v["equity"]
             nb = min(st.base, e) if st.status == "review" else st.base
             parts.append(f"{b}: yeni taban {_tr(nb)} USD, yeni durma seviyesi {_tr(RL.STOP_RATIO * nb)} USD, "
-                         f"risk %{_tr(RL.STEPS[RL.LIVE_START_STEP] * 100)} (sabit), son taban {_tr(RL.FLOOR_RATIO * st.dep_net)} USD")
+                         f"risk %{_tr(v['step_risk'] * 100)} (sabit), son taban {_tr(RL.FLOOR_RATIO * st.dep_net)} USD")
         self._reply("Onaylarsan: " + "; ".join(parts) + f". Onay icin {CODE_TTL_S} sn icinde yalniz su 4 haneli kodu "
                     f"yanitla: {code}")
         return "code_sent"

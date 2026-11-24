@@ -207,7 +207,7 @@ def test_hedef_aktifken_bar_kapanisinda_hedef_icin_piyasa_cikisi_yok(tmp_path):
 def test_kismi_sonrasi_stop_ve_hedef_kalan_adede_yeni_once_eski_sonra_iptal(tmp_path):
     e = mk(tmp_path, PT)
     pos = e.enter(**R1_KW)
-    assert pos.qty == 4.8
+    assert pos.qty == 13.4    # 24.11 kullanici karari: risk kademesi kaldirildi, risk ayardan (%1); eski 4.8
     old_t = algos(e, "TAKE_PROFIT_MARKET")[0]["cid"]
     set_best(e, pos.trade_id, 2.16)                             # >= giris + 1.5R (2.15): 15 dk adiminin dakika dakika tuttugu en iyi uc
     e.ex.set_mark(SYM, "2.12")
@@ -216,12 +216,12 @@ def test_kismi_sonrasi_stop_ve_hedef_kalan_adede_yeni_once_eski_sonra_iptal(tmp_
     w = writes(e, n0)
     assert [(m, k) for m, k, *_ in w] == [("POST", "MARKET"), ("POST", "STOP_MARKET"), ("DELETE", "ALGO"),
                                          ("POST", "TAKE_PROFIT_MARKET"), ("DELETE", "ALGO")], w
-    assert w[0][2] == "1.5" and w[1][2] == "3.3" and w[3][2] == "3.3" and Decimal(w[3][3]) == Decimal("2.3")
+    assert w[0][2] == "4.4" and w[1][2] == "9" and w[3][2] == "9" and Decimal(w[3][3]) == Decimal("2.3")
     tp = algos(e, "TAKE_PROFIT_MARKET")
-    assert len(tp) == 1 and tp[0]["qty"] == Decimal("3.3") and tp[0]["cid"] != old_t
+    assert len(tp) == 1 and tp[0]["qty"] == Decimal("9") and tp[0]["cid"] != old_t
     assert e.ex.algos[old_t]["algoStatus"] == "CANCELED" and e.state.get_order(old_t).status == "canceled"
     assert e.state.kv_get(f"target:{pos.trade_id}")["cid"] == tp[0]["cid"]
-    assert e.pos().qty == pytest.approx(3.3) and ex_qty(e) == Decimal("3.3")
+    assert e.pos().qty == pytest.approx(9.0) and ex_qty(e) == Decimal("9")
     assert e.engine.counters()["target_resized"] == 1
     # kalan parca hedefte kapanir
     e.ex.set_mark(SYM, "2.31")
@@ -247,8 +247,8 @@ def test_kismi_sonrasi_hedef_kurulamazsa_eski_hedef_durur_sayac(tmp_path):
     e.ex._new_cond = deny_target
     e.decide(D2)
     tp = algos(e, "TAKE_PROFIT_MARKET")
-    assert len(tp) == 1 and tp[0]["cid"] == old_t and tp[0]["qty"] == Decimal("4.8")      # eski (genis) hedef durur
-    assert e.engine.counters()["target_resize_failed"] == 1 and e.pos().qty == pytest.approx(3.3)
+    assert len(tp) == 1 and tp[0]["cid"] == old_t and tp[0]["qty"] == Decimal("13.4")      # eski (genis) hedef durur
+    assert e.engine.counters()["target_resize_failed"] == 1 and e.pos().qty == pytest.approx(9.0)
     e.close()
 
 
@@ -290,10 +290,10 @@ def test_mutabakat_hedef_adedi_borsa_adedinden_farkliysa_degistirir(tmp_path):
     e = mk(tmp_path)
     pos = e.enter(**R1_KW)
     old = algos(e, "TAKE_PROFIT_MARKET")[0]
-    e.ex.algos[old["cid"]]["qty"] = Decimal("2.0")              # adet uyumsuz (borsa 4.8)
+    e.ex.algos[old["cid"]]["qty"] = Decimal("2.0")              # adet uyumsuz (borsa 13.4)
     rep = _reconcile(e)
     tp = algos(e, "TAKE_PROFIT_MARKET")
-    assert len(tp) == 1 and tp[0]["qty"] == Decimal("4.8") and tp[0]["cid"] != old["cid"]
+    assert len(tp) == 1 and tp[0]["qty"] == Decimal("13.4") and tp[0]["cid"] != old["cid"]
     assert e.ex.algos[old["cid"]]["algoStatus"] == "CANCELED"
     assert f"target_qty_mismatch:{pos.trade_id}" in rep.findings
     e.close()

@@ -70,6 +70,18 @@ def build_pauses(env, now_fn, root: Path | None = None) -> dict:
     return out
 
 
+def _mode_risk(root: Path, env, bot: str) -> float | None:
+    """Botun kipinin ayar dosyasindaki islem basi risk (canli bot: engine.live.json, digeri: engine.paper.json)."""
+    import json
+    mode = "live" if bot in LP.live_bots(env) else "paper"
+    try:
+        d = json.loads((root / "config" / f"engine.{mode}.json").read_text(encoding="utf-8"))
+        r = (d.get("risk") or {}).get("target_trade_risk", d.get("target_trade_risk"))
+        return float(r) if r is not None and float(r) > 0 else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def build_ladders(env, now_fn, root: Path | None = None) -> dict:
     """bot -> T.LadderFiles (12 §9). `LADDER_BOTS` (virgullu; varsayilan BOS: kademe komutlari kapali; canliya gecista
     canli bot yazilir). Yollar `build_pauses` ile ayni cozumle MUTLAK: kademe gunlugu ENGINE_VAR_DIR/<bot>/risk_ladder.jsonl,
@@ -84,7 +96,8 @@ def build_ladders(env, now_fn, root: Path | None = None) -> dict:
         bvar = LP.bot_var_dir(env, b, var).rstrip("/")
         bbase = LP.bot_pause_base(env, b, base)
         out[b] = T.LadderFiles(log=RL.LadderLog(f"{bvar}/{b}/risk_ladder.jsonl"), status_path=f"{bvar}/{b}/status.json",
-                               pause=EntryPause(f"{bbase}.{b}", clk, audit_path=f"{bvar}/{b}/pause_audit.jsonl", bot=b))
+                               pause=EntryPause(f"{bbase}.{b}", clk, audit_path=f"{bvar}/{b}/pause_audit.jsonl", bot=b),
+                               risk=_mode_risk(root, env, b))
     return out
 
 

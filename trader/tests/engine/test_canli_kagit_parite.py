@@ -348,3 +348,26 @@ def test_kagit_yeniden_baslatilinca_review_korunur(tmp_path):
         assert eng2.ladder.log.state().status == "review" and "drawdown_review" in [h.reason for h in eng2.ladder.pause.holds()]
     finally:
         _kapat(eng2)
+
+
+def test_kagit_ve_canli_capital_floor_tutusu_ayni_dizide_ayni(tmp_path):
+    """24.11 denetim: %60 son taban (capital_floor) iki kipte de ayni kapi kodu ve ayni tutuslarla tetiklenir."""
+    import test_engine_live_spec as LS
+    (tmp_path / "p").mkdir()
+    (tmp_path / "l").mkdir()
+    _, peng, _ = _paper_engine(tmp_path / "p")
+    _, leng = _live_engine(tmp_path / "l")
+    try:
+        if not leng.ladder.log.rows():
+            leng.ladder.log.append("initial", "test", LS.BOOT, amount=1000.0, start_step=RL.LIVE_START_STEP)
+        seq = [1000.0, 790.0, 790.0, 590.0, 590.0, 590.0]                 # -%21 (inceleme) sonra %59 (son taban)
+        sonuc = []
+        for eng in (peng, leng):
+            eng.ladder.transfers_fn = None
+            sonuc.append(_surdur(eng.ladder, LS.BOOT, seq))
+        assert sonuc[0][:2] == sonuc[1][:2]
+        assert "capital_floor" in sonuc[0][1] and "capital_latch" in sonuc[0][1]
+        assert peng.ladder.log.state().status == leng.ladder.log.state().status == "floor"
+    finally:
+        _kapat(peng)
+        _kapat(leng)

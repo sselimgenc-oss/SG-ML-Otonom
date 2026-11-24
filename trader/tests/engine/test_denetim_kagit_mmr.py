@@ -56,3 +56,31 @@ def test_motor_kagit_brokeri_kapiyla_ayni_sinif_mmr(tmp_path):
     finally:
         eng.state.close()
         eng.ledger.close()
+
+
+def _liq_fee(mmr_fn, pair):
+    """Long 1 adet @100 acilir, mark tasfiyenin altina iner: (tasfiye fiyati, giris, tasfiye ucreti)."""
+    b = PaperBroker(PaperConfig(cost=CostModel(), mmr=0.004, mmr_fn=mmr_fn), _rules, lambda p, a, z: [], SimClock(T0), None)
+    b.prepare(pair, 3)
+    b.market_order(OrderRequest(client_id="e1", pair=pair, role="entry", order_side="buy", qty=1.0, trigger_price=None,
+                                reduce_only=False, leverage=3))
+    bar = MinuteBar(pair=pair, open_ts=T0, step_s=60, last_o=100.0, last_h=100.0, last_l=100.0, last_c=100.0,
+                    mark_o=100.0, mark_h=100.0, mark_l=100.0, mark_c=100.0)
+    b.advance({pair: bar}, "fills")
+    liq, entry = b._pos[pair].liq_price, b._pos[pair].entry_price
+    low = MinuteBar(pair=pair, open_ts=T0.replace(minute=1), step_s=60, last_o=100.0, last_h=100.0, last_l=liq - 1,
+                    last_c=liq - 1, mark_o=100.0, mark_h=100.0, mark_l=liq - 1, mark_c=liq - 1)
+    b.advance({pair: low}, "triggers")
+    assert pair not in b._pos
+    ev = [e for e in b.poll(T0.replace(minute=2)) if e.kind == "liquidation"]
+    return liq, entry, ev
+
+
+def test_tasfiye_ucreti_ve_fiyati_sinif_mmr_ile_kripto_eskisi_gibi():
+    fn = lambda p: K.sinif_mmr("hisse" if p.startswith("TSLA") else "kripto", 0.004)  # noqa: E731
+    liq_h, ent_h, ev_h = _liq_fee(fn, "TSLA/USDT")
+    assert liq_h == pytest.approx(ent_h * (1 - 1 / 3 + 0.02), rel=1e-9)               # hisse %2 (kapiyla ayni)
+    liq_k, ent_k, ev_k = _liq_fee(fn, "BTC/USDT")
+    assert liq_k == pytest.approx(ent_k * (1 - 1 / 3 + 0.005), rel=1e-9)              # kripto %0,5 (eskisi gibi)
+    assert ev_h and ev_k
+    assert ev_h[0].fill.fee == pytest.approx(ent_h * 0.02) and ev_k[0].fill.fee == pytest.approx(ent_k * 0.005)

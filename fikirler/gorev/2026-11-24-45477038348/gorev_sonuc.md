@@ -1,0 +1,1 @@
+Tam takım bitene kadar bekliyorum.
