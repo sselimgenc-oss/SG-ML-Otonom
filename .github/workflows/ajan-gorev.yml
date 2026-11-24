@@ -52,6 +52,7 @@ jobs:
           pip install "pytest==9.2.0" "PyYAML==6.0.3" claude-agent-sdk
           npm install -g @anthropic-ai/claude-code
           git fetch -q origin yeni-kollar-test duzeltme-denetim denetim-raporlari || true
+          mkdir -p onceki && (git archive origin/yeni-kollar-test kosu | tar -x -C onceki) || true   # gecmis kol testleri, salt okuma icin
       - name: Ajan
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY_DENETIM }}
@@ -63,6 +64,7 @@ jobs:
           git config user.email "ajan-gorev@users.noreply.github.com"
           d="fikirler/gorev/$(date -u +%F)-${{ github.run_id }}"; mkdir -p "$d"
           mv gorev_sonuc.md maliyet.txt "$d/" 2>/dev/null || true
+          rm -rf onceki
           find . -name __pycache__ -prune -exec rm -rf {} + 2>/dev/null || true
           git checkout -B "gorev-${{ github.run_id }}"
           git add -A && git commit -qm "Ajan gorevi ${{ github.run_id }}: ${{ inputs.istem }}" || true
