@@ -8,6 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 import weekly_summary_run as W  # noqa: E402
+from trader_core import lesson as LS  # noqa: E402
 from trader_core import telegram as T  # noqa: E402
 
 NOW = datetime(2026, 11, 22, 18, 10, tzinfo=timezone.utc)
@@ -43,7 +44,7 @@ def test_keyed_adds_comment_after_fixed_and_once_per_week(tmp_path, capsys):
     calls = []
 
     class Bud:
-        def estimate_cost(self, *a): return 0.01
+        def estimate_cost(self, *a, **k): return 0.01
         def authorize(self, svc, est): return type("G", (), {"grant_id": 1})()
         def record(self, *a): pass
         def release(self, g): pass
@@ -59,15 +60,24 @@ def test_keyed_adds_comment_after_fixed_and_once_per_week(tmp_path, capsys):
     orig = W.L.open_ledger
     W.L.open_ledger = lambda *a, **k: FakeLed()
     try:
-        def llm(params):
-            calls.append(params)
-            return "Hafta sakindi.", {"input_tokens": 1, "output_tokens": 1}
-        rc, f = _run(tmp_path, llm=llm, budget=Bud())
+        class Llm:
+            def submit(self, bundle, custom_id):
+                calls.append(bundle.params)
+                self.cid = custom_id
+                return "b1"
+
+            def poll(self, batch_id):
+                return LS.BatchPoll("ended", (LS.BatchResult(self.cid, "succeeded", "Hafta sakindi.", "end_turn",
+                                                             {"input_tokens": 1, "output_tokens": 1}),))
+
+            def cancel(self, batch_id): pass
+        llm = Llm()
+        rc, f = _run(tmp_path, client=llm, budget=Bud())
         assert rc == 0 and len(calls) == 1
         t = f.read_text(encoding="utf-8")
         assert t.index("## Sabit bölüm") < t.index("## Yorum") and "Hafta sakindi." in t
         capsys.readouterr()
-        rc, _ = _run(tmp_path, llm=llm, budget=Bud())              # ayni hafta: dokunma
+        rc, _ = _run(tmp_path, client=llm, budget=Bud())              # ayni hafta: dokunma
         assert json.loads(capsys.readouterr().out)["status"] == "exists" and len(calls) == 1
     finally:
         W.L.open_ledger = orig
@@ -75,7 +85,7 @@ def test_keyed_adds_comment_after_fixed_and_once_per_week(tmp_path, capsys):
 
 def test_budget_denied_still_writes_fixed(tmp_path, capsys):
     class Bud:
-        def estimate_cost(self, *a): return 0.01
+        def estimate_cost(self, *a, **k): return 0.01
         def authorize(self, svc, est): return type("D", (), {"reason": "cap"})()
     orig = W.L.open_ledger
 
@@ -86,7 +96,7 @@ def test_budget_denied_still_writes_fixed(tmp_path, capsys):
         def close(self): pass
     W.L.open_ledger = lambda *a, **k: FakeLed()
     try:
-        rc, f = _run(tmp_path, llm=lambda p: ("x", {}), budget=Bud())
+        rc, f = _run(tmp_path, client=object(), budget=Bud())
     finally:
         W.L.open_ledger = orig
     assert rc == 0 and "## Sabit bölüm" in f.read_text(encoding="utf-8") and "## Yorum" not in f.read_text(encoding="utf-8")

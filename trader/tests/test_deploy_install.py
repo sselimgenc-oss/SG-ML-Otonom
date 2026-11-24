@@ -134,6 +134,7 @@ def test_every_unit_handled_by_install():
                         "trader-oi.service", "trader-haber.service", "trader-haber-sinyal.service", "trader-piyasa-veri.service", "trader-drift@.service", "trader-notes.service", "trader-weekly-summary.service", "trader-ml-retrain.service", "trader-universe.service",
                         "trader-tutarlilik.service",  # Faz 2a: haftalik tutarlilik raporu (zamanlayici etkinlestirilir; servis tetiklenir)
                         "trader-tur1-olcum.service",  # tur 1 olcum raporu: gunluk zamanlayici etkinlestirilir; servis tetiklenir
+                        "trader-weekly-collect.service",  # haftalik YZ batch sonuclarini toplama: zamanlayici etkinlestirilir; servis tetiklenir
                         "trader-tur1-haftalik.service",  # tur 1 haftalik YZ yorumu: haftalik zamanlayici etkinlestirilir; servis tetiklenir
                         "trader-yorumcu.service",  # ust lig YZ yorumcu: gunluk zamanlayici etkinlestirilir; servis tetiklenir
                         "trader-mutabakat.service",  # islem mutabakati: gunluk zamanlayici etkinlestirilir; servis ayrica kurulum sonrasi tetiklenir

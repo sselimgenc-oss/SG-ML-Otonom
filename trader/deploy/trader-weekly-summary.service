@@ -1,5 +1,5 @@
 [Unit]
-Description=Trader haftalik ozet (LLM; haftalik_ozet butce payi; sabit bolum her hafta, LLM yorumu yalniz anahtar varsa; DD-12 WP-09)
+Description=Trader haftalik ozet (LLM yorumu Message Batches ile, sonuc trader-weekly-collect ile toplanir; haftalik_ozet butce payi; sabit bolum her hafta, LLM yorumu yalniz anahtar varsa; DD-12 WP-09)
 Documentation=file:///opt/trader/docs/motor/dd12-capraz-varlik-spec.md
 After=network-online.target
 Wants=network-online.target
@@ -10,6 +10,7 @@ Slice=trader.slice
 Type=oneshot
 User=trader
 EnvironmentFile=/etc/trader-lesson.env
+Environment=TELEGRAM_VAR_DIR=/opt/trader/var/telegram
 ExecStart=/usr/bin/python3 -I /opt/trader/scripts/weekly_summary_run.py --once
 TimeoutStartSec=420
 SuccessExitStatus=2
@@ -18,6 +19,6 @@ CPUQuota=30%
 Nice=10
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/opt/trader/user_data -/opt/trader/var/learner -/opt/trader/var-live/learner -/opt/trader/var/durum
+ReadWritePaths=/opt/trader/user_data -/opt/trader/var/learner -/opt/trader/var-live/learner -/opt/trader/var/durum -/opt/trader/var/telegram
 NoNewPrivileges=true
 PrivateTmp=true

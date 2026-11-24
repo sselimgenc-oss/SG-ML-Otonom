@@ -3,11 +3,16 @@
 
 Haftalik dosya SABIT BOLUM (LLM'siz: tutarlilik, cikis kaniti, PBO, alinmayan sinyal) + istege bagli "Yorum"
 paragrafindan olusur; sabit bolum anahtar olsun olmasin her hafta yazilir (Telegram gunluk raporu `telegram.rapor_ogrenme` onu okur).
-Tek LLM kullanimi yorumdur. Butce payi `haftalik_ozet` (aylik tavan 10 $; pay bitince DURUR, motor/not/ders etkilenmez):
-`budget.authorize` -> cagri -> `budget.record` (hata/sapmada `release`). API anahtari (budget.api_key_env("haftalik_ozet"))
-yoksa yorum atlanir (sabit bolum yine yazilir). Mevcut yardimcilar: `lesson.AnthropicBatchClient` (hata esleme), `lesson.budget_usage`; yeni SDK yok.
-Cikti: `<defter dizini>/weekly_summaries/YYYY-Www.md` (hafta basina bir kez). Test: `main(argv, llm=, budget=, now_fn=, env=)`;
-`llm(params) -> (metin, usage)`.
+Tek LLM kullanimi yorumdur ve 24 Kas 2026'dan beri MESSAGE BATCHES API ile yapilir (`trader_core.haftalik_batch`, `lesson.AnthropicBatchClient`):
+1. GONDER (pazar 18:10 UTC): sabit bolum dosyasi hemen yazilir; yorum icin batch gonderilir, batch kimligi + butce rezervi
+   `<defter dizini>/weekly_summaries/YYYY-Www.batch.json` dosyasina yazilir (ayni hafta ikinci gonderim yok); kisa sure (`--wait-s`) beklenir.
+2. TOPLA (`--collect`, `trader-weekly-collect.timer`, 3 saatte bir; her normal kosu da once bekleyenleri toplar): batch bitince
+   "## Yorum" dosyaya eklenir + Telegram mesaji; butce `record(batch=True)`. Batch basarisiz/suresi dolmus/36 saatte bitmemisse rezerv
+   serbest birakilir, Telegram'a "yorum atlandi" notu gider (sabit bolum yine vardir).
+Butce payi `haftalik_ozet` (aylik tavan; pay bitince DURUR, motor/not/ders etkilenmez): `budget.authorize` (batch fiyatli tahmin) -> gonderim -> `budget.record(..., True)`.
+API anahtari (budget.api_key_env("haftalik_ozet")) yoksa yorum atlanir (sabit bolum yine yazilir).
+Cikti: `<defter dizini>/weekly_summaries/YYYY-Www.md` (hafta basina bir kez). Test: `main(argv, client=, budget=, now_fn=, env=, sleep=)`;
+`client.submit(bundle, custom_id)` / `client.poll(batch_id)` / `client.cancel(batch_id)`.
 """
 from __future__ import annotations
 
@@ -16,6 +21,7 @@ import json
 import logging
 import os
 import sys
+import time
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -24,6 +30,7 @@ _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE.parent / "src"))
 
 from trader_core import budget as _budget  # noqa: E402
+from trader_core import haftalik_batch as HB  # noqa: E402
 from trader_core import ledger as L  # noqa: E402
 from trader_core import lesson as LS  # noqa: E402
 
@@ -90,23 +97,6 @@ def build_input(ledger, since: str, until: str) -> tuple[dict, str]:
              "etiket_sayilari": dict(sorted(tags.items()))}
     lines = [f"- {n['text']}" for n in notes[-MAX_NOTES:]]
     return stats, "Sayilar:\n" + json.dumps(stats, ensure_ascii=False, sort_keys=True) + "\n\nNotlar:\n" + "\n".join(lines)
-
-
-def _default_llm(env, b):
-    key = env.get(b.api_key_env(SERVICE))
-    if not key:
-        return None
-    import anthropic  # noqa: PLC0415  (mevcut SDK; yeni bagimlilik yok)
-    helper = LS.AnthropicBatchClient(client=anthropic.Anthropic(api_key=key, max_retries=0, timeout=60.0))
-
-    def call(params):
-        try:
-            msg = helper._client.messages.create(**params)
-        except Exception as e:  # noqa: BLE001
-            raise helper._map(e) from None
-        text = "".join(LS._g(c, "text", "") for c in (msg.content or []) if LS._g(c, "type") == "text")
-        return text, msg.usage
-    return call
 
 
 SABIT_BASLIK = "## Sabit bölüm"
@@ -210,52 +200,99 @@ def sabit_bolum(env, lp: str, now: datetime, lesson_store=None) -> list[str]:
     return out
 
 
-def _comment(llm, b, led_path: str, day: datetime) -> tuple[str | None, str]:
-    """(yorum metni | None, durum). Butce mantigi eskisi gibi: authorize -> cagri -> record (hata/sapmada release)."""
+def _istem(led_path: str, day: datetime) -> tuple[dict | None, int, str]:
+    """(batch parametreleri | None, tahmini girdi tokeni, durum): yorum girdisi defterden kurulur."""
     try:
         led = L.open_ledger(led_path, "learner", create=False, read_only=True, migrate=False)
     except Exception as e:  # noqa: BLE001
         log.warning("defter acilamadi: %s", LS.scrub(e))
-        return None, "no_ledger"
+        return None, 0, "no_ledger"
     try:
         stats, user = build_input(led, (day - timedelta(days=6)).date().isoformat(), day.date().isoformat())
     except Exception as e:  # noqa: BLE001
         log.warning("yorum girdisi kurulamadi: %s", LS.scrub(e))
-        return None, "no_ledger"
+        return None, 0, "no_ledger"
     finally:
         close = getattr(led, "close", None)
         if close:
             close()
     if stats["not_sayisi"] == 0:
-        return None, "no_notes"
+        return None, 0, "no_notes"
     params = {"model": MODEL, "max_tokens": MAX_OUT, "system": SYSTEM,
               "messages": [{"role": "user", "content": user}]}
-    est = b.estimate_cost(MODEL, max(1, (len(SYSTEM) + len(user)) // 3), MAX_OUT)
-    grant = b.authorize(SERVICE, est)
-    if not hasattr(grant, "grant_id"):                     # Denial: pay/tavan bitti => yorum yok
-        return None, "budget_denied"
-    try:
-        text, usage = llm(params)
-    except Exception as e:  # noqa: BLE001
-        b.release(grant)
-        log.warning("LLM hatasi: %s", LS.scrub(type(e).__name__))
-        return None, "llm_error"
-    try:
-        b.record(SERVICE, grant, LS.budget_usage(usage), MODEL, False)
-    except Exception as e:  # noqa: BLE001
-        log.error("butce kaydi yazilamadi: %s", LS.scrub(e))
-    text = (text or "").strip()
-    return (text, "ok") if text else (None, "empty")
+    return params, max(1, (len(SYSTEM) + len(user)) // 3), "ok"
 
 
-def main(argv=None, *, llm=None, budget=None, now_fn=None, env=None) -> int:
+def _tg_dir(env) -> Path:
+    return Path((env.get("TELEGRAM_VAR_DIR") or "").strip() or _data_root(env) / "var" / "telegram")
+
+
+def _state_path(out_dir: Path, hafta: str) -> Path:
+    return out_dir / f"{hafta}.batch.json"
+
+
+def _is_bekliyor(st: dict | None) -> bool:
+    """Isleme gerekir mi: batch sonucu bekleniyor ya da sonuc mesaji Telegram'a henuz gitmedi."""
+    return bool(st) and (st.get("durum") == HB.SUBMITTED or (bool(st.get("mesaj")) and not st.get("telegram")))
+
+
+def _yorumu_ekle(out: Path, hafta: str, metin: str, env, lp: str, now: datetime, lesson_store) -> None:
+    """Sabit bolumlu dosyaya '## Yorum' ekler (dosya yoksa sabit bolum yeniden uretilir)."""
+    try:
+        body = out.read_text(encoding="utf-8")
+    except OSError:
+        body = f"# Haftalik ozet {hafta}\n\n{SABIT_BASLIK}\n" + "\n".join(sabit_bolum(env, lp, now, lesson_store)) + "\n"
+    if f"\n{YORUM_BASLIK}\n" not in body:
+        body += f"\n{YORUM_BASLIK}\n{metin}\n"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(body, encoding="utf-8")
+
+
+def _bekleyenleri_isle(out_dir: Path, client, b, env, lp: str, now: datetime, lesson_store, *, bekle_s: float = 0.0,
+                       sleep=time.sleep, sadece: str | None = None) -> list[dict]:
+    """Dizindeki bekleyen batch durumlarini isler (sonuc: dosyaya yorum + Telegram; basarisizlik: not). [{hafta, durum}]."""
+    rapor: list[dict] = []
+    for sp in sorted(out_dir.glob("*.batch.json")):
+        st = HB.durum_oku(sp)
+        if not st or "hafta" not in st or (sadece and st["hafta"] != sadece) or not _is_bekliyor(st):
+            continue
+        hafta = st["hafta"]
+        if st.get("durum") == HB.SUBMITTED:
+            if client is None:                                  # anahtar yok: toplanamaz (rezerv acik kalir, sonraki kosu)
+                rapor.append({"hafta": hafta, "durum": "pending"})
+                continue
+            sn = HB.topla(client, st, now, b, bekle_s=bekle_s, sleep=sleep)
+            if sn.durum == "pending":
+                rapor.append({"hafta": hafta, "durum": "pending"})
+                continue
+            if sn.durum == "ok":
+                st.update(durum=HB.DONE, mesaj=f"Haftalık özet yorumu ({hafta}):\n{sn.metin}", telegram=False)
+                try:
+                    _yorumu_ekle(out_dir / f"{hafta}.md", hafta, sn.metin, env, lp, now, lesson_store)
+                except OSError as e:
+                    log.error("yorum dosyaya eklenemedi: %s", LS.scrub(e))
+            else:
+                st.update(durum=HB.FAILED, neden=sn.neden, telegram=False,
+                          mesaj=f"Haftalık özet yorumu ({hafta}) atlandı: {sn.neden}. Sabit bölüm yazıldı.")
+            HB.durum_yaz(sp, st)
+        ek = "" if st["durum"] == HB.DONE else "-atlandi"
+        if HB.telegram_yaz(_tg_dir(env), st["mesaj"], f"haftalik-ozet{ek}:{hafta}", now):
+            st["telegram"] = True
+            HB.durum_yaz(sp, st)
+        rapor.append({"hafta": hafta, "durum": st["durum"]})
+    return rapor
+
+
+def main(argv=None, *, client=None, budget=None, now_fn=None, env=None, sleep=time.sleep) -> int:
     ap = argparse.ArgumentParser(prog="weekly_summary_run.py")
     ap.add_argument("--once", action="store_true", required=True)
+    ap.add_argument("--collect", action="store_true", help="yalniz bekleyen batch'leri topla (yeni gonderim/dosya yok)")
+    ap.add_argument("--wait-s", type=float, default=120.0, help="gonderimden sonra batch icin en cok bu kadar sn bekle")
     ap.add_argument("--day", help="YYYY-MM-DD: bu gunun haftasi (varsayilan: bugun UTC); son 7 gun ozetlenir")
     ap.add_argument("--ledger")
     ap.add_argument("--out-dir")
     ap.add_argument("--lesson-store", help="ders deposu (cikis kaniti bekleyen oneri sayisi); varsayilan user_data/lesson.sqlite")
-    ap.add_argument("--force", action="store_true", help="bu hafta icin ozet varsa yeniden yaz")
+    ap.add_argument("--force", action="store_true", help="bu hafta icin ozet varsa yeniden yaz (bekleyen batch varsa yalniz toplar)")
     try:
         args = ap.parse_args(argv)
     except SystemExit as e:
@@ -267,29 +304,50 @@ def main(argv=None, *, llm=None, budget=None, now_fn=None, env=None) -> int:
     day = datetime.strptime(args.day, "%Y-%m-%d").replace(tzinfo=timezone.utc) if args.day else now
     lp = _resolve(args.ledger or env.get("LEDGER_PATH") or "var/learner/ledger.sqlite")
     out_dir = Path(_resolve(args.out_dir) if args.out_dir else str(Path(lp).with_name("weekly_summaries")))
-    out = out_dir / f"{week_key(day)}.md"
-    if out.exists() and not args.force:
-        print(json.dumps({"status": "exists", "week": week_key(day)}))
-        return 0
-    if llm is None:
+    hafta = week_key(day)
+    out = out_dir / f"{hafta}.md"
+    store = _resolve(args.lesson_store or env.get("LESSON_STORE") or "user_data/lesson.sqlite")
+    states = [HB.durum_oku(p) for p in sorted(out_dir.glob("*.batch.json"))] if out_dir.is_dir() else []
+    if client is None and (args.collect or any(_is_bekliyor(s) for s in states) or args.force or not out.exists()):
         try:
-            llm = _default_llm(env, b)
+            client = HB.varsayilan_istemci(env, b, SERVICE)
         except Exception as e:  # noqa: BLE001
             log.warning("LLM istemcisi kurulamadi: %s", LS.scrub(e))
-            llm = None
-    store = args.lesson_store or env.get("LESSON_STORE") or "user_data/lesson.sqlite"
-    satirlar = sabit_bolum(env, lp, now, _resolve(store))     # LLM'den bagimsiz: anahtarsiz da yazilir
-    yorum, yorum_durum = (None, "no_api_key") if llm is None else _comment(llm, b, lp, day)
-    body = f"# Haftalik ozet {week_key(day)}\n\n{SABIT_BASLIK}\n" + "\n".join(satirlar) + "\n"
-    if yorum:
-        body += f"\n{YORUM_BASLIK}\n{yorum}\n"
+            client = None
+    # once bekleyenleri topla (onceki haftalarin batch'i dahil); bu haftanin batch'i bekliyorsa yeni gonderim YOK
+    rapor = _bekleyenleri_isle(out_dir, client, b, env, lp, now, store, sleep=sleep) if out_dir.is_dir() else []
+    if args.collect:
+        print(json.dumps({"status": "collect", "batches": rapor}, ensure_ascii=False))
+        return 0
+    mevcut = HB.durum_oku(_state_path(out_dir, hafta))
+    if mevcut and mevcut.get("durum") == HB.SUBMITTED:
+        print(json.dumps({"status": "pending", "week": hafta}))
+        return 0
+    if out.exists() and not args.force:
+        print(json.dumps({"status": "exists", "week": hafta}))
+        return 0
+    satirlar = sabit_bolum(env, lp, now, store)               # LLM'den bagimsiz: anahtarsiz da yazilir
+    yorum_durum, st = "no_api_key", None
+    if client is not None:
+        params, est_in, yorum_durum = _istem(lp, day)
+        if params is not None:
+            st, yorum_durum = HB.gonder(client, b, SERVICE, MODEL, params, est_in, MAX_OUT, f"haftalik-ozet-{hafta}", hafta, now)
+            if st is not None:
+                try:                                              # dosyadan ONCE: cokme olsa da ayni hafta ikinci gonderim olmaz
+                    HB.durum_yaz(_state_path(out_dir, hafta), st)
+                except OSError as e:
+                    print(f"batch durumu yazilamadi: {LS.scrub(e)}", file=sys.stderr)
+                    return 3
+    body = f"# Haftalik ozet {hafta}\n\n{SABIT_BASLIK}\n" + "\n".join(satirlar) + "\n"
     try:
         out_dir.mkdir(parents=True, exist_ok=True)
         out.write_text(body, encoding="utf-8")
     except OSError as e:
         print(f"ozet yazilamadi: {LS.scrub(e)}", file=sys.stderr)
         return 3
-    print(json.dumps({"status": "ok", "week": week_key(day), "file": str(out), "comment": yorum_durum}))
+    if st is not None and args.wait_s > 0:                    # kisa sinirli bekleme; bitmediyse sonraki toplama kosusu alir
+        _bekleyenleri_isle(out_dir, client, b, env, lp, now, store, bekle_s=args.wait_s, sleep=sleep, sadece=hafta)
+    print(json.dumps({"status": "ok", "week": hafta, "file": str(out), "comment": yorum_durum}))
     return 2 if yorum_durum in ("llm_error", "empty") else 0
 
 

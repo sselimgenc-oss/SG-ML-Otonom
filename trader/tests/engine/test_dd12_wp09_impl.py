@@ -113,22 +113,32 @@ def test_weekly_summary_budget_and_noop(tmp_path, capsys):
     b = _budget(tmp_path)
     calls = []
 
-    def fake(params):
-        calls.append(params)
-        return "Bu hafta 4 islem kapandi.", {"input_tokens": 500, "output_tokens": 100}
+    class Fake:                                           # sahte Batch istemcisi (ag yok)
+        def submit(self, bundle, custom_id):
+            calls.append(bundle.params)
+            self.cid = custom_id
+            return "batch_1"
+
+        def poll(self, batch_id):
+            return LS.BatchPoll("ended", (LS.BatchResult(self.cid, "succeeded", "Bu hafta 4 islem kapandi.", "end_turn",
+                                                         {"input_tokens": 500, "output_tokens": 100}),))
+
+        def cancel(self, batch_id):
+            pass
+    fake = Fake()
 
     try:
-        assert W.main(["--once", "--ledger", lp], llm=fake, budget=b, now_fn=now, env={}) == 0
+        assert W.main(["--once", "--ledger", lp], client=fake, budget=b, now_fn=now, env={}) == 0
         assert json.loads(capsys.readouterr().out)["status"] == "ok" and len(calls) == 1
         out = next((tmp_path / "weekly_summaries").glob("*.md")).read_text()
         assert "4 islem" in out and "## Yorum" in out and out.index("## Sabit") < out.index("## Yorum")
-        assert W.main(["--once", "--ledger", lp], llm=fake, budget=b, now_fn=now, env={}) == 0   # bu hafta var
+        assert W.main(["--once", "--ledger", lp], client=fake, budget=b, now_fn=now, env={}) == 0   # bu hafta var
         assert len(calls) == 1
         assert b.status().month_used_usd > 0 if hasattr(b.status(), "month_used_usd") else True
         # tavan bitti => cagri yok
         (tmp_path / "x").mkdir()
         b2 = _budget(tmp_path / "x", cap=0.0001)
-        assert W.main(["--once", "--ledger", lp, "--force"], llm=fake, budget=b2, now_fn=now, env={}) == 0
+        assert W.main(["--once", "--ledger", lp, "--force"], client=fake, budget=b2, now_fn=now, env={}) == 0
         assert len(calls) == 1
     finally:
         B._set_default_guard(None)

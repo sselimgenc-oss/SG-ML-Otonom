@@ -47,7 +47,7 @@ COMMIT=<KOD> bash /usr/local/lib/trader-root/current/deploy/install.sh
 
 `<KOD>` yerine Adım 1'deki 40 karakteri yazın. Betik kendini yeni sürümün kopyasıyla yeniden başlatır. Bitince ekrandaki **"DD-12 zamanlayıcı denetimi"** bölümüne bakın:
 
-- `etkin: ...` satırları olmalı (notes, weekly-summary, ml-retrain, universe, counterfactual).
+- `etkin: ...` satırları olmalı (notes, weekly-summary, ml-retrain, universe, counterfactual, weekly-collect).
 - `UYARI: ... etkin değil` görürseniz: `systemctl enable --now <birim-adi>` yazın.
 - `UYARI: eski birim duruyor` görürseniz: install.sh'i bir kez daha çalıştırın.
 
@@ -177,7 +177,7 @@ Zamanlayıcılar (sonraki çalışma zamanları):
 systemctl list-timers 'trader-*' --all --no-pager
 ```
 
-**Kontrol:** şu zamanlayıcılar listede: `trader-lesson` (her saat :17), `trader-notes` (her gün 02:55 UTC), `trader-ml-retrain` (her gün 00:40 UTC; 24.11'de 03:40'tan alındı, DL1 eğitimi 01:00 UTC'de arkasından başlar), `trader-counterfactual@learner` (her gün 23:10 UTC), `trader-universe` (ayın 1'i 00:30 UTC), `trader-weekly-summary` (Pazar 18:10 UTC).
+**Kontrol:** şu zamanlayıcılar listede: `trader-lesson` (her saat :17), `trader-notes` (her gün 02:55 UTC), `trader-ml-retrain` (her gün 00:40 UTC; 24.11'de 03:40'tan alındı, DL1 eğitimi 01:00 UTC'de arkasından başlar), `trader-counterfactual@learner` (her gün 23:10 UTC), `trader-universe` (ayın 1'i 00:30 UTC), `trader-weekly-summary` (Pazar 18:10 UTC; YZ yorumu Message Batches ile gönderilir, sonucu `trader-weekly-collect` her 3 saatte :40 UTC toplar; tur 1 haftalık yorumu da aynı yolla).
 
 Bellek sınırları:
 
