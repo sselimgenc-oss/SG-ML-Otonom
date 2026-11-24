@@ -1,23 +1,24 @@
 # İşlem mutabakatı
 
-Son kontrol: 2026-11-23 23:19 (TSİ). İşlem: 59 (kapanan 55, açık 4). Uyuşmazlık: 0.
+Son kontrol: 2026-11-24 03:09 (TSİ). İşlem: 61 (kapanan 55, açık 6). Uyuşmazlık: 0.
 
 ## Kontroller
 
 | Kontrol | Sonuç | Ayrıntı |
 |---|---|---|
-| Kasa = başlangıç + Σ net K/Z | geçti | Kasa 984,46 $ tutuyor |
+| Kasa = başlangıç + Σ net K/Z | geçti | Kasa 983,73 $ tutuyor |
 | Net K/Z: SQL toplamı = motor toplamı = brüt - komisyon - fonlama | geçti | Defter toplamları tutuyor (-15,19 $) |
 | Long toplamı (motor = panel) | geçti | Long işlemler panelle aynı (7 işlem) |
 | Short toplamı (motor = panel) | geçti | Short işlemler panelle aynı (48 işlem) |
 | Toplam kapanan (motor = panel 'tümü') | geçti | Kapanan işlemlerin toplamı panelle aynı (55 işlem) |
-| Açık pozisyon sayısı (motor = panel = şerit = durum) | geçti | 4 açık işlem, hepsi aynı |
-| Açık K/Z fiyat kaynağı (panel = motor mark) | geçti | Açık işlemlerin kâr/zararı panelle aynı; fiyat bekleniyor (piyasa kapalı/veri yok): #20, #39, #40, #80 |
+| Açık pozisyon sayısı (motor = panel = şerit = durum) | geçti | 6 açık işlem, hepsi aynı |
+| Açık K/Z fiyat kaynağı (panel = motor mark) | geçti | Açık işlemlerin kâr/zararı panelle aynı; fiyat bekleniyor (piyasa kapalı/veri yok): #20, #39, #40, #80, #85 |
 | Günlük zarar limiti oranı (panel = kâğıt ayarı) | geçti | Günlük zarar limiti %8,00 (panelle aynı) |
 
 ## Bilgi
 
-- Fiyatı gelmeyen açık işlemler: #20, #39, #40, #80 · fiyat bekleniyor (piyasa kapalı/veri yok); uyuşmazlık sayılmaz
+- Açık işlemlerin anlık kâr/zararı: kasada -14,56 $, panelde +0,30 $ · fark 14,86 $ (fiyat zamanlaması, uyuşmazlık sayılmaz)
+- Fiyatı gelmeyen açık işlemler: #20, #39, #40, #80, #85 · fiyat bekleniyor (piyasa kapalı/veri yok); uyuşmazlık sayılmaz
 
 ## Telegram kaynağı
 
@@ -90,3 +91,5 @@ Yok.
 | 81 | Sıkışma kırılımı · 15 dakika | WMT | long | kapalı | 2026-11-23 12:15 | 2026-11-23 17:00 | 127,960000 | 127,970000 | 0,0588 | 0,7524 | 0,0000 | -0,6936 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 82 | Sıkışma kırılımı · 15 dakika | ADA | short | kapalı | 2026-11-23 14:00 | 2026-11-23 16:56 | 0,145700 | 0,147600 | -4,6930 | 0,3622 | 0,0000 | -5,0552 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 83 | Sıkışma kırılımı · 15 dakika | HD | short | kapalı | 2026-11-23 17:00 | 2026-11-23 17:15 | 343,650000 | 343,090000 | 1,1648 | 0,7142 | 0,0000 | 0,4506 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
+| 84 | Trend geri çekilmesi · 15 dakika | BTC | short | açık | 2026-11-24 02:45 | — | 61.133,400000 | — | — | 0,4585 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
+| 85 | Yapay zekâ adayı · 15 dakika | XRP | short | açık | 2026-11-24 02:45 | — | 0,937500 | — | — | 0,2406 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
