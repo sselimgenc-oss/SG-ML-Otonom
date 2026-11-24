@@ -1,3 +1,5 @@
+> **[24 Kasım 2026 — kullanıcı kararı: KAPALI]** Kâğıt ve canlıda `ml_mode: "off"`; gece eğitimi yapılmaz. Aşağıdaki metin geri açılış için kayıttır (bazı ayrıntılar eski: kod aile bazlı çalışır, eğitim 03:10 UTC).
+
 # ML filtresi kâğıtta aktif (19.11 kullanıcı kararı)
 
 **Karar:** `config/engine.paper.json` `ml_mode: "active"`. Kâğıt giriş kapısı (`gates.EntryGate.decide`, yalnız `mode=paper`), kurulum (arm_id, örn. `T1@1h`) için geçerli bir paket varsa girişi puanlar; puan `esik` altındaysa girişi `ml_filter` nedeniyle atlar. Karar satırı `final_action=skipped, skip_reason=ml_filter, ml_score=<puan>` olarak deftere yazılır; karşı-olgu kaydı mevcut atlama yolundan oluşur (alınmayan sinyal).

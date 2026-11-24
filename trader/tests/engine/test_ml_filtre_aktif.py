@@ -126,14 +126,14 @@ def test_canli_testnet_yolunda_filtre_calismaz(tmp_path):
 
 
 def test_config_kagit_active_canli_testnet_eskisi_gibi():
-    assert CFG.ml_mode == "active" and CFG.mode == "paper"
+    assert CFG.ml_mode == "off" and CFG.mode == "paper"      # 24.11 kullanici karari: ML filtreleri kapali (canli = kagit)
     for env in ("testnet", "live"):
         try:
             c = load_cli_config(ROOT / "config", "learner", env)
         except Exception:  # noqa: BLE001 - canli yapilandirma bu ortamda eksik anahtar isteyebilir; ml_mode degismedi
             continue
-        # 23.11 kullanici karari: canli = kagit (canlida ML filtresi AKTIF; testnet degismedi)
-        assert c.ml_mode == ("active" if env == "live" else "off")
+        # 24.11 kullanici karari: ML filtreleri kapali; canli = kagit, testnet degismedi
+        assert c.ml_mode == "off"
 
 
 # ------------------------------------------------------------------ FiltreDeposu (gercek paket)
@@ -293,7 +293,9 @@ def test_gece_birimi_paper_models_csv_aile_satiri(tmp_path, monkeypatch):
     lp = tmp_path / "ledger.sqlite"
     L.open_ledger(lp, "learner", create=True, migrate=True).close()
     monkeypatch.setattr(OF, "adaylar_defterden", lambda led, *a, **k: _aile_adaylar({"M1@15m": 8, "M1@1h": 6, "M1@4h": 4, "M1@1d": 4, "T1@1h": 3}))
-    rc = R.main(["--once", "--ledger", str(lp), "--models-dir", str(tmp_path / "m"), "--no-m1",
+    pc = tmp_path / "paper.json"     # 24.11: gercek kagit config'te ml_mode off; filtre acik durumu ayri config ile sinanir
+    pc.write_text(json.dumps({"ml_mode": "active"}))
+    rc = R.main(["--once", "--ledger", str(lp), "--models-dir", str(tmp_path / "m"), "--no-m1", "--paper-config", str(pc),
                  "--paper-models-csv", str(tmp_path / "pm.csv")], now_fn=lambda: NOW, env={})
     assert rc == 0
     satirlar = {s.split(",")[0]: s for s in (tmp_path / "pm.csv").read_text().splitlines()}
@@ -338,3 +340,26 @@ def test_ml_retrain_kaldirilan_kol_paketi_yazilmaz(tmp_path, monkeypatch):
     mod.main(["--once", "--ledger", str(tmp_path / "x.sqlite"), "--models-dir", str(tmp_path / "sf"), "--no-m1",
               "--paper-models-csv", str(tmp_path / "p.csv"), "--paper-config", str(cfgp)], now_fn=lambda: NOW)
     assert seen["rows"] == [{"arm_id": "T1@1h"}]
+
+
+def test_gece_birimi_ml_mode_off_ise_kurulum_filtresi_egitilmez(tmp_path, monkeypatch, capsys):
+    """24.11 kullanici karari: kagit config `ml_mode: off` -> kurulum filtresi gece egitilmez, paket yazilmaz; M1 etkilenmez."""
+    import sys
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import ml_retrain_run as R
+    lp = tmp_path / "ledger.sqlite"
+    L.open_ledger(lp, "learner", create=True, migrate=True).close()
+    cagri = []
+    monkeypatch.setattr(OF, "egit_hepsi", lambda *a, **k: cagri.append(1) or {})
+    pc = tmp_path / "paper.json"
+    pc.write_text(json.dumps({"ml_mode": "off"}))
+    rc = R.main(["--once", "--ledger", str(lp), "--models-dir", str(tmp_path / "m"), "--no-m1", "--paper-config", str(pc),
+                 "--paper-models-csv", str(tmp_path / "pm.csv")], now_fn=lambda: NOW, env={})
+    assert rc == 0 and cagri == []
+    assert json.loads(capsys.readouterr().out.strip().splitlines()[-1])["ortak_filtre"] == {"durum": "kapali"}
+    assert not (tmp_path / "models" / "ortak_filtre").exists()
+
+
+def test_gercek_kagit_ve_canli_config_ml_kapali():
+    for ad in ("engine.paper.json", "engine.live.json"):
+        assert json.loads((ROOT / "config" / ad).read_text())["ml_mode"] == "off"     # 24.11 kullanici karari

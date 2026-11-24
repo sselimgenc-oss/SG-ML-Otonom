@@ -162,6 +162,19 @@ def m1_nightly(led, cf_path: str | None, *, history_dir: str, tfs, models_dir: s
     return out
 
 
+class _FiltreKapali(Exception):
+    """Kagit config `ml_mode: off`: kurulum filtresi (ortak_ogrenme) gece egitilmez (24.11 kullanici karari)."""
+
+
+def _config_ml_mode(path: Path) -> str | None:
+    """config/engine.paper.json `ml_mode`; okunamazsa None (eski davranis: egitim surer)."""
+    try:
+        v = json.loads(path.read_text(encoding="utf-8")).get("ml_mode")
+    except (OSError, ValueError, AttributeError):
+        return None
+    return v if isinstance(v, str) else None
+
+
 def _config_arms(path: Path) -> list[str] | None:
     """config/engine.paper.json `arms` (liste ya da {kurulum: [tf]}); okunamazsa None (filtre uygulanmaz)."""
     try:
@@ -216,8 +229,12 @@ def main(argv=None, *, now_fn=None, env=None) -> int:
                          f"rows={len(rows)};lock_dropped={rep['lock_dropped']}", "", digest, now.isoformat()])
         ortak: dict = {}
         try:   # 19.11: kagit ML filtresi (ortak_ogrenme) - kurulum basina >=10 kapanmis islem; hata digerlerini geri almaz
+            if _config_ml_mode(Path(_resolve(args.paper_config))) == "off":   # 24.11 kullanici karari: ML filtreleri kapali -> egitim yok
+                raise _FiltreKapali
             from trader_engine import ogrenme_filtre as OF
             ortak = OF.egit_hepsi(OF.adaylar_defterden(led, cf_satirlari_oku(cf), now), OF.model_dizini(lp), now, kollar=arms)
+        except _FiltreKapali:
+            ortak = {"durum": "kapali"}
         except Exception as e:  # noqa: BLE001
             ortak = {"durum": f"hata:{type(e).__name__}"}
             print(f"ortak filtre egitim hatasi: {type(e).__name__}: {e}", file=sys.stderr)

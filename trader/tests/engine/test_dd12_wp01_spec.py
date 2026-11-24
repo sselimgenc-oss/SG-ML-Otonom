@@ -55,7 +55,7 @@ PINNED_SHA = {
     "engine.base.json": "ba218ea0404803c9e5af7ffbd276fad79b6d0af714c94150172f7d56e674c328",   # WP-06a: yalniz veto_config yolu
     "engine.learner.json": "30ca2842c40cacafbf6cdd90c9e6f1f54fc62b9a9ec913476d1399ac5352cb12",
     "engine.testnet.json": "54247bbd4d0fcea5eda5add465809938178ec4a1decf7f61cb9aa838daa4e952",
-    "engine.live.json": "32f94edd318ca7a59aa50b4c75c020d2b1b1e8170c5fc14bbf4cec7fbe78b454",   # 23.11 kullanici karari: asama B esikleri + uzun_yon + HB1 haber kolu (canli = kagit; paper sistem anahtarlari + same_dir 0.06 + korelasyon/kayip_freni/toplam_buyukluk_kat)
+    "engine.live.json": "17485ca7b75bfbd1eb6e97df988b0eae4e412acea1638a416edeec2b7aeb94fb",   # 24.11 kullanici karari: ML filtreleri kapali (ml_mode off)
 }
 # 23.11 kullanici karari: canli = kagit. engine.live.json'a eklenen kagit sistem anahtarlari (+ pairs yerine kagit evreni).
 LIVE_PAPER_SYSTEM_KEYS = {"veto_mode", "pairs", "optional_pairs", "strategy", "arms", "arm_max_positions", "ml_mode", "shadow_blocks",
@@ -257,7 +257,7 @@ def test_dt2_paper_44_cift_taban_10_ust_kumesi():
 def test_dt2_paper_ml_kapali_golgesiz_16_pozisyon():
     # 19 Kasim: r03 kagitta emekli (kullanici karari)
     cfg = _paper()
-    assert cfg.ml_mode == "active"      # 19.11: ML kagitta aktif (kullanici karari)
+    assert cfg.ml_mode == "off"  # 24.11 kullanici karari: ML filtreleri (v1, v2, kurulum filtresi) kapali; canli = kagit
     assert cfg.ml_experimental is False and cfg.ml_model_path is None and cfg.ml_pairs == ()
     assert cfg.shadow_blocks == ("regime", "r1_disabled", "same_bar_reentry", "tf_15m")      # 19.11 (kagitta her sey acik): golge karar satirlari acik (karar yolunu etkilemez)
     assert cfg.exit_modes == {"default": {"breakeven": {"trigger_r": 1.0, "offset_bps": cfg.exit_modes["default"]["breakeven"]["offset_bps"]},
@@ -320,7 +320,7 @@ def test_dt2_paper_yeni_anahtar_ham_json_listesi():
         assert k in raw, k
     # 19 Kasim: r03 kagitta emekli (kullanici karari)
     assert not {"ml_pairs", "ml_features", "ml_model_path", "ml_experimental"} & set(raw)
-    assert raw["shadow_blocks"] == ["regime", "r1_disabled", "same_bar_reentry", "tf_15m"] and raw["max_positions"] == 24 and raw["ml_mode"] == "active"
+    assert raw["shadow_blocks"] == ["regime", "r1_disabled", "same_bar_reentry", "tf_15m"] and raw["max_positions"] == 24 and raw["ml_mode"] == "off"
 
 
 # --------------------------------------------------------------------------- D-T2 (yalniz --env paper)
@@ -328,13 +328,13 @@ def test_dt2_paper_katmani_yalniz_env_paper_ile_uygulanir():
     plain = load_cli_config(CONFIG, "learner", None)
     paper = load_cli_config(CONFIG, "learner", "paper")
     assert len(plain.pairs) == 10 and len(paper.pairs) == 43   # 23.11 kullanici karari: TON cikarildi (SETTLING)
-    assert plain.ml_mode == "off" and paper.ml_mode == "active"      # 19.11: ML kagitta aktif
+    assert plain.ml_mode == "off" and paper.ml_mode == "off"  # 24.11 kullanici karari: ML filtreleri (v1, v2, kurulum filtresi) kapali; canli = kagit
     assert plain.shadow_blocks != () and paper.shadow_blocks == plain.shadow_blocks      # 19.11: kagitta golge satirlar acik
     assert plain.exit_modes == {} and paper.exit_modes != {}
     for env in ("testnet", "live"):
         c = load_cli_config(CONFIG, "learner", env)
         if env == "live":       # 23.11 kullanici karari: canli = kagit (paper'in 43 cifti, ML aktif, kumeler/tavanlar)
-            assert c.mode == "live" and list(c.pairs) == list(paper.pairs) and len(c.pairs) == 43 and c.ml_mode == "active"
+            assert c.mode == "live" and list(c.pairs) == list(paper.pairs) and len(c.pairs) == 43 and c.ml_mode == "off"
             assert c.max_positions == paper.max_positions
             continue
         assert c.mode == env and list(c.pairs) == ENV_PAIRS[env] and c.ml_mode == "off"

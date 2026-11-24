@@ -50,7 +50,7 @@ def test_parite_canliya_ozgu_anahtarlar_canlida_kalir():
 
 def test_canli_ml_stratejisi_ve_43_cift_yuklenir():
     live, paper = load_cli_config(CONFIG, "learner", "live"), load_cli_config(CONFIG, "learner", "paper")
-    assert live.mode == "live" and live.strategy == "price_action_lab_ml" and live.ml_mode == "active"
+    assert live.mode == "live" and live.strategy == "price_action_lab_ml" and live.ml_mode == "off"
     assert live.veto_mode == "off"
     assert len(live.pairs) == 43 and "TON/USDT" not in live.pairs and list(live.pairs) == list(paper.pairs)
     assert len(live.optional_pairs) == 24 and set(live.optional_pairs) <= set(live.pairs)   # eski hisse verisi acilisi bloklamaz
