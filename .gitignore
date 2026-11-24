@@ -1,0 +1,17 @@
+# depo geneli: yapi / duzenleyici / gecici kalintilar
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv
+.venv/
+.env
+*.bak
+*.orig
+*.rej
+*.tmp
+*.swp
+*~
+.DS_Store
+Thumbs.db

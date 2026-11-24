@@ -1,4 +1,5 @@
 .venv/
+.venv
 __pycache__/
 *.pyc
 .pytest_cache/
@@ -33,3 +34,21 @@ research/ml/*.csv
 
 # ML 19b/19c dondurulmus yedek (sha256 manifestte)
 research/ml/frozen/
+
+# yapi / duzenleyici / gecici kalintilar (commit'e girmesin)
+*.py[cod]
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.bak
+*.orig
+*.rej
+*.tmp
+*.swp
+*~
+.DS_Store
+# research/logs: yeni kosu gunlukleri yerel kalir (izlenen kanit gunlukleri etkilenmez; gerekirse `git add -f`)
+research/logs/*
