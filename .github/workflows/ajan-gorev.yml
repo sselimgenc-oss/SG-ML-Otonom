@@ -60,7 +60,12 @@ jobs:
       - name: Ajan
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY_DENETIM }}
-        run: python .github/kol-test/ajan.py "${{ inputs.model }}" "${{ inputs.istem }}" gorev_sonuc.md "${{ inputs.butce }}" 300 "${{ inputs.yalniz_oku }}"
+        run: |
+          # istem ve calistirici her zaman gelistirme dalindan (calisilan dal eski olabilir)
+          git fetch -q origin "$DAL"
+          git show "origin/$DAL:${{ inputs.istem }}" > /tmp/istem.md
+          git show "origin/$DAL:.github/kol-test/ajan.py" > /tmp/ajan.py
+          python /tmp/ajan.py "${{ inputs.model }}" /tmp/istem.md gorev_sonuc.md "${{ inputs.butce }}" 300 "${{ inputs.yalniz_oku }}"
       - name: Tam test takimi (yalniz yazan gorevlerde)
         if: ${{ always() && inputs.yalniz_oku == 'yaz' }}
         working-directory: trader
@@ -78,6 +83,6 @@ jobs:
           rm -rf onceki
           find . -name __pycache__ -prune -exec rm -rf {} + 2>/dev/null || true
           git checkout -B "gorev-${{ github.run_id }}"
-          git add -A && git commit -qm "Ajan gorevi ${{ github.run_id }}: ${{ inputs.istem }}" || true
+          git add -A && git commit -qm "Ajan gorevi ${{ github.run_id }} (${{ inputs.dal }}): ${{ inputs.istem }}" || true
           git push -f origin "gorev-${{ github.run_id }}"
           cat "$d/gorev_sonuc.md" >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
