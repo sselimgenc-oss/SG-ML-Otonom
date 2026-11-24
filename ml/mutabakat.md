@@ -1,6 +1,6 @@
 # İşlem mutabakatı
 
-Son kontrol: 2026-11-24 23:49 (TSİ). İşlem: 87 (kapanan 78, açık 9). Uyuşmazlık: 0.
+Son kontrol: 2026-11-25 00:34 (TSİ). İşlem: 87 (kapanan 78, açık 9). Uyuşmazlık: 0.
 
 ## Kontroller
 
