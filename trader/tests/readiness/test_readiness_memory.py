@@ -47,7 +47,7 @@ def test_memory_budget_sums():
 
 def test_tutarlilik_weekly_oneshot_is_bounded_and_fits_slice():
     """Faz 2a: haftalik kagit-geri test tutarlilik birimi (pazartesi 00:30 UTC; kisa omurlu, `backtest --env paper`). Tavan olcume dayanir
-    (docs/motor/tutarlilik-raporu-spec.md notu); gece isleri (counterfactual 23:10, ml-retrain 03:40) ile cakismaz; toplam butceye girer."""
+    (docs/motor/tutarlilik-raporu-spec.md notu); gece isleri (counterfactual 23:10, ml-retrain 00:40) ile cakismaz; toplam butceye girer."""
     m = _mem("trader-tutarlilik.service")
     assert m == 300                                                      # olculen tepe ~135 MB (44 cift, 7 gun, store) x ~2,2
     kv = _kv("trader-tutarlilik.service")

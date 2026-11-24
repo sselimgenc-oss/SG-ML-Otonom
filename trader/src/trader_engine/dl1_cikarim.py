@@ -4,9 +4,13 @@ Saf numpy + stdlib. Motor torch'u ve trader_ml'i ICE AKTARMAZ (bagimlilik yonu):
 (`research/dl1/egit.py`, PyTorch) yapilir; sunucuya yalniz `models/dl1/DL1@1h.json` paketi gelir. Egitim tarafi da kanal
 hesabini ve paket ozetini BURADAN alir (egitim ve canli ayni kod; sizinti/uyumsuzluk riski yok).
 
+Dort zaman dilimi (24.11 kullanici karari): 15m, 1h, 4h, 1d; her biri kendi paketi (`models/dl1/DL1@<tf>.json`). Ag ve kanallar ayni; "mum" = o zaman diliminin
+mumu (pencere 96 mum, ufuk 48 mum, doluluk orani mum biriminde hesaplanir).
+
 Paket (`dl1/1`): agirliklar, olcekleyici (yalniz egitim diliminden), esik (egitim puanlarinin %98'ligi), kanal listesi, kapsam (cift -> varlik sinifi),
-olusturma ve son_kullanma (+45 gun), metrikler, sha256 (kendisi haric kanonik JSON ozeti). Yok / bozuk / hash tutmuyor / kapi gecmemis /
-suresi dolmus -> `paket_yukle` (None, neden) doner; kol aday uretmez, diger kollar etkilenmez.
+olusturma ve son_kullanma (+45 gun; YALNIZ yas uyarisi), metrikler, sha256 (kendisi haric kanonik JSON ozeti). Yok / bozuk / hash tutmuyor / sema
+-> `paket_yukle` (None, neden) doner; kol aday uretmez, diger kollar etkilenmez. 24.11: kalite kapisi (paketteki `kapi.gecti`) ve 45 gunluk son kullanma
+paketi ENGELLEMEZ; kapi sonucu yalniz bilgi/rapordur, eski paket islem yapmaya devam eder (kol yalniz uyari sayaci tutar).
 
 Ag (sabit mimari; torch ile birebir ayni dizilim, `Conv1d` cross-correlation, gecerli dolgu):
   girdi (96 mum, 11 kanal: 8 fiyat/hacim + 3 varlik sinifi tek-sicak) -> conv c1(11->32,k5) ReLU -> c2(32->48,k5,adim 2) ReLU -> c3(48->64,k5,adim 2) ReLU
@@ -25,15 +29,17 @@ from pathlib import Path
 import numpy as np
 
 SEMA = "dl1/1"
-ARM_ID = "DL1@1h"
-PENCERE = 96                  # girdi penceresi (saat)
+ZAMAN_DILIMLERI = ("15m", "1h", "4h", "1d")
+BAR_NS = {"15m": 900_000_000_000, "1h": 3_600_000_000_000, "4h": 14_400_000_000_000, "1d": 86_400_000_000_000}   # arm_time.ARM_TF_SECONDS ile ayni (testle esitlik)
+ARM_ID = "DL1@1h"             # geriye uyum: 1h paketi; diger zaman dilimleri icin arm_id(tf)
+PENCERE = 96                  # girdi penceresi (mum)
 SINIFLAR = ("kripto", "hisse", "emtia")      # varlik sinifi kanali: tek-sicak, pencere boyunca sabit (olceklenmez)
 N_FIYAT = 8
 KANALLAR = ("logret", "hl_oran", "govde", "hacim_z", "atr_oran", "fitil_ust", "fitil_alt", "kapanis_konum") + tuple(f"sinif_{x}" for x in SINIFLAR)
 N_KANAL = len(KANALLAR)
 # Seansli araclar (hisse/emtia): seans kapaliyken mum bos olabilir (hacim 0 ya da h == l) ya da hic gelmez. Bos/eksik mumlar
 # DOLDURULMAZ ve yok sayilir: kanal serisi yalniz "dolu" mumlardan kurulur; pencere = son 96 dolu mum. Pencere, takvim zamaninda en az
-# MIN_DOLU_ORAN dolulukta olmali: 96 / (ilk ile son dolu mum arasi saat + 1) >= 0,5 (yani 96 dolu mum <= 192 saatlik aralikta). Egitim ve canli ayni kural.
+# MIN_DOLU_ORAN dolulukta olmali: 96 / (ilk ile son dolu mum arasi mum (zaman diliminin mumu) + 1) >= 0,5 (yani 96 dolu mum <= 192 saatlik aralikta). Egitim ve canli ayni kural.
 MIN_DOLU_ORAN = 0.5
 ATR_UZUN = 14
 HACIM_PENCERE = 96
@@ -42,9 +48,20 @@ KIRP = 8.0                             # olceklenmis girdi |x| <= 8
 UFUK = 48                              # etiket ufku (mum) = canli zaman stopu (signals.TIME_STOP_BARS; testle esitligi sinanir)
 STOP_ATR = 1.5
 HEDEF_ATR = 3.0
-SON_KULLANMA_GUN = 45
+SON_KULLANMA_GUN = 45         # 24.11: yalniz YAS UYARISI esigi (paket bu yastan sonra da islem yapar; sayac + log)
 MAX_PAKET_BAYT = 10 * 1024 * 1024
-PAKET_YOLU = Path(__file__).resolve().parents[2] / "models" / "dl1" / "DL1@1h.json"
+PAKET_DIZINI = Path(__file__).resolve().parents[2] / "models" / "dl1"
+PAKET_YOLU = PAKET_DIZINI / "DL1@1h.json"
+
+
+def arm_id(tf: str) -> str:
+    if tf not in BAR_NS:
+        raise ValueError(f"bilinmeyen DL1 zaman dilimi: {tf!r}")
+    return f"DL1@{tf}"
+
+
+def paket_yolu(tf: str = "1h") -> Path:
+    return PAKET_DIZINI / f"{arm_id(tf)}.json"
 
 # ag sekli: ad -> (agirlik sekli, adim) ; conv w = (cikis, giris, k), dense w = (cikis, giris)
 KATMANLAR = (("c1", "conv", N_KANAL, 32, 5, 1), ("c2", "conv", 32, 48, 5, 2), ("c3", "conv", 48, 64, 5, 2),
@@ -150,12 +167,12 @@ def dolu_maske(h, l, v) -> np.ndarray:
         return np.isfinite(h) & np.isfinite(l) & np.isfinite(v) & (v > 0) & (h > l)
 
 
-def pencere_doluluk_ok(ts_ns, pencere: int = PENCERE) -> np.ndarray:
-    """Dolu mumlarin (siralı, ns) her i'si icin: son `pencere` dolu mumun takvim doluluk orani >= MIN_DOLU_ORAN (i < pencere-1: False)."""
+def pencere_doluluk_ok(ts_ns, pencere: int = PENCERE, bar_ns: int = BAR_NS["1h"]) -> np.ndarray:
+    """Dolu mumlarin (siralı, ns) her i'si icin: son `pencere` dolu mumun takvim doluluk orani (mum biriminde, bar_ns) >= MIN_DOLU_ORAN (i < pencere-1: False)."""
     ts_ns = np.asarray(ts_ns, dtype=np.int64)
     ok = np.zeros(len(ts_ns), dtype=bool)
     if len(ts_ns) >= pencere:
-        span_h = (ts_ns[pencere - 1:] - ts_ns[:len(ts_ns) - pencere + 1]) / 3.6e12 + 1.0
+        span_h = (ts_ns[pencere - 1:] - ts_ns[:len(ts_ns) - pencere + 1]) / float(bar_ns) + 1.0
         ok[pencere - 1:] = pencere / span_h >= MIN_DOLU_ORAN - 1e-12
     return ok
 
@@ -220,14 +237,16 @@ class Paket:
     son_kullanma: datetime           # min(son_kullanma, olusturma + 45 gun): uzatilmis alan dolanamaz
     sha256: str
     metrikler: dict
+    tf: str = "1h"
 
     def eski(self, simdi: datetime) -> bool:
+        """Yas uyarisi (45 gun): True paketi ENGELLEMEZ, yalniz kol sayac/log tutar (24.11 kullanici karari)."""
         return simdi >= self.son_kullanma
 
 
-def paket_dogrula(paket) -> Paket:
-    """Sozluk -> Paket; hash/sema/yapi bozuksa ValueError (mesaj = neden kodu: sema | hash | bozuk | kapi | kanal)."""
-    if not isinstance(paket, dict) or paket.get("schema") != SEMA or paket.get("arm_id") != ARM_ID:
+def paket_dogrula(paket, tf: str = "1h") -> Paket:
+    """Sozluk -> Paket; hash/sema/yapi bozuksa ValueError (mesaj = neden kodu: sema | hash | bozuk | kanal). Kalite kapisi sonucu (`kapi`) engellemez."""
+    if not isinstance(paket, dict) or paket.get("schema") != SEMA or paket.get("arm_id") != arm_id(tf):
         raise ValueError("sema")
     sha = paket.get("sha256")
     if not isinstance(sha, str) or sha != paket_ozeti(paket):
@@ -235,9 +254,6 @@ def paket_dogrula(paket) -> Paket:
     try:
         if tuple(paket["kanallar"]) != KANALLAR or paket["pencere"] != PENCERE:
             raise ValueError("kanal")
-        kapi = paket["kapi"]
-        if not (isinstance(kapi, dict) and kapi.get("gecti") is True):
-            raise ValueError("kapi")
         esik = paket["esik"]
         if isinstance(esik, bool) or not isinstance(esik, (int, float)) or not 0.0 < float(esik) < 1.0:
             raise ValueError("bozuk")
@@ -258,35 +274,35 @@ def paket_dogrula(paket) -> Paket:
         if not isinstance(met, dict):
             raise ValueError("bozuk")
     except ValueError as e:
-        if str(e) in ("sema", "hash", "bozuk", "kapi", "kanal"):
+        if str(e) in ("sema", "hash", "bozuk", "kanal"):
             raise
         raise ValueError("bozuk") from e
     except (KeyError, TypeError, AttributeError) as e:
         raise ValueError("bozuk") from e
-    return Paket(ag, ort, std, dict(siniflar), float(esik), olus, son, sha, met)
+    return Paket(ag, ort, std, dict(siniflar), float(esik), olus, son, sha, met, tf)
 
 
 _KILIT = threading.Lock()
 _ONBELLEK: dict = {"key": None, "paket": None, "neden": None}
 
 
-def paket_yukle(yol: Path | str | None = None, simdi: datetime | None = None) -> tuple[Paket | None, str | None]:
-    """(Paket, None) ya da (None, neden). Neden: yok | buyuk | bozuk | sema | hash | kapi | kanal | erken (simdi < olusturma) | eski.
-    Dosya okuma/dogrulama mtime+boyut onbellegindedir; son kullanma her cagrida denetlenir."""
-    yol = Path(yol or PAKET_YOLU)
+def paket_yukle(yol: Path | str | None = None, simdi: datetime | None = None, tf: str = "1h") -> tuple[Paket | None, str | None]:
+    """(Paket, None) ya da (None, neden). Neden: yok | buyuk | bozuk | sema | hash | kanal | erken (simdi < olusturma).
+    Dosya okuma/dogrulama mtime+boyut onbellegindedir. Eski paket (45 gun) ve kapi sonucu ENGELLEMEZ (24.11); yas icin Paket.eski(simdi)."""
+    yol = Path(yol or paket_yolu(tf))
     try:
         st = yol.stat()
     except OSError:
         return None, "yok"
     if st.st_size > MAX_PAKET_BAYT:
         return None, "buyuk"
-    key = (str(yol), st.st_mtime_ns, st.st_size)
+    key = (str(yol), st.st_mtime_ns, st.st_size, tf)
     with _KILIT:
         if _ONBELLEK["key"] != key:
             try:
-                paket, neden = paket_dogrula(json.loads(yol.read_text(encoding="utf-8"))), None
+                paket, neden = paket_dogrula(json.loads(yol.read_text(encoding="utf-8")), tf), None
             except ValueError as e:
-                paket, neden = None, (str(e) if str(e) in ("sema", "hash", "bozuk", "kapi", "kanal") else "bozuk")
+                paket, neden = None, (str(e) if str(e) in ("sema", "hash", "bozuk", "kanal") else "bozuk")
             except OSError:
                 paket, neden = None, "bozuk"
             _ONBELLEK.update(key=key, paket=paket, neden=neden)
@@ -295,14 +311,12 @@ def paket_yukle(yol: Path | str | None = None, simdi: datetime | None = None) ->
         return None, neden
     if simdi is not None and simdi < paket.olusturma:
         return None, "erken"             # saat geri / gelecekten damgali paket: kullanilmaz
-    if simdi is not None and paket.eski(simdi):
-        return None, "eski"
     return paket, None
 
 
-def paket_yasi_gun(yol: Path | str | None, simdi: datetime) -> tuple[str, float | None, float | None]:
-    """Saglik icin: (durum, yas_gun, kalan_gun). durum: yok | bozuk | ok | eski. Hash tutmayan/bozuk -> bozuk."""
-    paket, neden = paket_yukle(yol)
+def paket_yasi_gun(yol: Path | str | None, simdi: datetime, tf: str = "1h") -> tuple[str, float | None, float | None]:
+    """Saglik icin: (durum, yas_gun, kalan_gun). durum: yok | bozuk | ok | eski (eski = 45 gunden yasli; paket yine islem yapar). Hash tutmayan/bozuk -> bozuk."""
+    paket, neden = paket_yukle(yol, tf=tf)
     if paket is None:
         return ("yok" if neden == "yok" else "bozuk"), None, None
     yas = (simdi - paket.olusturma).total_seconds() / 86400.0
@@ -337,7 +351,7 @@ def puanla(paket: Paket, cift: str, ts_ns, o, h, l, c, v) -> tuple[float, float,
         return None
     n = MIN_BAR + 24
     ts, o, h, l, c, v = (a[-n:] for a in (ts, o, h, l, c, v))
-    if not pencere_doluluk_ok(ts)[-1]:
+    if not pencere_doluluk_ok(ts, bar_ns=BAR_NS[paket.tf])[-1]:
         return None
     pen = kanallar(o, h, l, c, v, sinif)[-PENCERE:]
     atr = atr_son(h, l, c)

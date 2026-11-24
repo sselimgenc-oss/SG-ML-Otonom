@@ -62,14 +62,13 @@ def test_service_limits_and_oneshot():
     assert "ml_retrain_run" in s.get("ExecStart", "")
 
 
-def test_timer_runs_0340_utc_after_notes():
+def test_timer_runs_0040_utc_before_dl1():
+    """24.11 kullanici karari: M1 gece egitimi 00:40 UTC (03:40 TSI); DL1 egitimi 01:00 UTC'de arkasindan baslar (workflow cron'u). Not isi (02:55) sonradan."""
     txt = (TRADER / "deploy" / "trader-ml-retrain.timer").read_text()
-    assert re.search(r"OnCalendar=\*-\*-\* 03:40:00 UTC", txt)
+    assert re.search(r"OnCalendar=\*-\*-\* 00:40:00 UTC", txt)
     assert "Persistent" in txt
-    notes = (TRADER / "deploy" / "trader-notes.timer").read_text()
-    m = re.search(r"OnCalendar=.*?(\d\d):(\d\d)", notes)
-    if m:
-        assert (int(m.group(1)), int(m.group(2))) < (3, 40), "retrain must run after the 02:55 notes job"
+    dl1 = (TRADER.parent / ".github" / "workflows" / "dl1-egitim.yml").read_text()
+    assert 'cron: "0 1 * * *"' in dl1, "DL1 egitimi M1'in hemen arkasindan (01:00 UTC) baslar"
 
 
 def test_setup_filter_uses_no_pandas_and_no_trader_engine():

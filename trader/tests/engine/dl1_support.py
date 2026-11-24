@@ -18,8 +18,8 @@ def sifir_agirlik(bias_long=0.0, bias_short=0.0):
     return ag
 
 
-def paket_sozlugu(olusturma, *, esik=0.5, agirlik=None, son=None, kapi=True, siniflar=None, **ek):
-    p = {"schema": DL.SEMA, "arm_id": DL.ARM_ID, "pencere": DL.PENCERE, "kanallar": list(DL.KANALLAR), "ufuk": DL.UFUK,
+def paket_sozlugu(olusturma, *, esik=0.5, agirlik=None, son=None, kapi=True, siniflar=None, tf="1h", **ek):
+    p = {"schema": DL.SEMA, "arm_id": DL.arm_id(tf), "pencere": DL.PENCERE, "kanallar": list(DL.KANALLAR), "ufuk": DL.UFUK,
          "olusturma": olusturma.isoformat(), "son_kullanma": (son or olusturma + timedelta(days=DL.SON_KULLANMA_GUN)).isoformat(),
          "esik": esik, "olcekleyici": {"ort": [0.0] * DL.N_KANAL, "std": [1.0] * DL.N_KANAL},
          "kapsam": {"siniflar": dict(siniflar or CIFTLER)}, "kapi": {"gecti": kapi},
@@ -34,10 +34,11 @@ def yaz(yol, paket):
     return yol
 
 
-def seri(son_ts, n=300, tohum=3, yukari=True):
-    """n saatlik dolu mum (son mumun KAPANIS zamani = son_ts; indeks = acilis). DataFrame + ns zaman damgasi."""
+def seri(son_ts, n=300, tohum=3, yukari=True, tf="1h"):
+    """n adet tf mumu, dolu (son mumun KAPANIS zamani = son_ts; indeks = acilis). DataFrame + ns zaman damgasi."""
     son_ts = son_ts.replace(tzinfo=None)
-    idx = pd.DatetimeIndex([son_ts - timedelta(hours=n - k) for k in range(n)])
+    adim = timedelta(seconds=DL.BAR_NS[tf] // 1_000_000_000)
+    idx = pd.DatetimeIndex([son_ts - adim * (n - k) for k in range(n)])
     rg = np.random.default_rng(tohum)
     c = 100 + np.cumsum(rg.normal(0, 0.5, n))
     o = np.r_[c[0], c[:-1]]

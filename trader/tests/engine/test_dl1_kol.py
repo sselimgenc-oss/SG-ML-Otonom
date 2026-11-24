@@ -1,4 +1,5 @@
-"""DL1 kolu (ust lig): paket -> aday; paket yok/eski/bozuk/hash -> aday yok (sayac); esik; kapsam (43 enstruman); seans bosluklari; sizinti."""
+"""DL1 kolu (ust lig): paket -> aday (dort zaman dilimi: 15m/1h/4h/1d); paket yok/bozuk/hash -> aday yok (sayac); kapisiz ve eski paket ISLEM YAPAR (24.11);
+esik; kapsam (43 enstruman); seans bosluklari; sizinti."""
 from __future__ import annotations
 
 import sys
@@ -24,23 +25,25 @@ D = datetime(2026, 11, 24, 13, 0, tzinfo=UTC)
 @pytest.fixture
 def paket(tmp_path, monkeypatch):
     yol = tmp_path / "DL1@1h.json"
-    monkeypatch.setattr(DL, "PAKET_YOLU", yol)
+    monkeypatch.setattr(DL, "PAKET_DIZINI", tmp_path)
     DL._ONBELLEK.update(key=None, paket=None, neden=None)
     DL1.COUNTERS.clear()
     DL1._ONBELLEK.clear()
+    DL1._LOG.clear()
 
-    def yaz(bl=2.0, bs=-2.0, esik=0.5, olusturma=None, **kw):
+    def yaz(bl=2.0, bs=-2.0, esik=0.5, olusturma=None, tf="1h", **kw):
         ag = S.sifir_agirlik(bl, bs)
-        S.yaz(yol, S.paket_sozlugu(olusturma or D - timedelta(days=1), esik=esik, agirlik=ag, **kw))
+        yol_tf = tmp_path / f"DL1@{tf}.json"
+        S.yaz(yol_tf, S.paket_sozlugu(olusturma or D - timedelta(days=1), esik=esik, agirlik=ag, tf=tf, **kw))
         DL._ONBELLEK.update(key=None)
         DL1._ONBELLEK.clear()
-        return yol
+        return yol_tf
     yaz.yol = yol
     return yaz
 
 
-def _inp(pair="BTC/USDT", yukari=True, n=300, D_=D, trig=None):
-    trig = S.seri(D_, n, yukari=yukari) if trig is None else trig
+def _inp(pair="BTC/USDT", yukari=True, n=300, D_=D, trig=None, tf="1h"):
+    trig = S.seri(D_, n, yukari=yukari, tf=tf) if trig is None else trig
     idx = trig.index
 
     def core():
@@ -49,7 +52,7 @@ def _inp(pair="BTC/USDT", yukari=True, n=300, D_=D, trig=None):
         t["signal"] = False
         t["pullback_ema"] = 0
         return t
-    return ArmInput(pair=pair, tf="1h", D=D_, trig=trig, h4=trig, params=None, core_fn=core)
+    return ArmInput(pair=pair, tf=tf, D=D_, trig=trig, h4=trig, params=None, core_fn=core)
 
 
 def _son(out):
@@ -58,7 +61,7 @@ def _son(out):
 
 def test_kontrat_ve_kimlik():
     m = discover(refresh=True)["DL1"]
-    assert m.TIMEFRAMES == ("1h",) and m.EXIT_MODE == "target" and exit_mode("DL1") == "target" and find_arm("DL1") is m
+    assert m.TIMEFRAMES == ("15m", "1h", "4h", "1d") == DL.ZAMAN_DILIMLERI and m.EXIT_MODE == "target" and exit_mode("DL1") == "target" and find_arm("DL1") is m
     assert m.PRIORITY == 95 and priority_of("DL1") == 95 and priority_of("M1") < priority_of("DL1")
 
 
@@ -95,9 +98,16 @@ def test_paket_yok_aday_yok_sayac(paket):
     assert not out["signal"].any() and DL1.COUNTERS["paket_yok"] == 1 and list(out.columns) == list(SIGNAL_COLUMNS)
 
 
-def test_paket_eski_aday_yok(paket):
-    paket(olusturma=D - timedelta(days=46))
-    assert not _son(DL1.compute(_inp()))["signal"] and DL1.COUNTERS["paket_eski"] == 1
+def test_paket_eski_yine_islem_yapar_uyari_sayaci(paket, caplog):
+    """24.11: 45 gunden yasli paket ENGELLENMEZ (aday uretir); yalniz uyari sayaci + paket basina tek WARNING."""
+    import logging
+    paket(olusturma=D - timedelta(days=200))
+    with caplog.at_level(logging.WARNING, logger="trader.dl1"):
+        assert bool(_son(DL1.compute(_inp()))["signal"])
+        DL1._ONBELLEK.clear()
+        assert bool(_son(DL1.compute(_inp()))["signal"])
+    assert DL1.COUNTERS["paket_eski_uyari"] == 2 and "paket_eski" not in DL1.COUNTERS and DL1.COUNTERS["aday"] == 2
+    assert len([r for r in caplog.records if "paketi eski" in r.message]) == 1
 
 
 def test_paket_hash_tutmuyor_ve_bozuk_aday_yok(paket):
@@ -110,9 +120,55 @@ def test_paket_hash_tutmuyor_ve_bozuk_aday_yok(paket):
     assert not _son(DL1.compute(_inp()))["signal"] and DL1.COUNTERS["paket_bozuk"] == 1
 
 
-def test_kapi_gecmemis_paket_aday_yok(paket):
+def test_kapi_gecmemis_paket_yine_islem_yapar(paket):
+    """24.11: kalite kapisi paketi engellemez; `kapi.gecti = False` paket aday uretir."""
     paket(kapi=False)
-    assert not _son(DL1.compute(_inp()))["signal"] and DL1.COUNTERS["paket_kapi"] == 1
+    assert bool(_son(DL1.compute(_inp()))["signal"]) and DL1.COUNTERS["aday"] == 1 and "paket_kapi" not in DL1.COUNTERS
+
+
+@pytest.mark.parametrize("tf", DL.ZAMAN_DILIMLERI)
+def test_dort_zaman_dilimi_aday(paket, tf):
+    """Her zaman diliminde kendi paketinden aday: stop 1,5 ATR, hedef 3 ATR (rr 2), long/short; zaman dilimi paketleri birbirine karismaz."""
+    paket(bl=2.0, bs=-2.0, tf=tf)
+    r = _son(DL1.compute(_inp(tf=tf)))
+    assert bool(r["signal"]) and r["setup"] == "DL1" and r["side"] == "long" and r["rr"] == pytest.approx(2.0)
+    assert (r["planned_target"] - r["planned_entry"]) == pytest.approx(2 * (r["planned_entry"] - r["planned_stop"]))
+    paket(bl=-2.0, bs=3.0, tf=tf)
+    r = _son(DL1.compute(_inp("NVDA/USDT", tf=tf)))
+    assert bool(r["signal"]) and r["side"] == "short" and r["planned_target"] < r["planned_entry"] < r["planned_stop"]
+    assert DL1.COUNTERS["aday"] == 2
+
+
+def test_paket_zaman_dilimine_ozel_diger_tf_paket_yok(paket):
+    paket(tf="4h")
+    assert bool(_son(DL1.compute(_inp(tf="4h")))["signal"])
+    out = DL1.compute(_inp(tf="15m"))
+    assert not _son(out)["signal"] and DL1.COUNTERS["paket_yok"] == 1
+
+
+def test_baska_tf_paketi_yanlis_dosyada_sema_hatasi(paket, tmp_path):
+    """DL1@1h.json icerigi DL1@4h dosyasina kopyalansa arm_id uyusmaz -> sema (aday yok)."""
+    yol = paket(tf="1h")
+    (tmp_path / "DL1@4h.json").write_text(yol.read_text(encoding="utf-8"), encoding="utf-8")
+    DL._ONBELLEK.update(key=None)
+    assert not _son(DL1.compute(_inp(tf="4h")))["signal"] and DL1.COUNTERS["paket_sema"] == 1
+
+
+def test_15m_doluluk_orani_mum_biriminde(paket):
+    """15m'de her 2. mum dolu (%50) puanlanir, her 4. mum dolu (%25) puanlanmaz: oran takvim saatiyle degil mumla hesaplanir."""
+    paket()
+    paket(tf="15m")
+    t = S.seri(D, 500, tf="15m")
+    m = np.zeros(len(t), dtype=bool)
+    m[-1::-4] = True
+    t.loc[~m, "volume"] = 0.0
+    assert not _son(DL1.compute(_inp("XAU/USDT", trig=t, tf="15m")))["signal"]
+    DL1._ONBELLEK.clear()
+    t3 = S.seri(D, 500, tf="15m")
+    m3 = np.zeros(len(t3), dtype=bool)
+    m3[-1::-2] = True
+    t3.loc[~m3, "volume"] = 0.0
+    assert bool(_son(DL1.compute(_inp("XAU/USDT", trig=t3, tf="15m")))["signal"])
 
 
 def test_kapsam_disi_cift_aday_yok(paket):
@@ -198,7 +254,7 @@ def test_core_yok_ve_bar_gecersiz_sayaclari(paket, monkeypatch):
 def test_sayac_logu_saatte_en_fazla_bir_bar_zamani_ile(paket, caplog):
     import logging
     paket(bl=-5.0, bs=-5.0)
-    DL1._LOG["saat"] = None
+    DL1._LOG.clear()
     with caplog.at_level(logging.INFO, logger="trader.dl1"):
         for dk in (0, 15, 30, 45):
             DL1.compute(_inp(D_=D + timedelta(minutes=dk), trig=S.seri(D + timedelta(minutes=dk))))

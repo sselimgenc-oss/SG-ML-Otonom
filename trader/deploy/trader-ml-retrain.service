@@ -1,6 +1,8 @@
 [Unit]
 Description=Trader gece egitimi: kurulum suzgeci + M1 (DD-12 WP-10/WP-18)
 Documentation=file:///opt/trader/docs/motor/dd12-capraz-varlik-spec.md
+# 24.11: zamanlayici 00:40 UTC'ye tasindi (DL1 egitimi 01:00 UTC); ders (02:40) ve not (02:55) isleri artik sonradan calisir. Egitim bu islerin ciktisini
+# KULLANMAZ; After= yalniz ayni anda kuyruktalarsa siralar (ders tick'i :17'de, tek is).
 After=trader-lesson.service trader-notes.service
 OnFailure=trader-health-fail@%n.service
 

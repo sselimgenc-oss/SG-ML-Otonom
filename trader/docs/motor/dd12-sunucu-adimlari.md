@@ -177,7 +177,7 @@ Zamanlayıcılar (sonraki çalışma zamanları):
 systemctl list-timers 'trader-*' --all --no-pager
 ```
 
-**Kontrol:** şu zamanlayıcılar listede: `trader-lesson` (her saat :17), `trader-notes` (her gün 02:55 UTC), `trader-ml-retrain` (her gün 03:40 UTC), `trader-counterfactual@learner` (her gün 23:10 UTC), `trader-universe` (ayın 1'i 00:30 UTC), `trader-weekly-summary` (Pazar 18:10 UTC).
+**Kontrol:** şu zamanlayıcılar listede: `trader-lesson` (her saat :17), `trader-notes` (her gün 02:55 UTC), `trader-ml-retrain` (her gün 00:40 UTC; 24.11'de 03:40'tan alındı, DL1 eğitimi 01:00 UTC'de arkasından başlar), `trader-counterfactual@learner` (her gün 23:10 UTC), `trader-universe` (ayın 1'i 00:30 UTC), `trader-weekly-summary` (Pazar 18:10 UTC).
 
 Bellek sınırları:
 
@@ -200,7 +200,7 @@ systemctl list-units 'trader-veto*' 'trader-*twin*' --all --no-pager
 
 ## Adım 11: Gece eğitimini (ML) ilk kez görün
 
-Gece 03:40 UTC'de eğitim çalışır: kurulum süzgeci ve M1 (kendi adayı). Eğitim çıktıları sunucuda `var/learner/models/` altına yazılır (depodaki `models/` dizini değişmez). İlk çalıştırmayı sonraki sabah kontrol edin:
+Gece 00:40 UTC'de (03:40 TSI) eğitim çalışır: kurulum süzgeci ve M1 (kendi adayı). Eğitim çıktıları sunucuda `var/learner/models/` altına yazılır (depodaki `models/` dizini değişmez). İlk çalıştırmayı sonraki sabah kontrol edin:
 
 ```
 systemctl status trader-ml-retrain.service --no-pager | head -12

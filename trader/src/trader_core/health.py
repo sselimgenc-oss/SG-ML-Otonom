@@ -215,8 +215,8 @@ class HaberSinyalProbe:
 
 @dataclass(frozen=True)
 class Dl1PaketProbe:
-    """DL1 paketi (models/dl1/DL1@1h.json) olcumu (ust lig DL1 kolu girdisi). Saglik yalniz yasa/son kullanmaya bakar."""
-    file_state: str = "missing"             # "ok" | "missing" | "unreadable" (bozuk / hash tutmuyor / kapi gecmemis / sema disi)
+    """DL1 paketleri (models/dl1/DL1@<15m|1h|4h|1d>.json; en kotu durum / en eski paket) olcumu (ust lig DL1 kolu girdisi). Saglik yalniz yasa bakar."""
+    file_state: str = "missing"             # "ok" | "missing" | "unreadable" (bozuk / hash tutmuyor / sema disi)
     created_at: datetime | None = None
     expires_at: datetime | None = None      # min(son_kullanma, olusturma + 45 gun)
 
@@ -904,26 +904,20 @@ def _c_haber_sinyal(snap, cfg):
     return _res(name, Status.OK, "ok", f"haber sinyali yasi {age:.0f} sn", age, gecerlilik)
 
 
-DL1_YAKLASIYOR_GUN = 7       # son kullanmaya bundan az kaldiysa WARN (gunluk egitim bu surede yenilemeliydi)
-
-
 def _c_dl1_paket(snap, cfg):
-    """dl1_paket_age: DL1 kolunun girdisi. Yok -> WARN (kod `dl1_paket_yok`: "DL1 paketi henuz yok"); bozuk / eski (son kullanma gecti) /
-    son kullanmaya < 7 gun -> WARN (yalniz DL1 girisleri durur ya da duracak); aksi OK (yas satiri)."""
+    """dl1_paket_age: DL1 kolunun girdisi (dort zaman dilimi; en kotu durum). Yok -> WARN (kod `dl1_paket_yok`: "DL1 paketi henuz yok"); bozuk -> WARN;
+    45 gunden yasli -> WARN (`dl1_paket_eski`; 24.11: paket YINE islem yapar, gece egitimi yenilemedi); aksi OK (yas satiri)."""
     name = "dl1_paket_age"
     p = snap.dl1_paket
     if p.file_state == "unreadable":
-        return _res(name, Status.WARN, "dl1_paket_bozuk", "DL1 paketi okunamadi/hash tutmuyor/kapi gecmemis; DL1 girisleri durdu")
+        return _res(name, Status.WARN, "dl1_paket_bozuk", "DL1 paketi okunamadi/hash tutmuyor/sema disi; ilgili zaman diliminde DL1 girisleri durdu")
     if p.file_state != "ok" or not isinstance(p.created_at, datetime) or p.created_at.tzinfo is None \
             or not isinstance(p.expires_at, datetime) or p.expires_at.tzinfo is None:
-        return _res(name, Status.WARN, "dl1_paket_yok", "DL1 paketi henuz yok; DL1 girisleri durdu")
+        return _res(name, Status.WARN, "dl1_paket_yok", "DL1 paketi henuz yok (en az bir zaman diliminde); o zaman diliminde DL1 girisleri durdu")
     yas = (snap.now - p.created_at).total_seconds()
     kalan = (p.expires_at - snap.now).total_seconds()
     if kalan <= 0:
-        return _res(name, Status.WARN, "dl1_paket_eski", f"DL1 paketi yasi {yas / 86400:.1f} gun, son kullanma gecti; DL1 girisleri durdu", yas, kalan)
-    if kalan < DL1_YAKLASIYOR_GUN * 86400:
-        return _res(name, Status.WARN, "dl1_paket_yaklasiyor",
-                    f"DL1 paketi yasi {yas / 86400:.1f} gun, son kullanmaya {kalan / 86400:.1f} gun kaldi; yenilenmezse DL1 girisleri duracak", yas, kalan)
+        return _res(name, Status.WARN, "dl1_paket_eski", f"DL1 paketi yasi {yas / 86400:.1f} gun, 45 gunu asti; DL1 paketi islem yapmaya devam ediyor ama gece egitimi yenilemedi", yas, kalan)
     return _res(name, Status.OK, "ok", f"DL1 paketi yasi {yas / 86400:.1f} gun, son kullanmaya {kalan / 86400:.1f} gun", yas, kalan)
 
 
@@ -1480,7 +1474,7 @@ _HEALTH_TR: dict[str, tuple[str, str, str]] = {
     "haber_sinyal_age": ("Haber sinyali güncel değil", "Haber sinyali yeniden güncel",
                          "Haber kolunun (HB1) yeni girişleri durur; diğer kollar ve açık pozisyonlar etkilenmez."),
     "dl1_paket_age": ("DL1 modeli güncel değil", "DL1 modeli yeniden güncel",
-                      "Derin öğrenme kolunun (DL1) yeni girişleri durur ya da duracak; diğer kollar ve açık pozisyonlar etkilenmez."),
+                      "Derin öğrenme kolunun (DL1) modeli yok/bozuk ya da gece eğitimi yenilemedi (eski model işlem yapmaya devam eder); diğer kollar ve açık pozisyonlar etkilenmez."),
     "drift_monitor": ("Bot beklenenden farklı davranıyor", "Bot yeniden beklendiği gibi davranıyor",
                       "Bot durdurulmadı; ayrıntı günlük raporda. İnceleme gerekir."),
 }
