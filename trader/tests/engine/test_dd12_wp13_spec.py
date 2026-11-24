@@ -66,7 +66,7 @@ def test_lesson_config_default_shrink_is_zero_and_rollback_is_minus_3r():
     """Sahip karari: sonumleme varsayilan 0 (tam esiksiz), tek degisiklik geri alma esigi -3 R."""
     lesson = pytest.importorskip("trader_core.lesson")
     cfg = json.loads((ROOT / "config" / "lesson.json").read_text(encoding="utf-8"))
-    assert cfg["shrink_n"] == 0
+    assert cfg["shrink_n"] == 10          # 24.11 kullanici karari (kod varsayilani 0 kalir)
     assert cfg["rollback_effect_r"] == 3.0
     assert lesson.LessonConfig().shrink_n == 0
     assert lesson.LessonConfig().rollback_effect_r == 3.0

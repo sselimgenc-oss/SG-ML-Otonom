@@ -115,9 +115,9 @@ def test_shipped_config_is_twinless_and_thresholdless():
     cfg = LS.load_config(ROOT / "config" / "lesson.json")
     raw = json.loads((ROOT / "config" / "lesson.json").read_text())
     assert cfg.shadow_weeks == 0 and cfg.checkpoints == ()
-    assert cfg.min_affected == 1 and cfg.min_distinct_days == 1 and cfg.min_z == 0 and cfg.min_gap_r == 0
-    assert cfg.early_min_n == 1 and cfg.early_min_days == 1
-    assert cfg.max_steps_from_ref == 2 and cfg.max_changes_per_night is None and cfg.shrink_n == 0
+    # 24.11 kullanici karari: ders esikleri ve geri alma (esiksiz kagit kaldirildi)
+    assert cfg.min_affected == 8 and cfg.min_distinct_days == 4 and cfg.min_z == 1.64 and cfg.min_gap_r == 0.5
+    assert cfg.max_steps_from_ref == 2 and cfg.max_changes_per_night == 1 and cfg.shrink_n == 10
     assert cfg.rollback_effect_r == 3.0 and cfg.brake_effect_r == 10.0
     assert not any(k.startswith("twin_") for k in raw) and "report_show_twin" not in raw
     assert "max_user_requests_per_week" not in raw and "checkpoints" not in raw

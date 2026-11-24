@@ -762,7 +762,7 @@ def test_pooled_apply_t1_counts_across_r1_only_change(tmp_path):
     ev = json.loads(raw(path, "SELECT evidence FROM param_versions WHERE id=?",
                         (ap.version_id,))[0][0])
     assert ev["n_closed"] == 23
-    assert ev["scope"] == "T1"
+    assert ev["scope"] == "T1+H2+S1+TF1"      # 24.11: kapsam = trail_atr okuyan kurulumlar
     assert ev["pooled_version_ids"] == [1, v2]
     assert ev["n_by_version"] == {"1": 15, "2": 8}
     assert ev["claimed_mismatch"] is True

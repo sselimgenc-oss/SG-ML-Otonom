@@ -242,7 +242,7 @@ FEATURE_RE = re.compile(r"^\s*([A-Za-z0-9_.:\-]+)\s*=\s*(-?\d+(?:\.\d+)?(?:[eE][
 
 # DD-12 WP-08: kod varsayilanlari esiksiz; bu dosyanin (eski, esikli rejim) testleri eski esikleri acikca ister.
 LEGACY_CFG = dict(checkpoints=[30, 45, 60], min_affected=8, min_gap_r=0.5, min_z=2.0, min_distinct_days=8,
-                  max_pair_share=0.5, early_min_n=10, early_min_days=4, max_user_requests_per_week=1)
+                  max_pair_share=0.5, max_user_requests_per_week=1)
 
 
 class Clk:
@@ -708,8 +708,8 @@ def test_fixture_sanity_hand_stats(rr_env):
 @pytest.mark.parametrize("over", [
     {"shadow_weeks": 3}, {"shadow_weeks": 7}, {"shadow_weeks": 4.5}, {"bot": "twin"}, {"checkpoints": [20, 45]},
     {"checkpoints": [45, 30]}, {"checkpoints": [30, 130]}, {"min_z": 1.5}, {"min_gap_r": 0.4}, {"min_affected": 7},
-    {"min_distinct_days": 7}, {"max_pair_share": 0.6}, {"monitor_k": 14}, {"monitor_margin_r": 0.6},
-    {"monitor_z": 1.7}, {"early_min_days": 2}, {"blacklist_days": 13}, {"max_user_requests_per_week": 3},
+    {"min_distinct_days": 7}, {"max_pair_share": 0.6}, {"monitor_max_days": 0},
+    {"rollback_effect_r": -1.0}, {"shrink_n": -1}, {"max_changes_per_night": 0}, {"blacklist_days": 13}, {"max_user_requests_per_week": 3},
     {"max_output_tokens": 3001}, {"prompt_max_est_tokens": 20001}, {"batch_max_age_h": 23}, {"twin_min_keys": 7},
     {"twin_z": 1.7}, {"twin_margin_r": 0.31}, {"mode": "bogus"}, {"run_at_utc": "25:99"},
     {"monitor_recheck_n": 10}, {"recheck_max_days": 20}, {"blind_days": 1}, {"max_steps_from_twin": 0},
@@ -722,8 +722,8 @@ def test_config_locks_reject(env, over):
 def test_config_defaults_and_valid_values(env):
     c = env.cfg()
     assert c.bot == "learner" and c.shadow_weeks == 4 and list(c.checkpoints) == [30, 45, 60]
-    assert c.min_z == 2.0 and c.min_gap_r == 0.5 and c.min_affected == 8 and c.monitor_k == 20
-    assert c.early_min_days == 4 and c.blacklist_days == 14 and c.model == "claude-sonnet-5-5"
+    assert c.min_z == 2.0 and c.min_gap_r == 0.5 and c.min_affected == 8
+    assert c.blacklist_days == 14 and c.model == "claude-sonnet-5-5"
     assert c.twin_min_keys == 10 and c.max_steps_from_twin == 2 and c.report_show_twin is False
     for w in (4, 5, 6):
         assert env.cfg(shadow_weeks=w).shadow_weeks == w
@@ -1372,7 +1372,7 @@ def test_shadow_every_proposal_needs_user_despite_perfect_evidence(rr_env):
     req = rr_env.notifier.approvals[-1]
     assert req.reason_code == "shadow_period" and req.shadow_period is True
     assert req.param == "rr_min" and req.from_value == pytest.approx(1.5) and req.to_value == pytest.approx(1.75)
-    assert req.scope == "R1" and req.proposal_id == props[0].proposal_id and req.base_version_id == 1
+    assert req.scope == "R1+B1+F1" and req.proposal_id == props[0].proposal_id and req.base_version_id == 1
     assert req.request_id == f"lr-2026-12-19-{props[0].proposal_id}"
     assert len(req.title) <= 80 and len(req.body) <= 700 and req.provisional is False
     assert req.expires_at - req.created_at == timedelta(days=3)

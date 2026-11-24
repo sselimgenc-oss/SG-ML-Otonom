@@ -66,19 +66,33 @@ class LedgerStateError(LedgerError):
 # Parametre sozlugu
 # ---------------------------------------------------------------------------
 
+# 24.11 kullanici karari (ders esikleri ve geri alma): `scope` = parametreyi motorda OKUYAN kurulumlar; ders kanit penceresi ve
+# etki olcumu bu kurulumlarin tamami uzerinden yapilir (yalniz T1/R1 degil). TEK YER burasidir; yeni bir kurulum bir parametreyi
+# okuyorsa buraya eklenmeli (tests/test_ders_kapsam.py kaynak kodu tarar ve eksikte basarisiz olur). Motor davranisi degismez.
+#   vol_ratio_max : ortak tablo rejimi (signals/regime) -> T1, R1; rejim etiketini kullanan kollar B1, F1, H2, S1, TF1
+#   stop_buffer_atr: T1/R1 (signals), B1, H2 (arms/*.py `inp.params.stop_buffer_atr`)
+#   trail_atr     : EXIT_MODE = "trail" kollari (T1, H2, S1, TF1; engine `trail_atr` pozisyona yazilir)
+#   range_target_frac: yalniz R1 (signals)         rr_min: R1 (signals), B1, F1
+_SCOPE_VOL = ("T1", "R1", "B1", "F1", "H2", "S1", "TF1")
+_SCOPE_STOPBUF = ("T1", "R1", "B1", "H2")
+_SCOPE_TRAIL = ("T1", "H2", "S1", "TF1")
+_SCOPE_RR = ("R1", "B1", "F1")
+# seans kapisi (gates.py) kurulumdan bagimsiz: tum kollar
+_SCOPE_ALL = ("T1", "R1", "B1", "DL1", "F1", "H2", "HB1", "M1", "S1", "TF1")
+
 PARAM_SPECS: dict[str, dict[str, Any]] = {
     "range_width_atr": dict(kind="float", lo=3.0, hi=6.0, lesson=False, step=None, scope=None),
-    "vol_ratio_max": dict(kind="float", lo=1.25, hi=2.0, lesson=True, step=0.25, scope=("T1", "R1"),
+    "vol_ratio_max": dict(kind="float", lo=1.25, hi=2.0, lesson=True, step=0.25, scope=_SCOPE_VOL,
                           bounds=(1.3, 1.7)),
     "edge_zone_atr": dict(kind="float", lo=0.15, hi=0.50, lesson=False, step=None, scope=None),
     "pullback_ema": dict(kind="choice", choices=(20, 50), lesson=False, step=None, scope=None),
-    "stop_buffer_atr": dict(kind="float", lo=0.1, hi=1.0, lesson=True, step=0.1, scope=("T1", "R1"),
+    "stop_buffer_atr": dict(kind="float", lo=0.1, hi=1.0, lesson=True, step=0.1, scope=_SCOPE_STOPBUF,
                             bounds=(0.2, 0.5)),
-    "trail_atr": dict(kind="float", lo=2.0, hi=4.0, lesson=True, step=0.5, scope=("T1",),
+    "trail_atr": dict(kind="float", lo=2.0, hi=4.0, lesson=True, step=0.5, scope=_SCOPE_TRAIL,
                       bounds=(2.5, 3.5)),
     "range_target_frac": dict(kind="float", lo=0.5, hi=1.0, lesson=True, step=0.125, scope=("R1",),
                               bounds=(0.6, 0.9)),
-    "rr_min": dict(kind="float", lo=1.0, hi=2.0, lesson=True, step=0.25, scope=("R1",),
+    "rr_min": dict(kind="float", lo=1.0, hi=2.0, lesson=True, step=0.25, scope=_SCOPE_RR,
                    bounds=(1.2, 2.0)),
     "trigger_tf": dict(kind="choice", choices=("1h", "15m"), lesson=False, step=None, scope=None),
 }
@@ -87,7 +101,7 @@ PARAM_KEYS = tuple(PARAM_SPECS)
 #   session_off: kapali-seans merdiveni (0 hepsi acik, 1 hafta sonu kapali, 2 hafta sonu + 'closed' kapali, 3 hepsi kapali)
 #   post_stop_wait: stop sonrasi yeniden giris icin beklenen mum sayisi (0-3)
 OPTIONAL_PARAM_SPECS: dict[str, dict[str, Any]] = {
-    "session_off": dict(kind="int", lo=0, hi=3, lesson=True, step=1, scope=("T1", "R1"), bounds=(0, 3), default=0),
+    "session_off": dict(kind="int", lo=0, hi=3, lesson=True, step=1, scope=_SCOPE_ALL, bounds=(0, 3), default=0),
     "post_stop_wait": dict(kind="int", lo=0, hi=3, lesson=True, step=1, scope=("T1", "R1"), bounds=(0, 3), default=0),
     # Revizyon 7 (docs/cikis-kipleri-spec.md): cikis kipleri (0 kapali, 1 acik); yalniz kanit-yalniz ders girdisiyle (kullanici onayi) acilir
     "exit_breakeven": dict(kind="int", lo=0, hi=1, lesson=True, step=1, scope=("T1",), bounds=(0, 1), default=0),
