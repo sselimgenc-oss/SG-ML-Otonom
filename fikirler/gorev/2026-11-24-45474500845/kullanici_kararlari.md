@@ -5,3 +5,4 @@
 3. Stopsuz setuplara 2 ATR stop konur (onaylandi).
 4. Ic cubuk girisi kapanis teyidiyle (onaylandi).
 Ayrica: baslangicta hepsi ACIK; ogrenme formasyon x ZD bazinda (MF1-YUTAN@1h gibi kimlik).
+5. Toplam acik pozisyon tavani (max_positions) 24 -> 36 (kullanici karari 25.11 01:30 TSI); kagit ve canli ayni. Kutuphane birlestirme asamasinda uygulanir.
