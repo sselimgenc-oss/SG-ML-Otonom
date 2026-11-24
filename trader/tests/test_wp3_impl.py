@@ -763,7 +763,7 @@ def test_reports_load_shadow_and_lock(tmp_path, led, kilitli_donem):      # 23.1
     led.record_shadow(mk_shadow(bar_close_ts=datetime(2026, 6, 1, 9, 0, tzinfo=UTC), pair="ETH/USDT"))
     c = I.open_ro(led.path, "ledger_missing")
     try:
-        assert I.check_ledger_schema(c) == 7
+        assert I.check_ledger_schema(c) == 8      # 24.11 kullanici karari: formasyon kutuphanesi (sema 8)
         rows = I.load_shadow(c, None, None)
         assert [r["pair"] for r in rows] == ["BTC/USDT"]                # kilitli donem satiri okunmaz
     finally:
