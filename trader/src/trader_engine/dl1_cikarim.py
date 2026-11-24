@@ -39,7 +39,7 @@ KANALLAR = ("logret", "hl_oran", "govde", "hacim_z", "atr_oran", "fitil_ust", "f
 N_KANAL = len(KANALLAR)
 # Seansli araclar (hisse/emtia): seans kapaliyken mum bos olabilir (hacim 0 ya da h == l) ya da hic gelmez. Bos/eksik mumlar
 # DOLDURULMAZ ve yok sayilir: kanal serisi yalniz "dolu" mumlardan kurulur; pencere = son 96 dolu mum. Pencere, takvim zamaninda en az
-# MIN_DOLU_ORAN dolulukta olmali: 96 / (ilk ile son dolu mum arasi mum (zaman diliminin mumu) + 1) >= 0,5 (yani 96 dolu mum <= 192 saatlik aralikta). Egitim ve canli ayni kural.
+# MIN_DOLU_ORAN dolulukta olmali: 96 / (ilk ile son dolu mum arasi mum (zaman diliminin mumu) + 1) >= 0,5 (yani 96 dolu mum en fazla 192 mumluk, o zaman diliminin takvim araliginda). Egitim ve canli ayni kural.
 MIN_DOLU_ORAN = 0.5
 ATR_UZUN = 14
 HACIM_PENCERE = 96
@@ -283,12 +283,12 @@ def paket_dogrula(paket, tf: str = "1h") -> Paket:
 
 
 _KILIT = threading.Lock()
-_ONBELLEK: dict = {"key": None, "paket": None, "neden": None}
+_ONBELLEK: dict = {}                  # str(yol) -> (key, paket, neden); dort zaman dilimi paketi ayni anda onbellekte (motor cift -> zaman dilimi dongusu)
 
 
 def paket_yukle(yol: Path | str | None = None, simdi: datetime | None = None, tf: str = "1h") -> tuple[Paket | None, str | None]:
     """(Paket, None) ya da (None, neden). Neden: yok | buyuk | bozuk | sema | hash | kanal | erken (simdi < olusturma).
-    Dosya okuma/dogrulama mtime+boyut onbellegindedir. Eski paket (45 gun) ve kapi sonucu ENGELLEMEZ (24.11); yas icin Paket.eski(simdi)."""
+    Dosya okuma/dogrulama yol basina mtime+boyut onbellegindedir (dort zaman dilimi paketi birlikte tutulur). Eski paket (45 gun) ve kapi sonucu ENGELLEMEZ (24.11); yas icin Paket.eski(simdi)."""
     yol = Path(yol or paket_yolu(tf))
     try:
         st = yol.stat()
@@ -298,15 +298,17 @@ def paket_yukle(yol: Path | str | None = None, simdi: datetime | None = None, tf
         return None, "buyuk"
     key = (str(yol), st.st_mtime_ns, st.st_size, tf)
     with _KILIT:
-        if _ONBELLEK["key"] != key:
+        kayit = _ONBELLEK.get(str(yol))
+        if kayit is None or kayit[0] != key:
             try:
                 paket, neden = paket_dogrula(json.loads(yol.read_text(encoding="utf-8")), tf), None
             except ValueError as e:
                 paket, neden = None, (str(e) if str(e) in ("sema", "hash", "bozuk", "kanal") else "bozuk")
             except OSError:
                 paket, neden = None, "bozuk"
-            _ONBELLEK.update(key=key, paket=paket, neden=neden)
-        paket, neden = _ONBELLEK["paket"], _ONBELLEK["neden"]
+            _ONBELLEK[str(yol)] = (key, paket, neden)
+        else:
+            _, paket, neden = kayit
     if paket is None:
         return None, neden
     if simdi is not None and simdi < paket.olusturma:

@@ -12,10 +12,10 @@
 **Bileşenler:**
 - `src/trader_engine/ogrenme_filtre.py`: `FiltreDeposu` (paket önbelleği, `karar`), `ozellikler` (giriş ve eğitim aynı işlev: `trader_core.ml_live_v2.setup_feature_dict`), `adaylar_defterden`, `egit_hepsi`.
 - Paket: `paket/ortak_ogrenme/filtre.py` (1.2.1; değiştirilmez). Dosya: `<defter dizini>/models/ortak_filtre/<arm>.json` (+ `.prev.json`).
-- Eğitim: gece birimi `scripts/ml_retrain_run.py` (03:40 UTC), kurulum başına ≥10 kapanmış işlem; son eğitimden ≥10 yeni kapanan işlem ya da ≥20 gün geçtiyse yeniden eğitim (1L3A ile aynı eşikler). Satır = defterdeki kapanmış kâğıt işlemi; holdout (2026-05-01..2026-11-01) ile kesişen satır eğitimden düşer (`kilit_dusen`).
+- Eğitim: gece birimi `scripts/ml_retrain_run.py` (00:40 UTC), kurulum başına ≥10 kapanmış işlem; son eğitimden ≥10 yeni kapanan işlem ya da ≥20 gün geçtiyse yeniden eğitim (1L3A ile aynı eşikler). Satır = defterdeki kapanmış kâğıt işlemi; holdout (2026-05-01..2026-11-01) ile kesişen satır eğitimden düşer (`kilit_dusen`).
 - Motor ortamı: `deploy/trader-engine@.service` PYTHONPATH `paket` dizinini içerir.
 - Görünürlük: `status.json` `ml_filtre` {aktif_kurulum, atladi, gecti}; günlük özet `ogrenme.filtre_aktif` ve not "ML filtresi: N kurulumda aktif, bugün K giriş atlandı".
 
 **Eski yol:** `ml_model_path` boş + `ml_pairs` yoksa eski tek-model (r03) yolu kapalı kalır (sağlık alarmı üretmez); ML etkinliği kurulum filtresindedir. Canlı/testnet yolu değişmedi.
 
-**İlk etki:** bir kurulum ≥10 kapanmış işleme ulaştıktan sonraki ilk gece eğitiminde (03:40 UTC) paket oluşur; motor dosyayı bir sonraki girişte okur. Mevcut ML kurulum süzgeci (`trader_ml.setup_filter`, `var/learner/models/setup_filter`) gece eğitimine devam eder; motor tarafından tüketilmez.
+**İlk etki:** bir kurulum ≥10 kapanmış işleme ulaştıktan sonraki ilk gece eğitiminde (00:40 UTC) paket oluşur; motor dosyayı bir sonraki girişte okur. Mevcut ML kurulum süzgeci (`trader_ml.setup_filter`, `var/learner/models/setup_filter`) gece eğitimine devam eder; motor tarafından tüketilmez.

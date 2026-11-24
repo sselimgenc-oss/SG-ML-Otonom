@@ -36,10 +36,19 @@ def test_taze_ok_ve_yas_satiri():
 
 def test_eski_warn_ama_islem_durmaz_yaklasiyor_yok():
     """24.11: son kullanma paketi durdurmaz; 45 gunden yasli -> WARN `dl1_paket_eski` (metin 'islem yapmaya devam'), yaklasirken uyari yok."""
-    assert _ev(_p(40, 5)).status is H.Status.OK
+    assert _ev(_p(40, 5)).code == "dl1_paket_yenilenmedi"           # yenilenmedi uyarisi da bu yasta var, ama eski degil
     r = _ev(_p(46, -1))
     assert r.status is H.Status.WARN and r.code == "dl1_paket_eski" and "devam" in r.detail and "durdu" not in r.detail
-    assert _ev(_p(38, 7.5)).status is H.Status.OK
+    assert _ev(_p(38, 7.5)).code == "dl1_paket_yenilenmedi"
+
+
+def test_yenilenmedi_warn_esigi_3_gun():
+    """En eski paket 3 gunden yasliysa WARN `dl1_paket_yenilenmedi` (islem durmaz, metin 'devam'); 3 gun ve altinda OK."""
+    assert _ev(_p(3, 42)).status is H.Status.OK
+    assert _ev(_p(2.5, 42.5)).status is H.Status.OK
+    r = _ev(_p(3.2, 41.8))
+    assert r.status is H.Status.WARN and r.code == "dl1_paket_yenilenmedi" and "devam" in r.detail and "3.2 gun" in r.detail
+    assert _ev(_p(46, -1)).code == "dl1_paket_eski"                  # eski daha agir: oncelik onda
 
 
 def test_bozuk_warn_ve_alan_yoksa_denetim_yok():

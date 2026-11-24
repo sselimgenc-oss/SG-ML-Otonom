@@ -26,7 +26,7 @@ D = datetime(2026, 11, 24, 13, 0, tzinfo=UTC)
 def paket(tmp_path, monkeypatch):
     yol = tmp_path / "DL1@1h.json"
     monkeypatch.setattr(DL, "PAKET_DIZINI", tmp_path)
-    DL._ONBELLEK.update(key=None, paket=None, neden=None)
+    DL._ONBELLEK.clear()
     DL1.COUNTERS.clear()
     DL1._ONBELLEK.clear()
     DL1._LOG.clear()
@@ -35,7 +35,7 @@ def paket(tmp_path, monkeypatch):
         ag = S.sifir_agirlik(bl, bs)
         yol_tf = tmp_path / f"DL1@{tf}.json"
         S.yaz(yol_tf, S.paket_sozlugu(olusturma or D - timedelta(days=1), esik=esik, agirlik=ag, tf=tf, **kw))
-        DL._ONBELLEK.update(key=None)
+        DL._ONBELLEK.clear()
         DL1._ONBELLEK.clear()
         return yol_tf
     yaz.yol = yol
@@ -72,7 +72,7 @@ def test_esik_ustu_long_aday(paket):
     assert bool(r["signal"]) and r["setup"] == "DL1" and r["side"] == "long"
     assert r["planned_stop"] < r["planned_entry"] < r["planned_target"]
     assert (r["planned_target"] - r["planned_entry"]) == pytest.approx(2 * (r["planned_entry"] - r["planned_stop"]))   # stop 1,5 ATR, hedef 3 ATR
-    assert r["rr"] == pytest.approx(2.0) and not out.iloc[:-1]["signal"].any() and DL1.COUNTERS["aday"] == 1
+    assert r["rr"] == pytest.approx(2.0) and not out.iloc[:-1]["signal"].any() and DL1.COUNTERS["aday@1h"] == 1
 
 
 def test_yon_secimi_en_yuksek_puan_short(paket):
@@ -83,7 +83,7 @@ def test_yon_secimi_en_yuksek_puan_short(paket):
 
 def test_esik_alti_aday_yok(paket):
     paket(bl=-1.0, bs=-1.0, esik=0.9)
-    assert not _son(DL1.compute(_inp()))["signal"] and DL1.COUNTERS["esik_alti"] == 1
+    assert not _son(DL1.compute(_inp()))["signal"] and DL1.COUNTERS["esik_alti@1h"] == 1
 
 
 def test_esik_paketten_gelir(paket):
@@ -95,7 +95,7 @@ def test_esik_paketten_gelir(paket):
 
 def test_paket_yok_aday_yok_sayac(paket):
     out = DL1.compute(_inp())
-    assert not out["signal"].any() and DL1.COUNTERS["paket_yok"] == 1 and list(out.columns) == list(SIGNAL_COLUMNS)
+    assert not out["signal"].any() and DL1.COUNTERS["paket_yok@1h"] == 1 and list(out.columns) == list(SIGNAL_COLUMNS)
 
 
 def test_paket_eski_yine_islem_yapar_uyari_sayaci(paket, caplog):
@@ -106,24 +106,24 @@ def test_paket_eski_yine_islem_yapar_uyari_sayaci(paket, caplog):
         assert bool(_son(DL1.compute(_inp()))["signal"])
         DL1._ONBELLEK.clear()
         assert bool(_son(DL1.compute(_inp()))["signal"])
-    assert DL1.COUNTERS["paket_eski_uyari"] == 2 and "paket_eski" not in DL1.COUNTERS and DL1.COUNTERS["aday"] == 2
+    assert DL1.COUNTERS["paket_eski_uyari@1h"] == 2 and "paket_eski@1h" not in DL1.COUNTERS and DL1.COUNTERS["aday@1h"] == 2
     assert len([r for r in caplog.records if "paketi eski" in r.message]) == 1
 
 
 def test_paket_hash_tutmuyor_ve_bozuk_aday_yok(paket):
     yol = paket()
     yol.write_text(yol.read_text().replace('"esik": 0.5', '"esik": 0.4'), encoding="utf-8")
-    DL._ONBELLEK.update(key=None)
-    assert not _son(DL1.compute(_inp()))["signal"] and DL1.COUNTERS["paket_hash"] == 1
+    DL._ONBELLEK.clear()
+    assert not _son(DL1.compute(_inp()))["signal"] and DL1.COUNTERS["paket_hash@1h"] == 1
     yol.write_text("{bozuk", encoding="utf-8")
-    DL._ONBELLEK.update(key=None)
-    assert not _son(DL1.compute(_inp()))["signal"] and DL1.COUNTERS["paket_bozuk"] == 1
+    DL._ONBELLEK.clear()
+    assert not _son(DL1.compute(_inp()))["signal"] and DL1.COUNTERS["paket_bozuk@1h"] == 1
 
 
 def test_kapi_gecmemis_paket_yine_islem_yapar(paket):
     """24.11: kalite kapisi paketi engellemez; `kapi.gecti = False` paket aday uretir."""
     paket(kapi=False)
-    assert bool(_son(DL1.compute(_inp()))["signal"]) and DL1.COUNTERS["aday"] == 1 and "paket_kapi" not in DL1.COUNTERS
+    assert bool(_son(DL1.compute(_inp()))["signal"]) and DL1.COUNTERS["aday@1h"] == 1 and "paket_kapi@1h" not in DL1.COUNTERS
 
 
 @pytest.mark.parametrize("tf", DL.ZAMAN_DILIMLERI)
@@ -136,22 +136,22 @@ def test_dort_zaman_dilimi_aday(paket, tf):
     paket(bl=-2.0, bs=3.0, tf=tf)
     r = _son(DL1.compute(_inp("NVDA/USDT", tf=tf)))
     assert bool(r["signal"]) and r["side"] == "short" and r["planned_target"] < r["planned_entry"] < r["planned_stop"]
-    assert DL1.COUNTERS["aday"] == 2
+    assert DL1.COUNTERS[f"aday@{tf}"] == 2
 
 
 def test_paket_zaman_dilimine_ozel_diger_tf_paket_yok(paket):
     paket(tf="4h")
     assert bool(_son(DL1.compute(_inp(tf="4h")))["signal"])
     out = DL1.compute(_inp(tf="15m"))
-    assert not _son(out)["signal"] and DL1.COUNTERS["paket_yok"] == 1
+    assert not _son(out)["signal"] and DL1.COUNTERS["paket_yok@15m"] == 1
 
 
 def test_baska_tf_paketi_yanlis_dosyada_sema_hatasi(paket, tmp_path):
     """DL1@1h.json icerigi DL1@4h dosyasina kopyalansa arm_id uyusmaz -> sema (aday yok)."""
     yol = paket(tf="1h")
     (tmp_path / "DL1@4h.json").write_text(yol.read_text(encoding="utf-8"), encoding="utf-8")
-    DL._ONBELLEK.update(key=None)
-    assert not _son(DL1.compute(_inp(tf="4h")))["signal"] and DL1.COUNTERS["paket_sema"] == 1
+    DL._ONBELLEK.clear()
+    assert not _son(DL1.compute(_inp(tf="4h")))["signal"] and DL1.COUNTERS["paket_sema@4h"] == 1
 
 
 def test_15m_doluluk_orani_mum_biriminde(paket):
@@ -173,7 +173,7 @@ def test_15m_doluluk_orani_mum_biriminde(paket):
 
 def test_kapsam_disi_cift_aday_yok(paket):
     paket()
-    assert not _son(DL1.compute(_inp("DOGE/USDT")))["signal"] and DL1.COUNTERS["kapsam_disi"] == 1
+    assert not _son(DL1.compute(_inp("DOGE/USDT")))["signal"] and DL1.COUNTERS["kapsam_disi@1h"] == 1
 
 
 def test_paket_hatasi_diger_kollari_etkilemez(paket):
@@ -185,14 +185,14 @@ def test_paket_hatasi_diger_kollari_etkilemez(paket):
 
 def test_veri_kisa_aday_yok(paket):
     paket()
-    assert not _son(DL1.compute(_inp(n=150)))["signal"] and DL1.COUNTERS["veri_kisa"] == 1
+    assert not _son(DL1.compute(_inp(n=150)))["signal"] and DL1.COUNTERS["veri_kisa@1h"] == 1
 
 
 def test_seans_kapali_son_mum_bos_aday_yok_ve_seyrek_pencere(paket):
     paket()
     t = S.seri(D, 500)
     t.iloc[-1, t.columns.get_loc("volume")] = 0.0
-    assert not _son(DL1.compute(_inp("NVDA/USDT", trig=t)))["signal"] and DL1.COUNTERS["puan_yok"] == 1
+    assert not _son(DL1.compute(_inp("NVDA/USDT", trig=t)))["signal"] and DL1.COUNTERS["puan_yok@1h"] == 1
     t2 = S.seri(D, 500)
     m = np.zeros(len(t2), dtype=bool)
     m[-1::-4] = True
@@ -227,7 +227,7 @@ def test_sizinti_son_barin_ardindan_veri_yok_puan_gecmise_bagli(paket):
     ag = {ad: rg.normal(0, 0.15, sek) for ad, sek in DL.agirlik_sekilleri().items()}
     yol = paket.yol
     S.yaz(yol, S.paket_sozlugu(D - timedelta(days=1), agirlik=ag, esik=0.01))
-    DL._ONBELLEK.update(key=None)
+    DL._ONBELLEK.clear()
     a = DL.paket_yukle(yol, D)[0]
     t = S.seri(D, 400)
     ts = t.index.tz_localize("UTC").as_unit("ns").asi8
@@ -241,14 +241,14 @@ def test_core_yok_ve_bar_gecersiz_sayaclari(paket, monkeypatch):
     paket()
     i = _inp()
     i2 = ArmInput(pair=i.pair, tf=i.tf, D=i.D, trig=i.trig, h4=i.h4, params=None, core_fn=lambda: None)
-    assert not DL1.compute(i2)["signal"].any() and DL1.COUNTERS["core_yok"] == 1
+    assert not DL1.compute(i2)["signal"].any() and DL1.COUNTERS["core_yok@1h"] == 1
     gercek = DL1.P.prepare
 
     def gecersiz(inp, core):
         p = gercek(inp, core)
         return type(p)(**{**p.__dict__, "ok": np.zeros_like(p.ok)})
     monkeypatch.setattr(DL1.P, "prepare", gecersiz)
-    assert not _son(DL1.compute(_inp()))["signal"] and DL1.COUNTERS["bar_gecersiz"] == 1
+    assert not _son(DL1.compute(_inp()))["signal"] and DL1.COUNTERS["bar_gecersiz@1h"] == 1
 
 
 def test_sayac_logu_saatte_en_fazla_bir_bar_zamani_ile(paket, caplog):
@@ -263,3 +263,32 @@ def test_sayac_logu_saatte_en_fazla_bir_bar_zamani_ile(paket, caplog):
         assert len([r for r in caplog.records if "sayaclar" in r.message]) == 1  # saat degisti: bir kez
         DL1.compute(_inp(D_=D + timedelta(hours=1, minutes=30), trig=S.seri(D + timedelta(hours=1, minutes=30))))
         assert len([r for r in caplog.records if "sayaclar" in r.message]) == 1
+
+
+def test_motor_dongusu_ayni_cift_dort_zaman_dilimi_dort_paket(paket):
+    """Gercek dongu sekli: ayni cift icin ardisik 15m/1h/4h/1d hesaplari, dort ayri paket; sayaclar zaman dilimi anahtarlidir."""
+    for tf in DL.ZAMAN_DILIMLERI:
+        paket(tf=tf)
+    for _tur in range(2):
+        for tf in DL.ZAMAN_DILIMLERI:
+            assert bool(_son(DL1.compute(_inp(tf=tf)))["signal"])
+    for tf in DL.ZAMAN_DILIMLERI:
+        assert DL1.COUNTERS[f"aday@{tf}"] == 2
+
+
+def test_dort_paket_birlikte_onbellekte_her_dosya_bir_kez_okunur(paket, monkeypatch):
+    for tf in DL.ZAMAN_DILIMLERI:
+        paket(tf=tf)
+    okunan = []
+    gercek = DL.Path.read_text
+
+    def sayac(self, *a, **k):
+        okunan.append(self.name)
+        return gercek(self, *a, **k)
+    monkeypatch.setattr(DL.Path, "read_text", sayac)
+    for _tur in range(3):
+        for tf in DL.ZAMAN_DILIMLERI:
+            p, neden = DL.paket_yukle(tf=tf)
+            assert p is not None and neden is None
+    assert sorted(okunan) == sorted(f"DL1@{tf}.json" for tf in DL.ZAMAN_DILIMLERI)
+    assert len(DL._ONBELLEK) == 4

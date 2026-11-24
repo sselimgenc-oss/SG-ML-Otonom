@@ -3,9 +3,10 @@
 
   python research/dl1/egit.py --tf 1h --kesim 2026-11-23 --cikti models/dl1 --rapor var/dl1_rapor
 
-Akis: Vision indir (43 enstruman, kesim oncesi) -> ornek tablosu -> walk-forward (purge/embargo; olcek yalniz egitim diliminden;
-ayni mumda tum enstrumanlar ayni dilimde) -> kalite kapisi METRIGI (toplam: en ust %2 puanli adaylarda masraf sonrasi ort. R > 0 VE dilimlerin >= %60'i pozitif;
-sinif bazinda satirlar yalniz rapor) -> nihai model (tum veri) -> numpy-PyTorch parite (< 1e-5) -> paket `DL1@<tf>.json`.
+Akis: Vision indir (43 enstruman, kesim oncesi) -> ornek tablosu -> nihai model (tum veri) -> numpy-PyTorch parite (< 1e-5) -> paket `DL1@<tf>.json` (ONCE yazilir;
+kapi alanlari bos) -> ara rapor -> walk-forward (purge/embargo; olcek yalniz egitim diliminden; ayni mumda tum enstrumanlar ayni dilimde) -> kalite kapisi METRIGI
+(toplam: en ust %2 puanli adaylarda masraf sonrasi ort. R > 0 VE dilimlerin >= %60'i pozitif; sinif bazinda satirlar yalniz rapor) -> paket kapi/metrik alanlari ve rapor
+guncellenir. Walk-forward zaman asimina ugrar/hata verirse paket yine yazilmistir; kapi/metrikler bos kalir. Rapora "kapsam: N/43, eksikler: ..." satiri yazilir (N<43 uyari).
 24.11 kullanici karari: kapi YAYINI ENGELLEMEZ (rapor/ozet bilgisi); mevcut paketle iyilesme karsilastirmasi yok; her gece en yeni model yayinlanir.
 Paket YALNIZ parite basarisizsa yazilmaz (butunluk). Rapor (json + md) `dl1_rapor_<tf>.*`. Cikis kodu: 0 paket yazildi (ya da icerik ayni), 2 hata
 (parite basarisizligi dahil). `PAKET_YAZILDI=1|0` GITHUB_OUTPUT'a yazilir."""
@@ -119,9 +120,14 @@ def rapor_yaz(rapor: dict, dizin: Path) -> None:
     dizin.mkdir(parents=True, exist_ok=True)
     tf = rapor.get("tf", "1h")
     (dizin / f"dl1_rapor_{tf}.json").write_text(json.dumps(rapor, indent=1, ensure_ascii=False, default=str), encoding="utf-8")
-    k = rapor.get("kapi", {})
-    s = [f"# DL1@{tf} egitim raporu ({rapor['kesim']})", "", f"- Kapi (YALNIZ BILGI; yayini engellemez): **{'GECTI' if k.get('gecti') else 'GECMEDI'}**; toplam ort. R = {k.get('toplam_ort_r')}, "
+    k = rapor.get("kapi") or {}
+    kp = rapor.get("kapsam") or {}
+    kapsam_satir = f"- Kapsam: {kp.get('n')}/{kp.get('beklenen')}, eksikler: {', '.join(kp.get('eksik') or []) or 'yok'}" + \
+        ("  **UYARI: kapsam eksik**" if kp and kp.get("n") != kp.get("beklenen") else "")
+    wf_satir = f"- Walk-forward: {'tamamlandi' if k else 'TAMAMLANMADI (zaman asimi/hata); kapi ve metrikler bos; paket yine yazildi'}"
+    s = [f"# DL1@{tf} egitim raporu ({rapor['kesim']})", "", f"- Kapi (YALNIZ BILGI; yayini engellemez): **{'GECTI' if k.get('gecti') else ('GECMEDI' if k else 'YOK')}**; toplam ort. R = {k.get('toplam_ort_r')}, "
          f"aday = {k.get('toplam_aday')}, pozitif dilim = {k.get('pozitif_dilim')}/{k.get('dilim_sayisi')} ({k.get('pozitif_oran')})",
+         kapsam_satir, wf_satir,
          f"- Karar: **{'YAYINLA' if (rapor.get('karar') or {}).get('yayinla') else 'YAYIN YOK'}** ({(rapor.get('karar') or {}).get('neden')})",
          f"- Kapida korunan siniflar (bilgi): {k.get('korunan')}; kapida dusen (bilgi; kapsamdan cikarilmaz): {k.get('dusen')}",
          f"- Parite: {rapor.get('parite')}", f"- Paket yazildi: {rapor.get('paket_yazildi')}", "", "| sinif | aday | ort. R | pozitif dilim / adayli dilim |", "|---|---|---|---|"]
@@ -152,36 +158,51 @@ def main(argv=None) -> int:
     seriler = V.indir(list(siniflar), args.bas_ay or ayar.bas_ay, kesim_d, args.ham, tf=tf)
     v = C.veri_kur(seriler, {p: siniflar[p] for p in seriler}, C.maliyet_tablosu(), C.cikis_kipleri(tf=tf), bar_ns=ayar.bar_ns)
     print(f"tf={tf} ornek={len(v.g)} cift={len(v.ciftler)}")
-    dil = C.yuru(v, torch_trainer(args.epoch, evre_log=print), kesim, ayar=ayar)
-    k = C.kapi(dil)
+    kapsam = C.kapsam_ozeti(siniflar, v.ciftler)
+    print(f"kapsam: {kapsam['n']}/{kapsam['beklenen']}, eksikler: {', '.join(kapsam['eksik']) or 'yok'}")
+    if kapsam["n"] < kapsam["beklenen"]:
+        print(f"::warning::DL1@{tf} kapsam {kapsam['n']}/{kapsam['beklenen']}; eksikler: {', '.join(kapsam['eksik'])}")
     parite_hata = False
-    rapor = {"tf": tf, "kesim": args.kesim, "ornek": int(len(v.g)), "ciftler": v.ciftler, "kapi": k, "dilimler": C.temiz(dil), "paket_yazildi": False}
+    rapor = {"tf": tf, "kesim": args.kesim, "ornek": int(len(v.g)), "ciftler": v.ciftler, "kapsam": kapsam, "kapi": None, "dilimler": None, "paket_yazildi": False}
     now = datetime.now(timezone.utc).replace(microsecond=0)
     hedef = args.cikti / f"{DL.arm_id(tf)}.json"
-    karar = C.yayin_karari(k)                       # 24.11: kapi engellemez; her gece en yeni model yayinlanir
+    karar = C.yayin_karari({})                      # 24.11: kapi engellemez; her gece en yeni model yayinlanir
     rapor["karar"] = karar
     rapor["parite"] = None
-    if karar["yayinla"]:
-        rows = C.alt_kume(np.arange(len(v.g)), C.EGIT_TAVAN_SON, C.TOHUM)
-        ort, std = C.olcekleyici(v, rows)
-        ag = torch_trainer(args.epoch_son, evre_log=print)(v, rows, ort, std, C.TOHUM)
-        pk = DL.agirlik_ac(DL.agirlik_paketle(ag))                    # yuvarlanmis, gemiyi terk edecek agirliklar
-        tr = C.alt_kume(rows, C.ESIK_ORNEK, C.TOHUM)
-        esik = float(np.percentile(C.puanlar(v, tr, pk, ort, std).ravel(), C.ESIK_YUZDELIK))
-        par = parite(v, pk, ort, std)
-        rapor["parite"] = par
-        if par["max_fark_olasilik"] < C.PARITE_TOL:
-            met = {"tf": tf, "kesim": args.kesim, "ornek": int(len(v.g)), "dilimler": len(dil), "kapi": {x: k[x] for x in ("toplam_ort_r", "toplam_aday", "pozitif_oran", "siniflar")},
-                   "parite": par, "parametre": DL.parametre_sayisi(), "ciftler": len(v.ciftler), "karar": karar}
-            rapor["paket_yazildi"] = C.paket_yaz(C.paket_kur(pk, ort, std, esik, v.siniflar, k, now, met, tf), hedef)
+    # 1) Nihai model ve paket ONCE (walk-forward yayini etkilemez; zaman asimi paketi kaybettirmesin)
+    rows = C.alt_kume(np.arange(len(v.g)), C.EGIT_TAVAN_SON, C.TOHUM)
+    ort, std = C.olcekleyici(v, rows)
+    ag = torch_trainer(args.epoch_son, evre_log=print)(v, rows, ort, std, C.TOHUM)
+    pk = DL.agirlik_ac(DL.agirlik_paketle(ag))                    # yuvarlanmis, gemiyi terk edecek agirliklar
+    tr = C.alt_kume(rows, C.ESIK_ORNEK, C.TOHUM)
+    esik = float(np.percentile(C.puanlar(v, tr, pk, ort, std).ravel(), C.ESIK_YUZDELIK))
+    par = parite(v, pk, ort, std)
+    rapor["parite"] = par
+    bos_kapi = {"gecti": None, "toplam_ort_r": None, "pozitif_oran": None}      # walk-forward henuz bitmedi
+    met = {"tf": tf, "kesim": args.kesim, "ornek": int(len(v.g)), "dilimler": None, "kapi": None, "parite": par, "parametre": DL.parametre_sayisi(),
+           "ciftler": len(v.ciftler), "karar": karar}
+    if par["max_fark_olasilik"] < C.PARITE_TOL:
+        rapor["paket_yazildi"] = C.paket_yaz(C.paket_kur(pk, ort, std, esik, v.siniflar, bos_kapi, now, met, tf), hedef)
+        rapor_yaz(rapor, args.rapor)                # ara rapor: walk-forward zaman asimina ugrasa da ozette gorunur
+        # 2) Walk-forward + kapi metrigi (bilgi; bitmezse kapi/metrikler bos kalir)
+        try:
+            dil = C.yuru(v, torch_trainer(args.epoch, evre_log=print), kesim, ayar=ayar)
+            k = C.kapi(dil)
+        except Exception as e:                      # noqa: BLE001 - metrik hatasi yayini bozmaz
+            print(f"UYARI: walk-forward tamamlanamadi ({type(e).__name__}: {e}); kapi/metrikler bos", file=sys.stderr)
         else:
-            parite_hata = True
+            karar = C.yayin_karari(k)
+            rapor.update(kapi=k, dilimler=C.temiz(dil), karar=karar)
+            met.update(dilimler=len(dil), kapi={x: k[x] for x in ("toplam_ort_r", "toplam_aday", "pozitif_oran", "siniflar")}, karar=karar)
+            C.paket_yaz(C.paket_kur(pk, ort, std, esik, v.siniflar, k, now, met, tf), hedef)
+    else:
+        parite_hata = True
     rapor_yaz(rapor, args.rapor)
     out = os.environ.get("GITHUB_OUTPUT")
     if out:
         with open(out, "a") as f:
             f.write(f"paket_yazildi={'1' if rapor['paket_yazildi'] else '0'}\n")
-    print(f"tf={tf} kapi gecti={rapor['kapi']['gecti']} (bilgi) paket_yazildi={rapor['paket_yazildi']}")
+    print(f"tf={tf} kapi gecti={(rapor['kapi'] or {}).get('gecti')} (bilgi) paket_yazildi={rapor['paket_yazildi']}")
     if parite_hata:
         print("HATA: numpy-PyTorch parite basarisiz; paket yazilmadi", file=sys.stderr)
         return 2

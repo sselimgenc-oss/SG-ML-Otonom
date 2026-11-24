@@ -791,9 +791,13 @@ def _c_haber_sinyal(snap, cfg):
     return _res(name, Status.OK, "ok", f"haber sinyali yasi {age:.0f} sn", age, gecerlilik)
 
 
+DL1_YENILENME_ESIK_S = 3 * 86400          # gece egitimi her gun paketi yeniler; en eski paket bundan yasliysa uyari
+
+
 def _c_dl1_paket(snap, cfg):
     """dl1_paket_age: DL1 kolunun girdisi (dort zaman dilimi; en kotu durum). Yok -> WARN (kod `dl1_paket_yok`: "DL1 paketi henuz yok"); bozuk -> WARN;
-    45 gunden yasli -> WARN (`dl1_paket_eski`; 24.11: paket YINE islem yapar, gece egitimi yenilemedi); aksi OK (yas satiri)."""
+    45 gunden yasli -> WARN (`dl1_paket_eski`; 24.11: paket YINE islem yapar, gece egitimi yenilemedi); en eski paket 3 gunden yasli -> WARN
+    (`dl1_paket_yenilenmedi`: gece egitimi bir kac gundur yenilemiyor; islem devam eder); aksi OK (yas satiri)."""
     name = "dl1_paket_age"
     p = snap.dl1_paket
     if p.file_state == "unreadable":
@@ -805,6 +809,8 @@ def _c_dl1_paket(snap, cfg):
     kalan = (p.expires_at - snap.now).total_seconds()
     if kalan <= 0:
         return _res(name, Status.WARN, "dl1_paket_eski", f"DL1 paketi yasi {yas / 86400:.1f} gun, 45 gunu asti; DL1 paketi islem yapmaya devam ediyor ama gece egitimi yenilemedi", yas, kalan)
+    if yas > DL1_YENILENME_ESIK_S:
+        return _res(name, Status.WARN, "dl1_paket_yenilenmedi", f"DL1 paketi (en eski zaman dilimi) {yas / 86400:.1f} gundur yenilenmedi (esik 3 gun); gece egitimi calismiyor olabilir, DL1 eldeki paketle islem yapmaya devam ediyor", yas, DL1_YENILENME_ESIK_S)
     return _res(name, Status.OK, "ok", f"DL1 paketi yasi {yas / 86400:.1f} gun, son kullanmaya {kalan / 86400:.1f} gun", yas, kalan)
 
 

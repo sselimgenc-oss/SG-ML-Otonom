@@ -23,7 +23,7 @@ SRC = Path(__file__).resolve().parents[2] / "src"
 
 @pytest.fixture(autouse=True)
 def _temiz():
-    DL._ONBELLEK.update(key=None, paket=None, neden=None)
+    DL._ONBELLEK.clear()
 
 
 def test_parametre_sayisi_30_50_bin_ve_kanal_listesi():
@@ -181,7 +181,7 @@ def test_paket_zaman_dilimine_baglidir(tmp_path, tf):
     p, neden = DL.paket_yukle(yol, T0, tf=tf)
     assert neden is None and p.tf == tf
     diger = "1h" if tf != "1h" else "4h"
-    DL._ONBELLEK.update(key=None)
+    DL._ONBELLEK.clear()
     assert DL.paket_yukle(yol, T0, tf=diger) == (None, "sema")            # baska zaman diliminin paketi bu dosyada kabul edilmez
 
 

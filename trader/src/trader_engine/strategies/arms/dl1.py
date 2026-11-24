@@ -36,9 +36,9 @@ PRIORITY = 95                            # M1 (90) ve HB1 (92) ile ayni mumda ca
 FEATURES = {"dl1_body": "body_ratio", "dl1_wick": "wick_ratio", "dl1_rr": "rr"}
 RR = DL.HEDEF_ATR / DL.STOP_ATR
 
-COUNTERS: Counter = Counter()
+COUNTERS: Counter = Counter()            # anahtar: "<ad>@<tf>" (ornek paket_yok@15m, aday@1h)
 _LOG: dict = {}                          # tf -> son log saati; "eski_uyari" -> {(tf, sha)} uyarisi verilmis paketler
-_ONBELLEK: dict = {}                     # (cift, tf, son bar ns, paket sha) -> puan (en fazla ~100 kayit)
+_ONBELLEK: dict = {}                     # (cift, tf, son bar ns, paket sha) -> puan (en fazla ~400 kayit: 43 cift x 4 zaman dilimi = 172 anahtar/bar)
 
 
 def _ns(index: pd.DatetimeIndex) -> np.ndarray:
@@ -60,7 +60,7 @@ def _eski_uyari(paket, D, tf: str) -> None:
     """45 gunden yasli paket ENGELLENMEZ (24.11); her cagrida sayac, paket basina bir kez WARNING."""
     if not paket.eski(D):
         return
-    COUNTERS["paket_eski_uyari"] += 1
+    COUNTERS[f"paket_eski_uyari@{tf}"] += 1
     anahtar = (tf, paket.sha256)
     gorulen = _LOG.setdefault("eski_uyari", set())
     if anahtar not in gorulen:
@@ -74,14 +74,14 @@ def compute(inp: ArmInput):
     _sayac_logu(inp.D, inp.tf)
     paket, neden = DL.paket_yukle(simdi=inp.D, tf=inp.tf)
     if paket is None:                    # yok/bozuk/hash/sema: aday yok; kurulum tablosu hic hesaplanmaz
-        COUNTERS["paket_" + str(neden)] += 1
+        COUNTERS[f"paket_{neden}@{inp.tf}"] += 1
         return empty_output(trig.index)
     _eski_uyari(paket, inp.D, inp.tf)
     if inp.pair not in paket.siniflar:
-        COUNTERS["kapsam_disi"] += 1
+        COUNTERS[f"kapsam_disi@{inp.tf}"] += 1
         return empty_output(trig.index)
     if len(trig) < DL.MIN_BAR:
-        COUNTERS["veri_kisa"] += 1
+        COUNTERS[f"veri_kisa@{inp.tf}"] += 1
         return empty_output(trig.index)
     ts = _ns(trig.index)
     key = (inp.pair, inp.tf, int(ts[-1]), paket.sha256)
@@ -89,11 +89,11 @@ def compute(inp: ArmInput):
         sonuc = _ONBELLEK[key]
     else:
         sonuc = DL.puanla(paket, inp.pair, ts, *(trig[k].to_numpy(dtype=float) for k in ("open", "high", "low", "close", "volume")))
-        if len(_ONBELLEK) > 200:
+        if len(_ONBELLEK) > 400:
             _ONBELLEK.clear()
         _ONBELLEK[key] = sonuc
     if sonuc is None:
-        COUNTERS["puan_yok"] += 1
+        COUNTERS[f"puan_yok@{inp.tf}"] += 1
         return empty_output(trig.index)
     pl, ps, _vol, atr = sonuc
     best = None
@@ -101,17 +101,17 @@ def compute(inp: ArmInput):
         if math.isfinite(sc) and sc >= paket.esik and (best is None or sc > best[1]):
             best = (side, sc)
     if best is None:
-        COUNTERS["esik_alti"] += 1
+        COUNTERS[f"esik_alti@{inp.tf}"] += 1
         return empty_output(trig.index)
     core = inp.core()
     if core is None:                     # ortak tablo yok: aday yok
-        COUNTERS["core_yok"] += 1
+        COUNTERS[f"core_yok@{inp.tf}"] += 1
         return empty_output(trig.index)
     p = P.prepare(inp, core)
     tab = P.Table(p.core)
     i = len(p.c) - 1
     if not bool(p.ok[i]):                # son bar gecersiz (sonlu degil / h == l / ATR <= 0): aday yok
-        COUNTERS["bar_gecersiz"] += 1
+        COUNTERS[f"bar_gecersiz@{inp.tf}"] += 1
         return tab.frame()
     side, score = best
     s = P.SIGN[side]
@@ -121,7 +121,7 @@ def compute(inp: ArmInput):
     rng = float(p.h[i] - p.l[i])
     body = float(abs(p.c[i] - p.o[i]) / rng)
     wick = float((p.h[i] - max(p.o[i], p.c[i])) / rng) if side == "long" else float((min(p.o[i], p.c[i]) - p.l[i]) / rng)
-    COUNTERS["aday"] += 1
+    COUNTERS[f"aday@{inp.tf}"] += 1
     tab.put(i, setup=SETUP, side=side, skip=None, labels=["dl1", f"p={score:.3f}"], entry=entry, stop=stop, target=target,
             rr=RR, sda=DL.STOP_ATR, ema=np.nan, body=body, wick=wick, edge=np.nan, pb=0)
     return tab.frame()

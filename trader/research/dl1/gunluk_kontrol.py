@@ -1,41 +1,51 @@
 #!/usr/bin/env python3
-"""DL1 yedek tetik denetimi (stdlib; workflow `kontrol` isi). Yedek cron (02:00 UTC) calistiginda, ayni UTC gununde basarili bir DL1 kosusu
-varsa egitim atlanir (GitHub schedule guvenilir degil: ana 01:00 kosusu tetiklenmezse yedek egitir, tetiklendiyse tekrar egitmez).
+"""DL1 yedek tetik denetimi (stdlib; workflow `kontrol` isi). Yedek cron (02:00 UTC) calistiginda, zaman dilimi BASINA karar verir: yalniz bugun (UTC)
+yenilenmemis paketler egitilir. Bir zaman dilimi hata verip is kirmizi bitse bile yedek kosu dort paketi birden degil, yalniz eksik olani yeniden egitir.
+Paket "bugun yenilendi" = `models/dl1/DL1@<tf>.json` icindeki `olusturma` damgasinin UTC takvim gunu bugundur (dosya dalda; checkout bunu getirir).
+Dosya yok/okunamaz/bozuk -> yenilenmedi sayilir (egitilir).
 
-  gh run list --workflow dl1-egitim.yml --status success --json databaseId,createdAt,conclusion | python gunluk_kontrol.py --bugun 2026-11-25 --kendi-id 123
+  python gunluk_kontrol.py --bugun 2026-11-25 --dizin trader/models/dl1 [--yedek]
 
-stdin: gh JSON listesi. stdout: `atla=1` (bugun, kendisi disinda basarili kosu var) ya da `atla=0` (GITHUB_OUTPUT'a eklenir)."""
+stdout (GITHUB_OUTPUT'a eklenir): `egit_15m=0|1`, `egit_1h=..`, `egit_4h=..`, `egit_1d=..` ve `atla=1` (dortu de bugun yenilenmis: hic egitim yok) ya da `atla=0`.
+`--yedek` verilmezse (ana cron, elle tetikleme) paketlere bakilmaz: dortu de egitilir."""
 from __future__ import annotations
 
 import argparse
 import json
 import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+ZAMAN_DILIMLERI = ("15m", "1h", "4h", "1d")
 
 
-def bugun_basarili_var(kosular: list, bugun: str, kendi_id: int | None = None) -> bool:
-    """`createdAt` (ISO, UTC 'Z') bugun (YYYY-MM-DD) ile basliyan, `kendi_id` disindaki, basarili (conclusion yoksa ya da 'success') bir kosu var mi."""
-    for k in kosular or []:
-        if not isinstance(k, dict):
-            continue
-        if kendi_id is not None and str(k.get("databaseId")) == str(kendi_id):
-            continue
-        if k.get("conclusion") not in (None, "", "success"):
-            continue
-        if str(k.get("createdAt", "")).startswith(bugun):
-            return True
-    return False
+def bugun_yenilendi(yol: Path, bugun: str) -> bool:
+    """Paket dosyasinin `olusturma` damgasi UTC'de `bugun` (YYYY-MM-DD) gunundeyse True; okunamayan/bozuk/eksik dosya False."""
+    try:
+        d = json.loads(Path(yol).read_text(encoding="utf-8"))
+        t = datetime.fromisoformat(str(d["olusturma"]))
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+    if t.tzinfo is None:
+        t = t.replace(tzinfo=timezone.utc)
+    return t.astimezone(timezone.utc).date().isoformat() == bugun
+
+
+def karar(dizin: Path, bugun: str, yedek: bool) -> dict[str, bool]:
+    """tf -> egitilsin mi. Yedek degilse hepsi True."""
+    return {tf: (not yedek) or not bugun_yenilendi(Path(dizin) / f"DL1@{tf}.json", bugun) for tf in ZAMAN_DILIMLERI}
 
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
     ap.add_argument("--bugun", required=True, help="YYYY-MM-DD (UTC)")
-    ap.add_argument("--kendi-id", type=int, default=None)
+    ap.add_argument("--dizin", type=Path, default=Path("trader/models/dl1"))
+    ap.add_argument("--yedek", action="store_true", help="yedek cron: yalniz bugun yenilenmemis zaman dilimlerini egit")
     args = ap.parse_args(argv)
-    try:
-        kosular = json.load(sys.stdin)
-    except ValueError:
-        kosular = []                       # okunamazsa temkinli: egit (atla=0)
-    print(f"atla={'1' if bugun_basarili_var(kosular, args.bugun, args.kendi_id) else '0'}")
+    k = karar(args.dizin, args.bugun, args.yedek)
+    for tf, egit in k.items():
+        print(f"egit_{tf}={'1' if egit else '0'}")
+    print(f"atla={'0' if any(k.values()) else '1'}")
     return 0
 
 

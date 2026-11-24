@@ -456,7 +456,7 @@ def paket_kur(agirlik, ort, std, esik: float, siniflar: dict[str, int], kapi_son
          "olusturma": olusturma.isoformat(), "son_kullanma": (olusturma + timedelta(days=DL.SON_KULLANMA_GUN)).isoformat(),
          "esik": float(esik), "olcekleyici": {"ort": [float(x) for x in ort], "std": [float(x) for x in std]},
          "kapsam": {"siniflar": dict(sorted(siniflar.items())), "sinif_adlari": list(DL.SINIFLAR)},       # tum egitilen ciftler (kapi engellemez)
-         "kapi": {"gecti": bool(kapi_sonuc["gecti"]), "toplam_ort_r": kapi_sonuc["toplam_ort_r"],
+         "kapi": {"gecti": None if kapi_sonuc["gecti"] is None else bool(kapi_sonuc["gecti"]), "toplam_ort_r": kapi_sonuc["toplam_ort_r"],
                   "pozitif_oran": kapi_sonuc["pozitif_oran"]},
          "agirliklar": DL.agirlik_paketle(agirlik), "metrikler": metrikler}
     p["sha256"] = DL.paket_ozeti(p)
@@ -488,4 +488,11 @@ def ilk_ag(tohum: int) -> dict[str, np.ndarray]:
 def yayin_karari(kapi_sonuc: dict) -> dict:
     """24.11 kullanici karari: KALITE KAPISI YAYINI ENGELLEMEZ. Her gece egitilen en yeni model (parite/paket butunlugu saglandiktan sonra) yayinlanir;
     kapi sonucu yalniz rapora/ozete ve paketteki bilgi alanina yazilir. Mevcut paketle iyilesme karsilastirmasi ve bekleme sureleri kaldirildi."""
-    return {"yayinla": True, "neden": "otomatik_kapisiz", "kapi_gecti": bool(kapi_sonuc.get("gecti"))}
+    return {"yayinla": True, "neden": "otomatik_kapisiz", "kapi_gecti": bool(kapi_sonuc["gecti"]) if kapi_sonuc.get("gecti") is not None else None}
+
+
+def kapsam_ozeti(beklenen, ciftler) -> dict:
+    """Egitime giren enstruman kapsami: {"n": N, "beklenen": 43, "eksik": [...]}; eksik = ayarda olup egitim verisine girmeyen (veri yok/kisa) cift."""
+    beklenen = list(beklenen)
+    var = set(ciftler)
+    return {"n": sum(1 for p in beklenen if p in var), "beklenen": len(beklenen), "eksik": sorted(p for p in beklenen if p not in var)}

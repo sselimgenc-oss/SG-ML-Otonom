@@ -318,22 +318,27 @@ def test_workflow_ve_betik_sozlesmesi():
     assert "push" not in on and "pull_request" not in on                               # sonsuz dongu yok
     assert doc["permissions"]["contents"] == "write" and doc["env"]["DAL"] == "claude/charming-hawking-ab5w5q"
     egit, kontrol = doc["jobs"]["egit"], doc["jobs"]["kontrol"]
-    assert 300 <= egit["timeout-minutes"] <= 360 and egit["needs"] == "kontrol" and "atla" in egit["if"]
+    assert 300 <= egit["timeout-minutes"] <= 360 and egit["needs"] == "kontrol" and "atla" in egit["if"] and "always()" in egit["if"]
     adimlar = {a.get("id"): a for a in egit["steps"] if a.get("id")}
     toplam = 0
     for tf in DL.ZAMAN_DILIMLERI:
         a = adimlar[f"egit_{tf}"]
         assert f"--tf {tf}" in a["run"] and a["continue-on-error"] is True and "--cikti models/dl1" in a["run"]
+        assert f"egit_{tf}" in a["if"] and f"egit_{tf}" in kontrol["outputs"]                  # yedek kosu: zaman dilimi basina karar
         toplam += a["timeout-minutes"]
     assert toplam + 15 <= egit["timeout-minutes"]                                      # adim zaman asimlari + kurulum is zaman asimina sigar
     it = adimlar["it"]
     assert "!cancelled()" in it["if"] and "paket_yazildi" not in it["if"] and "DL1@*.json" in it["run"]   # kapi/iyilesme sarti YOK: egitilen her paket itilir
-    assert "push origin" in it["run"]
+    assert "push origin" in it["run"] and "for deneme in 1 2 3 4 5" in it["run"] and "git pull --rebase" in it["run"]     # itme yeniden denemeli
+    kullan = {a.get("uses", "").split("@")[0] for a in egit["steps"]}
+    assert {"actions/cache/restore", "actions/cache/save"} <= kullan and "actions/cache" not in kullan
+    kaydet = [a for a in egit["steps"] if a.get("uses", "").startswith("actions/cache/save")][0]
+    assert kaydet["if"] == "always()"
     tst = [a for a in egit["steps"] if "tests.yml" in a.get("run", "")]
     assert len(tst) == 1 and "itildi == '1'" in tst[0]["if"]
     # yedek kosu bugun basarili kosu varsa atlar
     kr = "\n".join(a.get("run", "") for a in kontrol["steps"])
-    assert "0 2 * * *" in kr and "gunluk_kontrol.py" in kr and "atla=0" in kr
+    assert "0 2 * * *" in kr and "gunluk_kontrol.py" in kr and "atla=0" in kr and "gh run list" not in kr and "--yedek" in kr
     wf = "\n".join(x for x in yol.read_text(encoding="utf-8").splitlines() if not x.lstrip().startswith("#"))
     assert "torch==" in wf and "DL1 paketleri:" in wf
     t = (ROOT.parent / ".github" / "workflows" / "tests.yml").read_text(encoding="utf-8")
@@ -343,27 +348,29 @@ def test_workflow_ve_betik_sozlesmesi():
         assert (ROOT / "research" / "dl1" / ad).exists()
 
 
-def test_gunluk_kontrol_yedek_kosu_mantigi():
-    import contextlib
-    import io
-
+def test_gunluk_kontrol_zaman_dilimi_basina_karar(tmp_path, capsys):
+    """Yedek kosu yalniz bugun (UTC) yenilenmemis zaman dilimlerini egitir; dortu yenilenmisse atla=1; yedek degilse hepsi egitilir."""
     import gunluk_kontrol as G
     bugun = "2026-11-25"
-    ana = {"databaseId": 11, "createdAt": "2026-11-25T01:03:00Z", "conclusion": "success"}
-    dun = {"databaseId": 10, "createdAt": "2026-11-24T01:03:00Z", "conclusion": "success"}
-    assert G.bugun_basarili_var([ana, dun], bugun, 12) is True                          # ana kosu basarili: yedek atlar
-    assert G.bugun_basarili_var([dun], bugun, 12) is False                               # yalniz dunku: yedek egitir (ana tetiklenmedi)
-    assert G.bugun_basarili_var([], bugun, 12) is False and G.bugun_basarili_var(None, bugun, 12) is False
-    assert G.bugun_basarili_var([ana], bugun, 11) is False                               # kendi kosusu sayilmaz
-    assert G.bugun_basarili_var([{**ana, "conclusion": "failure"}], bugun, 12) is False
-    for veri, beklenen in (("[]", "atla=0"), (json.dumps([ana]), "atla=1"), ("{bozuk", "atla=0")):
-        eski_stdin, sys.stdin = sys.stdin, io.StringIO(veri)
-        try:
-            with contextlib.redirect_stdout(io.StringIO()) as o:
-                G.main(["--bugun", bugun, "--kendi-id", "12"])
-        finally:
-            sys.stdin = eski_stdin
-        assert o.getvalue().strip() == beklenen
+    d = tmp_path / "dl1"
+    d.mkdir()
+
+    def yaz(tf, olusturma):
+        (d / f"DL1@{tf}.json").write_text(json.dumps({"olusturma": olusturma}), encoding="utf-8")
+    yaz("1d", "2026-11-25T01:20:03+00:00")
+    yaz("4h", "2026-11-24T23:59:59+00:00")                      # dun
+    yaz("1h", "2026-11-25T03:30:00+03:00")                      # UTC'de 00:30 -> bugun
+    (d / "DL1@15m.json").write_text("{bozuk", encoding="utf-8")   # bozuk -> yenilenmedi
+    assert G.karar(d, bugun, True) == {"15m": True, "1h": False, "4h": True, "1d": False}
+    assert all(G.karar(d, bugun, False).values())               # ana cron/elle: hepsi
+    assert G.main(["--bugun", bugun, "--dizin", str(d), "--yedek"]) == 0
+    cikti = capsys.readouterr().out.split()
+    assert cikti == ["egit_15m=1", "egit_1h=0", "egit_4h=1", "egit_1d=0", "atla=0"]
+    for tf in ("15m", "4h"):
+        yaz(tf, "2026-11-25T01:59:00+00:00")
+    assert G.main(["--bugun", bugun, "--dizin", str(d), "--yedek"]) == 0
+    assert capsys.readouterr().out.split()[-1] == "atla=1" and all(G.karar(d, bugun, True)[tf] is False for tf in ("15m", "1h", "4h", "1d"))
+    assert G.karar(tmp_path / "yok", bugun, True) == {tf: True for tf in ("15m", "1h", "4h", "1d")}        # dosya yok -> egit
 
 
 def test_zaman_dilimi_ayarlari():
@@ -493,6 +500,34 @@ def test_egit_main_kapi_gecmese_de_paket_yazilir(tf, tmp_path, monkeypatch):
     assert (cikti / f"DL1@{tf}.json").exists() and "paket_yazildi=1" in out.read_text()
     rapor = json.loads((tmp_path / "rapor" / f"dl1_rapor_{tf}.json").read_text())
     assert rapor["tf"] == tf and rapor["karar"]["yayinla"] is True and rapor["paket_yazildi"] is True
-    assert "(YALNIZ BILGI" in (tmp_path / "rapor" / f"dl1_rapor_{tf}.md").read_text()
+    md = (tmp_path / "rapor" / f"dl1_rapor_{tf}.md").read_text()
+    assert "(YALNIZ BILGI" in md and "Kapsam: 3/43, eksikler:" in md and "UYARI: kapsam eksik" in md and rapor["kapsam"]["n"] == 3
     pk, neden = DL.paket_yukle(cikti / f"DL1@{tf}.json", datetime.now(UTC) + timedelta(days=3), tf=tf)
     assert neden is None and pk.tf == tf and set(pk.siniflar) == {"BTC/USDT", "NVDA/USDT", "XAU/USDT"}
+
+
+def test_egit_main_walk_forward_zaman_asimi_paket_yine_yazilir(tmp_path, monkeypatch):
+    """4: paket walk-forward'dan ONCE yazilir; walk-forward bitmezse paket vardir, kapi/metrik alanlari bos, rapor 'TAMAMLANMADI' der."""
+    import egit as E
+    tf, n = "1h", 2500
+    monkeypatch.setitem(C.AYARLAR, tf, C.TfAyar(tf, "2025-01", 40, 10, 10, 5))
+    seri = {p: _df_tf(tf, n, k) for k, p in enumerate(["BTC/USDT", "NVDA/USDT", "XAU/USDT"])}
+    monkeypatch.setattr(E.V, "indir", lambda pairs, bas_ay, kesim, ham, tf="1h", **k: seri)
+    monkeypatch.setattr(E, "torch_trainer", lambda *a, **k: (lambda v, rows, ort, std, tohum: C.ilk_ag(tohum)))
+    monkeypatch.setattr(E, "parite", lambda *a, **k: {"n": 1, "max_fark_olasilik": 0.0, "max_fark_logit": 0.0})
+    monkeypatch.setattr(C, "ESIK_ORNEK", 3000)
+    monkeypatch.setattr(C, "EGIT_TAVAN_SON", 5000)
+
+    def yuru_patla(*a, **k):
+        raise TimeoutError("walk-forward bitmedi")
+    monkeypatch.setattr(C, "yuru", yuru_patla)
+    cikti = tmp_path / "dl1"
+    kesim = (pd.Timestamp("2025-01-01") + pd.Timedelta(DL.BAR_NS[tf], unit="ns") * n).date().isoformat()
+    assert E.main(["--tf", tf, "--kesim", kesim, "--cikti", str(cikti), "--rapor", str(tmp_path / "rapor")]) == 0
+    pk, neden = DL.paket_yukle(cikti / f"DL1@{tf}.json", datetime.now(UTC) + timedelta(days=3), tf=tf)
+    assert neden is None and pk is not None
+    ham = json.loads((cikti / f"DL1@{tf}.json").read_text())
+    assert ham["kapi"]["gecti"] is None and ham["metrikler"]["dilimler"] is None
+    rapor = json.loads((tmp_path / "rapor" / f"dl1_rapor_{tf}.json").read_text())
+    assert rapor["kapi"] is None and rapor["paket_yazildi"] is True
+    assert "TAMAMLANMADI" in (tmp_path / "rapor" / f"dl1_rapor_{tf}.md").read_text()
