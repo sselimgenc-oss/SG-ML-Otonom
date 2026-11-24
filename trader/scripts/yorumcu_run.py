@@ -16,7 +16,7 @@ import logging
 import os
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -124,9 +124,13 @@ def telegram_gonder(root: Path, env, tarih: str, metin: str, now: datetime) -> b
     try:
         from trader_core.telegram import Outbox  # noqa: PLC0415
         tg = Path((env.get("TELEGRAM_VAR_DIR") or "").strip() or root / "var" / "telegram")
-        return Outbox(tg, lambda: now).enqueue({"text": Y.telegram_ozeti(metin, tarih), "severity": "INFO",
-                                                "dedup_key": f"yorumcu:{tarih}", "expires_at": None,
-                                                "reply_markup": None, "created_at": now.timestamp()})
+        ok = True
+        for i, parca in enumerate(Y.telegram_parcalari(metin, tarih)):   # dosya adi zamandan: parcalar sirali gider
+            ob = Outbox(tg, lambda i=i: now + timedelta(microseconds=i))
+            ok = ob.enqueue({"text": parca, "severity": "INFO",
+                             "dedup_key": f"yorumcu:{tarih}" + (f":{i}" if i else ""), "expires_at": None,
+                             "reply_markup": None, "created_at": now.timestamp() + i * 1e-3}) and ok
+        return ok
     except Exception as e:  # noqa: BLE001
         log.warning("telegram ozeti yazilamadi: %s", type(e).__name__)
         return False

@@ -154,7 +154,10 @@ def test_bastan_sona_sahte_istemci_rapor_telegram_ve_butce(betik, tmp_path):
     yazilan = {p.relative_to(tmp_path).as_posix() for p in tmp_path.rglob("*") if p.is_file() and p.suffix == ".md"}
     assert yazilan == {"var/durum/yorumcu/2026-11-24.md"}
     ob = list((tmp_path / "var" / "telegram" / "outbox").glob("*.json"))
-    assert len(ob) == 1 and json.loads(ob[0].read_text())["text"].startswith("Yorumcu 2026-11-24")
+    tx = json.loads(ob[0].read_text())["text"]
+    assert len(ob) == 1 and tx.startswith("Yorumcu raporu 2026-11-24")
+    # tam rapor, sade metin: markdown isareti ve acilmayan dosya yolu yok
+    assert "Nasıl ölçülür" in tx and "**" not in tx and "##" not in tx and ".md" not in tx and "📌 Bulgular" in tx
     assert g.status().services["yorumcu"].used_usd > 0
     # ayni gun ikinci kosu: tekrar yok
     c2 = FakeClient(MODEL_CEVABI)
@@ -244,3 +247,26 @@ def test_dagitim_kablolari():
     assert re.search(r"^ANTHROPIC_API_KEY_YORUMCU=$", (dep / "trader-lesson.env.example").read_text(encoding="utf-8"), re.M)
     cfg = json.loads((ROOT / "config" / "budget.json").read_text())
     assert cfg["api_key_env"]["yorumcu"] == "ANTHROPIC_API_KEY_YORUMCU" and "yorumcu" in cfg["daily_cap_usd"]
+
+
+def test_telegram_uzun_rapor_sirali_parcalara_bolunur_hic_satir_kaybolmaz():
+    from trader_reports import yorumcu as Y
+    satirlar = [f"- madde {i}: " + "x" * 90 for i in range(120)]
+    metin = "# Yorumcu raporu 2026-11-24\n\n**SAYI HATASI**: deneme.\n\n## Bulgular\n" + "\n".join(satirlar)
+    ps = Y.telegram_parcalari(metin, "2026-11-24")
+    n = len(ps)
+    assert n > 1 and all(len(p) <= Y.TG_PARCA + 40 for p in ps)
+    assert [p.split("\n", 1)[0] for p in ps] == [f"Yorumcu raporu 2026-11-24 ({i}/{n})" for i in range(1, n + 1)]
+    birlesik = "\n".join(p.split("\n\n", 1)[1] for p in ps)
+    assert all(f"• madde {i}: " in birlesik for i in range(120))
+    assert "⚠️ Dikkat:" in ps[0] and "**" not in birlesik and "#" not in birlesik
+
+
+def test_telegram_parcalari_outbox_sirasiyla_yazilir(betik, tmp_path):
+    from trader_core.telegram import Outbox
+    from trader_reports import yorumcu as Y
+    metin = "## Bulgular\n" + "\n".join(f"- satir {i} " + "y" * 200 for i in range(60))
+    assert betik.telegram_gonder(tmp_path, {}, "2026-11-24", metin, NOW)
+    ob = Outbox(tmp_path / "var" / "telegram", lambda: NOW)
+    yazilan = [json.loads(p.read_text())["text"] for p in sorted(ob.list())]
+    assert yazilan == Y.telegram_parcalari(metin, "2026-11-24") and len(yazilan) > 1

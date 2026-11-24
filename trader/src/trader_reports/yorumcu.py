@@ -189,7 +189,7 @@ def raporu_denetle(model_metni: str, tablolar: dict) -> tuple[str, dict]:
     govde, uy = onerileri_sinirla(yetersiz_satirlari_tamamla(model_metni.strip(), tablolar))
     ust = []
     if kotu:
-        ust.append(f"**{ISARET_SAYI_HATASI}**: raporda girdi tablolarında bulunmayan sayılar var ({', '.join(kotu)}). Bu raporu doğrulanmamış sayın.")
+        ust.append(f"**{ISARET_SAYI_HATASI}**: yapay zekâ verilerde olmayan sayı yazdı ({', '.join(kotu)}). Bu sayılara güvenme; diğerleri verilerden.")
     ust += [f"UYARI: {u}." for u in uy]
     metin = f"# Yorumcu raporu {tablolar['tarih']}\n\n" + ("\n".join(ust) + "\n\n" if ust else "")
     metin += ("Yalnız yorum: bu rapor hiçbir ayarı değiştirmez, işlem açıp kapatmaz. "
@@ -201,9 +201,42 @@ def rapor_yok(tarih: str, neden: str) -> str:
     return f"# Yorumcu raporu {tarih}\n\nbugün rapor yok: {neden}\n"
 
 
-def telegram_ozeti(metin: str, tarih: str, ilk_n: int = 600) -> str:
-    """Kisa Telegram metni: baslik + raporun ilk satirlari (bolum basliklari atilir)."""
-    govde = [ln.strip() for ln in metin.splitlines() if ln.strip() and not ln.startswith("# ")]
-    kisa = " ".join(govde)
-    kisa = kisa if len(kisa) <= ilk_n else kisa[:ilk_n].rsplit(" ", 1)[0] + "…"
-    return f"Yorumcu {tarih}: {kisa}\n(tam rapor: var/durum/yorumcu/{tarih}.md)"
+TG_PARCA = 3300                      # Telegram mesaj siniri (MAX_TEXT=3500) altinda, etiket payi birakir
+
+
+def _sade(ln: str) -> str:
+    """Markdown isaretlerini atar: "## Baslik" -> "📌 Baslik", '**x**' -> 'x', '- ' -> '• '."""
+    t = ln.strip()
+    if t.startswith("#"):
+        return "📌 " + t.lstrip("#").strip()   # .upper() Turkce i harfini bozar (Öneriler -> ÖNERILER)
+    t = t.replace("**", "").replace("__", "")
+    if t.startswith(("- ", "* ")):
+        t = "• " + t[2:]
+    return t.replace(f"{ISARET_SAYI_HATASI}:", "⚠️ Dikkat:")
+
+
+def telegram_parcalari(metin: str, tarih: str, sinir: int = TG_PARCA) -> list[str]:
+    """Raporun TAMAMI, sade metin olarak (markdown isareti yok, dosya yolu yok); uzunsa satir sinirindan parcalara bolunur."""
+    satirlar = [_sade(ln) for ln in metin.splitlines() if not ln.startswith("# ")]
+    govde = re.sub(r"\n{3,}", "\n\n", "\n".join(satirlar)).strip()
+    parcalar, cur = [], ""
+    for ln in govde.split("\n"):
+        while len(ln) > sinir:                      # tek satir bile sigmiyorsa kelime sinirindan bol
+            k = ln[:sinir].rsplit(" ", 1)[0] or ln[:sinir]
+            if cur:
+                parcalar.append(cur); cur = ""
+            parcalar.append(k); ln = ln[len(k):].lstrip()
+        if cur and len(cur) + 1 + len(ln) > sinir:
+            parcalar.append(cur); cur = ln
+        else:
+            cur = f"{cur}\n{ln}" if cur else ln
+    if cur:
+        parcalar.append(cur)
+    n = len(parcalar)
+    bas = f"Yorumcu raporu {tarih}"
+    return [f"{bas}{f' ({i}/{n})' if n > 1 else ''}\n\n{p}" for i, p in enumerate(parcalar or ["(boş rapor)"], 1)]
+
+
+def telegram_ozeti(metin: str, tarih: str) -> str:
+    """Geriye uyum: ilk parca."""
+    return telegram_parcalari(metin, tarih)[0]
