@@ -1,23 +1,23 @@
 # İşlem mutabakatı
 
-Son kontrol: 2026-11-24 16:50 (TSİ). İşlem: 77 (kapanan 71, açık 6). Uyuşmazlık: 0.
+Son kontrol: 2026-11-24 18:03 (TSİ). İşlem: 79 (kapanan 75, açık 4). Uyuşmazlık: 0.
 
 ## Kontroller
 
 | Kontrol | Sonuç | Ayrıntı |
 |---|---|---|
-| Kasa = başlangıç + Σ net K/Z | geçti | Kasa 953,58 $ tutuyor |
-| Net K/Z: SQL toplamı = motor toplamı = brüt - komisyon - fonlama | geçti | Defter toplamları tutuyor (-51,47 $) |
-| Long toplamı (motor = panel) | geçti | Long işlemler panelle aynı (11 işlem) |
-| Short toplamı (motor = panel) | geçti | Short işlemler panelle aynı (60 işlem) |
-| Toplam kapanan (motor = panel 'tümü') | geçti | Kapanan işlemlerin toplamı panelle aynı (71 işlem) |
-| Açık pozisyon sayısı (motor = panel = şerit = durum) | geçti | 6 açık işlem, hepsi aynı |
-| Açık K/Z fiyat kaynağı (panel = motor mark) | geçti | Açık işlemlerin kâr/zararı panelle aynı; fiyat bekleniyor (piyasa kapalı/veri yok): #20, #39, #40, #80, #96, #98 |
+| Kasa = başlangıç + Σ net K/Z | geçti | Kasa 946,24 $ tutuyor |
+| Net K/Z: SQL toplamı = motor toplamı = brüt - komisyon - fonlama | geçti | Defter toplamları tutuyor (-56,46 $) |
+| Long toplamı (motor = panel) | geçti | Long işlemler panelle aynı (12 işlem) |
+| Short toplamı (motor = panel) | geçti | Short işlemler panelle aynı (63 işlem) |
+| Toplam kapanan (motor = panel 'tümü') | geçti | Kapanan işlemlerin toplamı panelle aynı (75 işlem) |
+| Açık pozisyon sayısı (motor = panel = şerit = durum) | geçti | 4 açık işlem, hepsi aynı |
+| Açık K/Z fiyat kaynağı (panel = motor mark) | geçti | Açık işlemlerin kâr/zararı panelle aynı; fiyat bekleniyor (piyasa kapalı/veri yok): #20, #39, #40, #98 |
 | Günlük zarar limiti oranı (panel = kâğıt ayarı) | geçti | Günlük zarar limiti %8,00 (panelle aynı) |
 
 ## Bilgi
 
-- Fiyatı gelmeyen açık işlemler: #20, #39, #40, #80, #96, #98 · fiyat bekleniyor (piyasa kapalı/veri yok); uyuşmazlık sayılmaz
+- Fiyatı gelmeyen açık işlemler: #20, #39, #40, #98 · fiyat bekleniyor (piyasa kapalı/veri yok); uyuşmazlık sayılmaz
 
 ## Telegram kaynağı
 
@@ -86,7 +86,7 @@ Yok.
 | 77 | Sahte kırılım dönüşü · 15 dakika | BRKB | short | kapalı | 2026-11-23 06:30 | 2026-11-23 12:00 | 573,640000 | 573,750000 | -0,1969 | 1,0269 | -0,3431 | -0,8807 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 78 | Sahte kırılım dönüşü · 15 dakika | ADA | short | kapalı | 2026-11-23 06:45 | 2026-11-23 08:31 | 0,144200 | 0,145500 | -4,3199 | 0,4813 | 0,0000 | -4,8012 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 79 | Yapay zekâ adayı · 4 saat | NVDA | short | kapalı | 2026-11-23 07:00 | 2026-11-23 16:55 | 134,260000 | 138,510000 | -10,4125 | 0,3341 | -0,1239 | -10,6227 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
-| 80 | Sıkışma kırılımı · 4 saat | AAPL | short | açık | 2026-11-23 11:00 | — | 346,480000 | — | — | 0,2477 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
+| 80 | Sıkışma kırılımı · 4 saat | AAPL | short | kapalı | 2026-11-23 11:00 | 2026-11-24 17:52 | 346,480000 | 353,930000 | -10,6535 | 0,5008 | 0,0000 | -11,1543 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 81 | Sıkışma kırılımı · 15 dakika | WMT | long | kapalı | 2026-11-23 12:15 | 2026-11-23 17:00 | 127,960000 | 127,970000 | 0,0588 | 0,7524 | 0,0000 | -0,6936 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 82 | Sıkışma kırılımı · 15 dakika | ADA | short | kapalı | 2026-11-23 14:00 | 2026-11-23 16:56 | 0,145700 | 0,147600 | -4,6930 | 0,3622 | 0,0000 | -5,0552 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 83 | Sıkışma kırılımı · 15 dakika | HD | short | kapalı | 2026-11-23 17:00 | 2026-11-23 17:15 | 343,650000 | 343,090000 | 1,1648 | 0,7142 | 0,0000 | 0,4506 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
@@ -102,9 +102,11 @@ Yok.
 | 93 | Yapay zekâ adayı · 15 dakika | JPM | short | kapalı | 2026-11-24 06:30 | 2026-11-24 08:15 | 317,580000 | 318,900000 | -2,9832 | 0,7192 | 0,0000 | -3,7024 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 94 | Sahte kırılım dönüşü · 15 dakika | XRP | short | kapalı | 2026-11-24 08:30 | 2026-11-24 08:34 | 0,952900 | 0,957200 | -3,7668 | 0,8366 | 0,0000 | -4,6034 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 95 | İki bacaklı geri çekilme · 15 dakika | BTC | short | kapalı | 2026-11-24 09:00 | 2026-11-24 09:50 | 60.590,500000 | 60.529,900000 | 0,7878 | 0,7873 | 0,0000 | 0,0005 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
-| 96 | Trend geri çekilmesi · 15 dakika | AVAX | short | açık | 2026-11-24 09:15 | — | 6,793000 | — | — | 0,2004 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
+| 96 | Trend geri çekilmesi · 15 dakika | AVAX | short | kapalı | 2026-11-24 09:15 | 2026-11-24 17:01 | 6,793000 | 6,648254 | 8,5400 | 0,3965 | 0,0000 | 8,1435 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 97 | Sahte kırılım dönüşü · 15 dakika | HD | long | kapalı | 2026-11-24 10:00 | 2026-11-24 12:00 | 345,770000 | 344,700000 | -2,9318 | 0,9459 | 0,0000 | -3,8777 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 98 | Trend geri çekilmesi · 15 dakika | ADA | short | açık | 2026-11-24 10:15 | — | 0,148300 | — | — | 0,2379 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
 | 99 | Trend kırılımı · 15 dakika | WMT | long | kapalı | 2026-11-24 12:15 | 2026-11-24 16:30 | 130,340000 | 129,420000 | -6,7896 | 0,9585 | 0,0000 | -7,7481 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 100 | Sahte kırılım dönüşü · 15 dakika | TSLA | long | kapalı | 2026-11-24 12:30 | 2026-11-24 13:30 | 384,770000 | 381,360000 | -2,8985 | 0,3256 | 0,0000 | -3,2241 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 101 | Sahte kırılım dönüşü · 15 dakika | BZ | short | kapalı | 2026-11-24 14:45 | 2026-11-24 16:30 | 86,930000 | 87,520000 | -3,0975 | 0,4579 | 0,0000 | -3,5554 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
+| 102 | Sahte kırılım dönüşü · 15 dakika | WMT | long | kapalı | 2026-11-24 17:00 | 2026-11-24 17:45 | 129,550000 | 131,220000 | 7,2144 | 0,5633 | 0,0000 | 6,6511 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
+| 103 | Trend kırılımı · 15 dakika | JPM | short | kapalı | 2026-11-24 17:30 | 2026-11-24 17:45 | 315,010000 | 317,540000 | -7,6659 | 0,9583 | 0,0000 | -8,6242 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
