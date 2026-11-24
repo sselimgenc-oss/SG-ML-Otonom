@@ -349,18 +349,22 @@ def prepare_h1(h1_rows: Sequence[tuple], h4_rows: Sequence[tuple], signal_params
     `regime` sutunlari; `regime.classify_series` + `align_to_base`). `signal_params`: islemin kendi surumunun SignalParams'i."""
     import pandas as pd
 
-    from trader_core import regime as R
+    from trader_core import arm_time as AT
     from trader_core import signals as S
     cols = ["open", "high", "low", "close"]
 
     def frame(rows):
         idx = pd.to_datetime([r[0] for r in rows], unit="ms", utc=True)
-        return pd.DataFrame([r[1:5] for r in rows], index=idx, columns=cols, dtype="float64")
+        df = pd.DataFrame([r[1:5] for r in rows], index=idx, columns=cols, dtype="float64")
+        if rows and all(len(r) > 5 for r in rows):          # hacim varsa olu mum (hacim 0, o=h=l=c) tespiti mumkun; yoksa eski yol
+            df["volume"] = [float(r[5]) for r in rows]
+        return df
     p = signal_params if signal_params is not None else S.DEFAULT_SIGNAL_PARAMS
     h1, h4 = frame(h1_rows), frame(h4_rows)
-    reg = R.classify_series(h4[cols], p.regime_params())
-    aligned = R.align_to_base(reg, h1.index, 4)
-    sig = S.compute_signals(h1[cols], aligned, p)
+    # MOTORLA AYNI olu mum cikarimi (seansli hisse/emtia perp'i): rejim 4s'in dolu mumlarindan, ATR/rejim 1s'in dolu mumlarindan; olu satirlar
+    # son dolu satirdan tasinir. Olu mum yoksa (kripto) eski yol AYNEN (arm_time.regime_series/core_signals).
+    reg = AT.regime_series(h4, p.regime_params())
+    sig, _, _ = AT.core_signals(h1, reg, p)
     return H1Series([int(r[0]) for r in h1_rows], h1["open"].tolist(), h1["high"].tolist(), h1["low"].tolist(),
                     h1["close"].tolist(), sig["atr_tf"].tolist(), sig["regime"].tolist())
 
@@ -589,7 +593,7 @@ class MarketSource:
         try:
             for a, b in _split_ranges(start_ms, end_ms, self.holdout):
                 out += self._db.execute(
-                    "SELECT open_ms,o,h,l,c FROM bars WHERE kind=? AND pair=? AND tf=? AND open_ms>=? AND open_ms<? "
+                    "SELECT open_ms,o,h,l,c,v FROM bars WHERE kind=? AND pair=? AND tf=? AND open_ms>=? AND open_ms<? "
                     "AND written_ms>=open_ms+? ORDER BY open_ms", (kind, pair, tf, a, b, tf_ms)).fetchall()
         except sqlite3.Error as e:
             raise ExitCfError(f"market okuma hatasi: {type(e).__name__}", "market_unreadable") from e
@@ -1206,9 +1210,9 @@ class FeatherSource:
         path = self._path(pair, suffix)
         if not os.path.exists(path):
             return []
-        ms, cols = self._load(path, ("open", "high", "low", "close"), self._spans(start_ms, end_ms))
-        return [(int(m), float(o), float(h), float(lo), float(c))
-                for m, o, h, lo, c in zip(ms, cols["open"], cols["high"], cols["low"], cols["close"])]
+        ms, cols = self._load(path, ("open", "high", "low", "close", "volume"), self._spans(start_ms, end_ms))
+        return [(int(m), float(o), float(h), float(lo), float(c), float(v))
+                for m, o, h, lo, c, v in zip(ms, cols["open"], cols["high"], cols["low"], cols["close"], cols["volume"])]
 
     def funding(self, pair: str, start_ms: int, end_ms: int) -> list[tuple]:
         path = self._path(pair, "1h-funding_rate")

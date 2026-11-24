@@ -21,7 +21,7 @@ from trader_core.signals import SignalParams
 from . import arm_guard as AG
 from .arm_quarantine import unit_for
 from .errors import is_strategy_error
-from .bars import (ARM_TFS, MIN_CONTIG_ARM, STARTUP_BARS_ARM, WINDOW_ARM, aggregate_4h_to_1d, arm_closing_tfs,
+from .bars import (ARM_TFS, BARS_PER_DAY_4H, MIN_CONTIG_ARM, STARTUP_BARS_ARM, WINDOW_ARM, aggregate_4h_to_1d, arm_closing_tfs,
                    arm_tf_delta, tf_delta)
 from .marketdata.sources import MarketView
 from .position_manager import ExitContext
@@ -89,24 +89,49 @@ class SignalSource(Protocol):
 
 
 _WIDEN_MAX = 8        # seansli enstrumanda pencereyi en cok bu kadar katina genisletir (olu mum orani <= %87)
+_WIDEN_MAX_1D = 3     # 1g yolu (4s'ten toplanir): dolu gun orani >= %33 varsayilir (hisse ~%71): en cok 3 x pencere gun okunur
+_RETRY_MARGIN = 1.15  # tek yeniden okumada tahmine eklenen pay (daha eski gecmis biraz daha olu olabilir)
+_LIVE_FRAC: dict[tuple[str, str], float] = {}     # (cift, tf) -> son gozlenen dolu bar orani; YALNIZ ilk okuma boyunu secer (sonuc degismez)
+
+
+def _live_window(fetch, n: int, key: tuple[str, str], cap_mult: int = _WIDEN_MAX) -> pd.DataFrame:
+    """Son `n` DOLU bari (+ aralarindaki olu mumlari) dondurur. `fetch(m)` en cok `m` son birimi verir. Okuma sayisi: en cok 2 (ilk okuma
+    + tek yeniden okuma). Ilk okuma boyu: o cift/tf icin daha once gozlenen dolu orandan (`_LIVE_FRAC`; yoksa/kriptoda n); yeniden
+    okuma boyu: gozlenen orandan (+pay). Sonuc ilk okuma boyuna BAGLI DEGIL (tail_active ayni son n dolu bari verir) => canli/geri test
+    ayni. Gecmis yetmezse (depo bitti) ya da tavana (`cap_mult` x n) varildiysa n'den AZ dolu bar donebilir: bilincli, hata degil."""
+    cap = n * cap_mult
+    hint = _LIVE_FRAC.get(key, 1.0)
+    m = n if hint >= 1.0 else min(cap, int(math.ceil(n / hint * 1.1)) + 32)
+    df = fetch(m)
+    keep = AG.active_mask(df)
+    if keep is None:
+        if len(df):
+            _LIVE_FRAC[key] = 1.0
+        return df.iloc[-n:]
+    got = int(keep.sum())
+    if len(df):
+        _LIVE_FRAC[key] = max(got, 1) / len(df)
+    if got >= n or len(df) < m or m >= cap:                  # yeterli / magazadaki tum gecmis okundu / tavan
+        return AG.tail_active(df, n)
+    m2 = min(cap, int(math.ceil(n * len(df) / max(got, 1) * _RETRY_MARGIN)) + 32)
+    if m2 > m:
+        df = fetch(m2)
+    return AG.tail_active(df, n)
 
 
 def _bars_window(view: MarketView, pair: str, tf: str, D: datetime, n: int) -> pd.DataFrame:
     """`view.bars(n)` ile ayni, ama pencere n DOLU bar sayar: olu mum (hacim 0, o=h=l=c) olan seansli enstrumanda pencereyi genisletip
     son n dolu bari (+ aralarindaki olu mumlari) dondurur. Olu mum yoksa tam olarak `view.bars(pair, tf, D, n)` (kripto: degismez). Boylece
     EMA/ATR tohum etkisi 7/24 enstrumanla ayni mertebede kalir ve canli pencere kesiti tum gecmis (geri test) hesabiyla ayni degeri verir."""
-    df = view.bars(pair, tf, D, n)
-    m = n
-    for _ in range(3):
-        keep = AG.active_mask(df)
-        if keep is None or len(df) < m:                      # olu mum yok / magazadaki tum gecmis zaten okundu
-            break
-        got = int(keep.sum())
-        if got >= n or m >= n * _WIDEN_MAX:
-            break
-        m = min(n * _WIDEN_MAX, int(math.ceil(n * len(df) / max(got, 1))) + 32)
-        df = view.bars(pair, tf, D, m)
-    return AG.tail_active(df, n)
+    return _live_window(lambda m: view.bars(pair, tf, D, m), n, (pair, tf))
+
+
+def _bars_1d(view: MarketView, pair: str, D: datetime, n: int) -> pd.DataFrame:
+    """Son `n` DOLU 1g bar: 4s barlardan (UTC gunu = 6 x 4s) toplanir; 1g penceresi 4s penceresinden (WINDOW_ARM['4h']) BAGIMSIZ ve daha
+    uzundur (EMA(50) tohum etkisi <= 1e-9 icin ~600 gun): 4s okumasi yalniz bu yolda buyur. Depoda daha az gecmis varsa var olan kullanilir."""
+    def fetch(m: int) -> pd.DataFrame:
+        return aggregate_4h_to_1d(view.bars(pair, "4h", D, BARS_PER_DAY_4H * m + BARS_PER_DAY_4H - 1))   # +5: bas kismi gun atilsa da m tam gun
+    return _live_window(fetch, n, (pair, "1d"), _WIDEN_MAX_1D)
 
 
 def _opt(x) -> float | None:
@@ -390,7 +415,7 @@ class MultiArmSignalSource(WindowedSignalSource):
         if tf == "4h":
             trig = h4
         elif tf == "1d":
-            trig = AG.tail_active(aggregate_4h_to_1d(h4), WINDOW_ARM["1d"])
+            trig = _bars_1d(self.view, pair, D, WINDOW_ARM["1d"])
         else:
             trig = _bars_window(self.view, pair, tf, D, WINDOW_ARM[tf])
         if len(trig) < STARTUP_BARS_ARM[tf]:

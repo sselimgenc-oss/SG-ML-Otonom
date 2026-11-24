@@ -61,7 +61,7 @@ def _next_funding_boundary_ms(now_ms: int) -> int:
 
 
 def _default_backfill() -> Mapping[str, int]:
-    return {"1m": 4320, "15m": 5000, "1h": 1500, "4h": 1500}
+    return {"1m": 4320, "15m": 5000, "1h": 1500, "4h": 3700}      # 4s: 1g penceresi (WINDOW_ARM["1d"] = 600 gun x 6) icin; yalniz BOS depoda ilk doldurma derinligi
 
 
 @dataclass(frozen=True)

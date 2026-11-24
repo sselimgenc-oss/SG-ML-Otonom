@@ -9,9 +9,9 @@ from datetime import timedelta
 import numpy as np
 import pandas as pd
 
-from trader_core import regime as R
 from trader_core import signals as S
 
+from .. import arm_guard as AG
 from .. import position_manager as PM
 from ..bars import STARTUP_BARS, STARTUP_BARS_4H, WINDOW_4H, WINDOW_TRIGGER
 from ..position_manager import ExitContext, ExitDecision
@@ -80,9 +80,8 @@ class PriceActionV1H4:
         params = S.SignalParams.from_mapping(ctx.params)
         trig = ctx.bars[ctx.tf]
         h4 = ctx.bars["4h"]
-        reg = R.classify_series(h4[_OHLC], params.regime_params())
-        al = R.align_to_base(reg, h4.index, 4)
-        sig4 = S.compute_signals(h4[_OHLC], al, params)
+        reg = AG.regime_series(h4, params.regime_params())     # olu (hacim 0, o=h=l=c) mumlar gosterge girdisinden cikar; kriptoda eski yol AYNEN
+        sig4, _, _ = AG.core_signals(h4, reg, params)
         off = sig4["setup"].notna() & ~sig4["setup"].isin(list(self.setups_enabled))
         if bool(off.any()):
             sig4.loc[off, "signal"] = False

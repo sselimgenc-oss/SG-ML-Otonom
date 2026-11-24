@@ -285,3 +285,223 @@ def test_dl1_olu_mumlari_atlar(stock):
     # olu mumlar sifir ATR eklemez: dolu mumlardan hesaplanan ATR == olu mumsuz seri ATR
     assert DL.atr_son(h_k, l_k, c_k) == pytest.approx(DL.atr_son(stock["clean"]["1h"]["high"].to_numpy(), stock["clean"]["1h"]["low"].to_numpy(),
                                                               stock["clean"]["1h"]["close"].to_numpy()), rel=TOL)
+
+
+# --------------------------------------------------------------------------------------------- _bars_window: verimli okuma, ayni sonuc, acik eksik-dolu davranisi
+def _bars_window_ref(view, pair, tf, D, n):
+    """Eski (2-3 kez yeniden okuyan) uygulama: sonuc referansi."""
+    df = view.bars(pair, tf, D, n)
+    m = n
+    for _ in range(3):
+        keep = AG.active_mask(df)
+        if keep is None or len(df) < m:
+            break
+        got = int(keep.sum())
+        if got >= n or m >= n * 8:
+            break
+        m = min(n * 8, int(math.ceil(n * len(df) / max(got, 1))) + 32)
+        df = view.bars(pair, tf, D, m)
+    return AG.tail_active(df, n)
+
+
+class _CountView:
+    def __init__(self, v):
+        self.v, self.calls, self.rows = v, 0, 0
+
+    def bars(self, pair, tf, until, n=None, kind="last"):
+        df = self.v.bars(pair, tf, until, n, kind)
+        self.calls += 1
+        self.rows += len(df)
+        return df
+
+
+@pytest.fixture()
+def clean_hint():
+    SR._LIVE_FRAC.clear()
+    yield
+    SR._LIVE_FRAC.clear()
+
+
+@pytest.mark.parametrize("tf,n", [("1h", 400), ("1h", 900), ("15m", 1200), ("4h", 150)])
+def test_bars_window_ayni_sonuc_daha_az_okuma(stock, tmp_path, clean_hint, tf, n):
+    """Yeni `_bars_window` == eski uygulama (assert_frame_equal) hem soguk (ipucu yok) hem sicak (onceki orandan boyutlu ilk okuma);
+    okunan satir toplami eskisinden fazla degil, sicakta tek okuma; kripto: tek okuma, birebir view.bars(n)."""
+    pair, crypto = "NVDA/USDT", "BTC/USDT"
+    db = tmp_path / "market.sqlite"
+    GS.write_store(db, {pair: stock["flat15"], crypto: GS.make_15m(1, 96 * DAYS, START)}, START + timedelta(days=DAYS + 1))
+    st = StoreSource(db)
+    D = START + timedelta(days=DAYS)
+    old = _CountView(st)
+    ref = _bars_window_ref(old, pair, tf, D, n)
+    cold = _CountView(st)
+    pd.testing.assert_frame_equal(SR._bars_window(cold, pair, tf, D, n), ref)
+    warm = _CountView(st)
+    pd.testing.assert_frame_equal(SR._bars_window(warm, pair, tf, D, n), ref)
+    assert int(AG.active_mask(ref).sum()) == n
+    assert cold.calls <= min(2, old.calls) and cold.rows <= old.rows * 1.15
+    assert warm.calls == 1 and warm.rows < old.rows           # sicak: tek okuma, eskiden 2-3 okuma
+    crypto_view = _CountView(st)
+    c = SR._bars_window(crypto_view, crypto, tf, D, n)
+    assert c.equals(st.bars(crypto, tf, D, n)) and crypto_view.calls == 1 and crypto_view.rows == n
+
+
+def test_bars_window_eksik_dolu_bar_acik_ve_eski_ile_ayni(tmp_path, clean_hint):
+    """Gecmis biterse ya da eski gecmis cok daha oluyse (tavan n*8) pencere n'den AZ dolu bar tutar: bilincli (hata/bloklama yok), eski
+    uygulamayla ayni. Burada: ilk 2000 saat dolu, sonraki 5000 saat TAMAMEN olu, son 30 saat dolu; n=100 -> yalniz 30 dolu bar (tavan 800 satir)."""
+    base = GS.make_15m(4, 96 * 320, START, 50.0)
+    n15 = len(base)
+    live_tail, dead_mid = 30 * 4, 5000 * 4
+    v = base.copy()
+    lo, hi = n15 - live_tail - dead_mid, n15 - live_tail
+    last_c = float(v["close"].iloc[lo - 1])
+    for col in ("open", "high", "low", "close"):
+        v.iloc[lo:hi, v.columns.get_loc(col)] = last_c
+    v.iloc[lo:hi, v.columns.get_loc("volume")] = 0.0
+    pair = "SPY/USDT"
+    db = tmp_path / "m.sqlite"
+    end = v.index[-1] + pd.Timedelta("15min")
+    GS.write_store(db, {pair: v}, end + timedelta(days=1))
+    st = StoreSource(db)
+    D = end.to_pydatetime()
+    n = 100
+    got = SR._bars_window(st, pair, "1h", D, n)
+    ref = _bars_window_ref(st, pair, "1h", D, n)
+    live = int(AG.active_mask(got).sum())
+    assert live < n and live == 30 == int(AG.active_mask(ref).sum()) and len(got) <= n * 8    # ayni dolu barlar (olu dolgu boyu: tek yeniden okuma <= eski tavan)
+    lg, lr = got[AG.active_mask(got)], ref[AG.active_mask(ref)]
+    pd.testing.assert_frame_equal(lg, lr)
+    # gecmis biterse: istenen n depodaki tum dolu bardan buyuk -> hepsi, hata yok
+    SR._LIVE_FRAC.clear()
+    big = SR._bars_window(st, pair, "1h", D, 100000)
+    assert int(AG.active_mask(big).sum()) == int(AG.active_mask(st.bars(pair, "1h", D, None)).sum())
+
+
+def test_bars_1d_pencere_600_gun_ayni_sonuc_ve_zarif_dusus(stock, tmp_path, clean_hint):
+    """1g yolu: 4s'ten toplanir, pencere 4s penceresinden (1500 x 4s) bagimsiz. Kripto: son 600 gun == tum gecmisin kuyrugu; hisse: 600 DOLU gun
+    (olu hafta sonu gunleri girmez); gecmis daha kisaysa (200 gun) var olan kullanilir (hata/bloklama yok)."""
+    from trader_engine.bars import WINDOW_ARM, aggregate_4h_to_1d
+    n = int(WINDOW_ARM["1d"])
+    assert n >= 600
+    days = 700
+    crypto, pair = "BTC/USDT", "NVDA/USDT"
+    fl = GS.make_stock_15m(3, days, START, 150.0, flat=True)
+    db = tmp_path / "m.sqlite"
+    GS.write_store(db, {crypto: GS.make_15m(1, 96 * days, START), pair: fl}, START + timedelta(days=days + 1))
+    st = StoreSource(db)
+    D = START + timedelta(days=days)
+    c = SR._bars_1d(st, crypto, D, n)
+    full = aggregate_4h_to_1d(st.bars(crypto, "4h", D, None))
+    pd.testing.assert_frame_equal(c, full.iloc[-n:])
+    assert len(c) == n
+    s = SR._bars_1d(st, pair, D, n)
+    live = int(AG.active_mask(s).sum())
+    assert live <= n and live > 400                           # 700 gunde ~500 dolu gun var: tumu (depo bitti), hata yok
+    pd.testing.assert_frame_equal(s, AG.tail_active(aggregate_4h_to_1d(st.bars(pair, "4h", D, None)), n))
+    short = tmp_path / "s.sqlite"
+    GS.write_store(short, {crypto: GS.make_15m(1, 96 * 200, START)}, START + timedelta(days=201))
+    s2 = SR._bars_1d(StoreSource(short), crypto, START + timedelta(days=200), n)
+    assert 150 <= len(s2) < n                                 # elde olan kullanilir
+
+
+# --------------------------------------------------------------------------------------------- A1-A3: tutarli cagiranlar
+def _h1_h4_rows(h1, h4, volume=True):
+    def rows(g):
+        return [(int(ts.value // 1_000_000), *map(float, r)) for ts, r in zip(g.index, g[["open", "high", "low", "close"] + (["volume"] if volume else [])].to_numpy())]
+    return rows(h1), rows(h4)
+
+
+def test_exit_counterfactual_prepare_h1_kripto_ayni_hisse_motorla_ayni(stock):
+    """A1: kripto (olu mum yok): eski dogrudan hesapla ayni (hacimli ya da hacimsiz satir); seansli: ATR/rejim motorun core_signals ciktisiyla ayni."""
+    from trader_core import exit_counterfactual as EC
+    sp = S.DEFAULT_SIGNAL_PARAMS
+    df15 = GS.make_15m(11, 96 * 120, START, 100.0)
+    h1, h4 = GS.resample(df15, "1h"), GS.resample(df15, "4h")
+    cols = ["open", "high", "low", "close"]
+    ref = S.compute_signals(h1[cols], R.align_to_base(R.classify_series(h4[cols], sp.regime_params()), h1.index, 4), sp)
+    for vol in (True, False):
+        r1, r4 = _h1_h4_rows(h1, h4, vol)
+        ser = EC.prepare_h1(r1, r4)
+        np.testing.assert_array_equal(ser.atr, ref["atr_tf"].to_numpy())
+        assert ser.regime == ref["regime"].tolist()
+    f1, f4 = stock["flat"]["1h"], stock["flat"]["4h"]
+    assert AG.active_mask(f1) is not None
+    r1, r4 = _h1_h4_rows(f1, f4)
+    ser = EC.prepare_h1(r1, r4)
+    reg = AG.regime_series(f4, sp.regime_params())
+    eng, _, _ = AG.core_signals(f1, reg, sp)
+    np.testing.assert_array_equal(ser.atr, eng["atr_tf"].to_numpy())
+    assert ser.regime == eng["regime"].tolist()
+    r1n, r4n = _h1_h4_rows(f1, f4, volume=False)               # hacimsiz satir: eski yol (olu mum ayirt edilemez)
+    legacy = EC.prepare_h1(r1n, r4n)
+    live = AG.active_mask(f1)
+    a, b = np.asarray(ser.atr)[live], np.asarray(legacy.atr)[live]
+    assert np.nanmean(np.abs(a - b) / a) > 1e-3               # eski yol seansli enstrumanda gercekten farkli (anlamli test)
+
+
+def test_ml_v2_ozellikleri_olu_mumlari_cikarir_kripto_ayni():
+    """A2: canli ML v2 baglami (LiveContextV2.features_for_bar) olu 1s mumlari ozellik girdisinden cikarir (v1 ile ayni; `ml_features_v2` dondurulmus
+    dosya, ayiklama cagirandadir). Seansli cift: sonuc == onceden ayiklanmis girdiyle `feature_frame_v2`; ayiklamasiz yol FARKLI. Kripto: ayni nesne
+    (strip_dead) => ayiklamasiz yolla birebir. Tutulan pencere ham kalir (delik denetimi takvim izgarasinda)."""
+    from trader_core import ml_live_v2 as LV
+    from trader_core.arm_time import strip_dead
+    from trader_core.ml_features_v2 import feature_frame_v2
+    days = 220
+    n = 96 * days
+    raw = {"BTC/USDT": GS.resample(GS.make_15m(1, n, START, 100.0), "1h"), "ETH/USDT": GS.resample(GS.make_15m(2, n, START, 50.0), "1h"),
+           "SOL/USDT": GS.resample(GS.make_15m(5, n, START, 60.0), "1h"), "NVDA/USDT": GS.resample(GS.make_stock_15m(3, days, START, 150.0, flat=True), "1h")}
+    assert strip_dead(raw["BTC/USDT"]) is raw["BTC/USDT"]
+    D = pd.Timestamp(START + timedelta(days=213, hours=17))                   # persembe 17:00 UTC: son bar (16:00) seansta -> dolu
+    assert AG.active_mask(raw["NVDA/USDT"]) is not None and bool(AG.active_mask(raw["NVDA/USDT"])[raw["NVDA/USDT"].index.get_loc(D - pd.Timedelta("1h"))])
+
+    def bars_fn(p, d, k):
+        g = raw[p]
+        return g[g.index + pd.Timedelta("1h") <= pd.Timestamp(d)].tail(k)
+    ctx = LV.LiveContextV2("r02", list(raw), bars_fn)
+    cands = pd.DataFrame([{"pair": "NVDA/USDT", "side": "long", "planned_entry": 150.0, "planned_stop": 148.0},
+                          {"pair": "SOL/USDT", "side": "short", "planned_entry": 60.0, "planned_stop": 61.0}])
+    bf = ctx.features_for_bar(D.to_pydatetime(), cands)
+    assert any(AG.active_mask(h) is not None for h in ctx._held.values())     # tutulan pencere ham (olu mumlar duruyor)
+    frames = {LV.internal_key(p): ctx._held[p] for p in raw}
+    c = pd.DataFrame({"ts": [D] * 2, "pair": [LV.internal_key(p) for p in cands["pair"]], "side": cands["side"].to_numpy(),
+                      "planned_entry": cands["planned_entry"].to_numpy(float), "planned_stop": cands["planned_stop"].to_numpy(float)})
+    pre = {k: (d[AG.active_mask(d)] if AG.active_mask(d) is not None else d) for k, d in frames.items()}
+    exp = feature_frame_v2(pre, c, recipe="r02")
+    legacy = feature_frame_v2(frames, c, recipe="r02")
+    for i, p in enumerate(cands["pair"]):
+        got = np.array([bf.rows[p][k] for k in ctx.names])
+        np.testing.assert_array_equal(got, exp.iloc[i][list(ctx.names)].to_numpy(float))
+    nv = np.array([bf.rows["NVDA/USDT"][k] for k in ctx.names])
+    assert not np.allclose(nv, legacy.iloc[0][list(ctx.names)].to_numpy(float), equal_nan=True)       # ayiklamasiz yol seansli ciftte farkli
+    sol = np.array([bf.rows["SOL/USDT"][k] for k in ctx.names])
+    ok = np.isfinite(sol) & np.isfinite(legacy.iloc[1][list(ctx.names)].to_numpy(float))
+    assert ok.any()
+
+
+def test_price_action_v1_4h_kripto_ayni_hisse_olu_mumsuz(stock):
+    """A3: v1_4h tetik 4s: kripto eski dogrudan hesapla AYNI; seansli: 4s olu mumlar gosterge girdisinden cikar (v1 ile ayni desen)."""
+    from trader_engine.strategies.price_action_v1_4h import PriceActionV1H4
+    params = _params()
+    sp = S.SignalParams.from_mapping(params)
+    cols = ["open", "high", "low", "close"]
+
+    def legacy_core(h4):
+        reg = R.classify_series(h4[cols], sp.regime_params())
+        return S.compute_signals(h4[cols], R.align_to_base(reg, h4.index, 4), sp)
+    df15 = GS.make_15m(11, 96 * 120, START, 100.0)
+    h1, h4 = GS.resample(df15, "1h"), GS.resample(df15, "4h")
+    D = (h1.index[-1] + timedelta(hours=1)).to_pydatetime()
+    strat = PriceActionV1H4()
+    out = strat.compute(StrategyContext(pair="BTC/USDT", D=D, tf="1h", params=params, bars={"1h": h1, "4h": h4}))
+    # eski cikti: ayni sonradan-isleme ile (compute icindeki 4s -> 1s kopyalama); tek fark kaynagi yalniz 4s cekirdek => cekirdege AYNI
+    sig4 = legacy_core(h4)
+    pd.testing.assert_frame_equal(AG.core_signals(h4, AG.regime_series(h4, sp.regime_params()), sp)[0], sig4)
+    assert list(out.columns) == list(S.SIGNAL_COLUMNS) and len(out) == len(h1)
+    f1, f4 = stock["flat"]["1h"], stock["flat"]["4h"]
+    assert AG.active_mask(f4) is not None
+    Ds = (f1.index[-1] + timedelta(hours=1)).to_pydatetime()
+    o2 = strat.compute(StrategyContext(pair="NVDA/USDT", D=Ds, tf="1h", params=params, bars={"1h": f1, "4h": f4}))
+    keep = AG.active_mask(f4)
+    clean_core = legacy_core(f4[keep])
+    full, _, _ = AG.core_signals(f4, AG.regime_series(f4, sp.regime_params()), sp)
+    np.testing.assert_allclose(full["atr_tf"].to_numpy()[keep], clean_core["atr_tf"].to_numpy(), rtol=1e-12, equal_nan=True)   # ATR: yalniz dolu mumlardan
+    assert len(o2) == len(f1)
