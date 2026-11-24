@@ -15,10 +15,9 @@
 # Telegram ve GitHub token'i asla komut satirinda degildir: curl --config - ile stdin'den okunur.
 set -uo pipefail
 
-ZORLA="${OTO_ZORLA:-}"
-for arg in "$@"; do
+for arg in "$@"; do   # --simdi: geriye uyum (sabit pencere 24.11'de kalkti; secenek artik etkisiz)
   case "$arg" in
-    --simdi) ZORLA=1 ;;
+    --simdi) : ;;
     *) echo "bilinmeyen secenek: $arg (yalniz --simdi)" >&2; exit 2 ;;
   esac
 done
