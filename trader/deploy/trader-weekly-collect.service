@@ -1,0 +1,30 @@
+[Unit]
+Description=Trader haftalik YZ raporlari: bekleyen Message Batches sonuclarini topla (haftalik ozet yorumu + tur 1 yorumu; yeni gonderim yok, bitenler Telegram'a gider)
+Documentation=file:///opt/trader/docs/butce-spec.md
+After=network-online.target
+Wants=network-online.target
+OnFailure=trader-health-fail@%n.service
+
+[Service]
+Slice=trader.slice
+Type=oneshot
+User=trader
+Group=trader
+WorkingDirectory=/opt/trader
+# ANTHROPIC_API_KEY_HAFTALIK_OZET (yoksa bekleyenler toplanamaz, sonraki kosuya kalir). Bekleyen yoksa API'ye hic gidilmez.
+EnvironmentFile=/etc/trader-lesson.env
+Environment=TELEGRAM_VAR_DIR=/opt/trader/var/telegram
+# Iki is bagimsiz: biri hata verse digeri yine calisir ('-' = cikis kodu birimi basarisiz yapmaz; hata journal'da)
+ExecStart=-/usr/bin/python3 -I /opt/trader/scripts/weekly_summary_run.py --once --collect
+ExecStart=-/usr/bin/python3 -I /opt/trader/scripts/tur1_haftalik_yorum_run.py --once --collect
+TimeoutStartSec=300
+MemoryMax=256M
+CPUQuota=30%
+Nice=15
+IOSchedulingClass=idle
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+# user_data = butce deposu (record/release); var/learner(+var-live) = haftalik ozet dosyasi + batch durumu; var/durum = tur 1 durumu; var/telegram = outbox
+ReadWritePaths=/opt/trader/user_data -/opt/trader/var/learner -/opt/trader/var-live/learner /opt/trader/var/durum -/opt/trader/var/telegram

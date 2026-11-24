@@ -1,0 +1,10 @@
+[Unit]
+Description=Trader haftalik YZ batch sonuclarini toplama zamanlayicisi (her 3 saatte bir :40 UTC; pazar 18:10 ve 06:00 gonderimlerinden sonra; bekleyen yoksa no-op)
+
+[Timer]
+OnCalendar=*-*-* 00,03,06,09,12,15,18,21:40:00 UTC
+Persistent=true
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target

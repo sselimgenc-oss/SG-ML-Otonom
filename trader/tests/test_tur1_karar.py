@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from trader_core import lesson as LS
 from trader_reports import tur1_karar as K
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -139,36 +140,50 @@ def hazirla(tmp_path):
     return {"TRADER_DATA_ROOT": str(tmp_path)}
 
 
+class SahteBatch:
+    """Sahte Batch istemcisi: submit -> poll (hemen biter) ; ag yok."""
+
+    def __init__(self, metin="- bir\n- iki\n- uc", hata=False):
+        self.metin, self.hata, self.gonderilen = metin, hata, []
+
+    def submit(self, bundle, custom_id):
+        if self.hata:
+            raise RuntimeError("api")
+        self.gonderilen.append(bundle.params)
+        self.cid = custom_id
+        return "batch_1"
+
+    def poll(self, batch_id):
+        return LS.BatchPoll("ended", (LS.BatchResult(self.cid, "succeeded", self.metin, "end_turn",
+                                                     {"input_tokens": 10, "output_tokens": 5}),))
+
+    def cancel(self, batch_id):
+        pass
+
+
 def test_haftalik_ok_yolu_mesaj_yazar_ve_ayni_hafta_tekrar_etmez(tmp_path):
     m = _betik("tur1_haftalik_yorum_run")
-    env, b, cagri = hazirla(tmp_path), Butce(), []
-
-    def llm(p):
-        cagri.append(p)
-        return "- bir\n- iki\n- uc", type("U", (), {"input_tokens": 10, "output_tokens": 5})()
-    assert m.main(["--once"], llm=llm, budget=b, now_fn=lambda: NOW, env=env) == 0
-    assert len(cagri) == 1 and "temperature" not in cagri[0] and cagri[0]["model"] == "claude-fable-5-2"
-    assert "Canlıya hazır: HAYIR" in cagri[0]["messages"][0]["content"] and "n=55" in cagri[0]["messages"][0]["content"]
+    env, b, c = hazirla(tmp_path), Butce(), SahteBatch()
+    assert m.main(["--once"], client=c, budget=b, now_fn=lambda: NOW, env=env) == 0
+    assert len(c.gonderilen) == 1 and "temperature" not in c.gonderilen[0] and c.gonderilen[0]["model"] == "claude-fable-5-2"
+    assert "Canlıya hazır: HAYIR" in c.gonderilen[0]["messages"][0]["content"] and "n=55" in c.gonderilen[0]["messages"][0]["content"]
     assert [e[0] for e in b.olay] == ["est", "auth", "record"] and b.olay[-1] == ("record", "haftalik_ozet", "claude-fable-5-2")
     it = json.loads(_outbox(tmp_path)[0].read_text(encoding="utf-8"))
     assert it["text"].endswith("- bir\n- iki\n- uc") and it["dedup_key"] == "tur1-haftalik:2026-W48"
-    assert m.main(["--once"], llm=llm, budget=b, now_fn=lambda: NOW, env=env) == 0 and len(cagri) == 1
+    assert m.main(["--once"], client=c, budget=b, now_fn=lambda: NOW, env=env) == 0 and len(c.gonderilen) == 1
 
 
 def test_haftalik_butce_reddi_cagri_ve_mesaj_yok(tmp_path):
     m = _betik("tur1_haftalik_yorum_run")
-    env, cagri = hazirla(tmp_path), []
-    assert m.main(["--once"], llm=lambda p: cagri.append(p), budget=Butce(izin=False), now_fn=lambda: NOW, env=env) == 0
-    assert cagri == [] and _outbox(tmp_path) == []
+    env, c = hazirla(tmp_path), SahteBatch()
+    assert m.main(["--once"], client=c, budget=Butce(izin=False), now_fn=lambda: NOW, env=env) == 0
+    assert c.gonderilen == [] and _outbox(tmp_path) == []
 
 
-def test_haftalik_api_hatasi_butceyi_birakir_mesaj_yok(tmp_path):
+def test_haftalik_gonderim_hatasi_butceyi_birakir_mesaj_yok(tmp_path):
     m = _betik("tur1_haftalik_yorum_run")
     env, b = hazirla(tmp_path), Butce()
-
-    def llm(p):
-        raise RuntimeError("api")
-    assert m.main(["--once"], llm=llm, budget=b, now_fn=lambda: NOW, env=env) == 0
+    assert m.main(["--once"], client=SahteBatch(hata=True), budget=b, now_fn=lambda: NOW, env=env) == 0
     assert ("release",) in b.olay and not any(e[0] == "record" for e in b.olay) and _outbox(tmp_path) == []
 
 
