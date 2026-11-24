@@ -30,7 +30,8 @@ SEMA = "haber_sinyal/2"
 PENCERE_SAAT = 6.0
 YARI_OMUR_SAAT = 2.0                       # sonum: 2 saatte yariya
 GECERLILIK_SAAT = 3.0
-MAX_OGE = 120                              # tek cagrida en cok olay (en yeniler)
+MAX_OGE = 120                              # bir turda en cok olay (en yeniler)
+PARTI = 30                                 # tek API cagrisinda en cok olay (120'lik tek cagri MAX_CIKTI_TOKEN'da kesiliyordu)
 MAX_BASLIK = 200
 MAX_OZET = 0                               # ozet gonderilmez: yalniz baslik (daha az enjeksiyon yuzeyi, daha ucuz)
 MAX_CIKTI_TOKEN = 6000
@@ -293,6 +294,9 @@ class AnthropicSyncClient:
 
     def create(self, params: Mapping[str, Any]) -> tuple[str, Any]:
         msg = self._c.messages.create(**params)
+        sr = getattr(msg, "stop_reason", None)
+        if sr not in (None, "end_turn"):
+            log.warning("haber sinyali: model yaniti tamamlanmadi (stop_reason=%s)", sr)
         metin = "".join(getattr(c, "text", "") for c in (msg.content or []) if getattr(c, "type", None) == "text")
         return metin, getattr(msg, "usage", None)
 
@@ -348,8 +352,10 @@ def kos(var_dir: Path, config_dir: Path, simdi_ms: int, env: Mapping[str, str], 
         e["id"] = i
     yeni_son = max([r["alim"] for r in ham], default=son_alim)
 
-    if yeni:
-        params = istem_parametreleri(yeni, enst)
+    sonuc: list[dict] = []
+    for bas in range(0, len(yeni), PARTI):
+        parti = yeni[bas:bas + PARTI]
+        params = istem_parametreleri(parti, enst)
         est = b.estimate_cost(MODEL, max(1, (len(SYSTEM) + len(params["messages"][0]["content"])) // 3 + 400), MAX_CIKTI_TOKEN)
         grant = b.authorize(SERVIS, est)
         if not hasattr(grant, "grant_id"):                      # Denial: API'ye HIC gidilmez
@@ -367,9 +373,11 @@ def kos(var_dir: Path, config_dir: Path, simdi_ms: int, env: Mapping[str, str], 
             b.record(SERVIS, grant, _ls.budget_usage(usage), MODEL, False)
         except Exception as e:  # noqa: BLE001
             log.error("butce kaydi yazilamadi: %s", type(e).__name__)
-        sonuc = dogrula(metin, enst, {e["id"] for e in yeni})
-        if sonuc is None:
+        ps = dogrula(metin, enst, {e["id"] for e in parti})
+        if ps is None:
             return atla("model yaniti sema disi", "api_hata")
+        sonuc.extend(ps)
+    if yeni:
         by_id = {e["id"]: e for e in yeni}
         for s in sonuc:
             e = by_id[s["id"]]

@@ -284,3 +284,36 @@ def test_istem_parametreleri_gercek_sdk_imzasina_uyar():
     p = HS.istem_parametreleri(ev, ENST)
     assert "temperature" not in p
     inspect.signature(anthropic.resources.Messages.create).bind(None, **p)
+
+
+def test_cok_baslik_partilere_bolunur_hepsi_puanlanir(tmp_path):
+    """120'lik tek cagri cikti sinirinda kesiliyordu (sunucu: 'model yaniti sema disi' dongusu): en cok PARTI baslik / cagri."""
+    _haber(tmp_path, [_satir(f"benzersiz olay {i} alpha{i} beta{i} gamma{i}", dk_once=1 + i % 50) for i in range(70)])
+    c = Client(cevap=_cevap)
+    r = HS.kos(tmp_path, ROOT / "config", NOW_MS, ENV, client=c, budget=Butce())
+    assert r["durum"] == "ok" and r["yeni_olay"] == 70
+    boy = [len(json.loads(p["messages"][0]["content"].split("\n", 1)[1])["basliklar"]) for p in c.cagri]
+    assert boy == [30, 30, 10]
+    idler = [p["output_config"]["format"]["schema"]["properties"]["sonuclar"]["items"]["properties"]["id"]["enum"] for p in c.cagri]
+    assert sorted(i for x in idler for i in x) == list(range(70))
+    durum = json.loads((tmp_path / "learner" / "sinyal" / "haber_sinyal_durum.json").read_text())
+    assert sum(1 for e in durum["olaylar"] if e["semboller"]) == 70
+
+
+def test_bir_parti_bozuksa_tur_atlanir_durum_ilerlemez(tmp_path):
+    _haber(tmp_path, [_satir(f"benzersiz olay {i} alpha{i} beta{i} gamma{i}", dk_once=1 + i % 50) for i in range(40)])
+    n = {"k": 0}
+
+    def cevap(p):
+        n["k"] += 1
+        return '{"sonuclar": [' if n["k"] == 2 else _cevap(p)
+    r = HS.kos(tmp_path, ROOT / "config", NOW_MS, ENV, client=Client(cevap=cevap), budget=Butce())
+    assert r == {"durum": "atlandi", "neden": "model yaniti sema disi"} and not SINYAL(tmp_path).exists()
+
+
+def test_kesilen_yanit_loglanir(caplog):
+    msg = SimpleNamespace(stop_reason="max_tokens", content=[SimpleNamespace(type="text", text="{")], usage=None)
+    sdk = SimpleNamespace(Anthropic=lambda **k: SimpleNamespace(messages=SimpleNamespace(create=lambda **p: msg)))
+    with caplog.at_level("WARNING", logger="trader.haber_sinyal"):
+        assert HS.AnthropicSyncClient("x", sdk=sdk).create({})[0] == "{"
+    assert "stop_reason=max_tokens" in caplog.text
