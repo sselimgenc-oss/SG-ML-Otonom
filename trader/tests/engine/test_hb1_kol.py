@@ -348,3 +348,24 @@ def test_bozuk_dosya_digeri_yalitimi_gercek(sinyal):
     # tersi: M1 calisir ve HB1 durumu degismez
     M1.compute(_inp())
     assert HB1.COUNTERS["bozuk"] == 1 and sum(HB1.COUNTERS.values()) == 1
+
+
+def test_hb1_zaman_stopu_24_mum():
+    """25.11 kullanici karari: HB1 zaman stopu 24 (motor varsayilani 48 degil)."""
+    from trader_engine.position_manager import ExitContext, evaluate_exit
+    from trader_engine.strategies.arms import time_stop_of
+    from trader_engine.types import Position
+    assert time_stop_of("HB1") == 24 and time_stop_of("HB1", "1h") == 24
+    t0 = datetime(2026, 11, 25, 10, tzinfo=timezone.utc)
+    pos = Position(trade_id=1, bot="learner", pair="BTC/USDT", side="long", setup="HB1", status="open", decision_id=1,
+                   signal_bar_close_ts=t0, entry_ts=t0, entry_bar_open=t0, entry_price=100.0, qty=1.0, leverage=3,
+                   initial_stop=90.0, current_stop=90.0, stop_seq=0, stop_client_id="x", planned_target=130.0, trail_atr=3.0,
+                   param_version_id=1, trigger_tf="1h", risk_amount=1.0, margin=30.0, rh=None, rl=None, fee_entry=0.0,
+                   funding_paid=0.0, mfe_price=100.0, mae_price=100.0, exit_reason=None, exit_client_id=None, closed_ts=None)
+
+    def karar(n):
+        return evaluate_exit(pos, ExitContext(bar_close_ts=t0, highs=np.array([101.0]), lows=np.array([99.0]), atrs=np.array([1.0]),
+                                              regime_last="range", last_close=100.0, n_closed=n))
+    assert karar(23).kind == "none"
+    d = karar(24)
+    assert d.kind == "exit" and d.reason == "time_stop"

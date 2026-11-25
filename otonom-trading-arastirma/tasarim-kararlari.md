@@ -224,3 +224,4 @@ Kaynak: `dis-denetim/triyaj-2026-11-17.md` (mentor). Kullanıcı: "Cloudflare i�
   - Kâğıt tasfiye MMR: kâğıt broker sınıf MMR'ini (kripto %0,5, hisse/emtia %2) giriş kapısıyla aynı kaynaktan alır.
   - Sağlık uyarısı: ek uyarı gönderilemezse `ek_uyarilar` durumu da geri alınır, sonraki turda yeniden denenir.
   - Haftalık özet: "alınmayan sinyal" toplamı R olarak yazılır ($ değil).
+- 25.11 kullanıcı kararı: HB1 zaman stopu 24 mum (tasarım ve belge dizgisiyle uyumlu; kodda `TIME_STOP = 24`, `time_stop_of("HB1") == 24`; önceden motor varsayılanı 48 uygulanıyordu).
