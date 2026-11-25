@@ -2,30 +2,24 @@
   "sema": "ortak.gunluk_ozet.v1",
   "proje": "ML",
   "mod": "kagit",
-  "uretim": "2026-11-25T17:04:29Z",
+  "uretim": "2026-11-25T18:05:10Z",
   "gun": "2026-11-25",
   "kasa": {
     "baslangic": 1000.0,
-    "simdi": 953.91,
-    "gun_pnl": -2.94,
-    "toplam_pnl": -46.09,
+    "simdi": 943.41,
+    "gun_pnl": -13.43,
+    "toplam_pnl": -56.59,
     "zirveden_dusus_yuzde": 19.12
   },
   "islem": {
-    "gun_acilan": 17,
-    "gun_kapanan": 15,
-    "kazanan": 7,
-    "kaybeden": 8,
-    "acik_pozisyon": 11,
+    "gun_acilan": 21,
+    "gun_kapanan": 20,
+    "kazanan": 8,
+    "kaybeden": 12,
+    "acik_pozisyon": 10,
     "alinmayan_sinyal": 0
   },
   "hesaplar": [
-    {
-      "ad": "F1",
-      "gun_pnl": 0.0,
-      "toplam_pnl": 17.72,
-      "islem": 9
-    },
     {
       "ad": "T1",
       "gun_pnl": 0.0,
@@ -37,6 +31,12 @@
       "gun_pnl": 0.0,
       "toplam_pnl": 10.46,
       "islem": 4
+    },
+    {
+      "ad": "F1",
+      "gun_pnl": -9.97,
+      "toplam_pnl": 7.75,
+      "islem": 10
     },
     {
       "ad": "TF1",
@@ -447,16 +447,16 @@
       "islem": 3
     },
     {
-      "ad": "M1",
-      "gun_pnl": 0.0,
-      "toplam_pnl": -5.56,
-      "islem": 2
-    },
-    {
       "ad": "PA2-BOLGE",
       "gun_pnl": -9.8,
       "toplam_pnl": -9.8,
       "islem": 1
+    },
+    {
+      "ad": "M1",
+      "gun_pnl": -11.58,
+      "toplam_pnl": -17.14,
+      "islem": 3
     },
     {
       "ad": "S1",
@@ -483,6 +483,6 @@
     "hata_sayisi_gun": 2
   },
   "notlar": [
-    "en iyi kurulum: F1"
+    "en iyi kurulum: T1"
   ]
 }
