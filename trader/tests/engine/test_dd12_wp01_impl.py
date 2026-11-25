@@ -36,7 +36,7 @@ def test_paper_config_shape():
     assert c.mode == "paper" and c.bot == "learner" and len(c.pairs) == 43   # 23.11 kullanici karari: TON cikarildi (SETTLING)
     assert set(json.loads((CFG / "engine.base.json").read_text())["pairs"]) <= set(c.pairs)
     assert len(c.optional_pairs) == 24 and set(c.optional_pairs) <= set(c.pairs)
-    assert c.max_positions == 24 and c.shadow_blocks == ("regime", "r1_disabled", "same_bar_reentry", "tf_15m")
+    assert c.max_positions == 36 and c.shadow_blocks == ("regime", "r1_disabled", "same_bar_reentry", "tf_15m")   # 24.11 kullanici karari: max_positions 36
     raw_paper = json.loads((CFG / "engine.paper.json").read_text())
     assert not {"ml_mode", "ml_pairs", "ml_features", "ml_model_path", "ml_experimental"} & set(raw_paper)   # 24.11: ML filtreleri silindi
     assert [s.max_positions for s in c.clusters.values()] == [6, 9, 8, 5, 3, 3]

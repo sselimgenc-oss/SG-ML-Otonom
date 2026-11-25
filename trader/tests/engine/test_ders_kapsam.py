@@ -21,7 +21,7 @@ def _arms() -> dict[str, str]:
             continue
         src = f.read_text(encoding="utf-8")
         m = re.search(r'^SETUP\s*=\s*"([A-Z][A-Z0-9]{1,7})"', src, re.M)
-        if m:
+        if m and "FORMASYONLAR" not in src:      # 24.11 kullanici karari: kutuphane/varyant dosyalari (b1v.py SETUP="B1") ana kolun kaynagini ezmez
             out[m.group(1)] = src
     return out
 

@@ -321,7 +321,7 @@ def tara(kod, df, bas, son):
     out = {}
     for t in range(bas, son + 1):
         for yon, (o, h, l, c) in ((1, (ham.o, ham.h, ham.l, ham.c)), (-1, (-ham.o, -ham.l, -ham.h, -ham.c))):
-            r = f(K.Gorunum(o, h, l, c, ham.atr, t, ham.sec))
+            r = f(K.Gorunum(o, h, l, c, ham.atr, t, sec=ham.sec))
             if r is not None:
                 out[(t, yon)] = (r["stop"], r["hedef"])
     return out
@@ -402,7 +402,7 @@ def test_kesif_8_formasyon_29_kol():
     assert sorted(pa2.FORMASYONLAR[k].sira for k in KODLAR) == list(range(1, 9))
     assert arms.family_of("PA2-BOLGE") == "PA2" and arms.parse_arm_id("PA2-EMIRBLOK@1h") == ("PA2-EMIRBLOK", "1h")
     assert 200 < arms.priority_of("PA2-EMIRBLOK") < 300 < arms.priority_of("MF1-YILDIZ")
-    assert max(arms.priority_of(s) for s in ls if not s.startswith(("MF1-", "PA2-"))) < 250
+    assert max(arms.priority_of(s) for s in ls if "-" not in s) < 250   # birlesik: yalniz ana kollar (kutuphane ve varyant kimlikleri haric)
 
 
 def test_zaman_stopu_zd_basina():

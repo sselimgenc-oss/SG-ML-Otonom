@@ -399,7 +399,9 @@ def test_metal_one_open_other_member_enters(mk):
 
 
 def test_account_cap_24(mk):
-    e = mk()
+    import dataclasses as _dc
+    assert _paper_cfg().max_positions == 36          # 24.11 kullanici karari: max_positions 36 (kume tavanlari toplami 29 < 36: hesap tavani kumelerle dolmaz)
+    e = mk(mode_cfg=_dc.replace(_paper_cfg(), arm_max_positions=None, max_positions=24))   # mekanizma testi: tavan 24 ile
     # 24 pozisyonu kume tavanlarini asmadan doldur: buyuk 5 + diger 9 + hisse 8 (tech 2 + nontech 6) + metal 2
     e.fill(BUYUK[:5] + DIGER[:9] + NONTEK[:6] + TEK[:2] + METAL)
     assert len(e.state.open_positions()) == 24
@@ -598,7 +600,7 @@ def test_neutrality_testnet_live_configs_unchanged_and_veto_required():
         except Exception as ex:  # noqa: BLE001 - canli onay/anahtar gibi nedenlerle yuklenemeyebilir
             pytest.skip(f"{env} yuklenemedi: {ex}")
         if env == "live":                  # 23.11 kullanici karari: canli = kagit (veto yok; kume/tavan/tatil bari korumasi acik)
-            assert c.clusters and c.max_positions == 24 and c.flat_bar_guard is True
+            assert c.clusters and c.max_positions == 36 and c.flat_bar_guard is True   # 24.11 kullanici karari: max_positions 36
             continue
         assert not c.clusters and c.max_positions is None and c.flat_bar_guard is False
 

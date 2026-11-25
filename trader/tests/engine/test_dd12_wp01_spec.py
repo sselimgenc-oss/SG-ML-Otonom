@@ -264,7 +264,7 @@ def test_dt2_paper_golgeli_24_pozisyon():
     assert cfg.exit_modes == {"default": {"breakeven": {"trigger_r": 1.0, "offset_bps": ob}, "partial": {"trigger_r": 1.5, "frac": 0.5}},
                               "H2-YARI": {"breakeven": {"trigger_r": 1.0, "offset_bps": ob},
                                           "partial": {"trigger_r": 2.0, "frac": 0.5}}}   # 24.11 kullanici karari: PA varyantlari (H2-YARI kismi 2 R)      # 19.11: cikis kipleri kagitta ACIK (spec varsayilanlari)
-    assert cfg.max_positions == 24
+    assert cfg.max_positions == 36   # 24.11 kullanici karari: max_positions 24 -> 36 (kagit = canli)
     assert cfg.target_trade_risk == 0.01                           # islem basi %1
 
 
@@ -324,7 +324,7 @@ def test_dt2_paper_yeni_anahtar_ham_json_listesi():
               "flat_bar_guard", "contract_types", "cost_overrides"):
         assert k in raw, k
     assert not ML_KEYS_REMOVED & set(raw)
-    assert raw["shadow_blocks"] == ["regime", "r1_disabled", "same_bar_reentry", "tf_15m"] and raw["max_positions"] == 24
+    assert raw["shadow_blocks"] == ["regime", "r1_disabled", "same_bar_reentry", "tf_15m"] and raw["max_positions"] == 36   # 24.11 kullanici karari: max_positions 24 -> 36 (kagit = canli)
 
 
 # --------------------------------------------------------------------------- D-T2 (yalniz --env paper)

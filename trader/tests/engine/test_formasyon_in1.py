@@ -484,11 +484,11 @@ def test_kagit_canli_ayni_ve_in1_66_kimlik_toplam_203():
     p, l = _cfg("engine.paper.json"), _cfg("engine.live.json")
     for k in ("arms", "arm_max_positions", "arm_family_max_positions"):
         assert p[k] == l[k], k
-    assert p["arm_family_max_positions"] == {"MF1": 6, "GF1": 6, "IN1": 6}
+    assert p["arm_family_max_positions"]["MF1"] == p["arm_family_max_positions"]["GF1"] == p["arm_family_max_positions"]["IN1"] == 6   # birlesik: PA2 ve varyant aileleri de var
     assert p["arm_max_positions"]["IN1-*"] == 3 and p["arm_max_positions"]["GF1-*"] == 3 and p["arm_max_positions"]["MF1-*"] == 3
     lib = [a for a in p["arms"] if a.startswith("IN1-")]
     beklenen = [f"{s}@{tf}" for s in sorted(a for a in arms.list_arms() if a.startswith("IN1-")) for tf in arms.find_arm(s).TIMEFRAMES]
-    assert sorted(lib) == sorted(beklenen) and len(lib) == 66 and len(set(p["arms"])) == len(p["arms"]) == 203
+    assert sorted(lib) == sorted(beklenen) and len(lib) == 66 and len(set(p["arms"])) == len(p["arms"]) == 288   # birlesik: + PA2 29 + PA varyantlari 56
     assert "IN1-VWAP@4h" not in lib and "IN1-VWAP@15m" in lib and "IN1-VWAP@1h" in lib
     for ad in ("engine.paper.json", "engine.live.json"):
         cfg = C.load_cli_config(ROOT / "config", "learner", ad.split(".")[1])

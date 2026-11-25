@@ -130,8 +130,8 @@ def test_arm_tf_helpers_and_old_contract_untouched():
 # --------------------------------------------------------------------------- yapilandirma
 def test_config_arms_and_caps():
     assert PAPER.strategy == NAME and PAPER.arms == PAPER_ARMS
-    assert PAPER.arm_max_positions == {"default": 6, "M1": 4, "HB1": 3, "DL1": 4, "MF1-*": 3, **{f"{a}-*": 3 for a in ("T1", "R1", "TF1", "B1", "H2", "S1", "F1")}}  # 24.11 kullanici karari: formasyon kutuphanesi
-    assert PAPER.arm_family_max_positions == {"MF1": 6, **{a: 6 for a in ("T1", "R1", "TF1", "B1", "H2", "S1", "F1")}}   # 24.11 kullanici karari: formasyon kutuphanesi (aile 6)
+    assert PAPER.arm_max_positions == {"default": 6, "M1": 4, "HB1": 3, "DL1": 4, "MF1-*": 3, **{f"{a}-*": 3 for a in ("T1", "R1", "TF1", "B1", "H2", "S1", "F1")}, "GF1-*": 3, "IN1-*": 3, "PA2-*": 3}  # 24.11 kullanici karari: formasyon kutuphanesi
+    assert PAPER.arm_family_max_positions == {"MF1": 6, **{a: 6 for a in ("T1", "R1", "TF1", "B1", "H2", "S1", "F1")}, "GF1": 6, "IN1": 6, "PA2": 6}   # 24.11 kullanici karari: formasyon kutuphanesi (aile 6)
       # 23.11: HB1 3; 24.11: DL1 toplam 4; C1 kaldirildi (CT/ML ayriligi); 20 Kasim: kagit tavanlari gevsetildi
     c = apply_overrides(PAPER, arms={"T1": ["1h", "4h"]}, arm_max_positions=2)
     assert c.arms == ("T1@1h", "T1@4h") and c.arm_max_positions == {"default": 2}

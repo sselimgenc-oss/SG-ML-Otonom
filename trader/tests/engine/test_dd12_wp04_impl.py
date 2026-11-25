@@ -112,7 +112,7 @@ def test_gate_paper_rows(env):
     o = _go(env, "GOOGL/USDT")
     assert (o.code, o.event.skip_reason, o.event.veto_status) == ("cluster_cap", "cluster_cap", "not_evaluated")
     assert _go(env, "JPM/USDT").action == "enter"
-    env.held[:] = [f"X{i}" for i in range(24)]
+    env.held[:] = [f"X{i}" for i in range(36)]   # 24.11 kullanici karari: max_positions 24 -> 36 (kagit = canli)
     o = _go(env, "XRP/USDT")
     assert o.code == "max_positions" and o.event.skip_reason == "max_positions"
     env.led.record_decision(o.event)                                          # defter CHECK'i kabul eder
