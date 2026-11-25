@@ -1,20 +1,15 @@
-# Yorumcu raporu 2026-11-24
+# Yorumcu raporu 2026-11-25
 
-**SAYI HATASI**: raporda girdi tablolarında bulunmayan sayılar var (1.5). Bu raporu doğrulanmamış sayın.
-
-Yalnız yorum: bu rapor hiçbir ayarı değiştirmez, işlem açıp kapatmaz. Kapanmış işlem n = 65.
+Yalnız yorum: bu rapor hiçbir ayarı değiştirmez, işlem açıp kapatmaz. Kapanmış işlem n = 83.
 
 ## Bulgular
 
-- **Dün (2026-11-23):** 15 işlem kapandı (n=15) ve toplam sonuç -9.96 R oldu. R, bir işlemde göze alınan zarar birimidir. Bu **yetersiz örnek**, bu yüzden kesin sonuç çıkarmıyorum.
+- **Dün:** Kapanan işlem n=25, toplam_R -1.58. Bu **yetersiz örnek**, bu yüzden kesin sonuç çıkarmıyorum. (R, bir işlemde riske edilen miktarın katı olarak kazanç ya da kayıptır.)
 
-- **Genel ölçüm (n=62):** Şart için en az 300 kapanmış işlem gerekiyor, şu an n = 62. Masraf sonrası net = -1.72 R, ortalama = -0.028 R. Güven alt sınırı hesaplanamadı, çünkü gün sayısı 7 < 8. Bu şartların hepsi FAIL. Tabloda "toplam_kapanmis_islem" 65, "n_islem" 62 yazıyor. Bu farkın nedeni tabloda açıklanmamış.
+- **Genel tablo kötü:** Toplam kapanmış işlem n=83, net -6.03 R, ortalama -0.073 R. Masraflar 1.5 katına çıkarsa net -10.79 R olur (n=83). Güven alt sınırı hesaplanamadı, çünkü gün sayısı 7 ve en az 8 gerekiyor.
 
-- **Rastgele girişle yarış (n=62):** Bot, girişlerini rastgele girişlerle karşılaştırır. Yüzdelik = 37.6, şart ise en az 90 ve sonuç FAIL. Masraflar 1.5 kat olsa net = -4.93 R. Monte Carlo (işlem sırası karıştırılarak tahmin edilen en kötü düşüş) için p95 = %27.7, sınır %15. İkisi de FAIL.
+- **Giriş kalitesi ölçümleri:** Botun girişleri rastgele girişlerle karşılaştırıldı. Yüzdelik 47.8 çıktı (n=83), hedef en az 90'dı. Bu, girişlerin rastgele girişten belirgin biçimde iyi olmadığını gösteriyor. Monte Carlo (işlemleri binlerce kez karıştırıp en kötü düşüşü tahmin eden yöntem) p95 maksimum düşüş %31.2 çıktı (n=83), sınır %15'ti. Bu kontrollerin ikisi de FAIL.
 
-- **Alınmayan sinyaller:** Bot 3888 kararın 70'inde girdi (entered), 3818'inde girmedi (skipped). En sık ret nedeni risk_denied (n=2485).
-  - Alınmayan sinyallerin tablosunda risk_denied için n=1355 ve toplam_pnl_usd -952.14 yazıyor. etiket_rejim için n=72 ve -218.9. Eksi değer, girilmeyen bu sinyallerin zarar edeceğine işaret eder.
-  - Haftalık özette en iyi satır stop_width: +78,45 $ (n=201). Yani bu filtreyle girilmeyen sinyaller kazançlı görünüyor. Bu yalnızca 7 günlük bir pencere, bu yüzden kesin sonuç çıkarmıyorum.
-  - cluster_cap (n=10) ve veto_blocked (n=3) **yetersiz örnek**.
+- **Rejim dağılımı:** İşlemlerin çoğu düşen piyasada: trend_down n=69. Diğerleri range n=3, trend_up n=7, unclear n=4, hepsi **yetersiz örnek**. En büyük kayıp kümelerinin hepsi trend_down ve short yönlü. Örneğin F1@15m, 08-12 UTC: kayip_sayisi 3, toplam -3.3726027869252952 R. Her kümede kayıp sayısı 30'un altında olduğu için bunlar **yetersiz örnek**, kesin sonuç çıkarılamaz. Tüm kollar da (T1@15m n=10, toplam_R 8.13 dahil) **yetersiz örnek**.
 
-- **Kollar ve rejimler:** Tüm kollar
+- **Alın
