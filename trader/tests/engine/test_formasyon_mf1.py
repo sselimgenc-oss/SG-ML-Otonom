@@ -496,13 +496,13 @@ def test_kagit_canli_ayni_ve_mf1_48_kimlik():
     p, l = _cfg("engine.paper.json"), _cfg("engine.live.json")
     for k in ("arms", "arm_max_positions", "arm_family_max_positions"):
         assert p[k] == l[k], k
-    assert p["arm_family_max_positions"] == {"MF1": 6} and p["arm_max_positions"]["MF1-*"] == 3
+    assert p["arm_family_max_positions"] == {"MF1": 6, "PA2": 6} and p["arm_max_positions"]["MF1-*"] == 3   # 24.11 kullanici karari: formasyon kutuphanesi (PA2 aile 6)
     lib = [a for a in p["arms"] if a.startswith("MF1-")]
     beklenen = [f"{s}@{tf}" for s in sorted(a for a in arms.list_arms() if a.startswith("MF1-")) for tf in TFS]
     assert sorted(lib) == sorted(beklenen) and len(lib) == 48 and len(set(p["arms"])) == len(p["arms"])
     for ad in ("engine.paper.json", "engine.live.json"):
         cfg = C.load_cli_config(ROOT / "config", "learner", ad.split(".")[1])
-        assert cfg.arm_family_max_positions == {"MF1": 6} and cfg.arm_max_positions["MF1-*"] == 3
+        assert cfg.arm_family_max_positions == {"MF1": 6, "PA2": 6} and cfg.arm_max_positions["MF1-*"] == 3   # 24.11 kullanici karari: formasyon kutuphanesi
         assert all(a in cfg.arms for a in beklenen)
 
 

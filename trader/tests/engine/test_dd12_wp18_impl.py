@@ -122,7 +122,7 @@ FROZEN_SHA256 = {
     "config/engine.base.json": "2ccdf97d21842f2dc54f682e66d65762f7957a7615befd932fbad8c68f49325e",   # 24.11 kullanici karari: veto ve C1 artiklari silindi;   # 24.11 kullanici karari: ML filtreleri silindi (ml_mode/ml_model_path anahtarlari kalkti)
     "config/engine.learner.json": "30ca2842c40cacafbf6cdd90c9e6f1f54fc62b9a9ec913476d1399ac5352cb12",
     "config/engine.testnet.json": "eff9eb61dcd9018bf86c195a02f7f25f08960473e705cbd114e104c26a956c9c",
-    "config/engine.live.json": "41768b979537d499c2312b3783bc20e0de9de89600c4b1b406d69528c08389da",   # 24.11 kullanici karari: formasyon kutuphanesi (MF1 48 kol + aile tavani)
+    "config/engine.live.json": "8a4d07e754c9e0b50364853bc3992b765a78c61fab90fec004c628153453f317",   # 24.11 kullanici karari: formasyon kutuphanesi (MF1 48 + PA2 29 kol + aile tavani)
     #   # 24.11 kullanici karari: DL1 dort zaman dilimi acik; onceki 24.11 ML filtreleri silindi; onceki 23.11 asama B + uzun_yon + HB1 (canli = kagit)
     "src/trader_engine/order_manager.py": "7bd0ff0ca3173c7e8baf0ab05dde04a8b1c472d4510c4922d142220d4ae02538",   # 24.11 kullanici kararlari: hedef emir + risk 0.12/DL1 4 + veto/C1 silme (birlesik pin)
     "research/s2_run.py": "66710418f9be36225b757f9d4a1158b1e9093db5f7df131572c639e3958b21a7",

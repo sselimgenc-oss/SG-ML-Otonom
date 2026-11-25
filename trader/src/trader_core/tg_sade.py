@@ -113,7 +113,11 @@ KURULUM_AD = {"T1": "Trend geri çekilmesi", "R1": "Yatay piyasa kenarı", "TF1"
               "MF1-YILDIZ": "Mum: sabah yıldızı", "MF1-UCASKER": "Mum: üç asker", "MF1-DELICI": "Mum: delici çizgi",
               "MF1-ICSAHTE": "Mum: iç çubuk sahte kopuş", "MF1-DISBAR": "Mum: dış bar", "MF1-YUTAN": "Mum: yutan",
               "MF1-HARAMI": "Mum: harami", "MF1-TERSCEKIC": "Mum: ters çekiç", "MF1-CIMBIZ": "Mum: cımbız dip",
-              "MF1-PINBAR": "Mum: pin bar", "MF1-ICCUBUK": "Mum: iç çubuk", "MF1-MARUBOZU": "Mum: marubozu"}
+              "MF1-PINBAR": "Mum: pin bar", "MF1-ICCUBUK": "Mum: iç çubuk", "MF1-MARUBOZU": "Mum: marubozu",
+              # 24.11 kullanici karari: formasyon kutuphanesi (PA2 price action formasyonlari)
+              "PA2-EMIRBLOK": "PA: emir bloğu", "PA2-BOLGE": "PA: arz/talep bölgesi", "PA2-FVG": "PA: değer boşluğu",
+              "PA2-ONCEKI": "PA: önceki dönem dibi", "PA2-TCIZGI": "PA: trend çizgisi", "PA2-SEVIYE": "PA: seviyede mum",
+              "PA2-UCVURUS": "PA: üç çizgi vuruşu", "PA2-TUKENIS": "PA: günlük tükeniş"}
 
 
 def kurulum_adi(setup: Any) -> str:

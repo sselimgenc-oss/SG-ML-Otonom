@@ -32,7 +32,7 @@ ALLOWED_MODULES_B = ALLOWED_MODULES_A | {"exchange/binance_rest.py", "pause.py",
                                          "strategies/arms/_pa.py",                            # WP-12a: ortak yardimci (kurulum degil)
                                          "strategies/arms/f1.py", "strategies/arms/s1.py",   # DD-12 WP-12b: yeni kurulumlar
                                          "strategies/arms/h2.py",
-                                         "strategies/arms/_kutuphane.py", "strategies/arms/mf1.py",   # 24.11 kullanici karari: formasyon kutuphanesi
+                                         "strategies/arms/_kutuphane.py", "strategies/arms/mf1.py", "strategies/arms/pa2.py",   # 24.11 kullanici karari: formasyon kutuphanesi
                                          "strategies/arms/m1.py",   # DD-12 WP-14: M1 (ML'in kendi adayi)
                                          "strategies/arms/hb1.py",   # 23.11 ust lig: haber kolu HB1
                                          "dl1_cikarim.py", "strategies/arms/dl1.py"}   # 23.11 ust lig: derin ogrenme kolu DL1 (saf numpy cikarim)

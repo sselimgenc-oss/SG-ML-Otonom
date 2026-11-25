@@ -35,17 +35,19 @@ class Formasyon:
     ad: str
     sira: int
     tfs: tuple[str, ...]
-    zaman_stopu: int
+    zaman_stopu: "int | dict"      # mum sayisi; ya da {"15m": 48, "1h": 12} (ZD basina; PA2-TUKENIS)
     bul: Callable                  # bul(g: Gorunum) -> None | dict(stop, hedef, seviye, olcu, yas, etiket)
     cikis: Callable | None = None  # cikis(inp: ArmInput) -> bool | None (kural cikisi)
 
 
 class Gorunum:
     """Long uzayinda (short icin aynalanmis) `t` anindaki goruntu. Dizilerin tamami verilir ama dedektor YALNIZ `<= t` okur."""
-    __slots__ = ("o", "h", "l", "c", "atr", "t")
+    __slots__ = ("o", "h", "l", "c", "atr", "t", "sec", "onb")
 
-    def __init__(self, o, h, l, c, atr, t: int) -> None:
+    def __init__(self, o, h, l, c, atr, t: int, sec=None) -> None:
         self.o, self.h, self.l, self.c, self.atr, self.t = o, h, l, c, atr, t
+        self.sec = sec                 # mum acilis zamani (UTC saniye, int64); PA2 zaman tabanli dedektorler (yalniz <= t okunur)
+        self.onb: dict = {}            # dedektorler arasi paylasilan hesap onbellegi (pivotlar ...)
 
     def dip(self, n: int, k: int = 0) -> float:
         """l[t-k-n+1 .. t-k] en kucugu (pencere `t-k` dahil)."""
@@ -54,7 +56,7 @@ class Gorunum:
 
 
 class _Ham:
-    __slots__ = ("o", "h", "l", "c", "atr", "ok", "gor", "bos")
+    __slots__ = ("o", "h", "l", "c", "atr", "ok", "gor", "bos", "sec")
 
     def __init__(self, trig) -> None:
         self.o = trig["open"].to_numpy(dtype=float)
@@ -62,6 +64,12 @@ class _Ham:
         self.l = trig["low"].to_numpy(dtype=float)
         self.c = trig["close"].to_numpy(dtype=float)
         self.atr = I.atr(trig[["high", "low", "close"]], ATR_LEN).to_numpy(dtype=float)
+        ix = trig.index
+        try:
+            ix = ix.tz_convert(None) if getattr(ix, "tz", None) is not None else ix
+            self.sec = ix.to_numpy().astype("datetime64[s]").astype("int64")
+        except (TypeError, ValueError, AttributeError):
+            self.sec = None
         t = len(self.c) - 1
         with np.errstate(invalid="ignore"):
             self.ok = bool(t >= MIN_MUM and np.isfinite([self.o[t], self.h[t], self.l[t], self.c[t], self.atr[t]]).all()
@@ -74,9 +82,9 @@ class _Ham:
         if g is None:
             t = len(self.c) - 1
             if side == "long":
-                g = Gorunum(self.o, self.h, self.l, self.c, self.atr, t)
+                g = Gorunum(self.o, self.h, self.l, self.c, self.atr, t, self.sec)
             else:
-                g = Gorunum(-self.o, -self.l, -self.h, -self.c, self.atr, t)
+                g = Gorunum(-self.o, -self.l, -self.h, -self.c, self.atr, t, self.sec)
             self.gor[side] = g
         return g
 
@@ -153,6 +161,6 @@ def sanal_kurulumlar(mod) -> dict[str, SimpleNamespace]:
         setup = f"{mod.SETUP}-{kod}"
         out[setup] = SimpleNamespace(
             SETUP=setup, TIMEFRAMES=tuple(f.tfs), CORE=False, EXIT_MODE="target", FEATURES=dict(KUTUPHANE_FEATURES),
-            PRIORITY=int(mod.PRIORITY) + int(f.sira), TIME_STOP=int(f.zaman_stopu), EXIT_RULE=f.cikis,
+            PRIORITY=int(mod.PRIORITY) + int(f.sira), TIME_STOP=(dict(f.zaman_stopu) if isinstance(f.zaman_stopu, dict) else int(f.zaman_stopu)), EXIT_RULE=f.cikis,
             compute=partial(hesapla, mod.SETUP, mod.FORMASYONLAR, kod), FORMASYON=f, AILE=mod.SETUP)
     return out
