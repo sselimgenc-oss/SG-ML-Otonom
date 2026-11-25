@@ -314,7 +314,7 @@ def test_kesif_12_formasyon_sanal_kurulum():
     assert arms.parse_arm_id("MF1-YUTAN@1h") == ("MF1-YUTAN", "1h")
     assert sorted(mf1.FORMASYONLAR[k].sira for k in KODLAR) == list(range(1, 13))
     # mevcut kollar kutuphaneden once (en buyuk mevcut 95 < 300)
-    assert max(arms.priority_of(s) for s in ls if not s.startswith("MF1-")) < 300
+    assert max(arms.priority_of(s) for s in ls if "-" not in s) < 200
 
 
 def test_kutuphane_ders_parametresi_okumaz():
@@ -496,13 +496,13 @@ def test_kagit_canli_ayni_ve_mf1_48_kimlik():
     p, l = _cfg("engine.paper.json"), _cfg("engine.live.json")
     for k in ("arms", "arm_max_positions", "arm_family_max_positions"):
         assert p[k] == l[k], k
-    assert p["arm_family_max_positions"] == {"MF1": 6} and p["arm_max_positions"]["MF1-*"] == 3
+    assert p["arm_family_max_positions"]["MF1"] == 6 and p["arm_max_positions"]["MF1-*"] == 3
     lib = [a for a in p["arms"] if a.startswith("MF1-")]
     beklenen = [f"{s}@{tf}" for s in sorted(a for a in arms.list_arms() if a.startswith("MF1-")) for tf in TFS]
     assert sorted(lib) == sorted(beklenen) and len(lib) == 48 and len(set(p["arms"])) == len(p["arms"])
     for ad in ("engine.paper.json", "engine.live.json"):
         cfg = C.load_cli_config(ROOT / "config", "learner", ad.split(".")[1])
-        assert cfg.arm_family_max_positions == {"MF1": 6} and cfg.arm_max_positions["MF1-*"] == 3
+        assert cfg.arm_family_max_positions["MF1"] == 6 and cfg.arm_max_positions["MF1-*"] == 3
         assert all(a in cfg.arms for a in beklenen)
 
 

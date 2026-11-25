@@ -25,6 +25,8 @@ from . import _pa as P
 ATR_LEN = 14
 MIN_MUM = 40                       # isinma: bu kadar mum yoksa aday yok, hata yok
 MIN_STOP_ORAN = 0.006
+PIV_SOL, PIV_SAG = 10, 2           # pivot: sol 10, sag 2, kesin esitsizlik; ancak indeksi <= t-2 olan pivot kullanilir
+IND_PENCERE = 1200                 # uzun serilerde ozyinelemeli gostergeler son bu kadar mumdan hesaplanir (hata < 1e-15)
 KUTUPHANE_FEATURES = {"body_ratio": "body_ratio", "wick_ratio": "wick_ratio", "rr": "rr", "f_seviye": "ema_value",
                       "f_olcu_atr": "edge_dist_atr", "f_yas": "pullback_ema"}
 
@@ -42,10 +44,27 @@ class Formasyon:
 
 class Gorunum:
     """Long uzayinda (short icin aynalanmis) `t` anindaki goruntu. Dizilerin tamami verilir ama dedektor YALNIZ `<= t` okur."""
-    __slots__ = ("o", "h", "l", "c", "atr", "t")
+    __slots__ = ("o", "h", "l", "c", "atr", "t", "v", "gun", "onb")
 
-    def __init__(self, o, h, l, c, atr, t: int) -> None:
+    def __init__(self, o, h, l, c, atr, t: int, v=None, gun=None) -> None:
         self.o, self.h, self.l, self.c, self.atr, self.t = o, h, l, c, atr, t
+        self.v, self.gun = v, gun
+        self.onb: dict = {}                     # tembel onbellek: gosterge / pivot dizileri (tum dizi uzerinde, nedensel)
+
+    def once(self, anahtar, fn):
+        """`fn()` sonucunu bu gorunumde bir kez hesaplar (gosterge dizileri nedensel: t anindaki deger yalniz <= t verisinden)."""
+        r = self.onb.get(anahtar)
+        if r is None:
+            r = self.onb[anahtar] = fn()
+        return r
+
+    def pivotlar(self, t: int | None = None):
+        """(tepe_idx, dip_idx): `t` aninda ONAYLI pivotlar (indeks <= t-2; sol 10, sag 2, kesin). Pivot i, i+2 kapanisinda bilinir."""
+        t = self.t if t is None else t
+        pt, pd_ = self.once("pivot", lambda: (np.flatnonzero(I.pivot_tepe(self.h, PIV_SOL, PIV_SAG)),
+                                                np.flatnonzero(I.pivot_dip(self.l, PIV_SOL, PIV_SAG))))
+        k = t - PIV_SAG
+        return pt[:np.searchsorted(pt, k, side="right")], pd_[:np.searchsorted(pd_, k, side="right")]
 
     def dip(self, n: int, k: int = 0) -> float:
         """l[t-k-n+1 .. t-k] en kucugu (pencere `t-k` dahil)."""
@@ -54,7 +73,7 @@ class Gorunum:
 
 
 class _Ham:
-    __slots__ = ("o", "h", "l", "c", "atr", "ok", "gor", "bos")
+    __slots__ = ("o", "h", "l", "c", "atr", "ok", "gor", "bos", "v", "gun")
 
     def __init__(self, trig) -> None:
         self.o = trig["open"].to_numpy(dtype=float)
@@ -62,6 +81,13 @@ class _Ham:
         self.l = trig["low"].to_numpy(dtype=float)
         self.c = trig["close"].to_numpy(dtype=float)
         self.atr = I.atr(trig[["high", "low", "close"]], ATR_LEN).to_numpy(dtype=float)
+        self.v = trig["volume"].to_numpy(dtype=float) if "volume" in trig.columns else np.ones(len(self.c))
+        ix = trig.index
+        try:
+            ix = ix.tz_convert("UTC").tz_localize(None) if getattr(ix, "tz", None) is not None else ix
+            self.gun = ix.to_numpy().astype("datetime64[D]").astype(np.int64)      # UTC gun numarasi (VWAP demiri)
+        except Exception:  # noqa: BLE001 - zaman indeksi degilse VWAP aday uretmez
+            self.gun = None
         t = len(self.c) - 1
         with np.errstate(invalid="ignore"):
             self.ok = bool(t >= MIN_MUM and np.isfinite([self.o[t], self.h[t], self.l[t], self.c[t], self.atr[t]]).all()
@@ -74,9 +100,9 @@ class _Ham:
         if g is None:
             t = len(self.c) - 1
             if side == "long":
-                g = Gorunum(self.o, self.h, self.l, self.c, self.atr, t)
+                g = Gorunum(self.o, self.h, self.l, self.c, self.atr, t, self.v, self.gun)
             else:
-                g = Gorunum(-self.o, -self.l, -self.h, -self.c, self.atr, t)
+                g = Gorunum(-self.o, -self.l, -self.h, -self.c, self.atr, t, self.v, self.gun)
             self.gor[side] = g
         return g
 

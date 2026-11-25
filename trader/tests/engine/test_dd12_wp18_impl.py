@@ -117,12 +117,13 @@ FROZEN_SHA256 = {
     "src/trader_ml/config.py": "bcd786bfa6ae7c116813c00c0fe9cc881f79727ce1d32d25701be0d3b3c27fc5",   # 24.11 kullanici karari: ML filtreleri silindi (yalniz kilit + walk-forward sabitleri kaldi)
     "src/trader_core/signals.py": "cd748923487db52ef0c29014c9454cbf97d967a96cc5745167e4417844ff52af",
     "src/trader_core/regime.py": "1c68c7624ad39cc9ef883fd5e2953acc1ed26dfb03513b55e1b19413303d7ecf",
-    "src/trader_core/indicators.py": "aa4c6e4c5b19ad26eb6ee0be5f604f439a09310f931fd6ba3d7d475b533a4e4c",
+    "src/trader_core/indicators.py": "8ebd05613f4845cb0ed930327adae0363eff43699d9091b373f0dc92af8cb84a",   # 24.11 kullanici karari: formasyon kutuphanesi (GF1/IN1 gostergeleri eklendi; mevcut fonksiyonlar ayni)
     "src/trader_engine/holdout.py": "c03925100fe903bf11bb4fcb692cf27255a138220be552bee9b6ffae28fec475",
     "config/engine.base.json": "2ccdf97d21842f2dc54f682e66d65762f7957a7615befd932fbad8c68f49325e",   # 24.11 kullanici karari: veto ve C1 artiklari silindi;   # 24.11 kullanici karari: ML filtreleri silindi (ml_mode/ml_model_path anahtarlari kalkti)
     "config/engine.learner.json": "30ca2842c40cacafbf6cdd90c9e6f1f54fc62b9a9ec913476d1399ac5352cb12",
     "config/engine.testnet.json": "eff9eb61dcd9018bf86c195a02f7f25f08960473e705cbd114e104c26a956c9c",
-    "config/engine.live.json": "41768b979537d499c2312b3783bc20e0de9de89600c4b1b406d69528c08389da",   # 24.11 kullanici karari: formasyon kutuphanesi (MF1 48 kol + aile tavani)
+    "config/engine.live.json": "a28a8c3f9ed2e68b0889bb999cb486ee79479e99cb55fb23946e0f7b9b5cae90",   # 24.11 kullanici karari: formasyon kutuphanesi (GF1 + IN1 eklendi; 203 kol)
+    #   # 24.11 kullanici karari: formasyon kutuphanesi (MF1 48 kol + aile tavani)
     #   # 24.11 kullanici karari: DL1 dort zaman dilimi acik; onceki 24.11 ML filtreleri silindi; onceki 23.11 asama B + uzun_yon + HB1 (canli = kagit)
     "src/trader_engine/order_manager.py": "7bd0ff0ca3173c7e8baf0ab05dde04a8b1c472d4510c4922d142220d4ae02538",   # 24.11 kullanici kararlari: hedef emir + risk 0.12/DL1 4 + veto/C1 silme (birlesik pin)
     "research/s2_run.py": "66710418f9be36225b757f9d4a1158b1e9093db5f7df131572c639e3958b21a7",
