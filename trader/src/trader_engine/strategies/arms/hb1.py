@@ -44,7 +44,8 @@ SETUP = "HB1"
 TIMEFRAMES = ("1h",)
 CORE = False
 EXIT_MODE = "target"
-PRIORITY = 92                            # M1 (90) ile ayni mumda cakisirsa M1 kazanir; DL1 icin 95 ayrilmis
+TIME_STOP = 24                           # 25.11 kullanici karari: HB1 zaman stopu 24 mum (tasarim; motor varsayilani 48 degil)
+PRIORITY = 92                           # M1 (90) ile ayni mumda cakisirsa M1 kazanir; DL1 icin 95 ayrilmis
 FEATURES = {"hb1_body": "body_ratio", "hb1_wick": "wick_ratio", "hb1_rr": "rr"}
 # olay_kimligi ML ozellik tasiyicisina (edge_dist_atr) YAZILMAZ: suzgec ozelligini bozardi. `reasons` etiketi `hb1_olay=<kimlik>` olarak
 # tasinir (tum canli ayni yonlu olay kimlikleri "+" ile, kucukten buyuge); gates._features bunu features["hb1_olay"] alanina virgullu METIN olarak yazar (ML sayisal ozellik cikarimi metni atlar).

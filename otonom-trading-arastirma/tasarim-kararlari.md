@@ -242,3 +242,4 @@ Kaynak: `dis-denetim/triyaj-2026-11-17.md` (mentor). Kullanıcı: "Cloudflare i�
   - #18 (max_pair_share): 25.11 Fable karari ile 0,5 (asagida). #28 ve #46: canlı emir/mutabakat davranışı, dokunulmadı.
   - Bütçe/risk yüzünden yapılmadı: #17, #22, #31-#35, #37-#45 (temizlik/belge), #33 (karşı-olgu boşluk: açılış fiyatı boru hattı gerekir).
   - 25.11 kullanıcı kararı: çift payı (Fable) — `config/lesson.json` `max_pair_share` 1,0 → 0,5 (denetim madde 18): ders kanıtının yarısından fazlası tek çiftten gelirse ders engellenir; tam yarısı geçer, küçük kollar gereksiz engellenmez.
+- 25.11 kullanıcı kararı: HB1 zaman stopu 24 mum (tasarım ve belge dizgisiyle uyumlu; kodda `TIME_STOP = 24`, `time_stop_of("HB1") == 24`; önceden motor varsayılanı 48 uygulanıyordu).
