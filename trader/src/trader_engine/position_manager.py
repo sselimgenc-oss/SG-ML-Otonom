@@ -98,7 +98,7 @@ def evaluate_exit(pos: Position, ctx: ExitContext | None) -> ExitDecision:
         if ctx.rule_exit:                           # 24.11: kutuphane kural cikisi (neden `other`; defter CHECK kisiti)
             return ExitDecision("exit", "other", None, None)
         from .strategies import arms as _arms
-        if signals.time_stop_due(ctx.n_closed, _arms.time_stop_of(pos.setup)):
+        if signals.time_stop_due(ctx.n_closed, _arms.time_stop_of(pos.setup, getattr(pos, "trigger_tf", None))):
             return ExitDecision("exit", "time_stop", None, None)
         return _NONE
     # trail (T1 yolu): rejim cikisi + iz suren stop (TF1, S1, H2 de burada)

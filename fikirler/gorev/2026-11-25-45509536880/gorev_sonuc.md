@@ -1,0 +1,1 @@
+Dört parça paralel çalışıyor; bitince sonuçları değerlendireceğim.

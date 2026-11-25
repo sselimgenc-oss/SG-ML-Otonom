@@ -146,7 +146,11 @@ KURULUM_AD = {"T1": "Trend geri çekilmesi", "R1": "Yatay piyasa kenarı", "TF1"
               "IN1-VWAP": "Gösterge: VWAP üstüne geçiş",
               "IN1-FIYATMA": "Gösterge: fiyat SMA50 üstüne geçiş",
               "IN1-HIZLIMA": "Gösterge: EMA4/EMA9 kesişimi",
-              "IN1-BOLL": "Gösterge: Bollinger alt bant dönüşü"}
+              "IN1-BOLL": "Gösterge: Bollinger alt bant dönüşü",
+              # 24.11 kullanici karari: formasyon kutuphanesi (PA2 price action formasyonlari)
+              "PA2-EMIRBLOK": "PA: emir bloğu", "PA2-BOLGE": "PA: arz/talep bölgesi", "PA2-FVG": "PA: değer boşluğu",
+              "PA2-ONCEKI": "PA: önceki dönem dibi", "PA2-TCIZGI": "PA: trend çizgisi", "PA2-SEVIYE": "PA: seviyede mum",
+              "PA2-UCVURUS": "PA: üç çizgi vuruşu", "PA2-TUKENIS": "PA: günlük tükeniş"}
 
 
 def kurulum_adi(setup: Any) -> str:

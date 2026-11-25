@@ -37,7 +37,7 @@ class Formasyon:
     ad: str
     sira: int
     tfs: tuple[str, ...]
-    zaman_stopu: int
+    zaman_stopu: "int | dict"      # mum sayisi; ya da {"15m": 48, "1h": 12} (ZD basina; PA2-TUKENIS)
     bul: Callable                  # bul(g: Gorunum) -> None | dict(stop, hedef, seviye, olcu, yas, etiket)
     cikis: Callable | None = None  # cikis(inp: ArmInput) -> bool | None (kural cikisi)
     kip: str = "target"            # cikis kipi: "target" (hedef + zaman stopu) | "trail" (iz suren stop; hedef yok; ana kol trail ise)
@@ -45,12 +45,13 @@ class Formasyon:
 
 class Gorunum:
     """Long uzayinda (short icin aynalanmis) `t` anindaki goruntu. Dizilerin tamami verilir ama dedektor YALNIZ `<= t` okur."""
-    __slots__ = ("o", "h", "l", "c", "atr", "t", "v", "yon", "ham", "gun", "onb")
+    __slots__ = ("o", "h", "l", "c", "atr", "t", "v", "yon", "ham", "gun", "sec", "onb")
 
-    def __init__(self, o, h, l, c, atr, t: int, v=None, yon: str = "long", ham=None, gun=None) -> None:
+    def __init__(self, o, h, l, c, atr, t: int, v=None, yon: str = "long", ham=None, gun=None, sec=None) -> None:
         self.o, self.h, self.l, self.c, self.atr, self.t = o, h, l, c, atr, t
         self.v, self.yon, self.ham = v, yon, ham          # hacim (aynalanmaz), yon, ortak ham (ana kol / rejim erisimi)
         self.gun = gun                          # UTC gun numarasi (VWAP demiri)
+        self.sec = sec                          # mum acilis zamani (UTC saniye, int64); PA2 zaman tabanli dedektorler (yalniz <= t okunur)
         self.onb: dict = {}                     # tembel onbellek: gosterge / pivot dizileri (tum dizi uzerinde, nedensel)
 
     def trend_ok(self) -> bool:
@@ -84,7 +85,7 @@ class Gorunum:
 
 
 class _Ham:
-    __slots__ = ("o", "h", "l", "c", "atr", "ok", "gor", "bos", "v", "inp", "_reg", "_ana", "oz", "gun")
+    __slots__ = ("o", "h", "l", "c", "atr", "ok", "gor", "bos", "v", "inp", "_reg", "_ana", "oz", "gun", "sec")
 
     def __init__(self, trig, inp=None) -> None:
         self.inp = inp
@@ -103,6 +104,12 @@ class _Ham:
             self.gun = ix.to_numpy().astype("datetime64[D]").astype(np.int64)      # UTC gun numarasi (VWAP demiri)
         except Exception:  # noqa: BLE001 - zaman indeksi degilse VWAP aday uretmez
             self.gun = None
+        ix = trig.index
+        try:
+            ix = ix.tz_convert(None) if getattr(ix, "tz", None) is not None else ix
+            self.sec = ix.to_numpy().astype("datetime64[s]").astype("int64")
+        except (TypeError, ValueError, AttributeError):
+            self.sec = None
         t = len(self.c) - 1
         with np.errstate(invalid="ignore"):
             self.ok = bool(t >= MIN_MUM and np.isfinite([self.o[t], self.h[t], self.l[t], self.c[t], self.atr[t]]).all()
@@ -115,9 +122,9 @@ class _Ham:
         if g is None:
             t = len(self.c) - 1
             if side == "long":
-                g = Gorunum(self.o, self.h, self.l, self.c, self.atr, t, self.v, side, self, self.gun)
+                g = Gorunum(self.o, self.h, self.l, self.c, self.atr, t, self.v, side, self, self.gun, self.sec)
             else:
-                g = Gorunum(-self.o, -self.l, -self.h, -self.c, self.atr, t, self.v, side, self, self.gun)
+                g = Gorunum(-self.o, -self.l, -self.h, -self.c, self.atr, t, self.v, side, self, self.gun, self.sec)
             self.gor[side] = g
         return g
 
@@ -223,6 +230,6 @@ def sanal_kurulumlar(mod) -> dict[str, SimpleNamespace]:
         feats = {k: v for k, v in KUTUPHANE_FEATURES.items() if not (f.kip == "trail" and k == "rr")}
         out[setup] = SimpleNamespace(
             SETUP=setup, TIMEFRAMES=tuple(f.tfs), CORE=False, EXIT_MODE=f.kip, FEATURES=feats,
-            PRIORITY=int(mod.PRIORITY) + int(f.sira), TIME_STOP=int(f.zaman_stopu), EXIT_RULE=f.cikis,
+            PRIORITY=int(mod.PRIORITY) + int(f.sira), TIME_STOP=(dict(f.zaman_stopu) if isinstance(f.zaman_stopu, dict) else int(f.zaman_stopu)), EXIT_RULE=f.cikis,
             compute=partial(hesapla, mod.SETUP, mod.FORMASYONLAR, kod), FORMASYON=f, AILE=mod.SETUP)
     return out

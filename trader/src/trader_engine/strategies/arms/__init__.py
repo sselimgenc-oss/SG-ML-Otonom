@@ -158,10 +158,13 @@ def priority_of(setup: str | None) -> int:
     return 1000 if mod is None else int(mod.PRIORITY)
 
 
-def time_stop_of(setup: str | None) -> int:
-    """Kurulumun zaman stopu (mum); `TIME_STOP` yoksa 48 (mevcut kollarin degeri)."""
+def time_stop_of(setup: str | None, tf: str | None = None) -> int:
+    """Kurulumun zaman stopu (mum); `TIME_STOP` yoksa 48 (mevcut kollarin degeri). `TIME_STOP` sozluk ise ({"15m": 48, "1h": 12})
+    `tf` anahtari, yoksa 48 (24.11 PA2-TUKENIS)."""
     mod = discover().get(setup) if isinstance(setup, str) else None
     v = getattr(mod, "TIME_STOP", None)
+    if isinstance(v, dict):
+        v = v.get(tf)
     return 48 if v is None else int(v)
 
 

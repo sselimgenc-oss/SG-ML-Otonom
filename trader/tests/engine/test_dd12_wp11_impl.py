@@ -34,6 +34,7 @@ PAPER_ARMS = ALL_ARMS + ("M1@1h", "M1@4h", "M1@15m", "M1@1d", "HB1@1h", "DL1@15m
 from trader_engine.strategies import arms as _kutuphane_arms   # 24.11 kullanici karari: formasyon kutuphanesi (GF1 52 + IN1 66 kol; sirali kod, ZD sirasi)
 PAPER_ARMS = PAPER_ARMS + tuple(f"{s}@{tf}" for fam in ("GF1-", "IN1-") for s in sorted(a for a in _kutuphane_arms.list_arms() if a.startswith(fam))
                                 for tf in _kutuphane_arms.find_arm(s).TIMEFRAMES)
+PAPER_ARMS = PAPER_ARMS + tuple(f"PA2-{k}@{tf}" for k, tfs in (("EMIRBLOK", None), ("BOLGE", None), ("FVG", None), ("ONCEKI", ("15m", "1h", "4h")), ("TCIZGI", None), ("SEVIYE", None), ("UCVURUS", None), ("TUKENIS", ("15m", "1h"))) for tf in (tfs or ("15m", "1h", "4h", "1d")))   # 24.11 kullanici karari: formasyon kutuphanesi (PA2 29 kol)
 
 
 # --------------------------------------------------------------------------- arms paketi
