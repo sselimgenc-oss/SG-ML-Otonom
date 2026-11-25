@@ -232,13 +232,11 @@ def test_service_limits_and_oneshot():
     assert "ml_retrain_run" in s.get("ExecStart", "")
 
 
-def test_timer_runs_0040_utc_before_dl1():
-    """24.11 kullanici karari: M1 gece egitimi 00:40 UTC (03:40 TSI); DL1 egitimi 01:00 UTC'de arkasindan baslar (workflow cron'u)."""
+def test_timer_runs_0040_utc():
+    """24.11 kullanici karari: M1 gece egitimi 00:40 UTC (03:40 TSI)."""
     txt = (TRADER / "deploy" / "trader-ml-retrain.timer").read_text()
     assert re.search(r"OnCalendar=\*-\*-\* 00:40:00 UTC", txt)
     assert "Persistent" in txt
-    dl1 = (TRADER.parent / ".github" / "workflows" / "dl1-egitim.yml").read_text()
-    assert 'cron: "0 1 * * *"' in dl1, "DL1 egitimi M1'in hemen arkasindan (01:00 UTC) baslar"
 
 
 def test_trader_ml_uses_no_trader_engine():

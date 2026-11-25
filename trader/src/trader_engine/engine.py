@@ -54,7 +54,7 @@ _PARTIAL_TRANSIENT = ("exchange_ban", "rate_limited", "order_rate_cap", "exchang
                       "rules_stale", "rules_missing")           # emir borsada YOK; kalici ret (miktar/min notional/kural) degil
 
 ENGINE_VERSION = "05.1"
-KALDIRILAN_KOLLAR = ("C1",)          # CT/C1 ayriligi: kullanici karariyla kaldirilan kurulumlar (acik pozisyonlari baslangicta kapatilir)
+KALDIRILAN_KOLLAR = ("C1", "DL1", "HB1")          # CT/C1 ayriligi: kullanici karariyla kaldirilan kurulumlar (acik pozisyonlari baslangicta kapatilir)
 _REASONS = ("stop", "target", "trail_stop", "regime_flip", "time_stop", "manual", "force_exit", "liquidation", "other")
 _STATUS_COUNTERS = ("callback_errors", "data_gaps", "ledger_errors", "outbox_failed", "unknown_orders", "mark_fallbacks",
                     "minute_gaps", "funding_missing", "exit_data_gap")
@@ -898,15 +898,25 @@ class Engine:
                               unresolved_orders=len(self.state.unresolved_orders()), reconcile=rep)
 
     def _kaldirilan_kollari_kapat(self, now: datetime) -> int:
-        """Tek seferlik, idempotent adim (baslangicta): `KALDIRILAN_KOLLAR` kurulumlarinin ACIK pozisyonlarini piyasa fiyatindan kapatir
+        """Tek seferlik, idempotent adim (baslangicta): `KALDIRILAN_KOLLAR` kurulumlarinin (ve YALNIZ kagitta, bos olmayan `cfg.arms` icinde
+        bulunmayan `arm_id_of(setup, trigger_tf)` kollarinin) ACIK pozisyonlarini piyasa fiyatindan kapatir
         (stop/hedef beklenmez; kapanis normal yoldan: gerceklesen K/Z, komisyon ve kayma her zamanki gibi; neden `force_exit`, gunluge
         `kol_kaldirildi`). Kalan acik pozisyon yoksa hicbir sey yapmaz (ikinci calisma no-op). Kagit: `submit_exit` (karsi tarafta
         kagit broker); testnet/canli: yalniz normal reduce-only cikis yolu (`_submit_exit`: ban penceresi + poll). Cikis gonderilemezse
         CRIT gunluk + sayac; sessiz birakilmaz (sonraki baslangicta yeniden denenir). Doner: gonderilen cikis sayisi."""
+        from . import arm_guard as AG  # noqa: PLC0415
+        tanimli = set(getattr(getattr(self, "cfg", None), "arms", ()) or ())      # 25.11: bos = kol listesi bilinmez (stratejinin varsayilani)
+        paper = bool(getattr(getattr(self, "broker", None), "is_simulated", False))
         sent = 0
         for p in self.state.open_positions():
             if p.setup not in KALDIRILAN_KOLLAR:
-                continue
+                if not tanimli or AG.arm_id_of(p.setup, p.trigger_tf) in tanimli:
+                    continue
+                if not paper:                                     # canli/testnet: yapilandirmada olmayan kol icin yalniz CRIT, otomatik kapatma YOK
+                    self._c["kolu_olmayan_pozisyon_canli"] += 1
+                    log.critical("kol_kaldirildi: trade %s kolu %s yapilandirmada yok; CANLI kipte otomatik kapatilmaz (elle karar gerekir)",
+                                 p.trade_id, AG.arm_id_of(p.setup, p.trigger_tf))
+                    continue
             if p.status == "closing":
                 continue                                          # cikis zaten yolda (onceki baslangic): yeniden gonderilmez
             if p.status != "open" or not p.qty:

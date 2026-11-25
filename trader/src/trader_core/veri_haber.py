@@ -27,7 +27,7 @@ from typing import Any
 DUYGU_URL = "https://api.alternative.me/fng/?limit=10"
 # TEK LISTE: (ad, url, kategori). Kategori: kripto / hisse / emtia (KARAR-2). Yeni kaynak = bu listeye bir satir.
 # Hepsi anahtarsiz, https GET. Hisse/emtia kaynaklari genel piyasa/is bolumu beslemeleridir (21 hisse + 4 emtia icin tek tek beslemeye
-# gerek yok; hangi enstrumani ilgilendirdigine `haber_sinyal` modeli karar verir). Sartlar THIRD_PARTY_NOTICES.md'de.
+# gerek yok; hangi enstrumani ilgilendirdigi tuketicide belirlenir). Sartlar THIRD_PARTY_NOTICES.md'de.
 KAYNAK_LISTESI: tuple[tuple[str, str, str], ...] = (
     ("coindesk", "https://www.coindesk.com/arc/outboundfeeds/rss/", "kripto"),
     ("cointelegraph", "https://cointelegraph.com/rss", "kripto"),
@@ -44,7 +44,7 @@ KAYNAK_LISTESI: tuple[tuple[str, str, str], ...] = (
     ("mining_com", "https://www.mining.com/feed/", "emtia"),
     ("cnbc_energy", "https://www.cnbc.com/id/19836768/device/rss/rss.html", "emtia"),
 )
-# Yayinci = besleme adinin ilk parcasi (cnbc_*, marketwatch_* ayni yayinci); HB1 teyidinde (haber_sinyal.yayinci) tek kaynak sayilir.
+# Yayinci = besleme adinin ilk parcasi (cnbc_*, marketwatch_* ayni yayinci).
 KAYNAKLAR: dict[str, str] = {ad: url for ad, url, _ in KAYNAK_LISTESI}
 KATEGORI: dict[str, str] = {ad: kat for ad, _, kat in KAYNAK_LISTESI}
 KATEGORILER = ("kripto", "hisse", "emtia")

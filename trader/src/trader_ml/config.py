@@ -1,4 +1,4 @@
-"""Donmus sabitler (kilit bayragi ve purged walk-forward izgarasi; DL1 egitimi ve M1 gece egitimi kullanir)."""
+"""Donmus sabitler (kilit bayragi ve purged walk-forward izgarasi; M1 gece egitimi kullanir)."""
 from __future__ import annotations
 
 import pandas as pd

@@ -28,7 +28,7 @@ __all__ = [
     "LogNotifier", "NullNotifier", "plan_alerts", "revert_failed_alerts", "empty_state",
     "PauseProbe", "quiet_http_loggers", "IMMEDIATE_CODES", "HeartbeatSender", "HttpsHeartbeat", "parse_env_text",
     "parse_maintenance", "heartbeat_message", "should_send_ok", "REQUIRED_CHECKS", "MarketProbe",
-    "DriftProbe", "BanProbe", "HaberSinyalProbe", "Dl1PaketProbe",
+    "DriftProbe", "BanProbe",
 ]
 
 log = logging.getLogger("trader.health")
@@ -179,26 +179,6 @@ class DriftProbe:
 
 
 @dataclass(frozen=True)
-class HaberSinyalProbe:
-    """Haber sinyali dosyasi (var/learner/sinyal/haber_sinyal.json) olcumu (ust lig HB1 girdisi). Saglik yalniz yasa bakar."""
-    file_state: str = "missing"             # "ok" | "missing" | "unreadable"
-    produced_at: datetime | None = None     # dosyadaki `uretim`
-    valid_until: datetime | None = None     # uretim + gecerlilik (uretim + 3 sa tavanli)
-    job_installed: bool = False             # sinyal isi kurulu: unit dosyasi var YA DA durum dosyasi (haber_sinyal_durum.json) var
-    job_status: str | None = None           # durum dosyasindaki son tur sonucu: ok | anahtar_yok | api_hata | butce | hata
-    job_since: datetime | None = None       # isin ilk zamani: durum dosyasi calisma.ilk_ms, yoksa unit dosyasi mtime
-
-
-@dataclass(frozen=True)
-class Dl1PaketProbe:
-    """DL1 paketleri (models/dl1/DL1@<15m|1h|4h|1d>.json; en kotu durum / en eski paket) olcumu (ust lig DL1 kolu girdisi). Saglik yalniz yasa bakar."""
-    file_state: str = "missing"             # "ok" | "missing" | "unreadable" (bozuk / hash tutmuyor / sema disi)
-    created_at: datetime | None = None
-    expires_at: datetime | None = None      # min(son_kullanma, olusturma + 45 gun)
-    sorunlu: tuple[str, ...] = ()           # 25.11: bozuk / eksik zaman dilimleri (mesajda adlari yazilir)
-
-
-@dataclass(frozen=True)
 class HealthSnapshot:
     now: datetime
     timeframe_s: int | None = None
@@ -231,10 +211,6 @@ class HealthSnapshot:
     prev_account_mode: Mapping[str, tuple[int, int]] | None = None
     # DD-9 §8.3: canli yol tutarliligi; None = LIVE_BOTS bos (denetim uretilmez), () = tutarli, aksi uyusmazlik kodlari.
     live_path_issues: tuple[str, ...] | None = None
-    # Ust lig: haber sinyali dosyasi; None = yoklanmadi (haber_sinyal_age denetimi uretilmez).
-    haber_sinyal: HaberSinyalProbe | None = None
-    # Ust lig: DL1 paketi; None = yoklanmadi (dl1_paket_age denetimi uretilmez).
-    dl1_paket: Dl1PaketProbe | None = None
 
     def __post_init__(self):
         if not isinstance(self.now, datetime) or self.now.tzinfo is None or self.now.utcoffset() is None:
@@ -760,65 +736,6 @@ def _c_rules_missing(snap, bot, cfg):
     return _res(name, Status.OK, "ok", f"{bot} rules_missing {cur} (artis yok)", cur, 0)
 
 
-HABER_SINYAL_ILK_SAAT_S = 2 * 3600     # isin ilk zamanindan sonra bu sure dosya yoksa bile yalniz bilgi (INFO)
-
-
-def _c_haber_sinyal(snap, cfg):
-    """haber_sinyal_age: HB1 kolunun girdisi. Taze -> OK; bayat (gecerlilik doldu) / bozuk -> WARN (yalniz HB1 girisleri durur);
-    uretici durumu anahtar_yok -> WARN (sessiz olu kol); dosya yok: isi kurulu degil ya da isin ilk zamanindan (durum dosyasi / unit mtime)
-    sonraki ilk 2 saatteyse INFO (Status.OK, kod `haber_sinyal_info`), aksi WARN."""
-    name = "haber_sinyal_age"
-    p = snap.haber_sinyal
-    if p.job_installed and p.job_status == "anahtar_yok":
-        return _res(name, Status.WARN, "haber_anahtar_yok", "haber anahtari yok, haber kolu sinyal goremiyor; HB1 girisleri durdu")
-    if p.file_state == "unreadable":
-        return _res(name, Status.WARN, "haber_sinyal_bozuk", "haber sinyali dosyasi okunamadi/sema disi; HB1 girisleri durdu")
-    if p.file_state != "ok" or not isinstance(p.produced_at, datetime) or p.produced_at.tzinfo is None:
-        ilk = (isinstance(p.job_since, datetime) and p.job_since.tzinfo is not None
-               and (snap.now - p.job_since).total_seconds() < HABER_SINYAL_ILK_SAAT_S)
-        if not p.job_installed or ilk:
-            return _res(name, Status.OK, "haber_sinyal_info", "INFO: haber sinyali dosyasi yok (sinyal isi kurulu degil ya da ilk saatler)")
-        return _res(name, Status.WARN, "haber_sinyal_yok", "haber sinyali dosyasi yok; HB1 girisleri durdu")
-    try:
-        age = _age_s(snap.now, p.produced_at, cfg)
-    except _Skew:
-        return _unknown(name, "clock_skew", "haber sinyali zamani gelecekte; saat uyumsuz")
-    lim = p.valid_until
-    gecerlilik = (lim - p.produced_at).total_seconds() if isinstance(lim, datetime) and lim.tzinfo is not None else 3 * 3600
-    if age > gecerlilik:
-        ek = f" (uretici son durum: {p.job_status})" if p.job_status not in (None, "ok") else ""
-        return _res(name, Status.WARN, "haber_sinyal_bayat",
-                    f"haber sinyali yasi {age:.0f} sn, gecerlilik {gecerlilik:.0f} sn{ek}; HB1 girisleri durdu", age, gecerlilik)
-    return _res(name, Status.OK, "ok", f"haber sinyali yasi {age:.0f} sn", age, gecerlilik)
-
-
-DL1_YENILENME_ESIK_S = 3 * 86400          # gece egitimi her gun paketi yeniler; en eski paket bundan yasliysa uyari
-
-
-def _dl1_tf_eki(p) -> str:
-    return f" [zaman dilimi: {', '.join(p.sorunlu)}]" if getattr(p, "sorunlu", ()) else ""
-
-
-def _c_dl1_paket(snap, cfg):
-    """dl1_paket_age: DL1 kolunun girdisi (dort zaman dilimi; en kotu durum). Yok -> WARN (kod `dl1_paket_yok`: "DL1 paketi henuz yok"); bozuk -> WARN;
-    45 gunden yasli -> WARN (`dl1_paket_eski`; 24.11: paket YINE islem yapar, gece egitimi yenilemedi); en eski paket 3 gunden yasli -> WARN
-    (`dl1_paket_yenilenmedi`: gece egitimi bir kac gundur yenilemiyor; islem devam eder); aksi OK (yas satiri)."""
-    name = "dl1_paket_age"
-    p = snap.dl1_paket
-    if p.file_state == "unreadable":
-        return _res(name, Status.WARN, "dl1_paket_bozuk", "DL1 paketi okunamadi/hash tutmuyor/sema disi; ilgili zaman diliminde DL1 girisleri durdu" + _dl1_tf_eki(p))
-    if p.file_state != "ok" or not isinstance(p.created_at, datetime) or p.created_at.tzinfo is None \
-            or not isinstance(p.expires_at, datetime) or p.expires_at.tzinfo is None:
-        return _res(name, Status.WARN, "dl1_paket_yok", "DL1 paketi henuz yok (en az bir zaman diliminde); o zaman diliminde DL1 girisleri durdu" + _dl1_tf_eki(p))
-    yas = (snap.now - p.created_at).total_seconds()
-    kalan = (p.expires_at - snap.now).total_seconds()
-    if kalan <= 0:
-        return _res(name, Status.WARN, "dl1_paket_eski", f"DL1 paketi yasi {yas / 86400:.1f} gun, 45 gunu asti; DL1 paketi islem yapmaya devam ediyor ama gece egitimi yenilemedi", yas, kalan)
-    if yas > DL1_YENILENME_ESIK_S:
-        return _res(name, Status.WARN, "dl1_paket_yenilenmedi", f"DL1 paketi (en eski zaman dilimi) {yas / 86400:.1f} gundur yenilenmedi (esik 3 gun); gece egitimi calismiyor olabilir, DL1 eldeki paketle islem yapmaya devam ediyor", yas, DL1_YENILENME_ESIK_S)
-    return _res(name, Status.OK, "ok", f"DL1 paketi yasi {yas / 86400:.1f} gun, son kullanmaya {kalan / 86400:.1f} gun", yas, kalan)
-
-
 def _c_drift(snap, bot, cfg):
     """drift_monitor:<bot> (Bolum 16.6). Bilincli istisna: hicbir kosulda CRIT/UNKNOWN uretmez."""
     name = f"drift_monitor:{bot}"
@@ -1168,10 +1085,6 @@ def evaluate(snap: HealthSnapshot, cfg: HealthConfig = DEFAULT_CFG) -> HealthRep
         for bot in cfg.require_bots:
             results.append(_safe(f"rules_missing:{bot}", _c_rules_missing, snap, bot, cfg))
 
-    if snap.haber_sinyal is not None:
-        results.append(_safe("haber_sinyal_age", _c_haber_sinyal, snap, cfg))
-    if snap.dl1_paket is not None:
-        results.append(_safe("dl1_paket_age", _c_dl1_paket, snap, cfg))
     for bot in dict.fromkeys(list(cfg.require_bots) + list(snap.drift or {})):
         ap = snap.api.get(bot)
         if ap is not None and (ap.expect_exchange or ap.mode == "live"):
@@ -1364,10 +1277,6 @@ _HEALTH_TR: dict[str, tuple[str, str, str]] = {
                   "açık risk gözden geçirilmeli."),
     "risk_ladder": ("Risk kademesi sorunlu", "Risk kademesi yeniden normal",
                     "Sermaye koruma kuralları devrede; yeni işlemler kısıtlanabilir."),
-    "haber_sinyal_age": ("Haber sinyali güncel değil", "Haber sinyali yeniden güncel",
-                         "Haber kolunun (HB1) yeni girişleri durur; diğer kollar ve açık pozisyonlar etkilenmez."),
-    "dl1_paket_age": ("DL1 modeli güncel değil", "DL1 modeli yeniden güncel",
-                      "Derin öğrenme kolunun (DL1) modeli yok/bozuk ya da gece eğitimi yenilemedi (eski model işlem yapmaya devam eder); diğer kollar ve açık pozisyonlar etkilenmez."),
     "drift_monitor": ("Bot beklenenden farklı davranıyor", "Bot yeniden beklendiği gibi davranıyor",
                       "Bot durdurulmadı; ayrıntı günlük raporda. İnceleme gerekir."),
 }

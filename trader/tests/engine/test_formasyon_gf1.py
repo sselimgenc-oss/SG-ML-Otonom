@@ -273,7 +273,7 @@ def test_kesif_13_formasyon_sanal_kurulum():
     assert sorted(gf1.FORMASYONLAR[k].sira for k in KODLAR) == list(range(1, 14))
     assert [k for k in sorted(KODLAR, key=lambda k: gf1.FORMASYONLAR[k].sira)] == [
         "OBO", "UCLU", "KUPA", "IKILI", "KAMA", "UCGEN", "BAYRAK", "FLAMA", "RETEST", "SAHTE", "TREND", "KANAL", "YATAY"]
-    for s in ("HB1", "DL1", "M1", "T1", "R1", "TF1", "B1", "H2", "S1", "F1"):
+    for s in ("M1", "T1", "R1", "TF1", "B1", "H2", "S1", "F1"):
         assert arms.priority_of(s) < 200
 
 

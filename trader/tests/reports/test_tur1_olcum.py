@@ -252,15 +252,3 @@ def test_betik_defter_yoksa_temiz(tmp_path):
         pytest.skip(f"panel yapilandirma sarmalayicisi: {type(e).__name__}") if False else None
         raise
     assert rc == 0
-
-
-def test_ust_lig_karnesi_kol_yoksa_ve_varsa():
-    d = T.ust_lig([])
-    assert d["HB1"]["durum"] == "kol henüz yok" and d["DL1"]["n"] == 0
-    full = T.rapor(trades_mix(20), [], None, kasa0=1000.0, now=NOW, b=50, runs=5000)
-    assert full["ust_lig"]["HB1"]["durum"] == "kol henüz yok"
-    md = T.render_md(full)
-    assert "## Üst lig" in md and "HB1: kol henüz yok" in md and "DL1: kol henüz yok" in md
-    tr = [{"arm": "HB1@1h", "net_r": 0.5}, {"arm": "HB1@1h", "net_r": -0.25}, {"arm": "M1@1h", "net_r": 9.0}]
-    d2 = T.ust_lig(tr)
-    assert d2["HB1"]["n"] == 2 and d2["HB1"]["toplam"] == 0.25 and d2["HB1"]["etiket"] == T.YETERSIZ and d2["DL1"]["durum"] == "kol henüz yok"

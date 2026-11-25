@@ -55,7 +55,7 @@ PINNED_SHA = {
     "engine.base.json": "26f5664f630f44bf594eb58e4efa881b2e71890ecb6d11ec80ad9fe2b3b8b361",   # 25.11 kullanici karari: denetim kalan maddeler (start_delay_s kalkti); 24.11 kullanici karari: veto ve C1 artiklari silindi (veto_mode/veto_config kalkti);   # WP-06a: yalniz veto_config yolu; 24.11 kullanici karari: ML filtreleri silindi (ml_mode/ml_model_path kalkti)
     "engine.learner.json": "30ca2842c40cacafbf6cdd90c9e6f1f54fc62b9a9ec913476d1399ac5352cb12",
     "engine.testnet.json": "eff9eb61dcd9018bf86c195a02f7f25f08960473e705cbd114e104c26a956c9c",   # 24.11 kullanici karari: veto ve C1 artiklari silindi
-    "engine.live.json": "b7e6ca631e84e688115b7561db28cb275b9db7fef1713739e64ebe3c604e0bcd",   # 24.11 kullanici karari: formasyon kutuphanesi birlesik (MF1 48 + GF1 52 + IN1 66 + PA2 29 + PA varyantlari 56 kol; max_positions 36)
+    "engine.live.json": "afc41b6f427d052365791f429f8e4c875f30262b120dd0c76905cf1ca4b8b3bd",   # 24.11 kullanici karari: formasyon kutuphanesi birlesik (MF1 48 + GF1 52 + IN1 66 + PA2 29 + PA varyantlari 56 kol; max_positions 36)
     #   # 24.11 kullanici karari: veto ve C1 artiklari silindi (veto_mode, arm_max_positions L1 kalkti);   # 24.11 kullanici karari: DL1 dort zaman dilimi acik; onceki 24.11 ML filtreleri silindi
 }
 # 23.11 kullanici karari: canli = kagit. engine.live.json'a eklenen kagit sistem anahtarlari (+ pairs yerine kagit evreni).

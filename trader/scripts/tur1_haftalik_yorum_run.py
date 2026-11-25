@@ -9,7 +9,7 @@ GONDER (pazar 06:00 UTC: batch + butce rezervi `tur1_haftalik_batch.json`'a yazi
 `trader-weekly-collect.timer` 3 saatte bir; her normal kosu da once bekleyeni toplar): bitince Telegram mesaji + hafta isareti; basarisiz/suresi
 dolmus/36 saatte bitmemis batch'te rezerv serbest birakilir ve kisa "atlandi" notu gider. Ayni hafta ikinci gonderim yapilmaz.
 Butce: MEVCUT `haftalik_ozet` payi (anahtar ANTHROPIC_API_KEY_HAFTALIK_OZET, yeni anahtar yok); `authorize` (batch fiyatli tahmin) -> gonderim -> `record(..., True)`.
-Model: claude-fable-5-2 (parametre bicimi `haber_sinyal.istem_parametreleri` gibi: `temperature` YOK).
+Model: claude-fable-5-2 (`temperature` parametresi YOK).
 Butce reddi / anahtar yok / fiyat tablosunda model yok / gonderim hatasi / girdi yok: sessizce atlanir (yalniz log), mesaj gitmez, cikis 0.
 Test: `main(argv, client=, budget=, now_fn=, env=, sleep=)`; `client.submit(bundle, custom_id)` / `client.poll(batch_id)` / `client.cancel(batch_id)`.
 """

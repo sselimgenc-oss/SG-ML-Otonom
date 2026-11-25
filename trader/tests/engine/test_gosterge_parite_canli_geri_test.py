@@ -206,7 +206,7 @@ def _check_pair_tf(h, pair, tf, tol, n_cand=6, n_rand=3):
         fr, rows = _live_rows(src, pair, D, params)
         if fr.status != "ok":
             pytest.fail(f"{pair} {tf} {D}: canli {fr.status} {fr.detail}")
-        # M1/HB1/DL1 yalniz son barda puanlar: tum gecmis tablosunda yalniz son satirda anlamli (D == end)
+        # M1 yalniz son barda puanlar: tum gecmis tablosunda yalniz son satirda anlamli (D == end)
         for key, t in tabs.items():
             if key == "M1" and D != end:
                 continue

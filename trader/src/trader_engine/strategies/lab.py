@@ -181,7 +181,7 @@ class PriceActionLab:
                 run(m.SETUP, lambda m=m, inp=inp: m.compute(inp))
             else:
                 # kurulum yalniz dolu mumlarda calisir, tablo tam izgaraya genisler (olu satirlarda aday yok: karar mumu oluysa
-                # son satir aday degildir; yalniz-son-bar kurulumlarinin (M1/DL1/HB1) bayat dolu bardaki adayi gecmis satirda kalir)
+                # son satir aday degildir; yalniz-son-bar kurulumlarinin (M1) bayat dolu bardaki adayi gecmis satirda kalir)
                 run(m.SETUP, lambda m=m, inp=inp: AG.expand_rows(m.compute(inp), full.index, keep, AG.CARRY_SIGNAL))
         return out
 

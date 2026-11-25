@@ -59,7 +59,7 @@ def test_core_reads_still_hold_in_signals_source():
 
 
 def test_arm_discovery_finds_known_setups():
-    assert {"T1", "R1", "B1", "F1", "H2", "S1", "TF1", "DL1", "HB1", "M1"} <= set(_arms())
+    assert {"T1", "R1", "B1", "F1", "H2", "S1", "TF1", "M1"} <= set(_arms())
 
 
 # Acik istisna: B1 rr_min'i okur ama okuma ETKISIZDIR (sabit RR 2.0; rr_min siniri 2.0'in altinda) => kapsamda degil.

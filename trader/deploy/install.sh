@@ -496,9 +496,10 @@ if [ -d "$TRADER_DIR/var/twin" ]; then
   [ -e "$TWIN_ARCH" ] && TWIN_ARCH="${TWIN_ARCH}-$(date -u +%H%M%S)"
   mv "$TRADER_DIR/var/twin" "$TWIN_ARCH" && echo "Ikiz verisi arsive tasindi (silinmedi): $TWIN_ARCH"
 fi
-# 24.11 kullanici karari: AI veto ve C1 artiklari tamamen silindi. Eski kurulumdaki birimler/dosyalar burada temizlenir
+# 24.11 kullanici karari: AI veto ve C1 artiklari tamamen silindi. 25.11: haber sinyali (HB1) isi de kaldirildi (trader-haber-sinyal.*). Eski kurulumdaki birimler/dosyalar burada temizlenir
 # (her adim varlik kontrollu ve idempotent; defter/state dosyalarina DOKUNULMAZ, shared/veto/ okunmaz ve silinmez).
-for u in trader-veto.timer trader-veto.service trader-ct-kadro.timer trader-ct-kadro.service trader-c1-goc.service; do
+for u in trader-veto.timer trader-veto.service trader-ct-kadro.timer trader-ct-kadro.service trader-c1-goc.service \
+         trader-haber-sinyal.timer trader-haber-sinyal.service; do
   if [ -e "${UNIT_DIR}/$u" ] || systemctl is-enabled --quiet "$u" 2>/dev/null || systemctl is-active --quiet "$u" 2>/dev/null; then
     systemctl disable --now "$u" >/dev/null 2>&1 || true
   fi
@@ -601,12 +602,6 @@ safe_tree_path "$TRADER_DIR/var/durum"
 install -d -m 0750 -o "$TRADER_USER" -g "$TRADER_USER" "$TRADER_DIR/var/durum"
 enable_now trader-haber.timer          # veri toplama: ham haber + Fear&Greed (saatlik; var/veri/haber; yalniz https okuma)
 enable_now trader-piyasa-veri.timer    # veri toplama: OI/funding/long-short/taker (saatlik; var/veri/piyasa; herkese acik GET, anahtar yok)
-# Haber sinyali (ust lig §1; saatlik :08; MemoryMax=150M): ham haberi Haiku 5.5 ile puanlar, YALNIZ var/learner/sinyal/haber_sinyal.json yazar.
-# Anahtar ANTHROPIC_API_KEY_HABER (/etc/trader-lesson.env) yoksa dosya yenilenmez (zarari yok); yine de bildir.
-safe_tree_path "$TRADER_DIR/var/learner" "$TRADER_DIR/var/learner/sinyal"
-install -d -m 0750 -o "$TRADER_USER" -g "$TRADER_USER" "$TRADER_DIR/var/learner" "$TRADER_DIR/var/learner/sinyal"
-enable_now trader-haber-sinyal.timer
-if ! has_value /etc/trader-lesson.env ANTHROPIC_API_KEY_HABER; then MISSING+=("/etc/trader-lesson.env  -> ANTHROPIC_API_KEY_HABER (haber sinyali; yoksa var/learner/sinyal/haber_sinyal.json yenilenmez)"); fi
 enable_now trader-weekly-summary.timer
 enable_now trader-weekly-collect.timer   # haftalik ozet + tur 1 yorumu batch sonuclarini toplar (3 saatte bir; bekleyen yoksa no-op; 24.11 Batch karari)
 # Faz 2a: kagit-geri test tutarlilik raporu (haftalik; yalniz bilgi). unit ReadWritePaths (namespace) icin dizinler ilk kurulumda olussun
@@ -696,10 +691,10 @@ else MISSING+=("/etc/trader-testnet.env  -> BINANCE_API_KEY ve BINANCE_API_SECRE
 # birimleri kalmamali (kaldirma yukarida yapildi; eski bir kopya kaldiysa burada gorunur).
 say "DD-12 zamanlayici denetimi"
 for t in trader-notes.timer trader-weekly-summary.timer trader-ml-retrain.timer trader-universe.timer \
-         trader-counterfactual@learner.timer trader-exit-counterfactual@learner.timer trader-tutarlilik.timer trader-mutabakat.timer trader-tur1-olcum.timer trader-tur1-haftalik.timer trader-weekly-collect.timer trader-yorumcu.timer trader-durum-yayin.timer trader-haber.timer trader-haber-sinyal.timer trader-piyasa-veri.timer trader-bakim.timer trader-strateji-veri.timer; do
+         trader-counterfactual@learner.timer trader-exit-counterfactual@learner.timer trader-tutarlilik.timer trader-mutabakat.timer trader-tur1-olcum.timer trader-tur1-haftalik.timer trader-weekly-collect.timer trader-yorumcu.timer trader-durum-yayin.timer trader-haber.timer trader-piyasa-veri.timer trader-bakim.timer trader-strateji-veri.timer; do
   if systemctl is-enabled --quiet "$t" 2>/dev/null; then echo "  etkin: $t"; else echo "UYARI: $t etkin degil (systemctl enable --now $t)"; fi
 done
-for u in trader-veto.service trader-veto.timer trader-c1-goc.service trader-engine@twin.service trader-engine-retry@twin.timer; do
+for u in trader-veto.service trader-veto.timer trader-c1-goc.service trader-haber-sinyal.timer trader-haber-sinyal.service trader-engine@twin.service trader-engine-retry@twin.timer; do
   if [ -e "${UNIT_DIR}/$u" ]; then echo "UYARI: eski birim duruyor: $u (install.sh'i yeniden calistirin veya elle kaldirin)"; fi
 done
 say "OZET"
