@@ -2,7 +2,7 @@
   "sema": "ortak.gunluk_ozet.v1",
   "proje": "ML",
   "mod": "kagit",
-  "uretim": "2026-11-25T00:03:11Z",
+  "uretim": "2026-11-25T01:00:24Z",
   "gun": "2026-11-25",
   "kasa": {
     "baslangic": 1000.0,
@@ -23,14 +23,32 @@
     {
       "ad": "T1",
       "gun_pnl": 0.0,
-      "toplam_pnl": 96.83,
-      "islem": 19
+      "toplam_pnl": 24.95,
+      "islem": 6
+    },
+    {
+      "ad": "F1",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 17.72,
+      "islem": 9
     },
     {
       "ad": "B1",
       "gun_pnl": 0.0,
       "toplam_pnl": 10.46,
       "islem": 4
+    },
+    {
+      "ad": "H2",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 4.91,
+      "islem": 2
+    },
+    {
+      "ad": "TF1",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.96,
+      "islem": 3
     },
     {
       "ad": "DL1",
@@ -51,34 +69,16 @@
       "islem": 0
     },
     {
-      "ad": "TF1",
-      "gun_pnl": 0.0,
-      "toplam_pnl": -16.72,
-      "islem": 6
-    },
-    {
-      "ad": "H2",
-      "gun_pnl": 0.0,
-      "toplam_pnl": -20.9,
-      "islem": 7
-    },
-    {
       "ad": "M1",
       "gun_pnl": 0.0,
-      "toplam_pnl": -28.3,
-      "islem": 17
+      "toplam_pnl": -5.56,
+      "islem": 2
     },
     {
       "ad": "S1",
       "gun_pnl": 0.0,
-      "toplam_pnl": -29.91,
-      "islem": 12
-    },
-    {
-      "ad": "F1",
-      "gun_pnl": 0.0,
-      "toplam_pnl": -47.03,
-      "islem": 15
+      "toplam_pnl": -38.79,
+      "islem": 9
     }
   ],
   "ogrenme": {

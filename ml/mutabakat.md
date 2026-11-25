@@ -1,23 +1,24 @@
 # İşlem mutabakatı
 
-Son kontrol: 2026-11-25 02:21 (TSİ). İşlem: 88 (kapanan 79, açık 9). Uyuşmazlık: 0.
+Son kontrol: 2026-11-25 03:56 (TSİ). İşlem: 89 (kapanan 80, açık 9). Uyuşmazlık: 0.
 
 ## Kontroller
 
 | Kontrol | Sonuç | Ayrıntı |
 |---|---|---|
-| Kasa = başlangıç + Σ net K/Z | geçti | Kasa 960,64 $ tutuyor |
-| Net K/Z: SQL toplamı = motor toplamı = brüt - komisyon - fonlama | geçti | Defter toplamları tutuyor (-40,52 $) |
+| Kasa = başlangıç + Σ net K/Z | geçti | Kasa 963,21 $ tutuyor |
+| Net K/Z: SQL toplamı = motor toplamı = brüt - komisyon - fonlama | geçti | Defter toplamları tutuyor (-35,43 $) |
 | Long toplamı (motor = panel) | geçti | Long işlemler panelle aynı (13 işlem) |
-| Short toplamı (motor = panel) | geçti | Short işlemler panelle aynı (66 işlem) |
-| Toplam kapanan (motor = panel 'tümü') | geçti | Kapanan işlemlerin toplamı panelle aynı (79 işlem) |
+| Short toplamı (motor = panel) | geçti | Short işlemler panelle aynı (67 işlem) |
+| Toplam kapanan (motor = panel 'tümü') | geçti | Kapanan işlemlerin toplamı panelle aynı (80 işlem) |
 | Açık pozisyon sayısı (motor = panel = şerit = durum) | geçti | 9 açık işlem, hepsi aynı |
-| Açık K/Z fiyat kaynağı (panel = motor mark) | geçti | Açık işlemlerin kâr/zararı panelle aynı; fiyat bekleniyor (piyasa kapalı/veri yok): #20, #39, #40, #104, #105, #107, #109, #111, #112 |
+| Açık K/Z fiyat kaynağı (panel = motor mark) | geçti | Açık işlemlerin kâr/zararı panelle aynı; fiyat bekleniyor (piyasa kapalı/veri yok): #20, #40, #104, #105, #109, #111, #112, #113 |
 | Günlük zarar limiti oranı (panel = kâğıt ayarı) | geçti | Günlük zarar limiti %8,00 (panelle aynı) |
 
 ## Bilgi
 
-- Fiyatı gelmeyen açık işlemler: #20, #39, #40, #104, #105, #107, #109, #111, #112 · fiyat bekleniyor (piyasa kapalı/veri yok); uyuşmazlık sayılmaz
+- Açık işlemlerin anlık kâr/zararı: kasada +2,66 $, panelde -1,00 $ · fark 3,66 $ (fiyat zamanlaması, uyuşmazlık sayılmaz)
+- Fiyatı gelmeyen açık işlemler: #20, #40, #104, #105, #109, #111, #112, #113 · fiyat bekleniyor (piyasa kapalı/veri yok); uyuşmazlık sayılmaz
 
 ## Telegram kaynağı
 
@@ -113,9 +114,10 @@ Yok.
 | 104 | Trend kırılımı · 15 dakika | AVAX | short | açık | 2026-11-24 18:15 | — | 6,530000 | — | — | 0,1502 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
 | 105 | İki bacaklı geri çekilme · 15 dakika | BCH | short | açık | 2026-11-24 18:15 | — | 197,080000 | — | — | 0,1330 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
 | 106 | Sahte kırılım dönüşü · 15 dakika | JPM | short | kapalı | 2026-11-24 18:15 | 2026-11-24 19:15 | 317,970000 | 314,745000 | 4,7085 | 0,4619 | 0,0000 | 4,2466 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
-| 107 | Trend kırılımı · 15 dakika | XAU | short | açık | 2026-11-24 18:15 | — | 3.607,800000 | — | — | 0,3319 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
+| 107 | Trend kırılımı · 15 dakika | XAU | short | kapalı | 2026-11-24 18:15 | 2026-11-25 02:30 | 3.607,800000 | 3.576,875000 | 5,6902 | 0,6610 | -0,0536 | 5,0828 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 108 | Sahte kırılım dönüşü · 15 dakika | TSLA | long | kapalı | 2026-11-24 19:45 | 2026-11-24 20:15 | 378,690000 | 382,140000 | 2,6910 | 0,2967 | 0,0000 | 2,3943 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 109 | Trend geri çekilmesi · 15 dakika | TRX | short | açık | 2026-11-24 20:00 | — | 0,307760 | — | — | 0,4610 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
 | 110 | İki bacaklı geri çekilme · 15 dakika | HBAR | short | kapalı | 2026-11-24 21:00 | 2026-11-25 01:03 | 0,050390 | 0,049995 | 3,0210 | 0,3839 | 0,0000 | 2,6371 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 111 | Trend kırılımı · 4 saat | HD | long | açık | 2026-11-24 23:00 | — | 353,100000 | — | — | 0,1254 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
 | 112 | Yapay zekâ adayı · 15 dakika | XAG | short | açık | 2026-11-25 01:15 | — | 41,050000 | — | — | 0,2040 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
+| 113 | İki bacaklı geri çekilme · 15 dakika | DOT | short | açık | 2026-11-25 02:45 | — | 0,651000 | — | — | 0,2216 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
