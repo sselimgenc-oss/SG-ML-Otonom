@@ -39,6 +39,7 @@ def test_shipped_config_values_and_calibration_is_null():
     assert cfg.calibration is None and "calibration" not in raw or raw["calibration"] is None
     assert (cfg.min_affected, cfg.min_distinct_days, cfg.min_gap_r, cfg.min_z) == (8, 4, 0.5, 1.64)
     assert cfg.max_changes_per_night == 1 and cfg.shrink_n == 10 and cfg.rollback_effect_r == 3.0
+    assert cfg.max_pair_share == 0.5 and raw["max_pair_share"] == 0.5   # 25.11 kullanici karari: cift payi (Fable)
 
 
 def _row(i, r, rr, day):
@@ -70,6 +71,25 @@ def test_thresholds_are_applied_with_calibration_null(tmp_path):
     # min_distinct_days 4: orneklem 3 gunde toplanmis
     assert "cluster_guard" in _eval(_rr_sample(8, 3, n_b=8, days_b=3), cfg)["fails"]
     assert "cluster_guard" not in _eval(_rr_sample(8, 3, n_b=8, days_b=3), dataclasses.replace(cfg, min_distinct_days=3))["fails"]
+
+
+def test_pair_share_guard_binds_at_half(tmp_path):
+    """25.11 kullanici karari: cift payi (Fable). Kanitin yarisindan fazlasi tek ciftten gelirse ders engellenir;
+    tam yarisi (en kucuk gecerli orneklem: 8 + 8 islemde 8) serbesttir, kucuk kollar gereksiz engellenmez."""
+    cfg = shipped_cfg(tmp_path)
+    base = _rr_sample(8, 4)                                         # 16 islem, 6 cift: en buyuk pay 3/16
+    assert LS.cluster_guard_info(base, cfg)["max_pair_share"] < 0.5 and _eval(base, cfg)["passed"]
+
+    def tek_cift(k):                                                # ilk k islem ayni cifte tasinir (16 islemde k/16 pay)
+        return [dataclasses.replace(r, pair="TEK/USDT") if i < k else r for i, r in enumerate(base)]
+
+    half = tek_cift(8)
+    assert LS.cluster_guard_info(half, cfg)["max_pair_share"] == 0.5
+    assert _eval(half, cfg)["passed"], _eval(half, cfg)["fails"]    # tam 0.5: gecer (sinir dahil)
+    over = tek_cift(9)
+    assert LS.cluster_guard_info(over, cfg)["max_pair_share"] > 0.5
+    assert "cluster_guard" in _eval(over, cfg)["fails"]
+    assert "cluster_guard" not in _eval(over, dataclasses.replace(cfg, max_pair_share=1.0))["fails"]   # baglayan bu ayar
 
 
 def test_gap_and_z_thresholds_each_bind(tmp_path):

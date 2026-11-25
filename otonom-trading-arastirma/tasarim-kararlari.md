@@ -224,3 +224,4 @@ Kaynak: `dis-denetim/triyaj-2026-11-17.md` (mentor). Kullanıcı: "Cloudflare i�
   - Kâğıt tasfiye MMR: kâğıt broker sınıf MMR'ini (kripto %0,5, hisse/emtia %2) giriş kapısıyla aynı kaynaktan alır.
   - Sağlık uyarısı: ek uyarı gönderilemezse `ek_uyarilar` durumu da geri alınır, sonraki turda yeniden denenir.
   - Haftalık özet: "alınmayan sinyal" toplamı R olarak yazılır ($ değil).
+  - 25.11 kullanıcı kararı: çift payı (Fable) — `config/lesson.json` `max_pair_share` 1,0 → 0,5 (denetim madde 18): ders kanıtının yarısından fazlası tek çiftten gelirse ders engellenir; tam yarısı geçer, küçük kollar gereksiz engellenmez.
