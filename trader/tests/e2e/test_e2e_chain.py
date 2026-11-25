@@ -290,7 +290,7 @@ def test_veto_result_file_missing_does_not_block_in_paper(tmp_path_factory, hist
 # ------------------------------------------------------------------------------------------------ ders + Telegram raporu
 def _lesson_cfg_file(tmp: Path, c: Chain) -> Path:
     raw = json.loads((ROOT / "config" / "lesson.json").read_text())
-    raw.update(mode="rule_proxy", twin_enabled=False, notifier=None, ledger_path=c.cfg.ledger_path,
+    raw.update(mode="rule_proxy", dondurulmus=False, twin_enabled=False, notifier=None, ledger_path=c.cfg.ledger_path,
                store_path=str(tmp / "lesson.sqlite"), twin_ledger_path=str(tmp / "no_twin.sqlite"))
     p = tmp / "lesson.json"
     p.write_text(json.dumps(raw))

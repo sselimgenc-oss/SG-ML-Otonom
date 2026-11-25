@@ -19,7 +19,7 @@ def _dolu(held, aid, caps):
 
 
 def test_m1_toplam_4_tum_zaman_dilimlerinde():
-    caps = {"default": 6, "M1": 4, "L1": 4, "HB1": 3}
+    caps = {"default": 6, "M1": 4, "L1": 4}
     held = ["M1@15m", "M1@1h", "M1@4h"]
     assert not _dolu(held, "M1@1d", caps)                         # 3 acik: dorduncu girer
     held.append("M1@1d")
@@ -32,12 +32,6 @@ def test_m1_toplam_tek_tfde_de_4():
     caps = {"default": 6, "M1": 4}
     assert not _dolu(["M1@1h"] * 3, "M1@1h", caps) and _dolu(["M1@1h"] * 4, "M1@1h", caps)
     assert _dolu(["M1@1h"] * 4, "M1@15m", caps)                   # eskiden 15m ayri sayilirdi
-
-
-def test_hb1_toplam_3():
-    caps = {"default": 6, "HB1": 3}
-    assert not _dolu(["HB1@1h", "HB1@4h"], "HB1@15m", caps)
-    assert _dolu(["HB1@1h", "HB1@4h", "HB1@15m"], "HB1@1d", caps)
 
 
 def test_varsayilan_6_kurulum_x_tf_basina():
@@ -66,7 +60,7 @@ def test_tavan_yoksa_dolu_degil():
 def test_yapilandirma_degerleri_beklenen():
     for ad in ("engine.paper.json", "engine.live.json"):          # paper ve live ayni tavanlar
         caps = json.loads((ROOT / "config" / ad).read_text())["arm_max_positions"]
-        assert caps == {"default": 6, "M1": 4, "HB1": 3, "DL1": 4, "MF1-*": 3, **{f"{a}-*": 3 for a in ("T1", "R1", "TF1", "B1", "H2", "S1", "F1")}, "GF1-*": 3, "IN1-*": 3, "PA2-*": 3}, ad  # 24.11 kullanici karari: formasyon kutuphanesi (MF1-* 3)
+        assert caps == {"default": 6, "M1": 4, "MF1-*": 3, **{f"{a}-*": 3 for a in ("T1", "R1", "TF1", "B1", "H2", "S1", "F1")}, "GF1-*": 3, "IN1-*": 3, "PA2-*": 3}, ad  # 24.11 kullanici karari: formasyon kutuphanesi (MF1-* 3)
 
 
 def test_motor_m1_toplam_tavani_farkli_tflerde(tmp_path):

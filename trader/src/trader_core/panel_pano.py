@@ -481,8 +481,8 @@ def kucultme_view(ledger_path: str, bot: str, arms=None, now: datetime | None = 
 
 # ----------------------------------------------------------------------------- ogrenme (kol x zaman dilimi, model kollari)
 _REPO = Path(__file__).resolve().parents[2]
-MODEL_KURULUMLARI = ("M1", "DL1")           # paketle calisan (egitilen) kollar
-DL1_ZD = ("15m", "1h", "4h", "1d")          # DL1: dort zaman dilimi, her biri kendi paketi
+MODEL_KURULUMLARI = ("M1",)                 # paketle calisan (egitilen) kollar
+MODEL_ZD = ("15m", "1h", "4h", "1d")        # model kolu: dort zaman dilimi, her biri kendi paketi
 _DURUM_AD = {"acik": "Açık", "kucultulmus": "Küçültülmüş", "karantina": "Karantinada"}
 
 
@@ -509,9 +509,7 @@ def _paket_zamani(yol: Path, alan: tuple[str, ...]) -> tuple[str, datetime | Non
     return "var", (dt if dt.tzinfo else dt.replace(tzinfo=P.UTC))
 
 
-def _model_paketi(arm: str, m1_dizinleri: list[Path], dl1_dizin: Path) -> tuple[str, datetime | None]:
-    if arm.startswith("DL1@"):
-        return _paket_zamani(dl1_dizin / f"{arm}.json", ("olusturma",))
+def _model_paketi(arm: str, m1_dizinleri: list[Path]) -> tuple[str, datetime | None]:
     son: tuple[str, datetime | None] = ("yok", None)
     for d in m1_dizinleri:                    # calisma zamani paketi once, sonra depodaki tohum (m1.py ile ayni sira)
         son = _paket_zamani(d / f"{arm}.json", ("meta", "created_at"))
@@ -521,7 +519,7 @@ def _model_paketi(arm: str, m1_dizinleri: list[Path], dl1_dizin: Path) -> tuple[
 
 
 def ogrenme_view(ledger_path: str, ctx: Ctx, now: datetime, *, arms: list[str] | None = None,
-                 m1_dizinleri: list[Path] | None = None, dl1_dizin: Path | None = None) -> dict:
+                 m1_dizinleri: list[Path] | None = None) -> dict:
     """OZET 'Ogrenme' karti + OGRENME sekmesi tablolari. Tum kollar (ayar `arms` + defterde gorulen + karantina dosyasi + model
     kollari) icin kol x zaman dilimi satirlari; model kollari icin son egitim / paket yasi / bugun aday-giris. Hepsi defterden,
     `arms_off.json`dan ve paket dosyalarindan aynen okunur; bulunamayan alan None (arayuzde 'bilinmiyor')."""
@@ -550,10 +548,9 @@ def ogrenme_view(ledger_path: str, ctx: Ctx, now: datetime, *, arms: list[str] |
             b[0] += 1
             b[1] += 1 if d.final_action == "entered" else 0
     tum = set(arms or []) | set(sonuc) | set(son_ders) | set(bugun) | kapali
-    tum |= {f"DL1@{tf}" for tf in DL1_ZD}
-    tum |= {f"M1@{tf}" for tf in DL1_ZD} if any(a.startswith("M1@") for a in tum) else set()
+    tum |= {f"M1@{tf}" for tf in MODEL_ZD} if any(a.startswith("M1@") for a in tum) else set()
     kollar = []
-    for a in sorted(tum, key=lambda x: (x.partition("@")[0], DL1_ZD.index(x.partition("@")[2]) if x.partition("@")[2] in DL1_ZD else 9, x)):
+    for a in sorted(tum, key=lambda x: (x.partition("@")[0], MODEL_ZD.index(x.partition("@")[2]) if x.partition("@")[2] in MODEL_ZD else 9, x)):
         vals = sonuc.get(a, [])
         aile = KK.aile_ortalamasi(sonuc, haric=a).get(a.partition("@")[0])
         k = KK.karar(vals, aile)
@@ -576,12 +573,11 @@ def ogrenme_view(ledger_path: str, ctx: Ctx, now: datetime, *, arms: list[str] |
     m1_d = m1_dizinleri if m1_dizinleri is not None else [
         Path(os.environ.get("TRADER_ML_RUNTIME_DIR") or (_REPO / "var" / "learner" / "models")) / "pa_proposer",
         _REPO / "models" / "pa_proposer"]
-    dl1_d = dl1_dizin if dl1_dizin is not None else _REPO / "models" / "dl1"
     modeller = []
     for r in kollar:
         if r["arm"].partition("@")[0] not in MODEL_KURULUMLARI:
             continue
-        durum, dt = _model_paketi(r["arm"], m1_d, dl1_d)
+        durum, dt = _model_paketi(r["arm"], m1_d)
         b = bugun.get(r["arm"], [0, 0])
         modeller.append({"arm": r["arm"], "kol": r["kol"], "zd": r["zd"], "paket": durum,
                          "egitim": tsi_kisa(dt) if dt else None, "egitim_ts": dt.timestamp() if dt else None,

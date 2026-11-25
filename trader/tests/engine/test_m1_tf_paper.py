@@ -28,7 +28,7 @@ def test_paper_config_has_m1_all_four_tfs_only_on_paper():
     arms = _cfg("engine.paper.json")["arms"]
     for tf in ("15m", "1h", "4h", "1d"):
         assert f"M1@{tf}" in arms
-    assert len(arms) == len(set(arms)) == 288     # 24.11 kullanici karari: formasyon kutuphanesi birlesik (141 + GF1 52 + IN1 66 + PA2 29 = 288); onceki: PA varyantlari (85 + 14 x 4 = 141); 24.11 kullanici karari: formasyon kutuphanesi (37 + MF1 48; GF1/IN1 sonraki adimlarda 203); 23.11: + HB1@1h (haber kolu); 24.11: + DL1@15m/1h/4h/1d
+    assert len(arms) == len(set(arms)) == 283     # 25.11: HB1 (1) + DL1 (4) kaldirildi (288 -> 283); 24.11 kullanici karari: formasyon kutuphanesi birlesik (141 + GF1 52 + IN1 66 + PA2 29 = 288); onceki: PA varyantlari (85 + 14 x 4 = 141); 24.11 kullanici karari: formasyon kutuphanesi (37 + MF1 48; GF1/IN1 sonraki adimlarda 203); 23.11: + HB1@1h (haber kolu); 24.11: + DL1@15m/1h/4h/1d
     assert _cfg("engine.live.json")["arms"] == arms      # 23.11 kullanici karari: canli = kagit (ayni kurulumlar)
     for other in ("engine.base.json", "engine.learner.json", "engine.testnet.json"):
         p = ROOT / "config" / other

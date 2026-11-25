@@ -11,20 +11,19 @@ from trader_panel.data import PanelData, load_config
 UTC = timezone.utc
 
 
-def _view(tmp_path, specs=STD_LEARNER, arms=None, kapali=None, m1=None, dl1=None):
+def _view(tmp_path, specs=STD_LEARNER, arms=None, kapali=None, m1=None):
     lp = tmp_path / "learner.sqlite"
     mkledger(str(lp), "learner", specs)
     if kapali:
         (tmp_path / "arms_off.json").write_text(json.dumps({"arms": {a: {"state": "closed"} for a in kapali}}), encoding="utf-8")
     ctx = PP.Ctx(str(lp), "learner")
-    return PP.ogrenme_view(str(lp), ctx, NOW, arms=arms or [], m1_dizinleri=[m1 or tmp_path / "yok_m1"],
-                           dl1_dizin=dl1 or tmp_path / "yok_dl1")
+    return PP.ogrenme_view(str(lp), ctx, NOW, arms=arms or [], m1_dizinleri=[m1 or tmp_path / "yok_m1"])
 
 
 def test_kol_satirlari_dinamik_ve_sayilar(tmp_path):
     v = _view(tmp_path, arms=["T1@4h", "FORM9@1h", "M1@1h"], kapali=["T1@4h"])
     by = {r["arm"]: r for r in v["kollar"]}
-    assert {"R1@1h", "T1@4h", "FORM9@1h", "M1@1h", "DL1@15m", "DL1@1d"} <= set(by)        # ayar + defter + yeni kimlik + model kollari
+    assert {"R1@1h", "T1@4h", "FORM9@1h", "M1@1h", "M1@15m", "M1@1d"} <= set(by)        # ayar + defter + yeni kimlik + model kollari
     r1 = by["R1@1h"]                                       # STD_LEARNER: 6 kapanan, 4 kazanc 2 kayip (hepsi R1@1h; biri acik)
     assert r1["n"] == 5 and r1["kazanma"] == 60.0 and r1["durum"] == "acik" and r1["carpan"] == 1.0
     assert r1["net_r"] > 0
@@ -46,17 +45,15 @@ def test_kucultulmus_durum_ve_son_ders(tmp_path):
 
 
 def test_model_kollari_paket_zamani_ve_bilinmiyor(tmp_path):
-    m1, dl1 = tmp_path / "m1", tmp_path / "dl1"
-    m1.mkdir(); dl1.mkdir()
+    m1 = tmp_path / "m1"
+    m1.mkdir()
     (m1 / "M1@1h.json").write_text(json.dumps({"meta": {"created_at": "2026-11-14T06:00:00+00:00"}}), encoding="utf-8")
-    (dl1 / "DL1@4h.json").write_text(json.dumps({"olusturma": "2026-11-16T06:00:00Z"}), encoding="utf-8")
-    (dl1 / "DL1@1h.json").write_text("{bozuk", encoding="utf-8")
-    v = _view(tmp_path, arms=["M1@1h", "M1@4h"], m1=m1, dl1=dl1)
+    (m1 / "M1@15m.json").write_text("{bozuk", encoding="utf-8")
+    v = _view(tmp_path, arms=["M1@1h", "M1@4h"], m1=m1)
     m = {x["arm"]: x for x in v["modeller"]}
     assert m["M1@1h"]["egitim"] == "14.11 09:00" and m["M1@1h"]["yas_gun"] == pytest.approx(2.5)        # TSI = UTC+3
-    assert m["DL1@4h"]["egitim"] == "16.11 09:00" and m["DL1@4h"]["yas_gun"] == pytest.approx(0.5)
-    assert m["DL1@1h"]["paket"] == "okunamadi" and m["DL1@1h"]["egitim"] is None and m["DL1@1h"]["yas_gun"] is None
-    assert m["DL1@15m"]["paket"] == "yok" and m["DL1@15m"]["egitim"] is None and m["M1@4h"]["egitim"] is None
+    assert m["M1@15m"]["paket"] == "okunamadi" and m["M1@15m"]["egitim"] is None and m["M1@15m"]["yas_gun"] is None
+    assert m["M1@1d"]["paket"] == "yok" and m["M1@1d"]["egitim"] is None and m["M1@4h"]["egitim"] is None
     assert not any(a.startswith(("R1", "T1")) for a in m)                                    # yalniz model kollari
     assert m["M1@1h"]["bugun_aday"] == 0 and m["M1@1h"]["bugun_giris"] == 0
 

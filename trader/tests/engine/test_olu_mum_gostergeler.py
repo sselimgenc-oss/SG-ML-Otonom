@@ -4,7 +4,7 @@ Bulgu (duzeltme oncesi): bu mumlar market.sqlite'a yazilir (`MarketStore._valida
 AYNEN girerdi: dogru aralik 0 -> Wilder ATR her olu mumda (13/14) ile carpilir (65 saatlik hafta sonu: x0,0083), EMA'lar tekrarlanan kapanisa yaklasir
 (EMA20 == EMA50 -> rejim kaybolur), oynaklik tahmini ve korelasyon sifir getiriyle bozulur. Duzeltme TEK yerde (`arm_guard.active_mask`/
 `expand_rows`/`regime_series`/`core_signals`/`tail_active`): olu mumlar gosterge girdisinden cikar, sonuc tam izgaraya genisler; kriptoda (olu mum yok)
-eski yol AYNEN. Bu testler: ATR/EMA/rejim/stop mesafesi (pazartesi ilk karar), uzun yon, korelasyon, oynaklik tahmini, DL1, kripto etkilenmez."""
+eski yol AYNEN. Bu testler: ATR/EMA/rejim/stop mesafesi (pazartesi ilk karar), uzun yon, korelasyon, oynaklik tahmini, kripto etkilenmez."""
 from __future__ import annotations
 
 import math
@@ -20,7 +20,6 @@ from trader_core import ledger as L
 from trader_core import regime as R
 from trader_core import signals as S
 from trader_engine import arm_guard as AG
-from trader_engine import dl1_cikarim as DL
 from trader_engine import korelasyon_grubu as KG
 from trader_engine import strategy_runner as SR
 from trader_engine import uzun_yon as UY
@@ -107,7 +106,7 @@ def test_kripto_yolu_bayt_bayt_ayni():
 # --------------------------------------------------------------------------------------------- ATR / EMA / rejim / stop mesafesi (pazartesi ilk karar)
 @pytest.mark.parametrize("tf", ["1h", "4h"])
 def test_pazartesi_ilk_karar_atr_ve_stop_mesafesi(stock, tf):
-    """Hafta sonu olu mumlari eklenmis seri == eklenmemis seri: ATR ve stop mesafesi (1,5 ATR; M1/DL1/giris stop kurali) AYNI (1e-9).
+    """Hafta sonu olu mumlari eklenmis seri == eklenmemis seri: ATR ve stop mesafesi (1,5 ATR; M1/giris stop kurali) AYNI (1e-9).
     Duzeltme oncesi hesap (olu mumlar girdide) ATR'yi 5-10 kat kucultur => stop 5-10 kat dar => pozisyon 5-10 kat buyuk."""
     fl, nf, h4f = stock["flat"][tf], stock["clean"][tf], stock["flat"]["4h"]
     params = _params()
@@ -216,7 +215,7 @@ def test_pencere_dolu_bar_sayar_kripto_degismez(stock, tmp_path):
     assert c.equals(st.bars(crypto, "1h", D, n)) and len(c) == n          # kripto: birebir view.bars(n)
 
 
-# --------------------------------------------------------------------------------------------- uzun yon / korelasyon / oynaklik / DL1
+# --------------------------------------------------------------------------------------------- uzun yon / korelasyon / oynaklik
 def test_uzun_yon_hafta_sonu_gunleri_gunluk_seriye_girmez(stock):
     now = (stock["flat"]["4h"].index[-1] + timedelta(hours=4)).to_pydatetime()
     kf = UY.gunluk_kapanislar(stock["flat"]["4h"], now)
@@ -269,22 +268,6 @@ def test_oynaklik_tahmini_olu_mumlardan_etkilenmez(stock):
     from trader_engine.vol_tahmin import vol_ozellikleri
     old = vol_ozellikleri(gf["close"].to_numpy(dtype=float), atr, "1h")      # eski: olu mumlar sifir getiri
     assert old["vol_tahmin"] != pytest.approx(vf["vol_tahmin"], rel=1e-3)
-
-
-def test_dl1_olu_mumlari_atlar(stock):
-    """dl1_cikarim zaten olu mumlari atliyor (dolu_maske = hacim > 0 ve h > l; egitim ve canli ayni kural) - dogrulama."""
-    g = stock["flat"]["1h"]
-    ts = g.index.tz_convert("UTC").tz_localize(None).values.astype("datetime64[ns]").astype("int64")
-    o, h, l, c, v = (g[k].to_numpy(dtype=float) for k in ("open", "high", "low", "close", "volume"))
-    ts_k, o_k, h_k, l_k, c_k, v_k = DL.kompakt(ts, o, h, l, c, v)
-    n_clean = len(stock["clean"]["1h"])
-    assert len(c_k) == n_clean and (v_k > 0).all() and (h_k > l_k).all()
-    # son bar olu ise puan yok
-    m = DL.dolu_maske(h[-1:], l[-1:], v[-1:])
-    assert bool(m[0]) == bool(v[-1] > 0 and h[-1] > l[-1])
-    # olu mumlar sifir ATR eklemez: dolu mumlardan hesaplanan ATR == olu mumsuz seri ATR
-    assert DL.atr_son(h_k, l_k, c_k) == pytest.approx(DL.atr_son(stock["clean"]["1h"]["high"].to_numpy(), stock["clean"]["1h"]["low"].to_numpy(),
-                                                              stock["clean"]["1h"]["close"].to_numpy()), rel=TOL)
 
 
 # --------------------------------------------------------------------------------------------- _bars_window: verimli okuma, ayni sonuc, acik eksik-dolu davranisi

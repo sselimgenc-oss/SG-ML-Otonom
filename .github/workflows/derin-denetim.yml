@@ -51,12 +51,6 @@ jobs:
           - id: m1
             ad: "M1: ozellikler, etiketler, gece egitimi, paket, cikarim, kol"
             dosyalar: "trader/src/trader_ml trader/scripts/ml_retrain_run.py trader/src/trader_core/ml_package.py trader/src/trader_engine/strategies/arms trader/deploy/trader-ml-retrain.timer trader/deploy/trader-ml-retrain.service"
-          - id: dl1
-            ad: "DL1: egitim (GitHub), paket, cikarim, 4 zaman dilimi, gece zinciri, saglik"
-            dosyalar: "trader/src/trader_engine/dl1_cikarim.py trader/src/trader_engine/strategies/arms/dl1.py trader/research/dl1 .github/workflows/dl1-egitim.yml trader/src/trader_core/health.py"
-          - id: hb1
-            ad: "HB1 ve haber: haber toplama, puanlama, sinyal dosyasi, tazelik, HB1 kolu, karartma"
-            dosyalar: "trader/src/trader_core/haber_sinyal.py trader/src/trader_core/veri_haber.py trader/scripts/haber_run.py trader/scripts/haber_sinyal_run.py trader/src/trader_engine/strategies/arms/hb1.py trader/src/trader_engine/seans_disi.py trader/config/seans_takvimi.json"
           - id: ders
             ad: "Gece dersleri ve ogrenme: esikler, uygulama, izleme, geri alma, fren, kapsam, parametre surumu"
             dosyalar: "trader/src/trader_core/lesson.py trader/src/trader_core/ledger.py trader/config/lesson.json trader/scripts/lesson_run.py trader/docs/ders-spec.md"

@@ -30,7 +30,7 @@ UTC = timezone.utc
 VARYANT_KODLARI = tuple(sorted(("B1-BOLGE", "B1-MUM", "F1-IKINCI", "H2-MINI", "H2-YARI", "R1-ALT", "R1-ERKEN", "R1-HA", "S1-HACIM", "S1-OLCULU", "T1-GERI3", "T1-SEVIYE", "TF1-FITIL", "TF1-HACIM")))   # 24.11 kullanici karari: PA varyantlari
 PAPER = load_cli_config(ROOT / "config", "learner", "paper")
 ALL_ARMS = tuple(f"{s_}@{tf}" for s_ in ("T1", "R1", "TF1", "B1", "H2", "S1", "F1") for tf in ("15m", "1h", "4h", "1d"))   # WP-12a: TF1/B1; WP-12b: H2/S1/F1
-PAPER_ARMS = ALL_ARMS + ("M1@1h", "M1@4h", "M1@15m", "M1@1d", "HB1@1h", "DL1@15m", "DL1@1h", "DL1@4h", "DL1@1d") + tuple(f"MF1-{k}@{tf}" for k in ("YILDIZ", "UCASKER", "DELICI", "ICSAHTE", "DISBAR", "YUTAN", "HARAMI", "TERSCEKIC", "CIMBIZ", "PINBAR", "ICCUBUK", "MARUBOZU") for tf in ("15m", "1h", "4h", "1d")) + tuple(f"{s_}@{tf}" for s_ in VARYANT_KODLARI for tf in ("15m", "1h", "4h", "1d"))   # 24.11 kullanici karari: PA varyantlari (14 x 4 = 56 kol); formasyon kutuphanesi (MF1 48 kol); 24.11: DL1 dort zaman dilimi; 23.11: HB1 haber kolu; 20 Kasim: M1 15dk/1g kagitta acik; DD-12 WP-14: M1 (ML'in kendi adayi) config/engine.paper.json'a eklendi
+PAPER_ARMS = ALL_ARMS + ("M1@1h", "M1@4h", "M1@15m", "M1@1d") + tuple(f"MF1-{k}@{tf}" for k in ("YILDIZ", "UCASKER", "DELICI", "ICSAHTE", "DISBAR", "YUTAN", "HARAMI", "TERSCEKIC", "CIMBIZ", "PINBAR", "ICCUBUK", "MARUBOZU") for tf in ("15m", "1h", "4h", "1d")) + tuple(f"{s_}@{tf}" for s_ in VARYANT_KODLARI for tf in ("15m", "1h", "4h", "1d"))   # 24.11 kullanici karari: PA varyantlari (14 x 4 = 56 kol); formasyon kutuphanesi (MF1 48 kol); 24.11: DL1 dort zaman dilimi; 23.11: HB1 haber kolu; 20 Kasim: M1 15dk/1g kagitta acik; DD-12 WP-14: M1 (ML'in kendi adayi) config/engine.paper.json'a eklendi
 from trader_engine.strategies import arms as _kutuphane_arms   # 24.11 kullanici karari: formasyon kutuphanesi (GF1 52 + IN1 66 kol; sirali kod, ZD sirasi)
 PAPER_ARMS = PAPER_ARMS + tuple(f"{s}@{tf}" for fam in ("GF1-", "IN1-") for s in sorted(a for a in _kutuphane_arms.list_arms() if a.startswith(fam))
                                 for tf in _kutuphane_arms.find_arm(s).TIMEFRAMES)
@@ -130,9 +130,9 @@ def test_arm_tf_helpers_and_old_contract_untouched():
 # --------------------------------------------------------------------------- yapilandirma
 def test_config_arms_and_caps():
     assert PAPER.strategy == NAME and PAPER.arms == PAPER_ARMS
-    assert PAPER.arm_max_positions == {"default": 6, "M1": 4, "HB1": 3, "DL1": 4, "MF1-*": 3, **{f"{a}-*": 3 for a in ("T1", "R1", "TF1", "B1", "H2", "S1", "F1")}, "GF1-*": 3, "IN1-*": 3, "PA2-*": 3}  # 24.11 kullanici karari: formasyon kutuphanesi
+    assert PAPER.arm_max_positions == {"default": 6, "M1": 4, "MF1-*": 3, **{f"{a}-*": 3 for a in ("T1", "R1", "TF1", "B1", "H2", "S1", "F1")}, "GF1-*": 3, "IN1-*": 3, "PA2-*": 3}  # 24.11 kullanici karari: formasyon kutuphanesi
     assert PAPER.arm_family_max_positions == {"MF1": 6, **{a: 6 for a in ("T1", "R1", "TF1", "B1", "H2", "S1", "F1")}, "GF1": 6, "IN1": 6, "PA2": 6}   # 24.11 kullanici karari: formasyon kutuphanesi (aile 6)
-      # 23.11: HB1 3; 24.11: DL1 toplam 4; C1 kaldirildi (CT/ML ayriligi); 20 Kasim: kagit tavanlari gevsetildi
+      # 25.11: HB1 ve DL1 kaldirildi; C1 kaldirildi (CT/ML ayriligi); 20 Kasim: kagit tavanlari gevsetildi
     c = apply_overrides(PAPER, arms={"T1": ["1h", "4h"]}, arm_max_positions=2)
     assert c.arms == ("T1@1h", "T1@4h") and c.arm_max_positions == {"default": 2}
     for kw in ({"arms": ["T1@5m"]}, {"arms": ["T1@1h", "T1@1h"]}, {"arms": "T1@1h"}, {"arm_max_positions": 0},

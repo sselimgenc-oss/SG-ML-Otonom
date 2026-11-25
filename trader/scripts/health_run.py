@@ -756,139 +756,6 @@ def collect_drift(env: dict, var_dir: str):
     return out
 
 
-HABER_SINYAL_UNIT = "/etc/systemd/system/trader-haber-sinyal.timer"    # kurulu isin unit dosyasi (test: yol parametresi)
-
-
-def probe_haber_sinyal(var_dir: str, unit_path: str = HABER_SINYAL_UNIT) -> H.HaberSinyalProbe:
-    """<var>/learner/sinyal/haber_sinyal.json -> HaberSinyalProbe (yalniz okur; HB1 girdisi). Yok -> missing; bozuk/sema -> unreadable.
-    Is kurulu = unit dosyasi var YA DA durum dosyasi var; job_since = durum calisma.ilk_ms, yoksa unit mtime; job_status = calisma.durum."""
-    d = os.path.join(var_dir, "learner", "sinyal")
-    durum_yol = os.path.join(d, "haber_sinyal_durum.json")
-    status, since = None, None
-    kurulu = False
-    try:
-        unit_mtime = os.stat(unit_path).st_mtime
-        kurulu = True
-        since = datetime.fromtimestamp(unit_mtime, tz=timezone.utc)
-    except (OSError, OverflowError, ValueError):
-        pass
-    if os.path.exists(durum_yol):
-        kurulu = True
-        try:
-            with open(durum_yol, "rb") as f:
-                cal = json.loads(f.read(4_000_001)).get("calisma")
-            if isinstance(cal, dict):
-                if isinstance(cal.get("durum"), str):
-                    status = cal["durum"]
-                ilk = cal.get("ilk_ms")
-                if isinstance(ilk, int) and not isinstance(ilk, bool):
-                    since = datetime.fromtimestamp(ilk / 1000, tz=timezone.utc)
-        except (OSError, ValueError, AttributeError, OverflowError):
-            pass
-        if since is None:
-            try:
-                since = datetime.fromtimestamp(os.stat(durum_yol).st_mtime, tz=timezone.utc)
-            except (OSError, OverflowError, ValueError):
-                pass
-    ek = dict(job_status=status, job_since=since)
-    try:
-        with open(os.path.join(d, "haber_sinyal.json"), "rb") as f:
-            raw = f.read(2_000_001)
-    except FileNotFoundError:
-        return H.HaberSinyalProbe("missing", job_installed=kurulu, **ek)
-    except OSError:
-        return H.HaberSinyalProbe("unreadable", job_installed=True, **ek)
-    try:
-        doc = json.loads(raw)
-        up, gs = doc["uretim_ms"], doc["gecerlilik_sonu_ms"]
-        if doc.get("schema") != "haber_sinyal/2" or isinstance(up, bool) or isinstance(gs, bool) \
-                or not isinstance(up, int) or not isinstance(gs, int) or len(raw) > 2_000_000:
-            raise ValueError("sema")
-        gs = min(gs, up + 3 * 3600 * 1000)
-        return H.HaberSinyalProbe("ok", datetime.fromtimestamp(up / 1000, tz=timezone.utc),
-                                  datetime.fromtimestamp(gs / 1000, tz=timezone.utc), True, **ek)
-    except (ValueError, KeyError, TypeError, OverflowError, OSError):
-        return H.HaberSinyalProbe("unreadable", job_installed=True, **ek)
-
-
-# DL1 paket sabitleri (trader_engine.dl1_cikarim ile ayni; esitligi test sinar). Root ortaminda numpy YOK (requirements-root.lock):
-# saglik turu dl1_cikarim'i ice aktaramaz (25.11: ModuleNotFoundError ile her tur dusuyordu); paket burada numpy'siz denetlenir.
-DL1_SEMA = "dl1/1"
-DL1_ZAMAN_DILIMLERI = ("15m", "1h", "4h", "1d")
-DL1_SON_KULLANMA_GUN = 45
-DL1_MAX_PAKET_BAYT = 10 * 1024 * 1024
-
-
-def _dl1_utc(s) -> datetime:
-    d = datetime.fromisoformat(s)
-    return d.replace(tzinfo=timezone.utc) if d.tzinfo is None else d.astimezone(timezone.utc)
-
-
-def dl1_paket_hafif(yol: Path, tf: str):
-    """numpy'siz DL1 paket denetimi (saglik icin): (olusturma, son_kullanma) ya da (None, neden). Neden: yok | buyuk | bozuk | sema | hash.
-    Sema + arm_id + sha256 (kanonik JSON, sha256 alani haric) + tarih; agirliklarin sayisal ici motorda dogrulanir."""
-    import hashlib
-    try:
-        st = yol.stat()
-    except OSError:
-        return None, "yok"
-    if st.st_size > DL1_MAX_PAKET_BAYT:
-        return None, "buyuk"
-    try:
-        paket = json.loads(yol.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None, "bozuk"
-    if not isinstance(paket, dict) or paket.get("schema") != DL1_SEMA or paket.get("arm_id") != f"DL1@{tf}":
-        return None, "sema"
-    try:
-        kanon = json.dumps({k: v for k, v in paket.items() if k != "sha256"}, sort_keys=True, separators=(",", ":"), allow_nan=False)
-    except (TypeError, ValueError):
-        return None, "bozuk"
-    sha = paket.get("sha256")
-    if not isinstance(sha, str) or sha != hashlib.sha256(kanon.encode("utf-8")).hexdigest():
-        return None, "hash"
-    try:
-        olus = _dl1_utc(paket["olusturma"])
-        son = min(_dl1_utc(paket["son_kullanma"]), olus + timedelta(days=DL1_SON_KULLANMA_GUN))
-    except (KeyError, TypeError, ValueError):
-        return None, "bozuk"
-    return (olus, son), None
-
-
-def probe_dl1_paket(env: dict) -> H.Dl1PaketProbe:
-    """models/dl1/DL1@<tf>.json x 4 zaman dilimi (veri kokunden; sha256 + sema dogrulamali) -> Dl1PaketProbe (en kotu durum: bozuk > yok > ok;
-    ok ise en eski paket). Yok -> missing; gecersiz -> unreadable. numpy'siz (root ortami)."""
-    en_eski, bozuk, eksik = None, [], []
-    for tf in DL1_ZAMAN_DILIMLERI:                     # 25.11: tum dilimler taranir; sorunlu dilim adlari mesaja gider
-        yol = data_root(env) / "models" / "dl1" / f"DL1@{tf}.json"
-        try:
-            p, neden = dl1_paket_hafif(yol, tf)
-        except Exception:  # noqa: BLE001  (saglik turu paket okumasi yuzunden dusmez)
-            bozuk.append(tf)
-            continue
-        if p is None:
-            (eksik if neden == "yok" else bozuk).append(tf)
-            continue
-        if en_eski is None or p[0] < en_eski[0]:
-            en_eski = p
-    if bozuk:
-        return H.Dl1PaketProbe("unreadable", sorunlu=tuple(bozuk))
-    if eksik or en_eski is None:
-        return H.Dl1PaketProbe("missing", sorunlu=tuple(eksik))
-    return H.Dl1PaketProbe("ok", en_eski[0], en_eski[1])
-
-
-def dl1_kolda(env: dict) -> bool:
-    """Herhangi bir DL1@<tf> kagit ayarinda kol olarak var mi? Yoksa DL1 paket denetimi uretilmez (kol kapaliyken 'paket yok' uyarisi gurultu olur).
-    Okunamazsa True (temkinli: denetim uretilir)."""
-    cdir = (env.get("ENGINE_CONFIG_DIR") or "").strip() or str(_ROOT / "config")
-    try:
-        with open(os.path.join(cdir, "engine.paper.json"), encoding="utf-8") as f:
-            return any(str(a).startswith("DL1@") for a in (json.load(f).get("arms") or []))
-    except Exception:  # noqa: BLE001
-        return True
-
-
 def collect(env: dict, state: dict, now: datetime, *, deadline: float = 0.0) -> H.HealthSnapshot:
     var_dir = env["ENGINE_VAR_DIR"]
     api, ledger, containers = {}, {}, {}
@@ -967,7 +834,7 @@ def collect(env: dict, state: dict, now: datetime, *, deadline: float = 0.0) -> 
             prev_am[b] = (v[0], v[1])
     return H.HealthSnapshot(
         prev_account_mode=prev_am, live_path_issues=live_path_issues,
-        drift=collect_drift(env, var_dir), haber_sinyal=probe_haber_sinyal(var_dir), dl1_paket=(probe_dl1_paket(env) if dl1_kolda(env) else None),
+        drift=collect_drift(env, var_dir),
         market=market, bans=collect_bans(env, var_dir), prev_rules_missing=dict(state.get("rules_missing", {})),
         now=now, timeframe_s=tf_s, api=api, ledger=ledger, disk_free_bytes=free, mem_available_bytes=mem,
         swap_total_bytes=swap_t, swap_used_bytes=swap_u, containers=containers,

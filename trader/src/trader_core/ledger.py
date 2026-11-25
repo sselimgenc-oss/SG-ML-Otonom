@@ -2643,19 +2643,6 @@ class Ledger:
                              "ORDER BY exit_ts DESC, trade_id DESC LIMIT ?", (self.bot, str(arm_id), lim)).fetchall()
         return [float(r["r_multiple"]) for r in rows]
 
-    def closed_decision_features_since(self, arm_id: str, pair: str, side: str, since: datetime) -> list[dict]:
-        """Kolun (arm_id) bu cift+yondeki `since` ve sonrasinda (exit_ts) kapanmis TUM islemlerinin giris karari features sozlukleri
-        (yeniden eskiye). Salt okunur (HB1 'ayni haberle yeniden giris yok' kapisi)."""
-        with self._read() as c:
-            rows = c.execute("SELECT d.features AS f FROM v_closed_trades t JOIN decision_events d ON d.id = t.decision_id "
-                             "WHERE t.bot=? AND t.arm_id=? AND t.pair=? AND t.side=? AND t.exit_ts>=? "
-                             "ORDER BY t.exit_ts DESC, t.trade_id DESC", (self.bot, str(arm_id), str(pair), str(side), _ts(since, "since"))).fetchall()
-        out = []
-        for r in rows:
-            f = json.loads(r["f"])
-            out.append(f if isinstance(f, dict) else {})
-        return out
-
     FAMILY_WINDOW_DAYS = 90
     FAMILY_KILIT_ACIK = True                 # trader_engine.holdout.KILIT_ACIK kopyasi (23.11.2026 kullanici karari; parite testi)
     FAMILY_HOLDOUT = (datetime(2026, 5, 1, tzinfo=timezone.utc), datetime(2026, 11, 1, tzinfo=timezone.utc))   # trader_engine.holdout.HOLDOUT kopyasi (parite testi)

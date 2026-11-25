@@ -200,13 +200,11 @@ def test_motor_veri_dizinlerini_okumaz_ve_toplayicilari_almaz():
 
 def test_karar8_motor_yalniz_sinyal_dosyasini_okuyabilir():
     """KARAR-8: motor ham haberi okumaz; ileride yalniz uretilmis sinyal dosyasi serbest. Yasak desen sinyal yolunu YAKALAMAZ, var/veri'yi yakalar."""
-    assert not _YASAK.search("var/learner/sinyal/haber_sinyal.json") and not _YASAK.search("haber_sinyal.json")
+    assert not _YASAK.search("var/learner/sinyal/sinyal.json")
     for kotu in ("var/veri/haber/haber.jsonl", "var/veri/haber", "haber.jsonl", "fng.jsonl", "veri_haber", "\"veri\" / \"haber\""):
         assert _YASAK.search(kotu), kotu
     spec = (ROOT / "docs" / "veri-toplama-spec.md").read_text(encoding="utf-8")
-    assert "KARAR-8" in spec and "var/learner/sinyal/haber_sinyal.json" in spec and "asla okumaz" in spec
-    for p in (ROOT / "src" / "trader_engine").rglob("*.py"):       # motor sinyal uretecini de ice almaz (HB1 kolu henuz yok)
-        assert "haber_sinyal" not in p.read_text(encoding="utf-8") or "var/learner/sinyal/haber_sinyal.json" in p.read_text(encoding="utf-8"), p.name
+    assert "KARAR-8" in spec and "asla okumaz" in spec
 
 
 def test_oi_toplayicisi_ve_veri_piyasa_ayri():

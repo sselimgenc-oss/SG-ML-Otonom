@@ -1,5 +1,5 @@
 [Unit]
-Description=Trader gece kurulum suzgeci egitimi (her gun 00:40 UTC = 03:40 TSI; 24.11: M1 ve DL1 gece arka arkaya egitilir, DL1 GitHub Actions'ta 01:00 UTC)
+Description=Trader gece kurulum suzgeci egitimi (her gun 00:40 UTC = 03:40 TSI; M1 gece egitimi)
 
 [Timer]
 OnCalendar=*-*-* 00:40:00 UTC
