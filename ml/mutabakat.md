@@ -1,24 +1,24 @@
 # İşlem mutabakatı
 
-Son kontrol: 2026-11-25 18:19 (TSİ). İşlem: 103 (kapanan 92, açık 11). Uyuşmazlık: 0.
+Son kontrol: 2026-11-25 22:14 (TSİ). İşlem: 111 (kapanan 101, açık 10). Uyuşmazlık: 5.
 
 ## Kontroller
 
 | Kontrol | Sonuç | Ayrıntı |
 |---|---|---|
-| Kasa = başlangıç + Σ net K/Z | geçti | Kasa 964,75 $ tutuyor |
-| Net K/Z: SQL toplamı = motor toplamı = brüt - komisyon - fonlama | geçti | Defter toplamları tutuyor (-36,91 $) |
+| Kasa = başlangıç + Σ net K/Z | geçti | Kasa 930,47 $ tutuyor |
+| Net K/Z: SQL toplamı = motor toplamı = brüt - komisyon - fonlama | geçti | Defter toplamları tutuyor (-71,21 $) |
 | Long toplamı (motor = panel) | geçti | Long işlemler panelle aynı (14 işlem) |
-| Short toplamı (motor = panel) | geçti | Short işlemler panelle aynı (78 işlem) |
-| Toplam kapanan (motor = panel 'tümü') | geçti | Kapanan işlemlerin toplamı panelle aynı (92 işlem) |
-| Açık pozisyon sayısı (motor = panel = şerit = durum) | geçti | 11 açık işlem, hepsi aynı |
-| Açık K/Z fiyat kaynağı (panel = motor mark) | geçti | Açık işlemlerin kâr/zararı panelle aynı; fiyat bekleniyor (piyasa kapalı/veri yok): #20, #40, #111, #114, #120, #121, #123, #125, #126 |
+| Short toplamı (motor = panel) | geçti | Short işlemler panelle aynı (87 işlem) |
+| Toplam kapanan (motor = panel 'tümü') | geçti | Kapanan işlemlerin toplamı panelle aynı (101 işlem) |
+| Açık pozisyon sayısı (motor = panel = şerit = durum) | geçti | 10 açık işlem, hepsi aynı |
+| Açık K/Z fiyat kaynağı (panel = motor mark) | geçti | Açık işlemlerin kâr/zararı panelle aynı; fiyat bekleniyor (piyasa kapalı/veri yok): #20, #111, #120, #121, #126, #134 |
 | Günlük zarar limiti oranı (panel = kâğıt ayarı) | geçti | Günlük zarar limiti %8,00 (panelle aynı) |
 
 ## Bilgi
 
-- Açık işlemlerin anlık kâr/zararı: kasada +19,40 $, panelde +3,41 $ · fark 15,99 $ (fiyat zamanlaması, uyuşmazlık sayılmaz)
-- Fiyatı gelmeyen açık işlemler: #20, #40, #111, #114, #120, #121, #123, #125, #126 · fiyat bekleniyor (piyasa kapalı/veri yok); uyuşmazlık sayılmaz
+- Açık işlemlerin anlık kâr/zararı: kasada +16,47 $, panelde -4,46 $ · fark 20,93 $ (fiyat zamanlaması, uyuşmazlık sayılmaz)
+- Fiyatı gelmeyen açık işlemler: #20, #111, #120, #121, #126, #134 · fiyat bekleniyor (piyasa kapalı/veri yok); uyuşmazlık sayılmaz
 
 ## Telegram kaynağı
 
@@ -26,7 +26,11 @@ Telegram geçmişine erişim yok; motorun gönderdi kaydı (imleç) kullanıldı
 
 ## Uyuşmazlıklar
 
-Yok.
+- #123 PLTR short: Telegram kapanış mesajı eksik
+- #131 XAU short: Telegram kapanış mesajı eksik
+- #132 XAG short: Telegram kapanış mesajı eksik
+- #134 AMD short: Telegram açılış mesajı eksik
+- #136 BTC short: Telegram açılış mesajı eksik
 
 ## İşlemler
 
@@ -121,7 +125,7 @@ Yok.
 | 111 | Trend kırılımı · 4 saat | HD | long | açık | 2026-11-24 23:00 | — | 353,100000 | — | — | 0,1254 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
 | 112 | Yapay zekâ adayı · 15 dakika | XAG | short | kapalı | 2026-11-25 01:15 | 2026-11-25 05:15 | 41,050000 | 41,440000 | -3,8762 | 0,4099 | -0,0806 | -4,2056 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 113 | İki bacaklı geri çekilme · 15 dakika | DOT | short | kapalı | 2026-11-25 02:45 | 2026-11-25 06:12 | 0,651000 | 0,650400 | 0,4084 | 0,4429 | 0,0676 | -0,1021 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
-| 114 | Sıkışma kırılımı · 1 saat | GOOGL | short | açık | 2026-11-25 06:00 | — | 276,440000 | — | — | 0,1313 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
+| 114 | Sıkışma kırılımı · 1 saat | GOOGL | short | kapalı | 2026-11-25 06:00 | 2026-11-25 20:35 | 276,440000 | 270,387158 | 5,7502 | 0,2597 | 0,0000 | 5,4905 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 115 | Yapay zekâ adayı · 15 dakika | NFLX | short | kapalı | 2026-11-25 06:30 | 2026-11-25 10:30 | 58,840000 | 58,670000 | 1,9618 | 0,6780 | 0,0000 | 1,2838 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 116 | İki bacaklı geri çekilme · 15 dakika | HBAR | short | kapalı | 2026-11-25 06:45 | 2026-11-25 09:36 | 0,050030 | 0,050440 | -4,2693 | 0,5231 | 0,0000 | -4,7924 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 117 | İki bacaklı geri çekilme · 15 dakika | AMD | short | kapalı | 2026-11-25 09:45 | 2026-11-25 11:01 | 398,700000 | 398,700000 | 0,0000 | 0,3110 | 0,0000 | -0,3110 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
@@ -130,8 +134,16 @@ Yok.
 | 120 | Grafik: üçlü dip · 15 dakika | V | long | açık | 2026-11-25 11:15 | — | 417,770000 | — | — | 0,1901 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
 | 121 | Grafik: üçlü dip · 1 saat | BRKB | long | açık | 2026-11-25 12:00 | — | 581,580000 | — | — | 0,1861 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
 | 122 | Yapay zekâ adayı · 1 saat | NVDA | short | kapalı | 2026-11-25 12:00 | 2026-11-25 17:28 | 149,880000 | 143,960000 | 8,4064 | 0,2086 | 0,0000 | 8,1978 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
-| 123 | Sıkışma kırılımı · 4 saat | PLTR | short | açık | 2026-11-25 15:00 | — | 153,960000 | — | — | 0,0354 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
+| 123 | Sıkışma kırılımı · 4 saat | PLTR | short | kapalı | 2026-11-25 15:00 | 2026-11-25 21:45 | 153,960000 | 164,210000 | -4,7150 | 0,0732 | 0,0000 | -4,7882 | aynı | gönderildi (kayıt) | eksik |
 | 124 | Gösterge: RSI(2) dip · 15 dakika | MSFT | short | kapalı | 2026-11-25 17:30 | 2026-11-25 17:44 | 486,100000 | 478,620000 | 7,4052 | 0,4775 | 0,0000 | 6,9277 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
-| 125 | Yapay zekâ adayı · 1 saat | TSLA | short | açık | 2026-11-25 18:00 | — | 364,870000 | — | — | 0,1387 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
+| 125 | Yapay zekâ adayı · 1 saat | TSLA | short | kapalı | 2026-11-25 18:00 | 2026-11-25 21:00 | 364,870000 | 371,930000 | -5,3656 | 0,2800 | 0,0000 | -5,6456 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 126 | Gösterge: RSI(2) dip · 1 saat | LLY | long | açık | 2026-11-25 18:00 | — | 1.388,120000 | — | — | 0,2984 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
-| 127 | PA: arz/talep bölgesi · 15 dakika | BTC | short | açık | 2026-11-25 18:15 | — | 57.963,700000 | — | — | 0,2608 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
+| 127 | PA: arz/talep bölgesi · 15 dakika | BTC | short | kapalı | 2026-11-25 18:15 | 2026-11-25 19:21 | 57.963,700000 | 58.928,500000 | -8,6832 | 0,5260 | -0,0319 | -9,1773 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
+| 128 | Gösterge: RSI(2) dip · 15 dakika | XAU | short | kapalı | 2026-11-25 19:30 | 2026-11-25 20:15 | 3.468,150000 | 3.506,380000 | -4,5876 | 0,4185 | 0,0000 | -5,0061 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
+| 129 | Sahte kırılım dönüşü · 15 dakika | BTC | short | kapalı | 2026-11-25 20:30 | 2026-11-25 20:42 | 59.118,300000 | 59.899,200000 | -2,3427 | 0,1785 | 0,0000 | -2,5212 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
+| 130 | Sahte kırılım dönüşü · 15 dakika | ETH | short | kapalı | 2026-11-25 20:30 | 2026-11-25 20:41 | 1.657,700000 | 1.678,210000 | -2,6048 | 0,2118 | 0,0000 | -2,8166 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
+| 131 | Gösterge: RSI(2) dip · 15 dakika | XAU | short | kapalı | 2026-11-25 20:45 | 2026-11-25 21:45 | 3.512,690000 | 3.555,010000 | -4,5282 | 0,3781 | 0,0000 | -4,9064 | aynı | gönderildi (kayıt) | eksik |
+| 132 | Gösterge: RSI(2) dip · 15 dakika | XAG | short | kapalı | 2026-11-25 20:45 | 2026-11-25 21:45 | 39,810000 | 40,710000 | -4,7133 | 0,2108 | 0,0000 | -4,9241 | aynı | gönderildi (kayıt) | eksik |
+| 133 | Gösterge: RSI(2) dip · 15 dakika | ETH | short | açık | 2026-11-25 21:15 | — | 1.679,830000 | — | — | 0,1067 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
+| 134 | Gösterge: RSI(2) dip · 1 saat | AMD | short | açık | 2026-11-25 22:00 | — | 400,670000 | — | — | 0,0461 | 0,0000 | — | aynı | eksik | — |
+| 136 | Gösterge: Bollinger alt bant dönüşü · 1 saat | BTC | short | açık | 2026-11-25 22:00 | — | 59.690,000000 | — | — | 0,2686 | 0,0000 | — | aynı | eksik | — |

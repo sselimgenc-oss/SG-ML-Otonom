@@ -2,21 +2,21 @@
   "sema": "ortak.gunluk_ozet.v1",
   "proje": "ML",
   "mod": "kagit",
-  "uretim": "2026-11-25T19:02:14Z",
+  "uretim": "2026-11-25T20:04:39Z",
   "gun": "2026-11-25",
   "kasa": {
     "baslangic": 1000.0,
-    "simdi": 928.79,
-    "gun_pnl": -28.05,
-    "toplam_pnl": -71.21,
-    "zirveden_dusus_yuzde": 19.9
+    "simdi": 923.94,
+    "gun_pnl": -32.9,
+    "toplam_pnl": -76.06,
+    "zirveden_dusus_yuzde": 20.32
   },
   "islem": {
-    "gun_acilan": 22,
-    "gun_kapanan": 23,
+    "gun_acilan": 26,
+    "gun_kapanan": 24,
     "kazanan": 8,
-    "kaybeden": 15,
-    "acik_pozisyon": 8,
+    "kaybeden": 16,
+    "acik_pozisyon": 11,
     "alinmayan_sinyal": 0
   },
   "hesaplar": [
@@ -160,12 +160,6 @@
     },
     {
       "ad": "HB1",
-      "gun_pnl": 0.0,
-      "toplam_pnl": 0.0,
-      "islem": 0
-    },
-    {
-      "ad": "IN1-BOLL",
       "gun_pnl": 0.0,
       "toplam_pnl": 0.0,
       "islem": 0
@@ -453,6 +447,12 @@
       "islem": 1
     },
     {
+      "ad": "IN1-BOLL",
+      "gun_pnl": -10.64,
+      "toplam_pnl": -10.64,
+      "islem": 1
+    },
+    {
       "ad": "M1",
       "gun_pnl": -11.58,
       "toplam_pnl": -17.14,
@@ -476,10 +476,10 @@
   "limitler": {
     "gunluk_kayip_yuzde": 8.0,
     "kaldirac_tavan": 5.0,
-    "durdu_mu": false
+    "durdu_mu": null
   },
   "saglik": {
-    "son_nabiz": "2026-11-24T13:47:18Z",
+    "son_nabiz": "2026-11-25T20:02:10Z",
     "hata_sayisi_gun": 2
   },
   "notlar": [
