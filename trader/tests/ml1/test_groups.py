@@ -39,4 +39,4 @@ def test_family_ve_group_yardimcilari():
 
 def test_config_kol_sayilari():
     cfg = json.loads(G.CONFIG_YOLU.read_text(encoding="utf-8"))
-    assert len(cfg["arms"]) - len(G.rule_arm_ids()) == 9           # M1 x4, DL1 x4, HB1 x1
+    assert len(cfg["arms"]) - len(G.rule_arm_ids()) == 4           # M1 x4 (DL1 ve HB1 25.11 kaldirildi)
