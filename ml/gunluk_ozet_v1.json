@@ -2,21 +2,21 @@
   "sema": "ortak.gunluk_ozet.v1",
   "proje": "ML",
   "mod": "kagit",
-  "uretim": "2026-11-25T14:02:43Z",
+  "uretim": "2026-11-25T15:01:26Z",
   "gun": "2026-11-25",
   "kasa": {
     "baslangic": 1000.0,
-    "simdi": 937.82,
-    "gun_pnl": -19.03,
-    "toplam_pnl": -62.18,
+    "simdi": 959.26,
+    "gun_pnl": 2.41,
+    "toplam_pnl": -40.74,
     "zirveden_dusus_yuzde": 19.12
   },
   "islem": {
-    "gun_acilan": 12,
-    "gun_kapanan": 10,
-    "kazanan": 3,
+    "gun_acilan": 13,
+    "gun_kapanan": 13,
+    "kazanan": 6,
     "kaybeden": 7,
-    "acik_pozisyon": 11,
+    "acik_pozisyon": 9,
     "alinmayan_sinyal": 0
   },
   "hesaplar": [
@@ -37,6 +37,12 @@
       "gun_pnl": 0.0,
       "toplam_pnl": 10.46,
       "islem": 4
+    },
+    {
+      "ad": "TF1",
+      "gun_pnl": -9.78,
+      "toplam_pnl": 4.58,
+      "islem": 5
     },
     {
       "ad": "B1-BOLGE",
@@ -453,12 +459,6 @@
       "islem": 2
     },
     {
-      "ad": "TF1",
-      "gun_pnl": -9.66,
-      "toplam_pnl": -8.7,
-      "islem": 4
-    },
-    {
       "ad": "S1",
       "gun_pnl": 0.0,
       "toplam_pnl": -38.79,
@@ -476,7 +476,7 @@
   "limitler": {
     "gunluk_kayip_yuzde": 8.0,
     "kaldirac_tavan": 5.0,
-    "durdu_mu": null
+    "durdu_mu": false
   },
   "saglik": {
     "son_nabiz": "2026-11-24T13:47:18Z",
