@@ -270,3 +270,13 @@ def test_telegram_parcalari_outbox_sirasiyla_yazilir(betik, tmp_path):
     ob = Outbox(tmp_path / "var" / "telegram", lambda: NOW)
     yazilan = [json.loads(p.read_text())["text"] for p in sorted(ob.list())]
     assert yazilan == Y.telegram_parcalari(metin, "2026-11-24") and len(yazilan) > 1
+
+
+def test_dun_tablosu_istanbul_gunune_gore():
+    """25.11 denetim #24: "dun" Istanbul gunu (UTC+3); UTC gunu degil."""
+    tr = [trade(1, "M1@1h", 1.0, exit_ts="2026-11-22T20:59:59.000Z"),    # 22'si 23:59 TR -> dun degil
+          trade(2, "M1@1h", 2.0, exit_ts="2026-11-22T21:00:00.000Z"),    # 23'u 00:00 TR -> dun
+          trade(3, "M1@1h", 4.0, exit_ts="2026-11-23T20:59:59.000Z"),    # 23'u 23:59 TR -> dun
+          trade(4, "M1@1h", 8.0, exit_ts="2026-11-23T21:00:00.000Z")]    # 24'u 00:00 TR -> bugun
+    d = Y.dun_tablosu(tr, NOW)
+    assert d["gun"] == "2026-11-23" and d["kapanan_n"] == 2 and d["toplam_R"] == 6.0

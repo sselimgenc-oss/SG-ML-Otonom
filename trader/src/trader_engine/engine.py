@@ -2092,7 +2092,7 @@ class Engine:
                     if first_skip is None:
                         first_skip = out
                     if not AG_ADAY_OZGU(out):                       # cift/hesap duzeyi red: durulur, kalanlar arm_conflict
-                        self._kalan_adaylar(pair, D, cands[k + 1:], fr.last, pre)
+                        self._kalan_adaylar(pair, D, cands[k + 1:], c.last, pre)     # 25.11: reddedilen aday (ilk aday degil)
                         break
                     continue
                 break                                              # ignore (position_exists / already_decided / ...): satir yazilmaz

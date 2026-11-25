@@ -68,7 +68,7 @@ def test_other_configs_load():
 
 def test_learner_alone_shares_feed_and_twin_not_installed():
     l = _cfg("learner")
-    assert l.start_delay_s == 0
+    assert not hasattr(l, "start_delay_s")    # 25.11: olu ayar kaldirildi
     assert l.ledger_path == "var/learner/ledger.sqlite" and l.status_path == "var/learner/status.json"
     eng = (DEPLOY / "trader-engine@.service").read_text(encoding="utf-8")
     assert "--bot %i" in eng and "trader-feed.service" in eng                 # sablon: tek feed'e bagli

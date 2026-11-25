@@ -816,22 +816,23 @@ def probe_dl1_paket(env: dict) -> H.Dl1PaketProbe:
     ok ise en eski paket). Yok -> missing; gecersiz -> unreadable."""
     from datetime import timedelta
     from trader_engine import dl1_cikarim as DL
-    durum, en_eski = "ok", None
-    for tf in DL.ZAMAN_DILIMLERI:
+    en_eski, bozuk, eksik = None, [], []
+    for tf in DL.ZAMAN_DILIMLERI:                      # 25.11: tum dilimler taranir; sorunlu dilim adlari mesaja gider
         yol = data_root(env) / "models" / "dl1" / f"DL1@{tf}.json"
         try:
             p, neden = DL.paket_yukle(yol, tf=tf)
         except Exception:  # noqa: BLE001  (saglik turu paket okumasi yuzunden dusmez)
-            return H.Dl1PaketProbe("unreadable")
+            bozuk.append(tf)
+            continue
         if p is None:
-            if neden != "yok":
-                return H.Dl1PaketProbe("unreadable")
-            durum = "missing"
+            (eksik if neden == "yok" else bozuk).append(tf)
             continue
         if en_eski is None or p.olusturma < en_eski.olusturma:
             en_eski = p
-    if durum != "ok" or en_eski is None:
-        return H.Dl1PaketProbe("missing")
+    if bozuk:
+        return H.Dl1PaketProbe("unreadable", sorunlu=tuple(bozuk))
+    if eksik or en_eski is None:
+        return H.Dl1PaketProbe("missing", sorunlu=tuple(eksik))
     return H.Dl1PaketProbe("ok", en_eski.olusturma, en_eski.olusturma + timedelta(days=DL.SON_KULLANMA_GUN))
 
 

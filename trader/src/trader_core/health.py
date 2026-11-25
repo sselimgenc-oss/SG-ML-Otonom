@@ -195,6 +195,7 @@ class Dl1PaketProbe:
     file_state: str = "missing"             # "ok" | "missing" | "unreadable" (bozuk / hash tutmuyor / sema disi)
     created_at: datetime | None = None
     expires_at: datetime | None = None      # min(son_kullanma, olusturma + 45 gun)
+    sorunlu: tuple[str, ...] = ()           # 25.11: bozuk / eksik zaman dilimleri (mesajda adlari yazilir)
 
 
 @dataclass(frozen=True)
@@ -794,6 +795,10 @@ def _c_haber_sinyal(snap, cfg):
 DL1_YENILENME_ESIK_S = 3 * 86400          # gece egitimi her gun paketi yeniler; en eski paket bundan yasliysa uyari
 
 
+def _dl1_tf_eki(p) -> str:
+    return f" [zaman dilimi: {', '.join(p.sorunlu)}]" if getattr(p, "sorunlu", ()) else ""
+
+
 def _c_dl1_paket(snap, cfg):
     """dl1_paket_age: DL1 kolunun girdisi (dort zaman dilimi; en kotu durum). Yok -> WARN (kod `dl1_paket_yok`: "DL1 paketi henuz yok"); bozuk -> WARN;
     45 gunden yasli -> WARN (`dl1_paket_eski`; 24.11: paket YINE islem yapar, gece egitimi yenilemedi); en eski paket 3 gunden yasli -> WARN
@@ -801,10 +806,10 @@ def _c_dl1_paket(snap, cfg):
     name = "dl1_paket_age"
     p = snap.dl1_paket
     if p.file_state == "unreadable":
-        return _res(name, Status.WARN, "dl1_paket_bozuk", "DL1 paketi okunamadi/hash tutmuyor/sema disi; ilgili zaman diliminde DL1 girisleri durdu")
+        return _res(name, Status.WARN, "dl1_paket_bozuk", "DL1 paketi okunamadi/hash tutmuyor/sema disi; ilgili zaman diliminde DL1 girisleri durdu" + _dl1_tf_eki(p))
     if p.file_state != "ok" or not isinstance(p.created_at, datetime) or p.created_at.tzinfo is None \
             or not isinstance(p.expires_at, datetime) or p.expires_at.tzinfo is None:
-        return _res(name, Status.WARN, "dl1_paket_yok", "DL1 paketi henuz yok (en az bir zaman diliminde); o zaman diliminde DL1 girisleri durdu")
+        return _res(name, Status.WARN, "dl1_paket_yok", "DL1 paketi henuz yok (en az bir zaman diliminde); o zaman diliminde DL1 girisleri durdu" + _dl1_tf_eki(p))
     yas = (snap.now - p.created_at).total_seconds()
     kalan = (p.expires_at - snap.now).total_seconds()
     if kalan <= 0:

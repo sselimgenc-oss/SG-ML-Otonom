@@ -77,6 +77,14 @@ def test_probe_dl1_paket(tmp_path):
     assert p.file_state == "ok" and p.created_at == NOW - timedelta(days=5) and p.expires_at == NOW + timedelta(days=40)    # en eski paket
     S.yaz(d / "DL1@4h.json", "{bozuk")
     assert m.probe_dl1_paket(env).file_state == "unreadable"
+    # 25.11 denetim #36: tum dilimler taranir; bozuk dilim adi mesajda (eksik dilim bozuktan once donmez)
+    (d / "DL1@15m.json").unlink()
+    pb = m.probe_dl1_paket(env)
+    assert pb.file_state == "unreadable" and pb.sorunlu == ("4h",)
+    assert "zaman dilimi: 4h" in _ev(pb).detail
+    (d / "DL1@4h.json").unlink()
+    pe = m.probe_dl1_paket(env)
+    assert pe.file_state == "missing" and pe.sorunlu == ("15m", "4h") and "zaman dilimi: 15m, 4h" in _ev(pe).detail
 
 
 

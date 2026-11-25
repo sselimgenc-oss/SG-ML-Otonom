@@ -61,9 +61,17 @@ def kol_tablosu(trades: list[dict], now: datetime) -> list[dict]:
     return rows
 
 
+TR = timezone(timedelta(hours=3))          # Europe/Istanbul (DST yok): gunluk rapor ve panel ile ayni gun siniri
+
+
 def dun_tablosu(trades: list[dict], now: datetime) -> dict:
-    gun = (now - timedelta(days=1)).date().isoformat()
-    xs = [t["net_r"] for t in trades if t["exit_ts"][:10] == gun]
+    """25.11: "dun" = Istanbul takvim gunu (00:00-24:00 TR); cikis zamani (UTC) bu araliga dusen islemler."""
+    d = (now.astimezone(TR).date() - timedelta(days=1))
+    bas = datetime(d.year, d.month, d.day, tzinfo=TR).astimezone(timezone.utc)
+    f = "%Y-%m-%dT%H:%M:%S"
+    lo, hi = bas.strftime(f), (bas + timedelta(days=1)).strftime(f)
+    gun = d.isoformat()
+    xs = [t["net_r"] for t in trades if lo <= t["exit_ts"][:19] < hi]
     return {"gun": gun, "kapanan_n": len(xs), "toplam_R": round(T.toplam(xs), 2),
             "etiket": YETERSIZ if len(xs) < YETERSIZ_N else ""}
 

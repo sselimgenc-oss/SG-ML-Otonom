@@ -7,8 +7,7 @@ Giris (long; short aynasi), hepsi birlikte:
      uretimden SONRA kapanan mumda alinir (yayin saati degil alim saati; sizinti yok);
   2) enstrumanin sonumlu birlesik puani |puan| >= ESIK_PUAN (puan dosyada hazir: [-3, 3], 6 saat pencere, 2 saat yari omur);
   3) teyit_kaynak (YALNIZ sinyal yonundeki, yon != 0 olaylarin farkli kaynaklari) >= MIN_KAYNAK (2) YA DA yonlu max_siddet == 3;
-     olay ham degerleri dosyada varsa puan/teyit karar zamanina gore YENIDEN sonumlenir; yoksa sinyal yasi > MAX_SINYAL_YASI_DK (90 dk)
-     ise aday yok (normal akis ~52 dk);
+     olay ham degerleri dosyada varsa puan/teyit karar zamanina gore YENIDEN sonumlenir (yas sinirini bu sonumleme saglar; 25.11: olu 90 dk dali kaldirildi);
   4) son kapanmis 1s mum sinyal yonunde kapanmis (long: close > open; short: close < open).
 Stop = giris -/+ 1,5 ATR, hedef = giris +/- 3 ATR (M1 ile ayni), zaman stopu 24 mum (ortak kural). Zaman dilimi yalniz 1s.
 Kapsam: dosyadaki enstrumanlar (43: kripto + hisse + emtia); seans kurallari mevcut altyapidan gelir."""
@@ -58,7 +57,6 @@ ESIK_PUAN = 0.6          # |sonumlu puan| alt siniri. Tek olay puani = yon * sid
 MIN_KAYNAK = 2           # en az bu kadar farkli haber kaynagi (sinyal yonunde) ...
 SIDDET_YETERLI = 3       # ... YA DA enstrumanin en yuksek olay siddeti bu (0-3)
 SIZINTI_MARJ_S = 60      # mum kapanisi > sinyal uretimi + bu kadar sn (sizinti korumasi)
-MAX_SINYAL_YASI_DK = 90  # olay ham degerleri dosyada yoksa: karar - uretim bundan buyukse aday yok (normal akis ~52 dk)
 GECERLILIK_SAAT = HS_GECERLILIK_SAAT   # dosya alani gecerlilik_sonu_ms bundan uzun olsa bile uretim + 3 sa'te tavanlanir
 
 RR = PF.TARGET_ATR / PF.STOP_ATR
@@ -173,8 +171,6 @@ def yon_sec(inp_pair: str, belge: dict, D: datetime, o: float, c: float) -> tupl
         return _red("satir_bozuk")
     if "olaylar" in s:
         s = yeniden_sonumle(s, D_ms)
-    elif D_ms - uretim > MAX_SINYAL_YASI_DK * 60_000:
-        return _red("eski_sinyal")
     if abs(s["puan"]) < ESIK_PUAN:
         return _red("esik_alti")
     if not (s["teyit_kaynak"] >= MIN_KAYNAK or s["max_siddet"] >= SIDDET_YETERLI):

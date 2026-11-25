@@ -17,7 +17,7 @@ def _motor(tmp, caps):
     return W._E(tmp, PAIRS, W.D_E - H, over)
 
 
-TF_SAAT = {"1h": 1, "4h": 4}
+TF_SAAT = {"1h": 1, "4h": 4, "1d": 24}
 
 
 def _sinyal(e, D, pair, arm):
@@ -157,3 +157,43 @@ def test_red_kumeleri_tek_tanim():
     assert G.aday_ozgu_red(o("risk_denied", risk="boyutlandırma reddedildi: x"))
     assert not G.aday_ozgu_red(o("risk_denied", risk="günlük zarar bütçesi aşılır"))
     assert not G.aday_ozgu_red(o("risk_denied", risk="toplam açık risk sınırı aşılır"))
+
+
+def test_yapisal_hesap_duzeyi_alani_ve_buyukluk_okunamadi():
+    """25.11 denetim #26: yapisal `hesap_duzeyi` alani metne ustun gelir; buyukluk_okunamadi hesap duzeyi (cift icin durulur)."""
+    from types import SimpleNamespace as NS
+    from trader_engine import gates as G
+    assert not G.aday_ozgu_red(NS(code="buyukluk_okunamadi", event=NS(veto_reason=None, risk_reason=None)))
+    ev = NS(veto_reason=None, risk_reason="metin degisti")
+    assert not G.aday_ozgu_red(NS(code="risk_denied", event=ev, hesap_duzeyi=True))      # metin tutmasa da alan karar verir
+    assert G.aday_ozgu_red(NS(code="risk_denied", event=ev, hesap_duzeyi=False))
+    # gercek risk.py metinleri hesap duzeyi sayilir
+    for m in ("günlük sınır aşıldı: yeni işlem açılamaz", "BTC/USDT için zaten açık pozisyon var", "toplam açık risk sınırı aşılır",
+              "günlük zarar bütçesi aşılır", "toplam teminat özsermayeyi aşar"):
+        assert G.hesap_duzeyi_risk(m), m
+    assert not G.hesap_duzeyi_risk("boyutlandırma reddedildi: x")
+
+
+def test_cift_duzeyi_red_kazanan_olarak_reddedilen_aday_yazilir(tmp_path):
+    """25.11 denetim #27: ilk aday kurulum tavaniyla, ikinci aday hesap tavaniyla reddedilince kalan aday
+    `arm_conflict` kaydinda kazanan = reddedilen ikinci aday (ilk aday degil)."""
+    over = W._engine_over(PAIRS, arms=["T1@1d", "T1@4h", "T1@1h"], arm_max_positions={"default": 6, "T1@1d": 1})
+    over["max_positions"] = 1
+    e = W._E(tmp_path, PAIRS, W.D_E - H, over)
+    try:
+        D0 = W.D_E
+        _sinyal(e, D0, ETH, "T1@1d")                               # ETH: T1@1d dolar, hesap tavani da dolar
+        e.decide(D0)
+        e.step(D0)
+        assert e.state.position_for_pair(ETH) is not None
+        D1 = D0 + H
+        _adaylar(e, D1, BTC, ["T1@1d", "T1@4h", "T1@1h"])
+        e.decide(D1)
+        e.step(D1)
+        rows = _satirlar(e, BTC)
+        assert [r[:3] for r in rows] == [("T1@1d", "skipped", "max_positions"), ("T1@4h", "skipped", "max_positions"),
+                                         ("T1@1h", "skipped", "arm_conflict")], rows
+        assert rows[0][3].startswith("gate:arm_cap:") and rows[1][3] == "gate:max_positions"
+        assert rows[2][3].endswith("arm_conflict:T1@4h"), rows          # kazanan = reddedilen 2. aday
+    finally:
+        e.close()

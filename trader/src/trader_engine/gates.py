@@ -2,11 +2,13 @@
 trader_core.risk.LOCKED_CFG (cfg.risk_config: yalniz daha siki target_trade_risk). Strateji yalniz SignalRow verir; kapi kararini ve boyutu etkileyemez."""
 from __future__ import annotations
 
+
 import logging
 import math
 import re
 from collections import Counter
 from collections.abc import Callable, Collection, Mapping
+import dataclasses
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Literal, Protocol
@@ -80,6 +82,7 @@ class EntryOutcome:
     code: str
     mandatory_record: bool
     mark_decided: bool = True
+    hesap_duzeyi: bool | None = None      # 25.11: risk reddi hesap duzeyinde mi (yapisal; kapi bir kez belirler). None = bilinmiyor
 
 
 def entry_leverage(cfg=None) -> int:
@@ -146,9 +149,13 @@ def hb1_olay_of(row: SignalRow) -> str | None:
 # nedenlerde (kapi kapali, cluster_cap, hesap tavani, etiket_*, gunluk zarar, ...) ayni cift icin durulur ve kalan sinyal adaylari
 # `arm_conflict` yazilir. TEK TANIM: bilinmeyen kod cift duzeyi sayilir (guvenli taraf: ek satir/deneme yok).
 ADAY_OZGU_RED_KODLARI = frozenset({"flat_bar", "hb1_ayni_olay", "hb1_olay_bekleyen_cikis", "hb1_olay_okunamadi", "uzun_yon",
-                                   "korelasyon_grubu", "tasfiye_mesafesi", "tasfiye_okunamadi", "toplam_buyukluk",
-                                   "buyukluk_okunamadi"})
+                                   "korelasyon_grubu", "tasfiye_mesafesi", "tasfiye_okunamadi", "toplam_buyukluk"})   # 25.11: buyukluk_okunamadi hesap duzeyi (cift icin durulur)
 _HESAP_RISK_IZLERI = ("günlük", "toplam açık risk", "toplam teminat", "zaten açık pozisyon", "kayıp freni", "iç hata")
+
+
+def hesap_duzeyi_risk(neden: str) -> bool:
+    """Risk reddi metni hesap duzeyinde mi (tek yer; kapi sonucu `hesap_duzeyi` alanina yazar)."""
+    return any(z in neden for z in _HESAP_RISK_IZLERI)
 
 
 def aday_ozgu_red(out) -> bool:
@@ -161,8 +168,10 @@ def aday_ozgu_red(out) -> bool:
     if code == "max_positions":
         return str(getattr(ev, "veto_reason", "") or "").startswith("gate:arm_cap:")
     if code == "risk_denied":
-        rr = str(getattr(ev, "risk_reason", "") or "")
-        return not any(z in rr for z in _HESAP_RISK_IZLERI)
+        hd = getattr(out, "hesap_duzeyi", None)
+        if hd is None:                                       # yapisal alan yoksa eski metin siniflamasi (yedek)
+            hd = hesap_duzeyi_risk(str(getattr(ev, "risk_reason", "") or ""))
+        return not hd
     return False
 
 
@@ -641,8 +650,9 @@ class EntryGate:
         if dec is None:
             dec = K.check_entry(acct, cand, src.risk_config)
         if not dec.allowed:
-            return self._skip(row, tf, "risk_denied", skip_reason="risk_denied", veto_status=vs,
-                              veto_reason=lk.reason, risk_allowed=False, risk_reason=dec.reason, **tk)
+            o = self._skip(row, tf, "risk_denied", skip_reason="risk_denied", veto_status=vs,
+                           veto_reason=lk.reason, risk_allowed=False, risk_reason=dec.reason, **tk)
+            return dataclasses.replace(o, hesap_duzeyi=hesap_duzeyi_risk(str(dec.reason or "")))
         td = self._tasfiye_mesafesi_karari(row, tf, cand, lev, vs, lk.reason, tk)        # 23.11: kagit = canli, ayni kod
         if td is not None:
             return td

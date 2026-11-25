@@ -21,7 +21,6 @@ ETIKET = "[ML] "
 EK_HATIRLATMA_SAAT = 6
 MAX_SATIR = 6
 MAX_SATIR_OZET = 12
-LIMIT_ORANI = 0.05          # gunluk zarar butcesi (risk kilidiyle ayni %5)
 UYARI_ORANI = 0.80          # limitin %80'i
 BOT_AD = {"learner": "öğrenen"}     # panelde gorunen ad (panel.js BOT_AD)
 TR = timezone(timedelta(hours=3))

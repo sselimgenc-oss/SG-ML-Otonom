@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def test_paper_config_enables_everything_and_live_default_unchanged():
     raw = json.loads((ROOT / "config/lesson.json").read_text())
     cfg = LS.load_config(ROOT / "config/lesson.json")
-    assert cfg.paper_auto and cfg.allow_off_menu and cfg.proxy_include_ask_user and cfg.exit_cf_reject_cooldown_days == 0
+    assert cfg.paper_auto and cfg.allow_off_menu and cfg.proxy_include_ask_user and cfg.exit_cf_reject_cooldown_days == 28
     # sert limitler dokunulmaz
     assert (raw["rollback_effect_r"], raw["brake_effect_r"], raw["max_steps_from_ref"]) == (3.0, 10.0, 2)
     d = LS.LessonConfig()
@@ -111,3 +111,11 @@ def _kanit_surumu_eski_yol(monkeypatch):
     """Bu dosya eski (MODES_VERSION=2) kanit satirlariyla calisir; 24.11 surum secimi ayri testlerde denenir: okuyucu MAX(version)e duser."""
     from trader_core import exit_counterfactual as _ecf
     monkeypatch.setattr(_ecf, "modes_version_from_config", lambda *a, **k: None)
+
+
+def test_cikis_bekleme_ayari_28_paper_auto_aciksa_etkili_0():
+    """25.11 denetim #19: ayar dosyasi 28; paper_auto kapanirsa 28 gun sessizce 0'a dusmez (acikken etkili bekleme 0)."""
+    import json
+    from pathlib import Path
+    ham = json.loads((Path(__file__).resolve().parents[1] / "config" / "lesson.json").read_text(encoding="utf-8"))
+    assert ham["exit_cf_reject_cooldown_days"] == 28
