@@ -2,21 +2,21 @@
   "sema": "ortak.gunluk_ozet.v1",
   "proje": "ML",
   "mod": "kagit",
-  "uretim": "2026-11-25T20:04:39Z",
-  "gun": "2026-11-25",
+  "uretim": "2026-11-25T21:00:58Z",
+  "gun": "2026-11-26",
   "kasa": {
     "baslangic": 1000.0,
-    "simdi": 923.94,
-    "gun_pnl": -32.9,
-    "toplam_pnl": -76.06,
+    "simdi": 931.2,
+    "gun_pnl": 0.0,
+    "toplam_pnl": -68.8,
     "zirveden_dusus_yuzde": 20.32
   },
   "islem": {
-    "gun_acilan": 26,
-    "gun_kapanan": 24,
-    "kazanan": 8,
-    "kaybeden": 16,
-    "acik_pozisyon": 11,
+    "gun_acilan": 0,
+    "gun_kapanan": 0,
+    "kazanan": 0,
+    "kaybeden": 0,
+    "acik_pozisyon": 10,
     "alinmayan_sinyal": 0
   },
   "hesaplar": [
@@ -34,13 +34,19 @@
     },
     {
       "ad": "F1",
-      "gun_pnl": -9.97,
+      "gun_pnl": 0.0,
       "toplam_pnl": 7.75,
       "islem": 10
     },
     {
+      "ad": "GF1-UCLU",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 7.58,
+      "islem": 1
+    },
+    {
       "ad": "TF1",
-      "gun_pnl": -9.78,
+      "gun_pnl": 0.0,
       "toplam_pnl": 4.58,
       "islem": 5
     },
@@ -130,12 +136,6 @@
     },
     {
       "ad": "GF1-UCGEN",
-      "gun_pnl": 0.0,
-      "toplam_pnl": 0.0,
-      "islem": 0
-    },
-    {
-      "ad": "GF1-UCLU",
       "gun_pnl": 0.0,
       "toplam_pnl": 0.0,
       "islem": 0
@@ -436,38 +436,38 @@
     },
     {
       "ad": "H2",
-      "gun_pnl": -10.04,
+      "gun_pnl": 0.0,
       "toplam_pnl": -5.13,
       "islem": 3
     },
     {
       "ad": "PA2-BOLGE",
-      "gun_pnl": -9.8,
+      "gun_pnl": 0.0,
       "toplam_pnl": -9.8,
       "islem": 1
     },
     {
       "ad": "IN1-BOLL",
-      "gun_pnl": -10.64,
+      "gun_pnl": 0.0,
       "toplam_pnl": -10.64,
       "islem": 1
     },
     {
       "ad": "M1",
-      "gun_pnl": -11.58,
+      "gun_pnl": 0.0,
       "toplam_pnl": -17.14,
       "islem": 3
     },
     {
       "ad": "S1",
-      "gun_pnl": -9.67,
+      "gun_pnl": 0.0,
       "toplam_pnl": -48.46,
       "islem": 10
     }
   ],
   "ogrenme": {
     "aktif_ders": 1,
-    "yeni_ders": 1,
+    "yeni_ders": 0,
     "emekli_ders": 0,
     "filtre_aktif": null
   },
@@ -476,10 +476,10 @@
   "limitler": {
     "gunluk_kayip_yuzde": 8.0,
     "kaldirac_tavan": 5.0,
-    "durdu_mu": null
+    "durdu_mu": false
   },
   "saglik": {
-    "son_nabiz": "2026-11-25T20:02:10Z",
+    "son_nabiz": "2026-11-25T20:58:28Z",
     "hata_sayisi_gun": 2
   },
   "notlar": [
