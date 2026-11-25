@@ -950,10 +950,7 @@ class Engine:
             self.state.kv_set("strategy", label)
         if self._params_ok:
             check_param_keys(self.strategy, self._params_map or {})
-            try:
-                reason = self.ledger.get_version(self._version_id).reason
-            except Exception:  # noqa: BLE001
-                reason = None
+            reason = self._surum_etiketi(self._version_id)
             name, ver = parse_label(reason)
             if name != info.name:
                 raise StrategyError("strategy_mismatch", f"ledger etiketi {name}, calisan {info.name}")
@@ -2106,6 +2103,24 @@ class Engine:
                 except Exception as e:  # noqa: BLE001 - isaret hatasi baska bir istisnayi ortmesin
                     log.error("karar isareti yazilamadi %s: %r", pair, e)
         return tried
+
+    def _surum_etiketi(self, vid) -> str | None:
+        """Parametre surumunun strateji etiketi. Ders surumlerinin (author=lesson) gerekcesinde etiket yok: etiket ust surumden
+        (parent_version_id zinciri) miras alinir (25.11: ilk ders sonrasi yeniden baslatmada yanlis strategy_mismatch)."""
+        seen: set = set()
+        reason = None
+        while vid is not None and vid not in seen:
+            seen.add(vid)
+            try:
+                v = self.ledger.get_version(vid)
+            except Exception:  # noqa: BLE001
+                return reason
+            if reason is None:
+                reason = v.reason
+            if "strategy:" in (v.reason or ""):
+                return v.reason
+            vid = v.parent_version_id
+        return reason
 
     def _kalan_adaylar(self, pair: str, D: datetime, rest, winner, pre) -> None:
         """Siralamada kazananin/redin ARKASINDAki adaylar: sinyal ise `arm_conflict`, elenmis (filtre) ise kendi nedeniyle."""

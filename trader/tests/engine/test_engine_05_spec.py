@@ -1564,6 +1564,25 @@ class TestStartup:
         assert ei.value.code == "ledger_incompatible"
         e.close()
 
+    def test_ders_surumu_etiketi_ust_surumden_miras(self, tmp_path):
+        """25.11: ders (etiketsiz gerekce) ile olusan etkin surum yeniden baslatmada strategy_mismatch vermez; etiket ust surumden gelir."""
+        (tmp_path / "x").mkdir()
+        Env(tmp_path / "x").close()                                       # defter etiketli ilk surumle acilir
+        e2 = Env(tmp_path / "x", init_label=False)
+        rl = e2.real_ledger
+        v1 = max(v.id for v in rl.list_versions())
+        params = dict(rl.get_version(v1).params)
+        params["rr_min"] = float(params["rr_min"]) + 0.1
+        vid = rl.create_user_version(params, reason="ders: rr_min +0,1 (kanit 8 islem)")
+        rl.activate_version(vid, actor="user", reason="ders: rr_min +0,1")
+        assert "strategy:" not in rl.get_version(vid).reason
+        e2.start()                                             # etiket v1'den miras: hata yok, giris kapali degil
+        e2.signal(T0)
+        e2.decide(T0)
+        d = e2.decisions()
+        assert not any(x.veto_reason == "gate:strategy_mismatch" for x in d)
+        e2.close()
+
     def test_version_mismatch_blocks_entries_only(self, tmp_path):
         (tmp_path / "x").mkdir()
         Env(tmp_path / "x", strategy=FakeStrategy(version="0.1")).close()     # defter etiketi 0.1 ile acilir
