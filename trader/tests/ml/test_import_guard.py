@@ -31,10 +31,22 @@ def test_engine_and_core_never_import_ml_libs():
         assert not bad, bad
 
 
+# 25.11 ML1 kagit kapisi: motorun trader_ml'e TEK izinli kopru (yalniz trader_ml.ml1 ozellik/model islevleri; egitim kodu cevrimdisidir)
+ML1_KOPRU = "trader_engine/ml1_gate.py"
+
+
+def _ml1_only(py: Path) -> bool:
+    tree = ast.parse(py.read_text(encoding="utf-8"))
+    mods = [n.module for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) and n.level == 0 and n.module and n.module.split(".")[0] == "trader_ml"]
+    mods += [a.name for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names if a.name.split(".")[0] == "trader_ml"]
+    return bool(mods) and all(m == "trader_ml.ml1" or m.startswith("trader_ml.ml1.") for m in mods)
+
+
 def test_engine_and_core_do_not_import_trader_ml():
     for pkg in ("trader_engine", "trader_core"):
-        bad = [f for f, i in _scan(pkg).items() if "trader_ml" in i]
+        bad = [f for f, i in _scan(pkg).items() if "trader_ml" in i and f != ML1_KOPRU]
         assert not bad, bad
+    assert _ml1_only(SRC / ML1_KOPRU)                                  # kopru yalniz trader_ml.ml1.* ice aktarir
 
 
 def test_model_evaluator_is_numpy_only():
@@ -48,7 +60,7 @@ def test_model_evaluator_is_numpy_only():
 def test_engine_imports_only_core_for_ml():
     """Motor ML icin yalniz trader_core.ml_* kullanir (trader_ml'e hic dokunmaz)."""
     for f, imps in _scan("trader_engine").items():
-        assert "trader_ml" not in imps, f
+        assert "trader_ml" not in imps or f == ML1_KOPRU, f
 
 
 def test_no_ml_training_libraries_anywhere_in_runtime_dependencies():

@@ -109,6 +109,11 @@ _TF_RANK = {"15m": 1, "1h": 2, "4h": 3, "1d": 4}      # giris sirasi: buyuk zama
 _TF_SECS = {"15m": 900, "1h": 3600, "4h": 14400, "1d": 86400}
 
 
+def _ml1_aktif(cfg: EngineConfig) -> bool:
+    """25.11 ML1 kapisi YALNIZ paper modunda ve config `ml1.aktif` true iken; canli/testnet/backtest'te hicbir zaman."""
+    return cfg.mode == "paper" and bool((getattr(cfg, "ml1", None) or {}).get("aktif"))
+
+
 class Engine:
     def __init__(self, cfg: EngineConfig, *, clock: Clock, view: MarketView, broker: Broker, ledger: L.Ledger,
                  state: StateStore, signals: SignalSource, strategy: Strategy, veto: VetoSource, kill: Killswitch,
@@ -179,6 +184,17 @@ class Engine:
         self._multi_tf: bool = self.step_tf != self.tf
         if self._multi_tf and getattr(signals, "position_fn", False) is None:
             signals.position_fn = self._position_for_arms       # type: ignore[attr-defined]
+        self.ml1 = None                                         # 25.11 ML1 kagit giris kapisi (config ml1.aktif + paper + cok kurulumlu kaynak)
+        if _ml1_aktif(cfg) and hasattr(signals, "ml1"):
+            try:
+                from .ml1_gate import Ml1Gate
+                self.ml1 = Ml1Gate(cfg.ml1)
+            except Exception as e:  # noqa: BLE001 - ML1 kurulamazsa motor ML1'siz (onceki davranis) calisir; asla kalkis engellenmez
+                self._c["ml1_kurulamadi"] += 1
+                log.critical("ML1 kurulamadi, kapi devre disi: %r", e)
+        if self.ml1 is not None:
+            signals.ml1 = self.ml1                              # type: ignore[attr-defined]
+            self.gate.ml1 = self.ml1
         self._params_map: dict | None = None
         self._exit_seen: dict[int, datetime] = {}                 # canli telafi: trade_id -> en son degerlendirilen TF siniri (bellek)
         self._mode_flags: dict[str, int] = {}                  # etkin defter surumunun cikis kipi bayraklari (exit_breakeven/exit_partial)
@@ -320,7 +336,7 @@ class Engine:
         out = {k: 0 for k in _STATUS_COUNTERS}
         out.update(self._c)
         for src in (self.gate.counters, getattr(self.signals, "counters", None),
-                    getattr(self.strategy, "counters", None)):
+                    getattr(self.strategy, "counters", None), getattr(self.ml1, "counters", None)):
             if src:
                 for k, v in src.items():
                     out[k] = out.get(k, 0) + v
@@ -866,6 +882,8 @@ class Engine:
             self._reconcile_orphan_decisions()
         self._refresh_params()
         self._init_tf_and_strategy()
+        if self.ml1 is not None:
+            self.ml1.warm(self.ledger, now)                       # 25.11 ML1: konfluans tamponu + olay penceresi defterden (firlatmaz)
         if self.quarantine is not None:
             self.quarantine.load(self.state.kv_get(QUARANTINE_KV))
         if self.is_paper:
@@ -1487,7 +1505,11 @@ class Engine:
                         self._last_candle_open = c
                     self._regime_mem[pair] = (D, fr.last.regime)          # WP-3 madde 16: yalniz kayit
             self._exits(D, frames)
-            self._entries(D, frames)
+            try:
+                self._entries(D, frames)
+            finally:
+                if self.ml1 is not None:
+                    self.ml1.end_step()                             # 25.11 ML1: mum pencere referanslari ve adim kararlari birakilir
             with self.state.tx():                                   # G4: imecler
                 for pair in self.cfg.pairs:
                     c = self.state.get_cursor(pair, "decision")
@@ -2076,6 +2098,8 @@ class Engine:
         entered = None          # girisi yapilan aday satiri
         first_skip: EntryOutcome | None = None
         cands = (fr, *fr.extras)
+        if self.ml1 is not None and pre.ok and self.state.position_for_pair(pair) is None and not self.state.is_decided(pair, D):
+            cands = self.ml1.prepare(pair, D, cands)               # 25.11 ML1: puanla + puana gore sirala (firlatmaz)
         try:
             for k, c in enumerate(cands):
                 if attempted or not self.is_paper:
@@ -2091,6 +2115,8 @@ class Engine:
                 if out.action == "enter":
                     tried = True
                     entered = c.last
+                    if self.ml1 is not None and self.gate.ml1 is not None and self.ml1.verdict(c.last) is not None:
+                        self.ml1.note_entry(pair, c.last.side, c.last.tf or self.tf, D)       # 25.11 ML1: olay penceresi (bir olay = bir giris)
                     self._enter(pair, D, c, out)
                     self._kalan_adaylar(pair, D, cands[k + 1:], entered, pre)     # onceliginde kaybedenler: arm_conflict
                     break

@@ -317,6 +317,7 @@ class MultiArmSignalSource(WindowedSignalSource):
     def __init__(self, *a, position_fn=None, quarantine=None, **k) -> None:
         super().__init__(*a, **k)
         self.quarantine = quarantine                    # arm_quarantine.ArmQuarantine | None (kurulum kod hatasi karantinasi)
+        self.ml1 = None                                 # 25.11 ml1_gate.Ml1Gate | None (motor baglar; kapaliyken hicbir davranis degismez)
         self.position_fn = position_fn                  # cift -> (trigger_tf, entry_bar_open | None) | None (motor tedarik eder)
         self._exit_views: dict[tuple[str, datetime], tuple[str, ExitContext]] = {}
         self._d1: tuple[datetime, int, int] | None = None      # (D, taranan cift, aday) - 1g tarama turu ozeti (yalniz gunluk log)
@@ -470,6 +471,8 @@ class MultiArmSignalSource(WindowedSignalSource):
                     row = dataclasses.replace(row, arm_id=f"{row.setup}@{tf}", tf=tf)
                 else:
                     row = dataclasses.replace(row, tf=tf)
+                if self.ml1 is not None and bool(sig.iloc[-1]["signal"]):        # 25.11 ML1: post_filter ONCESI aday (cevrimdisi tarama ile ayni)
+                    self.ml1.observe(pair, D, tf, sig.iloc[-1], trig, h4)
                 lt = trig.iloc[-1]
                 tb = (float(lt["high"]), float(lt["low"]), float(lt["volume"])) if "volume" in trig.columns else None
                 is_filtered = bool(row.setup and row.side and row.skip_reason in _FILTERED_SKIPS)

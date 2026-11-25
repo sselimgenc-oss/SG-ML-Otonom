@@ -242,7 +242,7 @@ def test_timer_runs_0040_utc():
 def test_trader_ml_uses_no_trader_engine():
     for f in (TRADER / "src" / "trader_ml").rglob("*.py"):
         if "ml1" in f.relative_to(TRADER / "src" / "trader_ml").parts[:1]:
-            continue    # 25.11 ML1: aday taramasi kol kaynaklarini (strategies/arms) ve motor cikis islevlerini yeniden kullanir (cevrimdisi arastirma; motor ml1'e hic bagimli degil)
+            continue    # 25.11 ML1: aday taramasi kol kaynaklarini (strategies/arms) ve motor cikis islevlerini yeniden kullanir (cevrimdisi arastirma; motor yalniz trader_engine/ml1_gate.py ile ve yalniz config ml1.aktif iken ml1'i tembel kullanir)
         assert not re.search(r"^\s*(import|from)\s+trader_engine", f.read_text(), re.M), f"{f.name} imports trader_engine"
 
 

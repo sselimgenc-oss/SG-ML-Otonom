@@ -301,6 +301,7 @@ def _cfg(tmp: Path, **kw):
                 kill_file=str(tmp / "KILL"), pause_file=str(tmp / "PAUSE"),
                 market_db=str(tmp / "m.sqlite"),
                 history_dir=str(tmp / "h"), cost=dict(fill_model="native", granularity="15m", trigger_source="last"))
+    base["ml1"] = {"aktif": False}                         # 25.11: bu testler kural yolunu/tavanlari sinar; ML1 kapisi tests/ml1/test_ml1_paper_gate.py'de
     base.update(kw)
     return apply_overrides(PAPER, **base)
 

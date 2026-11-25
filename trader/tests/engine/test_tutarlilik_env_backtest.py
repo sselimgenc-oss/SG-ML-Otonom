@@ -95,6 +95,7 @@ def make_config_dir(dst: Path) -> Path:
                       "hisse": {"pairs": ["NVDA/USDT"], "max_positions": 5},
                       "hisse_teknoloji": {"pairs": ["NVDA/USDT"], "max_positions": 3}}
     ov["cost_overrides"] = {"NVDA/USDT": ov["cost_overrides"]["NVDA/USDT"]}
+    ov["ml1"] = {"aktif": False}                         # 25.11: bu test ML1 kapisindan bagimsiz (aday/islem ureten kural yolunu sinar); ML1 testleri tests/ml1'de
     (cfgdir / "engine.paper.json").write_text(json.dumps(ov), encoding="utf-8")
     return cfgdir
 

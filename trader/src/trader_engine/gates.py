@@ -124,7 +124,7 @@ def _features(row: SignalRow) -> dict:
 # 24.11 (cift ici yedek aday): bir adayin reddi YALNIZ aday-ozgu nedenlerle ise siradaki aday denenir; cift/hesap duzeyindeki
 # nedenlerde (kapi kapali, cluster_cap, hesap tavani, etiket_*, gunluk zarar, ...) ayni cift icin durulur ve kalan sinyal adaylari
 # `arm_conflict` yazilir. TEK TANIM: bilinmeyen kod cift duzeyi sayilir (guvenli taraf: ek satir/deneme yok).
-ADAY_OZGU_RED_KODLARI = frozenset({"flat_bar", "uzun_yon",
+ADAY_OZGU_RED_KODLARI = frozenset({"flat_bar", "uzun_yon", "ml1_esik_alti", "ml1_ayni_olay", "ml1_paket_yok",
                                    "korelasyon_grubu", "tasfiye_mesafesi", "tasfiye_okunamadi", "toplam_buyukluk"})   # 25.11: buyukluk_okunamadi hesap duzeyi (cift icin durulur)
 _HESAP_RISK_IZLERI = ("günlük", "toplam açık risk", "toplam teminat", "zaten açık pozisyon", "kayıp freni", "iç hata")
 
@@ -177,6 +177,8 @@ def build_decision_event(row: SignalRow, tf: str, **override) -> L.DecisionEvent
 
 
 class EntryGate:
+    ml1 = None                                    # 25.11 ML1 kapisi (ml1_gate.Ml1Gate | None; yalniz paper'da motor baglar); None = onceki davranis
+
     def __init__(self, cfg: EngineConfig, ledger: L.Ledger, state: StateStore, kill: Killswitch, veto: VetoSource,
                  clock: Clock, broker: Broker, rules_fn: Callable[[str], SymbolRules],
                  entry_ref_fn: Callable[[str, datetime, SignalRow], float] | None = None,
@@ -450,6 +452,9 @@ class EntryGate:
         tk: dict = {}
         if self.cfg.mode in ("paper", "live"):                                          # 23.11 kullanici karari: canli = kagit
             tk = {"session_tag": AG.session_tag(AG.asset_class(row.pair, self.cfg.clusters), frame.last.bar_close_ts)}
+        mv = self.ml1.verdict(row) if self.ml1 is not None else None                    # 25.11 ML1: puanlanmis aday kaybederse de puani kayitta
+        if mv is not None:
+            tk["features"] = {**_features(row), **mv.features}
         return self._skip(row, _tf_of(row), "arm_conflict", mark=False, skip_reason="arm_conflict",
                           veto_reason=f"gate:arm_conflict:{winner.arm_id or winner.setup}", **tk)
 
@@ -465,6 +470,9 @@ class EntryGate:
         if paper:
             cls = AG.asset_class(pair, self.cfg.clusters)
             tk = {"session_tag": AG.session_tag(cls, D)}                                # etiket yasak degil, kayit
+        mv = self.ml1.verdict(row) if (paper and self.ml1 is not None) else None        # 25.11 ML1 (yalniz paper): bu adimda puanlanmis aday karari
+        if mv is not None:
+            tk["features"] = {**_features(row), **mv.features}                          # puan/sha/grup: girilen ya da atlanan HER puanlanmis adayda
         if not row.signal:                                                              # 1 / 1b
             if (row.setup and row.side and row.skip_reason in _FILTERED_SKIPS
                     and self.cfg.record_filtered_candidates and row.param_version_id >= 1):
@@ -488,6 +496,8 @@ class EntryGate:
                 log.error("rules_fn beklenmeyen hata %s: %r", pair, e)
             return self._skip(row, tf, "rules_missing", skip_reason="other", veto_reason="gate:rules_missing", **tk)
         now = self.clock.now()
+        if mv is not None and mv.code is not None:                                      # 25.11 ML1: esik alti / ayni olay / paket yok (aday-ozgu red)
+            return self._skip(row, tf, mv.code, skip_reason=mv.ledger_reason, veto_reason="gate:" + mv.code, **tk)
         if paper:                                                                       # 9a-9c (DD-12 WP-04); veto adimi YOK
             aid = row.arm_id or AG.arm_id_of(row.setup, tf)
             # 19 Kasim (sahip karari): ders kurulum KAPATMAZ; arms_off yalniz karne/rapor bilgisidir, giris engellenmez.

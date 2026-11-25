@@ -25,6 +25,7 @@ PARITE_ISTISNA = {
     "kill_file": "canli KILL dosyasi",
     "pause_file": "canli PAUSE dosyasi",
     "live": "borsa blogu (yalniz testnet/canli)",
+    "ml1": "25.11 ML1 kapisi yalniz kagit (canlida aktif degil; config yalniz paper/live modunda okunur, canli motor uygulamaz)",
     "bot": "kagit dosyasi bot adini acik yazar; canli bot adini engine.learner.json'dan alir (ayni: learner)",
 }
 
