@@ -79,3 +79,12 @@ def test_kural_cikisi_zamanlari_canli_kuralla_ayni(bars4h):
             for i in rng.choice(np.arange(300, len(bars4h)), 8, replace=False):
                 kapanis = int((bars4h.index[int(i)] + delta).timestamp() * 1000)
                 assert (kapanis in ms) == SC.prefix_rule_exit(PAIR, TF, bars4h, bars4h, setup, side, int(i)), (setup, side, int(i))
+
+
+def test_after_ns_ile_ms_indeksli_seri(bars4h):
+    # feather tarihi ms birimli; build.py `since - 1ns` (ns) verir: birim uyusmazligi ValueError vermemeli
+    ms = bars4h.copy()
+    ms.index = ms.index.as_unit("ms")
+    after = ms.index[800] + pd.Timedelta("4h") - pd.Timedelta(1, "ns")
+    df = SC.scan_pair_tf(PAIR, TF, ms, ms, after=after)
+    assert len(df) == 0 or (df["decision_ts"] >= ms.index[800] + pd.Timedelta("4h")).all()

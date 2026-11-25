@@ -163,7 +163,7 @@ def scan_pair_tf(pair: str, tf: str, trig: pd.DataFrame, h4: pd.DataFrame, arm_i
     run_full = run_lengths(trig.index, delta)
     i_emit, s0 = 0, 0
     if after is not None:
-        i_emit = int(trig.index.searchsorted(pd.Timestamp(after) - delta, side="right"))      # bar_ts + delta > after
+        i_emit = int(trig.index.as_unit("ns").searchsorted(pd.Timestamp(after) - delta, side="right"))      # bar_ts + delta > after
         if i_emit >= n_full:
             return _frame([])
         cut = trig.index[i_emit] - max(warmup_bars * delta, timedelta(days=warmup_days))
