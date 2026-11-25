@@ -19,7 +19,7 @@ def sifir_agirlik(bias_long=0.0, bias_short=0.0):
 
 
 def paket_sozlugu(olusturma, *, esik=0.5, agirlik=None, son=None, kapi=True, siniflar=None, tf="1h", **ek):
-    p = {"schema": DL.SEMA, "arm_id": DL.arm_id(tf), "pencere": DL.PENCERE, "kanallar": list(DL.KANALLAR), "ufuk": DL.UFUK,
+    p = {"schema": DL.SEMA, "arm_id": DL.arm_id(tf), "pencere": DL.PENCERE, "kanallar": list(DL.KANALLAR), "ufuk": DL.UFUK, "tf": tf, "etiket": {"stop_atr": DL.STOP_ATR, "hedef_atr": DL.HEDEF_ATR},
          "olusturma": olusturma.isoformat(), "son_kullanma": (son or olusturma + timedelta(days=DL.SON_KULLANMA_GUN)).isoformat(),
          "esik": esik, "olcekleyici": {"ort": [0.0] * DL.N_KANAL, "std": [1.0] * DL.N_KANAL},
          "kapsam": {"siniflar": dict(siniflar or CIFTLER)}, "kapi": {"gecti": kapi},

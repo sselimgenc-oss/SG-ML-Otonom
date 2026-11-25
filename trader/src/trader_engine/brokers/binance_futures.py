@@ -50,6 +50,7 @@ FILL_WAIT_S = 3.0
 FILL_POLL_S = 0.3
 FUNDING_GIVEUP_S = 60.0
 FEE_DRIFT_REL = 0.01
+DELIVERED_MAX = 5000                     # 25.11: teslim kayitlari (islem/funding) en fazla bu kadar; en eski atilir
 OURS = ("trL", "trT")
 _ROLE_BY_LETTER: dict[str, Role] = {"e": "entry", "s": "stop", "t": "target", "x": "exit"}
 _FILTER_CODES = {-1111, -1013, -4003, -4005, -4131}
@@ -205,10 +206,10 @@ class LiveBroker:
         self._stops: dict[str, str] = {}                 # kendi stop/hedef client id -> pair
         self._exit_cids: dict[str, str] = {}
         self._entry_fee: dict[str, float] = {}
-        self._delivered: set[Any] = set()
+        self._delivered: dict[Any, None] = {}            # sirali: en eski basta
         self._partial_cids: dict[str, set[str]] = {}     # pair -> kismi kar alma emri kimlikleri (kapanis olayindan DISLANIR)
         self._partial_oids: dict[str, set[str]] = {}     # pair -> bu kimliklerin borsa orderId'leri (cozumlenmis)
-        self._delivered_funding: set[Any] = set()
+        self._delivered_funding: dict[Any, None] = {}
         self._funding_wait: dict[str, datetime] = {}
         self._last_sync: datetime | None = None
         self._last_clock_sync: datetime | None = None
@@ -520,11 +521,14 @@ class LiveBroker:
                 log.log(logging.CRITICAL if held_all else logging.ERROR,
                         "optional_position_risk_failed:%s kod=%s held=%s (cift hazirlanmadi, giris yok)", p, pr.code, held_all)
                 continue
+            ok = None
             for r in pr or []:
                 if isinstance(r, dict) and r.get("symbol") == s:
-                    held = _d(r.get("positionAmt")) != 0
+                    held = held or _d(r.get("positionAmt")) != 0          # 25.11: her satir sayilir (ezilmez)
                     self._last_mark[p] = _fl(r.get("markPrice"), self._last_mark.get(p, 0.0)) or self._last_mark.get(p, 0.0)
-                    ok = str(r.get("marginType", "")).lower() == "isolated" and int(_fl(r.get("leverage"))) == self._lev
+                    ok_r = str(r.get("marginType", "")).lower() == "isolated" and int(_fl(r.get("leverage"))) == self._lev
+                    ok = ok_r if ok is None else (ok and ok_r)
+            ok = bool(ok)
             if held:
                 held_pairs.add(p)
             if ok:
@@ -1477,7 +1481,8 @@ class LiveBroker:
                 new_keys.append(key)
                 fts = min(_ts(r.get("time"), ts), ts)
                 fund.append(BrokerEvent("funding", fts, pair, funding_paid=-_fl(r.get("income"))))
-            self._delivered_funding.update(new_keys)
+            self._delivered_funding.update(dict.fromkeys(new_keys))
+            self._prune(self._delivered_funding)
         except ExchangeError:
             w = self._funding_wait.setdefault(pair, now)
             if (now - w).total_seconds() < FUNDING_GIVEUP_S:
@@ -1511,9 +1516,16 @@ class LiveBroker:
             role, reason, ekind = "exit", "market", "fill"
         fill = Fill(cid, pair, role, side, float(qty), float(vw), fee, ts, reason)       # type: ignore[arg-type]
         for t in reduces:
-            self._delivered.add(t["id"])
+            self._delivered[t["id"]] = None
+        self._prune(self._delivered)
         self._finish(pair)
         return fund + [BrokerEvent(ekind, ts, pair, cid, fill, detail=detail)]            # type: ignore[arg-type]
+
+    @staticmethod
+    def _prune(d: dict) -> None:
+        """Teslim kayitlari sinirsiz buyumesin: en eski kayitlar atilir."""
+        while len(d) > DELIVERED_MAX:
+            del d[next(iter(d))]
 
     def _select(self, trades: list[dict], known: Decimal | None, eps: Decimal, skip_oids: Sequence[str] | frozenset = frozenset()):
         """Son kapanisin azaltan islemleri (en yeni basta), girisleri, yon. Eksikse None.

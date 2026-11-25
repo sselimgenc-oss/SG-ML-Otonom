@@ -281,7 +281,6 @@ class EngineConfig:
     minute_wait_s: float                         # 20.0: dakika barı gelmeyi bekleme üst sınırı (sonra dakika boşluğu sayılır)
     reconcile_open_s: float                      # 15.0
     reconcile_flat_s: float                      # 60.0
-    start_delay_s: float                         # twin için 3.0
     var_dir: str; market_db: str; history_dir: str
     veto_config: str; kill_file: str
     # türetilmiş yollar (özellik): ledger_path, state_path, status_path = <var_dir>/<bot>/{ledger.sqlite,state.sqlite,status.json}

@@ -99,7 +99,7 @@ def test_live_block_refused_in_other_modes(tmp_path, mode):
     {"recv_window_ms": 999}, {"recv_window_ms": 10001},
     {"poll_open_s": 0.5}, {"poll_open_s": 16}, {"poll_flat_s": 4}, {"poll_flat_s": 121},
     {"stop_deadline_s": 4}, {"stop_deadline_s": 15.5},   # upper bound 15: cannot be loosened
-    {"max_attempts": 0}, {"max_attempts": 3},
+    {"max_attempts": 0}, {"max_attempts": 2}, {"max_attempts": 3},   # 25.11: 2 etkisizdi, artik reddedilir
 ])
 def test_live_settings_ranges_refused(tmp_path, bad):
     with pytest.raises(ConfigError):
@@ -108,7 +108,7 @@ def test_live_settings_ranges_refused(tmp_path, bad):
 
 @pytest.mark.parametrize("good", [{"stop_deadline_s": 5}, {"stop_deadline_s": 15}, {"poll_open_s": 1}, {"poll_open_s": 15},
                                   {"poll_flat_s": 5}, {"poll_flat_s": 120}, {"recv_window_ms": 1000},
-                                  {"recv_window_ms": 10000}, {"max_attempts": 2}])
+                                  {"recv_window_ms": 10000}, {"max_attempts": 1}])
 def test_live_settings_range_edges_accepted(tmp_path, good):
     assert _load(tmp_path, {"mode": "testnet", "live": {**LIVE_OK, **good}}).live is not None
 
@@ -394,7 +394,7 @@ def test_cli_live_confirm_mismatch_exits_2(tmp_path, monkeypatch):
 # ---------------- paper config unchanged ----------------
 
 _FROM_JSON = ("wallet_start", "stale_factor", "loop_sleep_s", "bar_wait_s", "minute_wait_s", "reconcile_open_s",
-              "reconcile_flat_s", "start_delay_s", "var_dir", "market_db", "history_dir", "kill_file",
+              "reconcile_flat_s", "var_dir", "market_db", "history_dir", "kill_file",
               "strategy", "target_trade_risk", "target_mode",
               "record_filtered_candidates")
 
@@ -405,10 +405,7 @@ def test_paper_config_loads_unchanged(bot, start_delay):
     raw = json.loads((CFG_DIR / "engine.base.json").read_text())
     assert cfg.mode == "paper" and cfg.bot == bot and cfg.schema == "engine/1"
     for k in _FROM_JSON:
-        if k == "start_delay_s":
-            assert cfg.start_delay_s == start_delay
-        else:
-            assert getattr(cfg, k) == raw[k], k
+        assert getattr(cfg, k) == raw[k], k
     assert cfg.pairs == tuple(raw["pairs"])
     assert (cfg.cost.fill_model, cfg.cost.taker_fee, cfg.cost.slip_entry_bps, cfg.cost.slip_exit_bps,
             cfg.cost.slip_stop_bps, cfg.cost.trigger_source, cfg.cost.granularity) == ("native", 0.0005, 2.0, 2.0, 5.0, "mark", "1m")

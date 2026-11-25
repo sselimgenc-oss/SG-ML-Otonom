@@ -224,3 +224,20 @@ Kaynak: `dis-denetim/triyaj-2026-11-17.md` (mentor). Kullanıcı: "Cloudflare i�
   - Kâğıt tasfiye MMR: kâğıt broker sınıf MMR'ini (kripto %0,5, hisse/emtia %2) giriş kapısıyla aynı kaynaktan alır.
   - Sağlık uyarısı: ek uyarı gönderilemezse `ek_uyarilar` durumu da geri alınır, sonraki turda yeniden denenir.
   - Haftalık özet: "alınmayan sinyal" toplamı R olarak yazılır ($ değil).
+
+- **25 Kasım 2026 — 25.11 denetim kalan maddeler (kullanıcı onayı):**
+  - EK: aile tavanı (`arm_family_max_positions`) giriş kapısında uçtan uca sınanır (kâğıt ve canlı ayarı; 6 MF1 açıkken 7. MF1 reddedilir, GF1 girer).
+  - #9: HB1'deki ölü 90 dk `eski_sinyal` dalı ve sabiti kaldırıldı (yaş sınırını yeniden sönümleme + 3 saatlik geçerlilik sağlıyor).
+  - #29: marjin/kaldıraç doğrulamasında tüm satırlar `and` ile birleşir (son satır ezmez).
+  - #30: `_delivered` / `_delivered_funding` en çok 5000 kayıtla sınırlı (en eski atılır).
+  - #13: `live.max_attempts` yalnız 1 kabul eder (motor canlıda 1'e sabit; 2 artık reddedilir). Canlı emir davranışı değişmedi.
+  - #19: `exit_cf_reject_cooldown_days` 28 yapıldı (`paper_auto` açıkken etkili bekleme yine 0).
+  - #20: DL1 paketi yüklenirken ufuk, stop/hedef ATR çarpanı ve zaman dilimi sabitlerle karşılaştırılır; uyuşmazsa reddedilir.
+  - #26: giriş kapısı sonucunda yapısal `hesap_duzeyi` alanı; `buyukluk_okunamadi` hesap düzeyi sayılır.
+  - #27: çift düzeyi redde kalan adayların `arm_conflict` kaydında kazanan = reddedilen aday.
+  - #24: yorumcu "dün" tablosu İstanbul gününe göre.
+  - #36: DL1 sağlık denetimi tüm dilimleri tarar, sorunlu dilim adı mesajda.
+  - #14: çıkış kipleri belgesi canlıda uygulandığını söyler. #23: kullanılmayan `GUNLUK_ZARAR_ORANI` / `LIMIT_ORANI` silindi. #25: ölü `start_delay_s` ayarı kaldırıldı.
+  - #16: ortak ayar dosyası yapılmadı; yerine kâğıt/canlı blok eşitliği testi (arms, arm_max_positions, arm_family_max_positions, clusters, risk, exit_modes, cost_overrides, max_positions). #15 bu testle kısmen korunur.
+  - #18 (max_pair_share): karar bekliyor. #28 ve #46: canlı emir/mutabakat davranışı, dokunulmadı.
+  - Bütçe/risk yüzünden yapılmadı: #17, #22, #31-#35, #37-#45 (temizlik/belge), #33 (karşı-olgu boşluk: açılış fiyatı boru hattı gerekir).

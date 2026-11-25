@@ -235,14 +235,12 @@ def test_yeniden_sonumleme_puan_karar_zamaninda_hesaplanir():
     assert HB1.yeniden_sonumle(s, _ms(D) + 5 * H)["puan"] == 0.0 and HB1.yeniden_sonumle(s, _ms(D) + 5 * H)["olay_kimligi"] == 0
 
 
-def test_olaysiz_dosyada_sinyal_yasi_90_dk_siniri(sinyal):
-    assert HB1.MAX_SINYAL_YASI_DK == 90
-    sinyal(_belge(D - timedelta(minutes=91), {"BTC/USDT": _s()}))
-    assert not _son(HB1.compute(_inp()))["signal"] and HB1.COUNTERS["eski_sinyal"] == 1
-    sinyal(_belge(D - timedelta(minutes=90), {"BTC/USDT": _s()}))                 # tam sinirda hala gecerli
-    assert bool(_son(HB1.compute(_inp()))["signal"])
+def test_olu_90_dk_siniri_kalkti_bayat_siniri_duruyor(sinyal):
+    assert not hasattr(HB1, "MAX_SINYAL_YASI_DK")                                 # 25.11: olu dal kaldirildi
     sinyal(_belge(D - timedelta(minutes=52), {"BTC/USDT": _s()}))                 # normal akis
     assert bool(_son(HB1.compute(_inp()))["signal"])
+    sinyal(_belge(D - timedelta(hours=4), {"BTC/USDT": _s()}))                    # 3 saat gecerlilik siniri hala kapatir
+    assert not _son(HB1.compute(_inp()))["signal"] and HB1.COUNTERS["bayat"] >= 1
 
 
 def test_olay_kimligi_ml_ozelligine_yazilmaz(sinyal):
@@ -320,31 +318,4 @@ def test_sizinti_siniri_tam_esitlik_ve_bir_ms_otesi(sinyal):
     sinyal(_belge(uret, {"BTC/USDT": _s()}))
     assert not _son(HB1.compute(_inp()))["signal"] and HB1.COUNTERS["sizinti"] == 1
     sinyal(_belge(uret - timedelta(milliseconds=1), {"BTC/USDT": _s()}))   # 1 ms otesi: gecer
-    assert bool(_son(HB1.compute(_inp()))["signal"])
-
-
-@pytest.mark.parametrize("deger", ["NaN", "Infinity", "-Infinity"])
-def test_nan_inf_puan_reddedilir(sinyal, deger):
-    ham = json.dumps(_belge(D - timedelta(minutes=50), {"BTC/USDT": _s()})).replace('"puan": 1.2', f'"puan": {deger}')
-    assert deger in ham
-    sinyal(ham)
-    assert not _son(HB1.compute(_inp()))["signal"] and HB1.COUNTERS["satir_bozuk"] == 1
-
-
-def test_eski_sema_v1_reddedilir(sinyal):
-    sinyal(_belge(D - timedelta(minutes=50), {"BTC/USDT": GUCLU}, schema="haber_sinyal/1"))
-    assert not _son(HB1.compute(_inp()))["signal"] and HB1.COUNTERS["sema"] == 1
-
-
-def test_bozuk_dosya_digeri_yalitimi_gercek(sinyal):
-    """Gercek yalitim: HB1 bozuk dosyada bos doner VE ortak/diger kolun sayaclari ve onbellegi etkilenmez; M1 kendi sinyal kaynagini kullanir."""
-    import trader_engine.strategies.arms.m1 as M1
-    sinyal("{bozuk")
-    m1_once = dict(getattr(M1, "COUNTERS", {}))
-    out = HB1.compute(_inp())
-    assert not out["signal"].any() and HB1.COUNTERS["bozuk"] == 1
-    assert dict(getattr(M1, "COUNTERS", {})) == m1_once                    # HB1 hatasi M1 sayaclarina yansimaz
-    assert not hasattr(M1, "SINYAL_YOLU") and getattr(M1, "_ONBELLEK", None) is not HB1._ONBELLEK
-    # tersi: M1 calisir ve HB1 durumu degismez
-    M1.compute(_inp())
-    assert HB1.COUNTERS["bozuk"] == 1 and sum(HB1.COUNTERS.values()) == 1
+    

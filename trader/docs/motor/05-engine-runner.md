@@ -184,7 +184,7 @@ def build_engine(cfg: EngineConfig, *, clock: Clock | None = None, view: MarketV
 
 ### 5.1 Başlatma (`start`)
 
-1. Twin ise `clock.sleep(cfg.start_delay_s)`.
+1. (25.11: ikiz ve `start_delay_s` kaldirildi; bekleme yok.)
 2. `StateStore` açılır/kilitlenir (04); `integrity_check`; `kv["engine_version"]`/`trigger_tf` doğrulanır.
 3. Defter açılır (`L.open_ledger(cfg.ledger_path, cfg.bot, create=True, clock=<paper: None, backtest: clock.now>)`). `ledger.drain_spool()`; `state.drain_outbox(ledger)`.
 4. Paper broker: `state.kv_get("broker_snapshot")` varsa `broker.restore(...)`; yoksa taze (`wallet_start`). `broker.prepare(pair, lev)` her çift için (idempotent).

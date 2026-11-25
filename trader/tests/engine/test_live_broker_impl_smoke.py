@@ -748,3 +748,26 @@ def test_fake_non_reduce_only_stop_opens_reverse_position():
     ex._new_cond("XRPUSDT", "SELL", "STOP_MARKET", Decimal("25"), Decimal("1.9"), "MARK_PRICE", "plain-stop", reduce=False)
     ex.set_mark("XRPUSDT", "1.85")
     assert ex.pos["XRPUSDT"]["amt"] == Decimal("-15")                    # reduceOnly olsaydi 10'a kirpilirdi
+
+
+# -- 25.11 denetim #29: marjin/kaldirac dogrulamasinda her satir sayilir (son satir ezmez)
+def test_prepare_her_satir_dogrulanir_ilk_satir_bozuksa_hazirlanmaz():
+    b, ex, _ = build(startup=False)
+    gercek = b._rest.position_risk
+
+    def iki_satir(*a, **k):
+        rows = list(gercek(*a, **k) or [])
+        bozuk = [{**r, "marginType": "cross"} for r in rows if r.get("symbol") == "XRPUSDT"]
+        return bozuk + rows                                    # bozuk satir ONDE, saglam satir SONDA
+    b._rest.position_risk = iki_satir                          # type: ignore[method-assign]
+    b.startup_check()
+    assert XRP not in b._prepared and DOGE in b._prepared
+    assert b.counters()["prepare_failed"] == 1
+
+
+# -- 25.11 denetim #30: teslim kayitlari sinirli kalir, en eski atilir
+def test_teslim_kayitlari_sinirli():
+    from trader_engine.brokers import binance_futures as BF
+    d = {i: None for i in range(BF.DELIVERED_MAX + 10)}
+    LiveBroker._prune(d)
+    assert len(d) == BF.DELIVERED_MAX and 0 not in d and BF.DELIVERED_MAX + 9 in d

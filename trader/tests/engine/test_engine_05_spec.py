@@ -1616,7 +1616,7 @@ class TestTwinRemoved:
     def test_twin_config_gone_and_rejected(self):
         assert not (ROOT / "config" / "engine.twin.json").exists()
         a = load_engine_config(ROOT / "config" / "engine.base.json", ROOT / "config" / "engine.learner.json")
-        assert a.bot == "learner" and a.start_delay_s == 0.0
+        assert a.bot == "learner" and not hasattr(a, "start_delay_s")   # 25.11: olu ayar kaldirildi
 
     def test_learner_params_never_change_and_decisions_deterministic(self, tmp_path):
         out = []

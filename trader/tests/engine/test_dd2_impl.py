@@ -614,13 +614,10 @@ def test_dd2_d10_max_attempts_pinned_to_one(tmp_path):
         assert e.engine.orders.max_attempts == 1
     finally:
         e.close()
-    # ayar sozlesmesi (1..2 kabul) degismedi; canli motor yine de 1'de calisir (kor yeniden gonderim yok)
+    # 25.11 denetim #13: ayar yalniz 1 kabul eder (etkisiz 2 degeri sessizce yutulmaz)
     (tmp_path / "b").mkdir()
-    e2 = T.LiveEnv(tmp_path / "b", live_over={"max_attempts": 2}).boot()
-    try:
-        assert e2.cfg.live.max_attempts == 2 and e2.engine.orders.max_attempts == 1
-    finally:
-        e2.close()
+    with pytest.raises(Exception, match="max_attempts"):
+        T.LiveEnv(tmp_path / "b", live_over={"max_attempts": 2}).boot()
 
 
 def test_dd2_d10_replaced_stop_row_marked_canceled(tmp_path):

@@ -41,5 +41,5 @@
   "notes_model": "claude-haiku-5-5",
   "lesson_candidate_max_in_prompt": 8,
   "paper_auto": true,
-  "exit_cf_reject_cooldown_days": 0
+  "exit_cf_reject_cooldown_days": 28
 }

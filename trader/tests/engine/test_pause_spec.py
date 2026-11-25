@@ -765,7 +765,7 @@ def _cli_dir(tmp: Path) -> Path:
                pause_file=str(tmp / "shared" / "PAUSE"), target_trade_risk=0.014)
     (cfgd / "engine.base.json").write_text(json.dumps(raw))
     (cfgd / "engine.learner.json").write_text(json.dumps({"bot": "learner"}))
-    (cfgd / "engine.twin.json").write_text(json.dumps({"bot": "twin", "start_delay_s": 3.0}))
+    (cfgd / "engine.twin.json").write_text(json.dumps({"bot": "twin"}))
     return cfgd
 
 

@@ -254,6 +254,9 @@ def paket_dogrula(paket, tf: str = "1h") -> Paket:
     try:
         if tuple(paket["kanallar"]) != KANALLAR or paket["pencere"] != PENCERE:
             raise ValueError("kanal")
+        et = paket["etiket"]                   # 25.11: etiket tanimi canli sabitlerle ayni olmali (farkli etiketle egitilmis paket reddedilir)
+        if paket["ufuk"] != UFUK or paket["tf"] != tf or et["stop_atr"] != STOP_ATR or et["hedef_atr"] != HEDEF_ATR:
+            raise ValueError("bozuk")
         esik = paket["esik"]
         if isinstance(esik, bool) or not isinstance(esik, (int, float)) or not 0.0 < float(esik) < 1.0:
             raise ValueError("bozuk")

@@ -90,7 +90,6 @@ class EngineConfig:
     minute_wait_s: float
     reconcile_open_s: float
     reconcile_flat_s: float
-    start_delay_s: float
     var_dir: str
     market_db: str
     history_dir: str
@@ -155,7 +154,7 @@ class EngineConfig:
 _COST_KEYS = {f.name for f in dataclasses.fields(CostModel)}
 _TOP_KEYS = {f.name for f in dataclasses.fields(EngineConfig)}
 _NUM = ("wallet_start", "stale_factor", "loop_sleep_s", "bar_wait_s", "minute_wait_s",
-        "reconcile_open_s", "reconcile_flat_s", "start_delay_s")
+        "reconcile_open_s", "reconcile_flat_s")
 _STR = ("var_dir", "market_db", "history_dir", "kill_file")
 _OPTIONAL_KEYS = {"strategy", "target_trade_risk", "startup_wait_s", "pause_file",
                   "leverage", "live", "ladder_follow", "shadow_blocks", "mtm_marks",
@@ -420,7 +419,7 @@ def _build_live(raw: Any) -> LiveSettings:
         stop_deadline_s=_num("live.stop_deadline_s", raw.get("stop_deadline_s", d.stop_deadline_s), 5, 15),
         entry_resolve_window_s=_num("live.entry_resolve_window_s",
                                     raw.get("entry_resolve_window_s", d.entry_resolve_window_s), 0, 3600),
-        max_attempts=_int("live.max_attempts", raw.get("max_attempts", d.max_attempts), 1, 2),
+        max_attempts=_int("live.max_attempts", raw.get("max_attempts", d.max_attempts), 1, 1),   # 25.11: motor canlida 1'e sabit (DD-2 D10); 2 artik reddedilir
         order_quote=_bool("live.order_quote", raw.get("order_quote", d.order_quote)))
 
 
@@ -636,7 +635,7 @@ def _validate(raw: Mapping[str, Any]) -> EngineConfig:
         stale_factor=nums["stale_factor"], loop_sleep_s=nums["loop_sleep_s"],
         bar_wait_s=nums["bar_wait_s"], minute_wait_s=nums["minute_wait_s"],
         reconcile_open_s=nums["reconcile_open_s"], reconcile_flat_s=nums["reconcile_flat_s"],
-        start_delay_s=nums["start_delay_s"], strategy=strategy,
+        strategy=strategy,
         target_trade_risk=float(ttr),
         startup_wait_s=startup_wait, pause_file=pause_file, leverage=lev, live=live, ladder_follow=ladder_follow,
         shadow_blocks=shadow_blocks, mtm_marks=mtm_marks,

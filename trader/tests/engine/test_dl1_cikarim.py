@@ -287,3 +287,12 @@ def test_paket_gelecekten_damgali_erken_ve_yasi_simdi_zorunlu(tmp_path):
 def test_ufuk_canli_zaman_stopu_ile_ayni():
     from trader_core import signals
     assert DL.UFUK == signals.TIME_STOP_BARS
+
+
+@pytest.mark.parametrize("ek", [{"ufuk": 24}, {"tf": "4h"}, {"etiket": {"stop_atr": 2.0, "hedef_atr": 3.0}},
+                                {"etiket": {"stop_atr": 1.5, "hedef_atr": 4.0}}])
+def test_paket_etiket_ufuk_tf_uyusmazsa_reddedilir(tmp_path, ek):
+    """25.11 denetim #20: farkli etiket/ufuk/zaman dilimiyle egitilmis paket (ozeti dogru olsa bile) reddedilir."""
+    yol = S.yaz(tmp_path / "p.json", S.paket_sozlugu(T0 - timedelta(days=1), **ek))
+    p, neden = DL.paket_yukle(yol, T0)
+    assert p is None and neden in ("bozuk", "sema")   # tf uyusmazligi arm_id ile de yakalanir

@@ -1444,7 +1444,6 @@ AYRAC = "━━━━━━━━━━━━━━"
 KIP_TR = {"paper": "deneme parası", "testnet": "test ağı", "live": "GERÇEK PARA"}
 AY_TR = ("Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık")
 BOT_TR = {"learner": "ana bot"}
-GUNLUK_ZARAR_ORANI = 0.05                    # günlük zarar bütçesi (risk kilidiyle aynı %5)
 BUTCE_GOSTER_ORANI = 0.5                     # yapay zekâ bütçesi satırı: sınırın en az yarısı harcanınca görünür
 
 # Neden kodu -> düz Türkçe (duraklatma nedenleri + giriş kapısı kodları). Bilinmeyen kod ASLA ham yazılmaz.

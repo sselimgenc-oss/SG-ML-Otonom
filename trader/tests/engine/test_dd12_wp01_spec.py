@@ -52,7 +52,7 @@ COMMODITY4 = METAL | ENERJI
 CAPS = {"kripto_buyuk": 6, "kripto_diger": 9, "hisse": 8, "hisse_teknoloji": 5, "metal": 3, "enerji_sanayi": 3}   # 20 Kasim: kagit tavanlari gevsetildi
 
 PINNED_SHA = {
-    "engine.base.json": "2ccdf97d21842f2dc54f682e66d65762f7957a7615befd932fbad8c68f49325e",   # 24.11 kullanici karari: veto ve C1 artiklari silindi (veto_mode/veto_config kalkti);   # WP-06a: yalniz veto_config yolu; 24.11 kullanici karari: ML filtreleri silindi (ml_mode/ml_model_path kalkti)
+    "engine.base.json": "26f5664f630f44bf594eb58e4efa881b2e71890ecb6d11ec80ad9fe2b3b8b361",   # 25.11 kullanici karari: denetim kalan maddeler (start_delay_s kalkti); 24.11 kullanici karari: veto ve C1 artiklari silindi (veto_mode/veto_config kalkti);   # WP-06a: yalniz veto_config yolu; 24.11 kullanici karari: ML filtreleri silindi (ml_mode/ml_model_path kalkti)
     "engine.learner.json": "30ca2842c40cacafbf6cdd90c9e6f1f54fc62b9a9ec913476d1399ac5352cb12",
     "engine.testnet.json": "eff9eb61dcd9018bf86c195a02f7f25f08960473e705cbd114e104c26a956c9c",   # 24.11 kullanici karari: veto ve C1 artiklari silindi
     "engine.live.json": "b7e6ca631e84e688115b7561db28cb275b9db7fef1713739e64ebe3c604e0bcd",   # 24.11 kullanici karari: formasyon kutuphanesi birlesik (MF1 48 + GF1 52 + IN1 66 + PA2 29 + PA varyantlari 56 kol; max_positions 36)
@@ -66,7 +66,7 @@ LIVE_PAPER_SYSTEM_KEYS = {"pairs", "optional_pairs", "strategy", "arms", "arm_ma
                           "uzun_yon",   # 23.11 kullanici karari: fikir 7 uzun donem yon kapisi
                           "arm_family_max_positions",   # 24.11 kullanici karari: formasyon kutuphanesi (aile tavani)
                           "target_mode"}   # 24.11 kullanici karari: hedef bekleyen emir (kagitla ayni "resting"; taban dosya "bar_close" kalir)
-VETO_KEYS_REMOVED = {"veto_mode", "veto_config"}   # 24.11 kullanici karari: veto ve C1 artiklari silindi
+VETO_KEYS_REMOVED = {"veto_mode", "veto_config", "start_delay_s"}   # 24.11 kullanici karari: veto ve C1 artiklari silindi   # 25.11 kullanici karari: denetim kalan maddeler (start_delay_s kalkti)
 ML_KEYS_REMOVED = {"ml_mode", "ml_model_path", "ml_features", "ml_experimental", "ml_pairs"}   # 24.11 kullanici karari: ML filtreleri silindi
 UNIT_SHA = {
     "trader-engine-testnet.service": "2fa9d51bb0301cadc3339cbbaf9dc1b61dbbbdd3f52b79531fdbb3dd0d587413",   # 24.11 kullanici karari: veto ve C1 artiklari silindi (EnvironmentFile veto-hmac satiri kalkti)
@@ -198,6 +198,7 @@ def test_dt1_dt13_config_dosyalari_degismedi(name):
     if name == "engine.base.json":      # DD-12 WP-06a: config/veto.json -> config/veto.live.json (testnet/canli veto yapilandirmasi); baska fark yok
         head = head.replace(b'  "veto_mode": "required",\n', b"", 1).replace(b'"veto_config": "config/veto.json", "kill_file"', b'"kill_file"', 1)   # 24.11 kullanici karari: veto ve C1 artiklari silindi
         head = head.replace(b'  "ml_mode": "off",\n  "ml_model_path": null,\n', b"", 1)      # 24.11 kullanici karari: ML filtreleri silindi
+        head = head.replace(b'  "start_delay_s": 0.0,\n', b"", 1)      # 25.11 kullanici karari: denetim kalan maddeler (olu start_delay_s kalkti)
     if name in ("engine.testnet.json", "engine.live.json"):   # 22.11: kendi "pairs" satiri (kill_file'dan once); baska fark yok
         env = name.split(".")[1]
         head = head.replace(b'  "kill_file"', ENV_PAIRS_LINE[env] + b'  "kill_file"', 1)
