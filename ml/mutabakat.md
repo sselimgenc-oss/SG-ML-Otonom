@@ -1,23 +1,23 @@
 # İşlem mutabakatı
 
-Son kontrol: 2026-11-25 00:34 (TSİ). İşlem: 87 (kapanan 78, açık 9). Uyuşmazlık: 0.
+Son kontrol: 2026-11-25 02:21 (TSİ). İşlem: 88 (kapanan 79, açık 9). Uyuşmazlık: 0.
 
 ## Kontroller
 
 | Kontrol | Sonuç | Ayrıntı |
 |---|---|---|
-| Kasa = başlangıç + Σ net K/Z | geçti | Kasa 960,75 $ tutuyor |
-| Net K/Z: SQL toplamı = motor toplamı = brüt - komisyon - fonlama | geçti | Defter toplamları tutuyor (-43,15 $) |
+| Kasa = başlangıç + Σ net K/Z | geçti | Kasa 960,64 $ tutuyor |
+| Net K/Z: SQL toplamı = motor toplamı = brüt - komisyon - fonlama | geçti | Defter toplamları tutuyor (-40,52 $) |
 | Long toplamı (motor = panel) | geçti | Long işlemler panelle aynı (13 işlem) |
-| Short toplamı (motor = panel) | geçti | Short işlemler panelle aynı (65 işlem) |
-| Toplam kapanan (motor = panel 'tümü') | geçti | Kapanan işlemlerin toplamı panelle aynı (78 işlem) |
+| Short toplamı (motor = panel) | geçti | Short işlemler panelle aynı (66 işlem) |
+| Toplam kapanan (motor = panel 'tümü') | geçti | Kapanan işlemlerin toplamı panelle aynı (79 işlem) |
 | Açık pozisyon sayısı (motor = panel = şerit = durum) | geçti | 9 açık işlem, hepsi aynı |
-| Açık K/Z fiyat kaynağı (panel = motor mark) | geçti | Açık işlemlerin kâr/zararı panelle aynı; fiyat bekleniyor (piyasa kapalı/veri yok): #20, #39, #40, #104, #105, #107, #109, #110, #111 |
+| Açık K/Z fiyat kaynağı (panel = motor mark) | geçti | Açık işlemlerin kâr/zararı panelle aynı; fiyat bekleniyor (piyasa kapalı/veri yok): #20, #39, #40, #104, #105, #107, #109, #111, #112 |
 | Günlük zarar limiti oranı (panel = kâğıt ayarı) | geçti | Günlük zarar limiti %8,00 (panelle aynı) |
 
 ## Bilgi
 
-- Fiyatı gelmeyen açık işlemler: #20, #39, #40, #104, #105, #107, #109, #110, #111 · fiyat bekleniyor (piyasa kapalı/veri yok); uyuşmazlık sayılmaz
+- Fiyatı gelmeyen açık işlemler: #20, #39, #40, #104, #105, #107, #109, #111, #112 · fiyat bekleniyor (piyasa kapalı/veri yok); uyuşmazlık sayılmaz
 
 ## Telegram kaynağı
 
@@ -116,5 +116,6 @@ Yok.
 | 107 | Trend kırılımı · 15 dakika | XAU | short | açık | 2026-11-24 18:15 | — | 3.607,800000 | — | — | 0,3319 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
 | 108 | Sahte kırılım dönüşü · 15 dakika | TSLA | long | kapalı | 2026-11-24 19:45 | 2026-11-24 20:15 | 378,690000 | 382,140000 | 2,6910 | 0,2967 | 0,0000 | 2,3943 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 109 | Trend geri çekilmesi · 15 dakika | TRX | short | açık | 2026-11-24 20:00 | — | 0,307760 | — | — | 0,4610 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
-| 110 | İki bacaklı geri çekilme · 15 dakika | HBAR | short | açık | 2026-11-24 21:00 | — | 0,050390 | — | — | 0,1927 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
+| 110 | İki bacaklı geri çekilme · 15 dakika | HBAR | short | kapalı | 2026-11-24 21:00 | 2026-11-25 01:03 | 0,050390 | 0,049995 | 3,0210 | 0,3839 | 0,0000 | 2,6371 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 111 | Trend kırılımı · 4 saat | HD | long | açık | 2026-11-24 23:00 | — | 353,100000 | — | — | 0,1254 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
+| 112 | Yapay zekâ adayı · 15 dakika | XAG | short | açık | 2026-11-25 01:15 | — | 41,050000 | — | — | 0,2040 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
