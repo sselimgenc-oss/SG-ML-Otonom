@@ -55,7 +55,7 @@ PINNED_SHA = {
     "engine.base.json": "2ccdf97d21842f2dc54f682e66d65762f7957a7615befd932fbad8c68f49325e",   # 24.11 kullanici karari: veto ve C1 artiklari silindi (veto_mode/veto_config kalkti);   # WP-06a: yalniz veto_config yolu; 24.11 kullanici karari: ML filtreleri silindi (ml_mode/ml_model_path kalkti)
     "engine.learner.json": "30ca2842c40cacafbf6cdd90c9e6f1f54fc62b9a9ec913476d1399ac5352cb12",
     "engine.testnet.json": "eff9eb61dcd9018bf86c195a02f7f25f08960473e705cbd114e104c26a956c9c",   # 24.11 kullanici karari: veto ve C1 artiklari silindi
-    "engine.live.json": "41768b979537d499c2312b3783bc20e0de9de89600c4b1b406d69528c08389da",   # 24.11 kullanici karari: formasyon kutuphanesi (MF1 48 kol + aile tavani)
+    "engine.live.json": "e0b622bce192299dd03e8223559f06b57d96aa05490c5652cda79fc3b26c88a7",   # 24.11 kullanici karari: PA varyantlari (7 ana kol x 14 varyant x 4 ZD = 56 kol + aile/varyant tavani + H2-YARI exit_modes); onceki: formasyon kutuphanesi (MF1 48 kol)
     #   # 24.11 kullanici karari: veto ve C1 artiklari silindi (veto_mode, arm_max_positions L1 kalkti);   # 24.11 kullanici karari: DL1 dort zaman dilimi acik; onceki 24.11 ML filtreleri silindi
 }
 # 23.11 kullanici karari: canli = kagit. engine.live.json'a eklenen kagit sistem anahtarlari (+ pairs yerine kagit evreni).
@@ -260,8 +260,10 @@ def test_dt2_paper_44_cift_taban_10_ust_kumesi():
 def test_dt2_paper_golgeli_24_pozisyon():
     cfg = _paper()
     assert cfg.shadow_blocks == ("regime", "r1_disabled", "same_bar_reentry", "tf_15m")      # 19.11 (kagitta her sey acik): golge karar satirlari acik (karar yolunu etkilemez)
-    assert cfg.exit_modes == {"default": {"breakeven": {"trigger_r": 1.0, "offset_bps": cfg.exit_modes["default"]["breakeven"]["offset_bps"]},
-                              "partial": {"trigger_r": 1.5, "frac": 0.5}}}      # 19.11: cikis kipleri kagitta ACIK (spec varsayilanlari)
+    ob = cfg.exit_modes["default"]["breakeven"]["offset_bps"]
+    assert cfg.exit_modes == {"default": {"breakeven": {"trigger_r": 1.0, "offset_bps": ob}, "partial": {"trigger_r": 1.5, "frac": 0.5}},
+                              "H2-YARI": {"breakeven": {"trigger_r": 1.0, "offset_bps": ob},
+                                          "partial": {"trigger_r": 2.0, "frac": 0.5}}}   # 24.11 kullanici karari: PA varyantlari (H2-YARI kismi 2 R)      # 19.11: cikis kipleri kagitta ACIK (spec varsayilanlari)
     assert cfg.max_positions == 24
     assert cfg.target_trade_risk == 0.01                           # islem basi %1
 

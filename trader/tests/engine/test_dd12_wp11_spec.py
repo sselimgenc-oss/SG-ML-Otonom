@@ -327,7 +327,7 @@ def test_paper_config_uses_lab_with_arms_and_caps():
         assert isinstance(cap, dict) and cap
         for k, v in cap.items():
             setup = str(k).split("@")[0].upper()
-            assert v == {"M1": 4, "HB1": 3, "DL1": 4, "MF1-*": 3}.get(setup, 6), (k, v)  # 24.11 kullanici karari: formasyon kutuphanesi   # 20 Kasim: tavanlar 6 / 4; 23.11: HB1 3; 24.11: DL1 toplam 4
+            assert v == {"M1": 4, "HB1": 3, "DL1": 4, "MF1-*": 3, **{f"{a}-*": 3 for a in ("T1", "R1", "TF1", "B1", "H2", "S1", "F1")}}.get(setup, 6), (k, v)  # 24.11 kullanici karari: formasyon kutuphanesi   # 20 Kasim: tavanlar 6 / 4; 23.11: HB1 3; 24.11: DL1 toplam 4
         assert setup != "C1", k          # CT/ML ayriligi: C1 kolu kaldirildi
 
 

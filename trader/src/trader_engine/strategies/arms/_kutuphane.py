@@ -38,14 +38,25 @@ class Formasyon:
     zaman_stopu: int
     bul: Callable                  # bul(g: Gorunum) -> None | dict(stop, hedef, seviye, olcu, yas, etiket)
     cikis: Callable | None = None  # cikis(inp: ArmInput) -> bool | None (kural cikisi)
+    kip: str = "target"            # cikis kipi: "target" (hedef + zaman stopu) | "trail" (iz suren stop; hedef yok; ana kol trail ise)
 
 
 class Gorunum:
     """Long uzayinda (short icin aynalanmis) `t` anindaki goruntu. Dizilerin tamami verilir ama dedektor YALNIZ `<= t` okur."""
-    __slots__ = ("o", "h", "l", "c", "atr", "t")
+    __slots__ = ("o", "h", "l", "c", "atr", "t", "v", "yon", "ham")
 
-    def __init__(self, o, h, l, c, atr, t: int) -> None:
+    def __init__(self, o, h, l, c, atr, t: int, v=None, yon: str = "long", ham=None) -> None:
         self.o, self.h, self.l, self.c, self.atr, self.t = o, h, l, c, atr, t
+        self.v, self.yon, self.ham = v, yon, ham          # hacim (aynalanmaz), yon, ortak ham (ana kol / rejim erisimi)
+
+    def trend_ok(self) -> bool:
+        """`t` anindaki 4s rejimi bu yonun trendi mi (core tablosu; long trend_up, short trend_down)."""
+        return self.ham is not None and self.ham.rejim_t() == ("trend_up" if self.yon == "long" else "trend_down")
+
+    def ana(self, modul):
+        """Ana kolun (T1/R1/TF1/B1/H2/S1/F1) `t` mumundaki ayni yonlu, sinyal=True satiri g-uzayinda: dict(stop, hedef, satir) ya
+        da None. Ana kol hesabi cift x ZD x D basina bir kez (onbellek); ana kolun davranisi degismez."""
+        return self.ham.ana_satir(modul, self.yon) if self.ham is not None else None
 
     def dip(self, n: int, k: int = 0) -> float:
         """l[t-k-n+1 .. t-k] en kucugu (pencere `t-k` dahil)."""
@@ -54,9 +65,14 @@ class Gorunum:
 
 
 class _Ham:
-    __slots__ = ("o", "h", "l", "c", "atr", "ok", "gor", "bos")
+    __slots__ = ("o", "h", "l", "c", "atr", "ok", "gor", "bos", "v", "inp", "_reg", "_ana", "oz")
 
-    def __init__(self, trig) -> None:
+    def __init__(self, trig, inp=None) -> None:
+        self.inp = inp
+        self._reg = None
+        self._ana: dict = {}
+        self.oz: dict = {}                   # varyantlarin paylastigi ara hesaplar (EMA, ham tarama ...)
+        self.v = trig["volume"].to_numpy(dtype=float) if "volume" in trig.columns else np.full(len(trig), np.nan)
         self.o = trig["open"].to_numpy(dtype=float)
         self.h = trig["high"].to_numpy(dtype=float)
         self.l = trig["low"].to_numpy(dtype=float)
@@ -74,24 +90,51 @@ class _Ham:
         if g is None:
             t = len(self.c) - 1
             if side == "long":
-                g = Gorunum(self.o, self.h, self.l, self.c, self.atr, t)
+                g = Gorunum(self.o, self.h, self.l, self.c, self.atr, t, self.v, side, self)
             else:
-                g = Gorunum(-self.o, -self.l, -self.h, -self.c, self.atr, t)
+                g = Gorunum(-self.o, -self.l, -self.h, -self.c, self.atr, t, self.v, side, self)
             self.gor[side] = g
         return g
 
+    def rejim_t(self):
+        """Son mumun 4s rejimi (core tablosundan; ortak tabloyla ayni nedensel deger). Core yoksa None."""
+        if self._reg is None:
+            try:
+                self._reg = str(self.inp.core()["regime"].iloc[-1])
+            except Exception:  # noqa: BLE001
+                self._reg = ""
+        return self._reg or None
 
-_ONBELLEK: list = [None, None]               # [anahtar, _Ham]; tek girisli (cift x ZD x D)
+    def ana_satir(self, modul, yon: str):
+        """Ana kolun son mum satiri (`modul.compute(inp)`; ayni yonde ve signal=True ise): g-uzayinda dict ya da None."""
+        key = modul.SETUP
+        if key not in self._ana:
+            fr = modul.compute(self.inp)
+            self._ana[key] = fr.iloc[-1]
+        row = self._ana[key]
+        if row["setup"] != key or row["side"] != yon or not bool(row["signal"]):
+            return None
+        sg = P.SIGN[yon]
+        tgt = row["planned_target"]
+        return {"stop": sg * float(row["planned_stop"]), "hedef": None if not np.isfinite(tgt) else sg * float(tgt),
+                "satir": row}
+
+
+_ONBELLEK: dict = {}                         # anahtar -> _Ham; en cok _ONBELLEK_MAX giris (en eski atilir)
+_ONBELLEK_MAX = 96                           # PA varyantlari: ayni cift x ZD x D icin 100+ kol ham ve ana kol hesabini paylasir
 
 
 def ortak(inp: ArmInput) -> _Ham:
-    """Gosterge hazirligi cift x ZD x D basina BIR kez (tek girisli onbellek; anahtar cift, ZD, D, uzunluk, son indeks)."""
+    """Gosterge hazirligi cift x ZD x D basina BIR kez (onbellek; anahtar cift, ZD, D, uzunluk, son indeks)."""
     trig = inp.trig
     key = (inp.pair, inp.tf, inp.D, len(trig), trig.index[-1] if len(trig) else None)
-    if _ONBELLEK[0] == key and _ONBELLEK[1] is not None:
-        return _ONBELLEK[1]
-    ham = _Ham(trig)
-    _ONBELLEK[0], _ONBELLEK[1] = key, ham
+    ham = _ONBELLEK.get(key)
+    if ham is not None:
+        return ham
+    ham = _Ham(trig, inp)
+    _ONBELLEK[key] = ham
+    while len(_ONBELLEK) > _ONBELLEK_MAX:
+        _ONBELLEK.pop(next(iter(_ONBELLEK)))
     return ham
 
 
@@ -122,19 +165,20 @@ def hesapla(aile: str, formasyonlar: dict, kod: str, inp: ArmInput):
     stop = float(r["stop"])
     risk = entry - stop
     hedef = r.get("hedef")
-    hedef = entry + 2.0 * risk if hedef is None else float(hedef)
+    trail = f.kip == "trail"                 # iz suren stop kipi: hedef yok (ana kolun TF1/H2/S1/T1 yolu)
+    hedef = None if trail else (entry + 2.0 * risk if hedef is None else float(hedef))
     skip = None
     if not (risk > 0) or risk < MIN_STOP_ORAN * abs(entry):
         skip = "stop_width"
-    elif not (hedef > entry):
+    elif not trail and not (hedef > entry):
         skip = "rr_below_min"
     rng = float(g.h[t] - g.l[t])
     body = abs(float(g.c[t] - g.o[t])) / rng
     wick = (float(min(g.o[t], g.c[t]) - g.l[t])) / rng
     atr = float(ham.atr[t])
-    rr = (hedef - entry) / risk if risk > 0 else np.nan
+    rr = np.nan if trail else ((hedef - entry) / risk if risk > 0 else np.nan)
     tab.put(t, setup=setup, side=side, skip=skip, labels=[str(r.get("etiket", kod.lower()))], entry=s * entry, stop=s * stop,
-            target=s * hedef, rr=rr, sda=risk / atr, ema=s * float(r.get("seviye", stop)), body=body, wick=wick,
+            target=None if trail else s * hedef, rr=rr, sda=risk / atr, ema=s * float(r.get("seviye", stop)), body=body, wick=wick,
             edge=float(r.get("olcu", abs(risk))) / atr, pb=int(r.get("yas", 0)))
     return tab.frame()
 
@@ -151,8 +195,9 @@ def sanal_kurulumlar(mod) -> dict[str, SimpleNamespace]:
     out: dict[str, SimpleNamespace] = {}
     for kod, f in mod.FORMASYONLAR.items():
         setup = f"{mod.SETUP}-{kod}"
+        feats = {k: v for k, v in KUTUPHANE_FEATURES.items() if not (f.kip == "trail" and k == "rr")}
         out[setup] = SimpleNamespace(
-            SETUP=setup, TIMEFRAMES=tuple(f.tfs), CORE=False, EXIT_MODE="target", FEATURES=dict(KUTUPHANE_FEATURES),
+            SETUP=setup, TIMEFRAMES=tuple(f.tfs), CORE=False, EXIT_MODE=f.kip, FEATURES=feats,
             PRIORITY=int(mod.PRIORITY) + int(f.sira), TIME_STOP=int(f.zaman_stopu), EXIT_RULE=f.cikis,
             compute=partial(hesapla, mod.SETUP, mod.FORMASYONLAR, kod), FORMASYON=f, AILE=mod.SETUP)
     return out
