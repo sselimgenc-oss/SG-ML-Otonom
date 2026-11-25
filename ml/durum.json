@@ -4,10 +4,10 @@
  "mode": "paper",
  "pid": 122617,
  "started_at": "2026-11-25T04:03:31Z",
- "loop_at": "2026-11-25T07:00:22Z",
- "last_minute_ts": "2026-11-25T06:59:00Z",
- "last_decision_bar_close": "2026-11-25T06:45:00Z",
- "last_candle_open": "2026-11-25T06:30:00Z",
+ "loop_at": "2026-11-25T08:00:23Z",
+ "last_minute_ts": "2026-11-25T07:59:00Z",
+ "last_decision_bar_close": "2026-11-25T07:45:00Z",
+ "last_candle_open": "2026-11-25T07:30:00Z",
  "trigger_tf": "1h",
  "param_version_id": 3,
  "ayar_surumu": "335cf31a353ea36f35927eb62d264536f5c2bb33fcc41eb25e3a45455767485a",
@@ -25,8 +25,8 @@
  "entries_blocked_reason": null,
  "entries_blocked_reasons": [],
  "dry_run": true,
- "wallet": 949.8153924852584,
- "equity": 955.8194678358584,
+ "wallet": 950.9992734852583,
+ "equity": 967.6194608835783,
  "account_stale": false,
  "day_start_equity": 958.9082931668294,
  "open_positions": [
@@ -38,11 +38,11 @@
    "entry_price": 109.86,
    "stop": 120.79207954312925,
    "asset_class": "hisse",
-   "mark": 106.94,
-   "notional_usd": 98.3848,
-   "unrealized_pnl_usd": 2.6864000000000017,
-   "unrealized_pct": 2.6579282723466244,
-   "mark_ts": "2026-11-25T06:47:00Z",
+   "mark": 105.68,
+   "notional_usd": 97.22560000000001,
+   "unrealized_pnl_usd": 3.8455999999999935,
+   "unrealized_pct": 3.8048425268523505,
+   "mark_ts": "2026-11-25T07:47:00Z",
    "fee_paid_entry": 0.0505356,
    "funding_paid": -0.014003133424000001,
    "partial_realized_usd": 0.0,
@@ -56,11 +56,11 @@
    "entry_price": 540.83,
    "stop": 607.9888235436537,
    "asset_class": "kripto",
-   "mark": 543.84,
-   "notional_usd": 92.45280000000001,
-   "unrealized_pnl_usd": -0.5116999999999985,
-   "unrealized_pct": -0.5565519664219793,
-   "mark_ts": "2026-11-25T07:00:00Z",
+   "mark": 539.45,
+   "notional_usd": 91.70650000000002,
+   "unrealized_pnl_usd": 0.23459999999999925,
+   "unrealized_pct": 0.25516336002070805,
+   "mark_ts": "2026-11-25T08:00:00Z",
    "fee_paid_entry": 0.04597055000000001,
    "funding_paid": -0.004821834066,
    "partial_realized_usd": 0.0,
@@ -74,11 +74,11 @@
    "entry_price": 61.016,
    "stop": 69.7696565685986,
    "asset_class": "kripto",
-   "mark": 59.202,
-   "notional_usd": 78.14664,
-   "unrealized_pnl_usd": 2.39448,
-   "unrealized_pct": 2.972990690966304,
-   "mark_ts": "2026-11-25T07:00:00Z",
+   "mark": 58.501,
+   "notional_usd": 77.22132,
+   "unrealized_pnl_usd": 3.3198000000000008,
+   "unrealized_pct": 4.121869673528256,
+   "mark_ts": "2026-11-25T08:00:00Z",
    "fee_paid_entry": 0.040270560000000004,
    "funding_paid": -0.03755784456529565,
    "partial_realized_usd": 0.0,
@@ -90,13 +90,13 @@
    "side": "short",
    "qty": 46.0,
    "entry_price": 6.53,
-   "stop": 6.62029375795814,
+   "stop": 6.52,
    "asset_class": "kripto",
-   "mark": 6.506,
-   "notional_usd": 299.276,
-   "unrealized_pnl_usd": 1.104000000000001,
-   "unrealized_pct": 0.3675344563552836,
-   "mark_ts": "2026-11-25T07:00:00Z",
+   "mark": 6.455,
+   "notional_usd": 296.93,
+   "unrealized_pnl_usd": 3.450000000000008,
+   "unrealized_pct": 1.148545176110263,
+   "mark_ts": "2026-11-25T08:00:00Z",
    "fee_paid_entry": 0.15019,
    "funding_paid": 0.025043222479999995,
    "partial_realized_usd": 0.0,
@@ -110,11 +110,11 @@
    "entry_price": 197.08,
    "stop": 200.22109706136888,
    "asset_class": "kripto",
-   "mark": 197.53,
-   "notional_usd": 266.6655,
-   "unrealized_pnl_usd": -0.6074999999999847,
-   "unrealized_pct": -0.22833367160543364,
-   "mark_ts": "2026-11-25T07:00:00Z",
+   "mark": 196.02,
+   "notional_usd": 264.627,
+   "unrealized_pnl_usd": 1.4310000000000032,
+   "unrealized_pct": 0.5378526486705918,
+   "mark_ts": "2026-11-25T08:00:00Z",
    "fee_paid_entry": 0.13302900000000004,
    "funding_paid": 0.054291663473218926,
    "partial_realized_usd": 0.0,
@@ -128,11 +128,11 @@
    "entry_price": 353.1,
    "stop": 346.91014434163566,
    "asset_class": "hisse",
-   "mark": 353.26,
-   "notional_usd": 250.81459999999998,
-   "unrealized_pnl_usd": 0.1135999999999774,
-   "unrealized_pct": 0.045312942509195174,
-   "mark_ts": "2026-11-25T06:47:00Z",
+   "mark": 353.83,
+   "notional_usd": 251.21929999999998,
+   "unrealized_pnl_usd": 0.5182999999999726,
+   "unrealized_pct": 0.20674030019823317,
+   "mark_ts": "2026-11-25T07:47:00Z",
    "fee_paid_entry": 0.1253505,
    "funding_paid": 0.0,
    "partial_realized_usd": 0.0,
@@ -146,30 +146,12 @@
    "entry_price": 276.44,
    "stop": 281.1124389488516,
    "asset_class": "hisse",
-   "mark": 275.37,
-   "notional_usd": 261.6015,
-   "unrealized_pnl_usd": 1.0164999999999935,
-   "unrealized_pct": 0.38706410070901215,
-   "mark_ts": "2026-11-25T06:59:00Z",
+   "mark": 274.53,
+   "notional_usd": 260.8035,
+   "unrealized_pnl_usd": 1.8145000000000238,
+   "unrealized_pct": 0.6909275068731099,
+   "mark_ts": "2026-11-25T07:57:00Z",
    "fee_paid_entry": 0.131309,
-   "funding_paid": 0.0,
-   "partial_realized_usd": 0.0,
-   "partial_fee_usd": 0.0
-  },
-  {
-   "trade_id": 115,
-   "pair": "NFLX/USDT",
-   "side": "short",
-   "qty": 11.54,
-   "entry_price": 58.84,
-   "stop": 59.011785714285715,
-   "asset_class": "hisse",
-   "mark": 58.8,
-   "notional_usd": 678.5519999999999,
-   "unrealized_pnl_usd": 0.4616000000000721,
-   "unrealized_pct": 0.0679809653297183,
-   "mark_ts": "2026-11-25T06:47:00Z",
-   "fee_paid_entry": 0.3395068,
    "funding_paid": 0.0,
    "partial_realized_usd": 0.0,
    "partial_fee_usd": 0.0
@@ -180,21 +162,57 @@
    "side": "short",
    "qty": 0.78,
    "entry_price": 398.7,
-   "stop": 404.2597371151395,
+   "stop": 399.6,
    "asset_class": "hisse",
-   "mark": 399.56,
-   "notional_usd": 311.65680000000003,
-   "unrealized_pnl_usd": -0.6708000000000106,
-   "unrealized_pct": -0.2157010283421153,
-   "mark_ts": "2026-11-25T06:47:00Z",
+   "mark": 393.94,
+   "notional_usd": 307.27320000000003,
+   "unrealized_pnl_usd": 3.712799999999993,
+   "unrealized_pct": 1.1938801103586634,
+   "mark_ts": "2026-11-25T07:47:00Z",
    "fee_paid_entry": 0.155493,
+   "funding_paid": 0.0,
+   "partial_realized_usd": 0.0,
+   "partial_fee_usd": 0.0
+  },
+  {
+   "trade_id": 118,
+   "pair": "TSLA/USDT",
+   "side": "long",
+   "qty": 1.23,
+   "entry_price": 380.08,
+   "stop": 372.8601300838737,
+   "asset_class": "hisse",
+   "mark": 378.57,
+   "notional_usd": 465.6411,
+   "unrealized_pnl_usd": -1.8572999999999888,
+   "unrealized_pct": -0.3972847821511237,
+   "mark_ts": "2026-11-25T07:57:00Z",
+   "fee_paid_entry": 0.2337492,
+   "funding_paid": 0.0,
+   "partial_realized_usd": 0.0,
+   "partial_fee_usd": 0.0
+  },
+  {
+   "trade_id": 119,
+   "pair": "BTC/USDT",
+   "side": "short",
+   "qty": 0.007,
+   "entry_price": 58755.4,
+   "stop": 59262.88217838211,
+   "asset_class": "kripto",
+   "mark": 58715.3,
+   "notional_usd": 411.00710000000004,
+   "unrealized_pnl_usd": 0.28069999999998985,
+   "unrealized_pct": 0.068249046045127,
+   "mark_ts": "2026-11-25T08:00:00Z",
+   "fee_paid_entry": 0.20564390000000002,
    "funding_paid": 0.0,
    "partial_realized_usd": 0.0,
    "partial_fee_usd": 0.0
   }
  ],
- "unrealized_pnl_usd": 5.986580000000052,
- "mark_ts": "2026-11-25T07:00:00Z",
+ "unrealized_pnl_usd": 16.749999999999996,
+ "mark_ts": "2026-11-25T08:00:00Z",
  "open_trade_ids": [
   20,
   39,
@@ -203,8 +221,9 @@
   105,
   111,
   114,
-  115,
-  117
+  117,
+  118,
+  119
  ],
  "counters": {
   "rules_missing": 0,
@@ -214,31 +233,36 @@
   "ledger_errors": 0,
   "outbox_failed": 0,
   "unknown_orders": 0,
-  "mark_fallbacks": 4708,
-  "minute_gaps": 17198,
+  "mark_fallbacks": 4738,
+  "minute_gaps": 17431,
   "funding_missing": 0,
   "exit_data_gap": 0,
   "optional_waiting": 0,
-  "reconciles": 613,
-  "steps": 177,
-  "decisions": 11,
-  "trades_closed": 1,
-  "trades_opened": 1,
-  "arm_would_close": 45,
-  "uzun_yon_blok": 103,
-  "skip:uzun_yon": 103,
-  "skip:stop_width": 403,
-  "skip:risk_denied": 99,
-  "korelasyon_grubu_blok": 95,
-  "skip:korelasyon_grubu": 95,
-  "ignore:position_exists": 57,
-  "ignore:no_signal": 130,
-  "skip:arm_conflict": 8,
-  "skip:rr_below_min": 2,
-  "uzun_yon_veri_yok": 1,
+  "reconciles": 815,
+  "steps": 237,
+  "decisions": 15,
+  "trades_closed": 2,
+  "trades_opened": 3,
+  "target_placed": 1,
+  "target_fills": 1,
+  "be_moves_15m": 1,
+  "arm_would_close": 62,
+  "uzun_yon_blok": 131,
+  "skip:uzun_yon": 131,
+  "skip:stop_width": 605,
+  "skip:risk_denied": 154,
+  "korelasyon_grubu_blok": 147,
+  "skip:korelasyon_grubu": 147,
+  "ignore:position_exists": 83,
+  "ignore:no_signal": 157,
+  "skip:arm_conflict": 23,
+  "skip:rr_below_min": 5,
+  "uzun_yon_veri_yok": 3,
   "kol_kucultme:H2@15m": 1,
-  "enter": 1,
-  "shadow_reentry": 2,
+  "enter": 3,
+  "skip:cluster_cap": 12,
+  "kol_kucultme:TF1@15m": 1,
+  "shadow_reentry": 5,
   "rejects": 21,
   "duplicates": 0,
   "anomalies": 0
@@ -247,12 +271,12 @@
   "shadow": {
    "rows": 4,
    "errors": 0,
-   "budget_skips": 369,
+   "budget_skips": 507,
    "tf15_holdout_wait": 0,
-   "last_step_ms": 5463.8
+   "last_step_ms": 5028.4
   },
   "mtm": {
-   "rows": 11,
+   "rows": 15,
    "errors": 0
   },
   "exec": {
@@ -262,12 +286,12 @@
  },
  "cluster_counts": {
   "account": {
-   "open": 9,
+   "open": 10,
    "max": 36
   },
   "clusters": {
    "kripto_buyuk": {
-    "open": 1,
+    "open": 2,
     "max": 6
    },
    "kripto_diger": {
@@ -334,7 +358,7 @@
     "scope": "arm"
    },
    "TF1@15m": {
-    "open": 1,
+    "open": 2,
     "max": 6,
     "scope": "arm"
    },
@@ -434,22 +458,22 @@
     "scope": "arm"
    },
    "M1@1h": {
-    "open": 1,
+    "open": 0,
     "max": 4,
     "scope": "setup_total"
    },
    "M1@4h": {
-    "open": 1,
+    "open": 0,
     "max": 4,
     "scope": "setup_total"
    },
    "M1@15m": {
-    "open": 1,
+    "open": 0,
     "max": 4,
     "scope": "setup_total"
    },
    "M1@1d": {
-    "open": 1,
+    "open": 0,
     "max": 4,
     "scope": "setup_total"
    },
@@ -1484,7 +1508,7 @@
     "scope": "arm"
    },
    "IN1-RSI2@1h": {
-    "open": 0,
+    "open": 1,
     "max": 3,
     "scope": "arm"
    },
@@ -1772,7 +1796,7 @@
     "max": 6
    },
    "IN1": {
-    "open": 0,
+    "open": 1,
     "max": 6
    },
    "PA2": {
@@ -1805,9 +1829,9 @@
   "dep_net": 1000.0,
   "base": 1000.0,
   "peak": 1000.0,
-  "equity": 955.0645729682584,
-  "dd_base_pct": 4.4935427031741595,
-  "dd_peak_pct": 4.4935427031741595,
+  "equity": 966.8418651338584,
+  "dd_base_pct": 3.315813486614161,
+  "dd_peak_pct": 3.315813486614161,
   "stop_at": 800.0,
   "floor_at": 600.0,
   "near": false,
@@ -1823,68 +1847,68 @@
   "would": null,
   "follow": null,
   "counters": {
-   "total_trades": 3,
-   "step_trades": 3,
+   "total_trades": 4,
+   "step_trades": 4,
    "step_days": 0,
-   "step_mean_r": -0.8263995415510932,
-   "consec_losses": 3,
-   "last30_sum_r": -2.4791986246532796
+   "step_mean_r": -0.5084109647513959,
+   "consec_losses": 0,
+   "last30_sum_r": -2.0336438590055836
   }
  },
  "toplu_sok": {
   "uyari": true,
   "ortak": {
    "2": {
-    "usd": 46.75,
-    "kasa_yuzde": 4.8912
+    "usd": 50.47,
+    "kasa_yuzde": 5.2162
    },
    "5": {
-    "usd": 116.88,
-    "kasa_yuzde": 12.228
+    "usd": 126.18,
+    "kasa_yuzde": 13.0405
    },
    "10": {
-    "usd": 233.76,
-    "kasa_yuzde": 24.456
+    "usd": 252.37,
+    "kasa_yuzde": 26.0811
    },
    "20": {
-    "usd": 467.51,
-    "kasa_yuzde": 48.912
+    "usd": 504.73,
+    "kasa_yuzde": 52.1621
    }
   },
   "iliskili": {
    "2": {
-    "usd": 30.74,
-    "kasa_yuzde": 3.2162
+    "usd": 36.65,
+    "kasa_yuzde": 3.7878
    },
    "5": {
-    "usd": 76.85,
-    "kasa_yuzde": 8.0405
+    "usd": 91.63,
+    "kasa_yuzde": 9.4695
    },
    "10": {
-    "usd": 153.7,
-    "kasa_yuzde": 16.0809
+    "usd": 183.26,
+    "kasa_yuzde": 18.939
    },
    "20": {
-    "usd": 307.41,
-    "kasa_yuzde": 32.1618
+    "usd": 366.51,
+    "kasa_yuzde": 37.878
    }
   },
   "stop_dolumu": {
    "taban": {
-    "usd": 67.39,
-    "kasa_yuzde": 7.0501
+    "usd": 80.2,
+    "kasa_yuzde": 8.288
    },
    "stres_2x": {
-    "usd": 71.01,
-    "kasa_yuzde": 7.4297
+    "usd": 83.58,
+    "kasa_yuzde": 8.6373
    },
    "stopsuz": 0
   },
   "gunluk_limit": {
    "oran": 0.08,
    "kasa_yuzde": 8.0,
-   "usd": 76.47
+   "usd": 77.41
   },
-  "ts": "2026-11-25T07:00:22Z"
+  "ts": "2026-11-25T08:00:23Z"
  }
 }
