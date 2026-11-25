@@ -239,5 +239,6 @@ Kaynak: `dis-denetim/triyaj-2026-11-17.md` (mentor). Kullanıcı: "Cloudflare i�
   - #36: DL1 sağlık denetimi tüm dilimleri tarar, sorunlu dilim adı mesajda.
   - #14: çıkış kipleri belgesi canlıda uygulandığını söyler. #23: kullanılmayan `GUNLUK_ZARAR_ORANI` / `LIMIT_ORANI` silindi. #25: ölü `start_delay_s` ayarı kaldırıldı.
   - #16: ortak ayar dosyası yapılmadı; yerine kâğıt/canlı blok eşitliği testi (arms, arm_max_positions, arm_family_max_positions, clusters, risk, exit_modes, cost_overrides, max_positions). #15 bu testle kısmen korunur.
-  - #18 (max_pair_share): karar bekliyor. #28 ve #46: canlı emir/mutabakat davranışı, dokunulmadı.
+  - #18 (max_pair_share): 25.11 Fable karari ile 0,5 (asagida). #28 ve #46: canlı emir/mutabakat davranışı, dokunulmadı.
   - Bütçe/risk yüzünden yapılmadı: #17, #22, #31-#35, #37-#45 (temizlik/belge), #33 (karşı-olgu boşluk: açılış fiyatı boru hattı gerekir).
+  - 25.11 kullanıcı kararı: çift payı (Fable) — `config/lesson.json` `max_pair_share` 1,0 → 0,5 (denetim madde 18): ders kanıtının yarısından fazlası tek çiftten gelirse ders engellenir; tam yarısı geçer, küçük kollar gereksiz engellenmez.
