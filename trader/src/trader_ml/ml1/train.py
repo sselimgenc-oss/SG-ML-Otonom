@@ -23,19 +23,26 @@ MIN_FIT_ROWS = 50
 
 
 # ----------------------------------------------------------------------------------------------------------- hazirlik
-def prepare_labeled(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
-    """Etiketli satirlar (y, w) + sayimlar. censored satirlar etiketten dislanir, payi ayri raporlanir."""
-    d = df.copy()
-    status_ok = d["status"].eq("ok") if "status" in d.columns else pd.Series(True, index=d.index)
-    cens = pd.to_numeric(d["censored"], errors="coerce").fillna(0).astype(int) == 1 if "censored" in d.columns else pd.Series(False, index=d.index)
-    ok_rows = status_ok & d["r_net"].notna() & d["exit_ts"].notna()
-    lab = d[ok_rows & ~cens].copy()
+LAB_KEEP = ("decision_ts", "exit_ts", "pair", "tf", "group", "side", "arm_id", "event_id", "event_weight", "r_net", "status", "censored")
+
+
+def prepare_labeled(df: pd.DataFrame, keep: tuple[str, ...] | None = None) -> tuple[pd.DataFrame, dict]:
+    """Etiketli satirlar (y, w) + sayimlar. censored satirlar etiketten dislanir, payi ayri raporlanir.
+    `keep` verilirse yalniz bu sutunlar (+ y, w, `_src` = df'teki konum) kalir (bellek); tum tablo kopyalanmaz."""
+    n = len(df)
+    status_ok = df["status"].eq("ok").to_numpy() if "status" in df.columns else np.ones(n, bool)
+    cens = (pd.to_numeric(df["censored"], errors="coerce").fillna(0).astype(int) == 1).to_numpy() if "censored" in df.columns else np.zeros(n, bool)
+    ok_rows = status_ok & df["r_net"].notna().to_numpy() & df["exit_ts"].notna().to_numpy()
+    pos = np.flatnonzero(ok_rows & ~cens)
+    pos = pos[np.argsort(df["decision_ts"].to_numpy()[pos], kind="stable")]
+    cols = [c for c in (keep or df.columns) if c in df.columns]
+    lab = df[cols].iloc[pos].reset_index(drop=True)
+    lab["_src"] = pos
     lab["r_net"] = lab["r_net"].astype(float)
     lab["y"] = (lab["r_net"] > 0).astype(float)
     lab["w"] = lab["event_weight"].astype(float) if "event_weight" in lab.columns else 1.0
-    lab = lab.sort_values("decision_ts", kind="stable").reset_index(drop=True)
     n_ok = int(ok_rows.sum())
-    info = {"n_rows": len(d), "n_status_ok": n_ok, "n_censored": int((ok_rows & cens).sum()),
+    info = {"n_rows": n, "n_status_ok": n_ok, "n_censored": int((ok_rows & cens).sum()),
             "censored_share": float((ok_rows & cens).sum() / n_ok) if n_ok else 0.0, "n_labeled": len(lab)}
     return lab, info
 
@@ -70,18 +77,30 @@ def make_folds(dev: pd.DataFrame, hs: pd.Timestamp, test_months: int, min_train_
 
 
 # ----------------------------------------------------------------------------------------------------------- uydurma
-def _fit(df: pd.DataFrame, names: list[str], ridge: float) -> tuple[dict, np.ndarray, float]:
-    X = M.design_matrix(df, names)
-    st = M.fit_standardizer(X)
-    coef, b = M.fit_logistic(M.standardize(X, st), df["y"].to_numpy(float), df["w"].to_numpy(float), ridge)
+def _fit(df: pd.DataFrame, names: list[str], ridge: float, X: np.ndarray | None = None) -> tuple[dict, np.ndarray, float]:
+    """X verilirse (n_tum, k) onceden kurulmus matris; satirlar df['_row'] ile secilir (kopya yok, blok blok). Z float32 (bellek)."""
+    if X is None:
+        X, rows, dt = M.design_matrix(df, names), None, None
+    else:
+        rows, dt = df["_row"].to_numpy(), np.float32
+    st = M.fit_standardizer(X, rows)
+    Z = M.standardize(X, st, rows, dtype=dt)
+    coef, b = M.fit_logistic(Z, df["y"].to_numpy(float), df["w"].to_numpy(float), ridge)
     return st, coef, b
 
 
-def _predict(df: pd.DataFrame, names: list[str], st: dict, coef: np.ndarray, b: float) -> np.ndarray:
-    return M._sigmoid(M.standardize(M.design_matrix(df, names), st) @ coef + b)
+def _predict(df: pd.DataFrame, names: list[str], st: dict, coef: np.ndarray, b: float, X: np.ndarray | None = None) -> np.ndarray:
+    if X is None:
+        return M._sigmoid(M.standardize(M.design_matrix(df, names), st) @ coef + b)
+    rows = df["_row"].to_numpy()
+    out = np.empty(len(rows))
+    for i in range(0, len(rows), M.CHUNK):
+        out[i:i + M.CHUNK] = M._sigmoid(M.standardize(X, st, rows[i:i + M.CHUNK]) @ coef + b)
+    return out
 
 
-def choose_ridge(train: pd.DataFrame, names: list[str], embargo: pd.Timedelta, grid=RIDGE_GRID, inner_frac: float = 0.25) -> float:
+def choose_ridge(train: pd.DataFrame, names: list[str], embargo: pd.Timedelta, grid=RIDGE_GRID, inner_frac: float = 0.25,
+                 X: np.ndarray | None = None) -> float:
     """Ilk egitim katinda ic dogrulama (son `inner_frac` zaman; purge+embargo ile) agirlikli log-kayip en kucuk ridge."""
     vs = train["decision_ts"].quantile(1 - inner_frac)
     vs = pd.Timestamp(vs)
@@ -91,8 +110,8 @@ def choose_ridge(train: pd.DataFrame, names: list[str], embargo: pd.Timedelta, g
         return float(grid[len(grid) // 2])
     best, best_l = grid[0], np.inf
     for r in grid:
-        st, coef, b = _fit(tr, names, r)
-        loss = M.log_loss(_predict(va, names, st, coef, b), va["y"].to_numpy(float), va["w"].to_numpy(float))
+        st, coef, b = _fit(tr, names, r, X)
+        loss = M.log_loss(_predict(va, names, st, coef, b, X), va["y"].to_numpy(float), va["w"].to_numpy(float))
         if loss <= best_l:                                   # esitlikte buyuk ridge
             best, best_l = r, loss
     return float(best)
@@ -123,7 +142,14 @@ def run(df: pd.DataFrame, *, holdout_months: int = 3, test_months: int = 3, min_
     """`df`: build_features cikisi (ozellikler + event_id/event_weight + cikis sutunlari). Doner sonuc sozlugu (evaluate.build_report girdisi)."""
     names = names or M.feature_names()
     M.assert_no_leak(names)
-    lab, info = prepare_labeled(df)
+    lab, info = prepare_labeled(df, LAB_KEEP)
+    # tasarim matrisi YALNIZ etiketli satirlar icin, float32, blok blok kurulur (lab ile ayni sira; satir = lab['_row'])
+    X = np.empty((len(lab), len(names)), dtype=np.float32)
+    src = lab["_src"].to_numpy()
+    for i in range(0, len(lab), M.CHUNK):
+        X[i:i + M.CHUNK] = M.design_matrix(df.iloc[src[i:i + M.CHUNK]], names, dtype=np.float32)
+    lab = lab.drop(columns=["_src"])
+    lab["_row"] = np.arange(len(lab), dtype=np.int64)
     cfg = {"holdout_months": holdout_months, "test_months": test_months, "min_train_months": min_train_months, "min_trades": min_trades}
     empty = pd.DataFrame(columns=list(lab.columns) + ["p"])
     res = {"config": cfg, "oos": empty, "holdout": empty, "threshold": None, "ridge": None, "folds": [], "package": None,
@@ -143,10 +169,10 @@ def run(df: pd.DataFrame, *, holdout_months: int = 3, test_months: int = 3, min_
         if len(tr) < MIN_FIT_ROWS or tr["y"].nunique() < 2 or len(te) == 0:
             continue
         if ridge is None:                                    # ridge bir kez, ilk gecerli katin egitiminde
-            ridge = choose_ridge(tr, names, emb, ridge_grid)
-        st, coef, b = _fit(tr, names, ridge)
+            ridge = choose_ridge(tr, names, emb, ridge_grid, X=X)
+        st, coef, b = _fit(tr, names, ridge, X)
         t2 = te.copy()
-        t2["p"] = _predict(te, names, st, coef, b)
+        t2["p"] = _predict(te, names, st, coef, b, X)
         parts.append(t2)
         finfo.append({"test_start": str(s), "test_end": str(e), "n_train": len(tr), "n_test": len(te)})
     res["folds"] = finfo
@@ -157,9 +183,9 @@ def run(df: pd.DataFrame, *, holdout_months: int = 3, test_months: int = 3, min_
     thr, note = choose_threshold(oos, min_trades)
     # son model: tum dev (holdout'a gore purge+embargo; dev zaten exit_ts < hs) ile ayni (sabit) ridge
     final_tr = dev[train_mask(dev, hs, emb)]
-    st, coef, b = _fit(final_tr, names, ridge)
+    st, coef, b = _fit(final_tr, names, ridge, X)
     h2 = hold.copy()
-    h2["p"] = _predict(hold, names, st, coef, b) if len(hold) else np.array([])
+    h2["p"] = _predict(hold, names, st, coef, b, X) if len(hold) else np.array([])
     res.update({"oos": oos, "holdout": h2, "threshold": thr, "threshold_note": note, "ridge": ridge})
     rep = EV.build_report(res)
     metrics = {"oos_ml": rep["oos"].get("ml"), "oos_baseline_first": rep["oos"].get("baseline_first_per_event"),

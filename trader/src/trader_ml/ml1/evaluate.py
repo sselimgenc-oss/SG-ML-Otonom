@@ -46,7 +46,7 @@ def breakdown(df: pd.DataFrame, by: str) -> list[dict]:
         return []
     key = df["decision_ts"].dt.year if by == "year" else df[by]
     out = []
-    for k, sub in df.groupby(key, sort=True):
+    for k, sub in df.groupby(key, sort=True, observed=True):
         out.append({by: str(k), **summarize(sub)})
     return out
 

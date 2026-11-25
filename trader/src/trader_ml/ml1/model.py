@@ -46,8 +46,8 @@ def assert_no_leak(names: list[str]) -> None:
             raise ValueError(f"yasakli ozellik: {n}")
 
 
-def design_matrix(df: pd.DataFrame, names: list[str] | None = None) -> np.ndarray:
-    """Ham aday satirlari -> (n, k) float matris (NaN korunur). Eksik ham sutun (pa_/reg_/vol_) NaN sayilir."""
+def design_matrix(df: pd.DataFrame, names: list[str] | None = None, dtype=float) -> np.ndarray:
+    """Ham aday satirlari -> (n, k) matris (NaN korunur; dtype=np.float32 buyuk tabloda bellegi yariya indirir). Eksik ham sutun NaN sayilir."""
     names = names or feature_names()
     assert_no_leak(names)
     n = len(df)
@@ -71,7 +71,7 @@ def design_matrix(df: pd.DataFrame, names: list[str] | None = None) -> np.ndarra
         cols["grp_" + g] = (grp == g).astype(float)
     for t in TFS:
         cols["tf_" + t] = (tf == t).astype(float)
-    out = np.empty((n, len(names)))
+    out = np.empty((n, len(names)), dtype=dtype)
     for j, nm in enumerate(names):
         out[:, j] = cols[nm] if nm in cols else raw(nm)
     out[~np.isfinite(out)] = np.nan
@@ -83,41 +83,82 @@ def _sigmoid(z: np.ndarray) -> np.ndarray:
     return 1.0 / (1.0 + np.exp(-np.clip(z, -35, 35)))
 
 
-def fit_standardizer(X: np.ndarray) -> dict:
-    """Yalniz egitim kati: fill (nan-ortalama), mean, std (fill sonrasi)."""
+CHUNK = 262_144                                           # satir blogu: float64 gecici ~ CHUNK*k*8 bayt
+
+
+def _blocks(X: np.ndarray, rows: np.ndarray | None, chunk: int):
+    n = len(X) if rows is None else len(rows)
+    for i in range(0, n, chunk):
+        yield X[i:i + chunk] if rows is None else X[rows[i:i + chunk]]
+
+
+def fit_standardizer(X: np.ndarray, rows: np.ndarray | None = None, chunk: int = CHUNK) -> dict:
+    """Yalniz egitim kati: fill (nan-ortalama), mean, std (fill sonrasi). `rows` verilirse X[rows] uzerinde, blok blok (X'in kopyasi yok)."""
     k = X.shape[1]
-    ok = np.isfinite(X)
-    cnt = ok.sum(axis=0)
-    fill = np.where(cnt > 0, np.where(ok, X, 0.0).sum(axis=0) / np.maximum(cnt, 1), 0.0)
-    Xf = np.where(ok, X, fill)
-    mean = Xf.mean(axis=0) if len(X) else np.zeros(k)
-    std = Xf.std(axis=0) if len(X) else np.ones(k)
+    n = len(X) if rows is None else len(rows)
+    cnt = np.zeros(k)
+    s1 = np.zeros(k)
+    for B in _blocks(X, rows, chunk):
+        ok = np.isfinite(B)
+        cnt += ok.sum(axis=0)
+        s1 += np.where(ok, B, 0.0).sum(axis=0, dtype=float)
+    fill = np.where(cnt > 0, s1 / np.maximum(cnt, 1), 0.0)
+    if n == 0:
+        return {"fill": fill, "mean": np.zeros(k), "std": np.ones(k)}
+    sm = np.zeros(k)
+    for B in _blocks(X, rows, chunk):
+        sm += np.where(np.isfinite(B), B, fill).sum(axis=0, dtype=float)
+    mean = sm / n
+    sq = np.zeros(k)
+    for B in _blocks(X, rows, chunk):
+        sq += ((np.where(np.isfinite(B), B, fill) - mean) ** 2).sum(axis=0, dtype=float)
+    std = np.sqrt(sq / n)
     std = np.where(std < 1e-12, 1.0, std)
     return {"fill": fill, "mean": mean, "std": std}
 
 
-def standardize(X: np.ndarray, st: dict) -> np.ndarray:
-    Xf = np.where(np.isfinite(X), X, np.asarray(st["fill"], float))
-    return (Xf - np.asarray(st["mean"], float)) / np.asarray(st["std"], float)
+def standardize(X: np.ndarray, st: dict, rows: np.ndarray | None = None, dtype=None, chunk: int = CHUNK) -> np.ndarray:
+    """Standartlastirir. `rows`/`dtype` verilirse blok blok X[rows] -> (len(rows), k) `dtype` (ornek float32) cikti."""
+    fill, mean, std = (np.asarray(st[k], float) for k in ("fill", "mean", "std"))
+    if rows is None and dtype is None:
+        Xf = np.where(np.isfinite(X), X, fill)
+        return (Xf - mean) / std
+    n = len(X) if rows is None else len(rows)
+    out = np.empty((n, X.shape[1]), dtype=dtype or float)
+    i = 0
+    for B in _blocks(X, rows, chunk):
+        out[i:i + len(B)] = (np.where(np.isfinite(B), B, fill) - mean) / std
+        i += len(B)
+    return out
 
 
-def fit_logistic(Z: np.ndarray, y: np.ndarray, w: np.ndarray | None, ridge: float, iters: int = 50) -> tuple[np.ndarray, float]:
-    """Agirlikli ridge lojistik (Newton/IRLS; kesisim cezasiz). Z standartlasmis. Doner (coef, intercept)."""
+def fit_logistic(Z: np.ndarray, y: np.ndarray, w: np.ndarray | None, ridge: float, iters: int = 50, chunk: int = CHUNK) -> tuple[np.ndarray, float]:
+    """Agirlikli ridge lojistik (Newton/IRLS; kesisim cezasiz). Z standartlasmis (float32 olabilir). g ve H blok blok biriktirilir
+    (float64 birikim; bellek ~ chunk*k). Doner (coef, intercept)."""
     n, k = Z.shape
     w = np.ones(n) if w is None else np.asarray(w, float)
     sw = w.sum()
     if n == 0 or sw <= 0:
         return np.zeros(k), 0.0
     w = w * (n / sw)                                       # ortalama agirlik 1: ridge olcegi n'e bagli kalmaz
-    A = np.hstack([Z, np.ones((n, 1))])
+    y = np.asarray(y, float)
     ybar = float((w * y).sum() / w.sum())
     beta = np.zeros(k + 1)
     beta[-1] = np.log((ybar + 1e-3) / (1 - ybar + 1e-3))
     P = np.diag(np.r_[np.full(k, ridge), 0.0])
+    A = np.empty((min(chunk, n), k + 1))
+    A[:, -1] = 1.0
     for _ in range(iters):
-        p = _sigmoid(A @ beta)
-        g = A.T @ (w * (p - y)) + P @ beta
-        H = (A * (w * p * (1 - p))[:, None]).T @ A + P + 1e-9 * np.eye(k + 1)
+        g = P @ beta
+        H = P + 1e-9 * np.eye(k + 1)
+        for i in range(0, n, chunk):
+            j = min(i + chunk, n)
+            Ab = A[:j - i]
+            Ab[:, :k] = Z[i:j]
+            p = _sigmoid(Ab @ beta)
+            wb = w[i:j]
+            g += Ab.T @ (wb * (p - y[i:j]))
+            H += (Ab * (wb * p * (1 - p))[:, None]).T @ Ab
         step = np.linalg.solve(H, g)
         beta -= step
         if np.max(np.abs(step)) < 1e-7:

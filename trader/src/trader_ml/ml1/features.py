@@ -169,3 +169,104 @@ def build_features(c: pd.DataFrame, lookup: BarsLookup | None = None, k: int = K
     if with_events:
         parts.append(events(c, k))
     return pd.concat(parts, axis=1)
+
+
+# ----------------------------------------------------------------------------------------------------------- bellek-dostu yol
+# Tam tabloda (milyonlarca satir) build_features OOM yapar: cift+tf parcalari halinde kurup yalniz gerekli sutunlari (izin listesi
+# ozellikleri + etiket/olay/degerlendirme sutunlari) float32/category olarak tutariz. Yontem (etiket, olay, konfluans) AYNI;
+# konfluans/olay cift basina hesaplanir (zaten cift icinde: anahtar pair|side|tf).
+ID_COLS = ("decision_ts", "exit_ts", "pair", "tf", "group", "side", "arm_id", "event_id", "event_weight", "r_net", "status", "censored")
+RAW_FOR_DESIGN = ("entry_ref", "stop", "target", "stop_dist_atr")          # model.design_matrix bunlardan stop/hedef turetir (float64 kalir)
+CAT_COLS = ("pair", "tf", "group", "side", "arm_id", "status")
+
+
+def feature_columns() -> list[str]:
+    """Izin listesindeki HAM sutunlar (design_matrix'in dogrudan okudugu pa_/reg_/vol_/conf_)."""
+    from . import model as M
+    return ["pa_" + x for x in PF.FEATURE_NAMES] + list(M.REG_COLS) + list(M.VOL_COLS) + list(M.CONF_COLS)
+
+
+def slim(df: pd.DataFrame, event_offset: int = 0) -> tuple[pd.DataFrame, int]:
+    """build_features cikisindan yalniz gerekli sutunlari birakir: ozellikler float32, event_id int64 (offset'li; pair|side|tf anahtari
+    cift icinde oldugundan eslesme/bolunme bozulmaz). Doner (slim_df, kullanilan_event_sayisi)."""
+    out = pd.DataFrame(index=df.index)
+    for c in ID_COLS:
+        if c in df.columns and c != "event_id":
+            out[c] = df[c]
+    if "event_id" in df.columns:
+        codes, uniq = pd.factorize(df["event_id"])
+        out["event_id"] = codes.astype(np.int64) + event_offset
+        n_ev = len(uniq)
+    else:
+        n_ev = 0
+    for c in RAW_FOR_DESIGN:
+        if c in df.columns:
+            out[c] = df[c].astype("float64")
+    for c in feature_columns():
+        if c in df.columns:
+            out[c] = df[c].astype("float32")
+    return out, n_ev
+
+
+def build_features_chunked(chunks, lookup_factory: Callable[[str], "BarsLookup | None"] | None = None, k: int = K_BARS,
+                           sink: Callable[[str, pd.DataFrame], None] | None = None) -> pd.DataFrame | None:
+    """`chunks`: cift basina aday tablolari (her biri TEK cift, tum tf'ler; konfluans icin gerekli). `lookup_factory(pair)` o cifte ait
+    mum arama fonksiyonunu verir (fonksiyon birakilinca mumlar serbest kalir). Her parca build_features -> slim. `sink(pair, slim_df)`
+    verilirse parcalar oraya yazilir ve None doner; yoksa birlestirilmis slim tablo doner (indeks sifirlanir)."""
+    parts, off = [], 0
+    for c in chunks:
+        if len(c) == 0:
+            continue
+        pairs = c["pair"].unique()
+        assert len(pairs) == 1, "chunk tek cift icermeli"
+        lk = lookup_factory(str(pairs[0])) if lookup_factory is not None else None
+        f = build_features(c, lk, k)
+        del lk
+        s, n_ev = slim(f, off)
+        off += n_ev
+        if sink is not None:
+            sink(str(pairs[0]), s)
+        else:
+            parts.append(s)
+    if sink is not None or not parts:
+        return None
+    return pd.concat(parts, ignore_index=True)
+
+
+def assemble(parts: list[pd.DataFrame]) -> pd.DataFrame:
+    """Cift basina slim tablolari tek tabloya birlestirir (sutun sutun; gecici bellek ~1 sutun), CAT_COLS category (kategoriler siralidir),
+    satirlar (decision_ts, arm_id, pair) sirasina dizilir (CandidateTable.read ile ayni sira -> egitimde esit-zaman sirasi ayni)."""
+    parts = [p for p in parts if len(p)]
+    if not parts:
+        return pd.DataFrame()
+    cols = list(parts[0].columns)
+    cats: dict[str, pd.Index] = {}
+    codes: dict[str, np.ndarray] = {}
+    for c in CAT_COLS:
+        if c not in cols:
+            continue
+        uniq = pd.Index(sorted({str(x) for p in parts for x in pd.unique(p[c].astype(object)) if pd.notna(x)}))
+        cats[c] = uniq
+        codes[c] = np.concatenate([uniq.get_indexer(p[c].astype(object).astype(str).where(p[c].notna(), None)) for p in parts]).astype(np.int32)
+    ts = np.concatenate([_ns(p["decision_ts"]) for p in parts])
+    order = np.lexsort(tuple(codes[c] for c in ("pair", "arm_id") if c in codes) + (ts,))      # son anahtar = birincil
+    out: dict[str, object] = {}
+    for c in cols:
+        if c in cats:
+            out[c] = pd.Categorical.from_codes(codes[c][order], categories=cats[c])
+        elif isinstance(parts[0][c].dtype, pd.DatetimeTZDtype):
+            out[c] = pd.concat([p[c] for p in parts], ignore_index=True).iloc[order].reset_index(drop=True)
+        else:
+            out[c] = np.concatenate([p[c].to_numpy() for p in parts])[order]
+    return pd.DataFrame(out)
+
+
+def cache_meta(table_dir, hist_dir, k: int = K_BARS) -> dict:
+    """Onbellek gecerlilik anahtari: tablo manifesti (kol/cikis hash + satir sayilari), hist dizini, konfluans penceresi."""
+    import json
+    from pathlib import Path
+    mp = Path(table_dir) / "manifest.json"
+    m = json.loads(mp.read_text(encoding="utf-8")) if mp.exists() else {}
+    return {"arms_hash": m.get("arms_hash"), "exit_hash": m.get("exit_hash"),
+            "n_rows": {p: v.get("n_rows") for p, v in sorted(m.get("pairs", {}).items())},
+            "hist_dir": None if hist_dir is None else str(hist_dir), "k": k, "v": 2}

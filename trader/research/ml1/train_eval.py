@@ -8,6 +8,7 @@ Ciktilar: <out>/ml1_report.md, ml1_report.json, ml1_package.json."""
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -24,19 +25,65 @@ from trader_ml.ml1 import train as TR
 from trader_ml.ml1.table import CandidateTable
 
 
-def load_features(table_dir: str, hist_dir: str | None) -> pd.DataFrame:
-    c = CandidateTable(table_dir).read()
-    if len(c) == 0:
-        return c
-    lookup = None
-    if hist_dir:
+def _lookup_factory(hist_dir: str | None):
+    """Cift basina mum arama fonksiyonu (cift bitince mumlar serbest kalir)."""
+    if not hist_dir:
+        return None
+
+    def factory(pair: str):
         cache: dict = {}
 
-        def lookup(pair: str, tf: str):
-            if (pair, tf) not in cache:
-                cache[(pair, tf)] = D.load_pair_tf(hist_dir, pair, tf)
-            return cache[(pair, tf)]
-    return FE.build_features(c, lookup)
+        def lookup(p: str, tf: str):
+            if (p, tf) not in cache:
+                cache[(p, tf)] = D.load_pair_tf(hist_dir, p, tf)
+            return cache[(p, tf)]
+        return lookup
+    return factory
+
+
+def load_features(table_dir: str, hist_dir: str | None, feat_dir: str | None = None) -> pd.DataFrame:
+    """Bellek-dostu ozellik kurulumu: cift (tum tf) basina kur -> slim (float32) -> `feat_dir`'e parquet (yeniden calistirmada atlanir)."""
+    ct = CandidateTable(table_dir)
+    names = sorted({p.parent.parent.name[5:] for p in ct.files()})
+    if not names:
+        return pd.DataFrame()
+    factory = _lookup_factory(hist_dir)
+    fd = Path(feat_dir) if feat_dir else None
+    key = FE.cache_meta(table_dir, hist_dir)
+    done: set[str] = set()
+    if fd is not None:
+        fd.mkdir(parents=True, exist_ok=True)
+        mp = fd / "meta.json"
+        old = json.loads(mp.read_text(encoding="utf-8")) if mp.exists() else {}
+        if old.get("key") == key:
+            done = {n for n in old.get("done", []) if (fd / f"{n}.parquet").exists()}
+        else:
+            for f in fd.glob("*.parquet"):
+                f.unlink()
+    parts: list[pd.DataFrame] = []
+    for i, n in enumerate(names):
+        if n in done:
+            print(f"[ozellik] {n}: onbellekten", flush=True)
+            continue
+        c = ct.read(pairs=[n])
+        pair = str(c["pair"].iloc[0]) if len(c) else n
+        # event_id cifte ozgu (anahtar pair|side|tf); cifter arasi benzersiz kalsin diye deterministik offset (cift sirasi * 1e9)
+        s = FE.build_features_chunked([c], factory)
+        del c
+        if hist_dir:
+            D.kaynak(hist_dir)._cache.clear()
+        s["event_id"] = s["event_id"] + i * 1_000_000_000
+        if fd is not None:
+            s.to_parquet(fd / f"{n}.parquet", index=False)
+            done.add(n)
+            (fd / "meta.json").write_text(json.dumps({"key": key, "done": sorted(done)}), encoding="utf-8")
+        else:
+            parts.append(s)
+        print(f"[ozellik] {n}: {len(s)} satir", flush=True)
+        del s
+    if fd is not None:
+        parts = [pd.read_parquet(fd / f"{n}.parquet") for n in names]
+    return FE.assemble(parts)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -44,12 +91,13 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--table", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--hist-dir", default=None)
+    ap.add_argument("--feat-dir", default=None, help="ozellik onbellegi (cift basina parquet); varsa ozellik kurulumu atlanir")
     ap.add_argument("--holdout-months", type=int, default=3)
     ap.add_argument("--test-months", type=int, default=3)
     ap.add_argument("--min-train-months", type=int, default=6)
     ap.add_argument("--min-trades", type=int, default=200)
     a = ap.parse_args(argv)
-    df = load_features(a.table, a.hist_dir)
+    df = load_features(a.table, a.hist_dir, a.feat_dir)
     if len(df) == 0:
         print("tablo bos")
         return 1
