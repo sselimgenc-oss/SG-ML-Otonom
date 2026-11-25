@@ -1,23 +1,19 @@
 # İşlem mutabakatı
 
-Son kontrol: 2026-11-25 07:40 (TSİ). İşlem: 92 (kapanan 83, açık 9). Uyuşmazlık: 0.
+Son kontrol: 2026-11-25 16:33 (TSİ). İşlem: 99 (kapanan 87, açık 12). Uyuşmazlık: 0.
 
 ## Kontroller
 
 | Kontrol | Sonuç | Ayrıntı |
 |---|---|---|
-| Kasa = başlangıç + Σ net K/Z | geçti | Kasa 954,50 $ tutuyor |
-| Net K/Z: SQL toplamı = motor toplamı = brüt - komisyon - fonlama | geçti | Defter toplamları tutuyor (-44,20 $) |
+| Kasa = başlangıç + Σ net K/Z | atlandı | Durum dosyası canlı değil; kasa kontrolü atlandı |
+| Net K/Z: SQL toplamı = motor toplamı = brüt - komisyon - fonlama | geçti | Defter toplamları tutuyor (-52,16 $) |
 | Long toplamı (motor = panel) | geçti | Long işlemler panelle aynı (13 işlem) |
-| Short toplamı (motor = panel) | geçti | Short işlemler panelle aynı (70 işlem) |
-| Toplam kapanan (motor = panel 'tümü') | geçti | Kapanan işlemlerin toplamı panelle aynı (83 işlem) |
-| Açık pozisyon sayısı (motor = panel = şerit = durum) | geçti | 9 açık işlem, hepsi aynı |
-| Açık K/Z fiyat kaynağı (panel = motor mark) | geçti | Açık işlemlerin kâr/zararı panelle aynı |
+| Short toplamı (motor = panel) | geçti | Short işlemler panelle aynı (74 işlem) |
+| Toplam kapanan (motor = panel 'tümü') | geçti | Kapanan işlemlerin toplamı panelle aynı (87 işlem) |
+| Açık pozisyon sayısı (motor = panel = şerit = durum) | geçti | 12 açık işlem, hepsi aynı |
+| Açık K/Z fiyat kaynağı (panel = motor mark) | atlandı | Durum dosyası canlı değil; kontrol atlandı |
 | Günlük zarar limiti oranı (panel = kâğıt ayarı) | geçti | Günlük zarar limiti %8,00 (panelle aynı) |
-
-## Bilgi
-
-- Açık işlemlerin anlık kâr/zararı: kasada +5,37 $, panelde +5,70 $ · fark 0,34 $ (fiyat zamanlaması, uyuşmazlık sayılmaz)
 
 ## Telegram kaynağı
 
@@ -121,5 +117,12 @@ Yok.
 | 112 | Yapay zekâ adayı · 15 dakika | XAG | short | kapalı | 2026-11-25 01:15 | 2026-11-25 05:15 | 41,050000 | 41,440000 | -3,8762 | 0,4099 | -0,0806 | -4,2056 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 113 | İki bacaklı geri çekilme · 15 dakika | DOT | short | kapalı | 2026-11-25 02:45 | 2026-11-25 06:12 | 0,651000 | 0,650400 | 0,4084 | 0,4429 | 0,0676 | -0,1021 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 114 | Sıkışma kırılımı · 1 saat | GOOGL | short | açık | 2026-11-25 06:00 | — | 276,440000 | — | — | 0,1313 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
-| 115 | Yapay zekâ adayı · 15 dakika | NFLX | short | açık | 2026-11-25 06:30 | — | 58,840000 | — | — | 0,3395 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
-| 116 | İki bacaklı geri çekilme · 15 dakika | HBAR | short | açık | 2026-11-25 06:45 | — | 0,050030 | — | — | 0,2605 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
+| 115 | Yapay zekâ adayı · 15 dakika | NFLX | short | kapalı | 2026-11-25 06:30 | 2026-11-25 10:30 | 58,840000 | 58,670000 | 1,9618 | 0,6780 | 0,0000 | 1,2838 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
+| 116 | İki bacaklı geri çekilme · 15 dakika | HBAR | short | kapalı | 2026-11-25 06:45 | 2026-11-25 09:36 | 0,050030 | 0,050440 | -4,2693 | 0,5231 | 0,0000 | -4,7924 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
+| 117 | İki bacaklı geri çekilme · 15 dakika | AMD | short | kapalı | 2026-11-25 09:45 | 2026-11-25 11:01 | 398,700000 | 398,700000 | 0,0000 | 0,3110 | 0,0000 | -0,3110 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
+| 118 | Gösterge: RSI(2) dip · 1 saat | TSLA | long | açık | 2026-11-25 10:00 | — | 380,080000 | — | — | 0,2337 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
+| 119 | Trend kırılımı · 15 dakika | BTC | short | kapalı | 2026-11-25 10:45 | 2026-11-25 11:31 | 58.755,400000 | 59.292,500000 | -3,7597 | 0,4132 | -0,0297 | -4,1432 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
+| 120 | Grafik: üçlü dip · 15 dakika | V | long | açık | 2026-11-25 11:15 | — | 417,770000 | — | — | 0,1901 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
+| 121 | Grafik: üçlü dip · 1 saat | BRKB | long | açık | 2026-11-25 12:00 | — | 581,580000 | — | — | 0,1861 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
+| 122 | Yapay zekâ adayı · 1 saat | NVDA | short | açık | 2026-11-25 12:00 | — | 149,880000 | — | — | 0,1064 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
+| 123 | Sıkışma kırılımı · 4 saat | PLTR | short | açık | 2026-11-25 15:00 | — | 153,960000 | — | — | 0,0354 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
