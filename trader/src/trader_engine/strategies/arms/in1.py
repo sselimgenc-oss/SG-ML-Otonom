@@ -270,6 +270,7 @@ def _kural(fn):
     def cikis(inp: ArmInput):
         g = _cikis_gorunum(inp)
         return bool(fn(g, g.t))
+    cikis.fn = fn                           # ML1: kural fonksiyonu disaridan okunabilsin (davranis ayni)
     return cikis
 
 
