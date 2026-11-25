@@ -601,13 +601,14 @@ def shadow_outcomes(path, bot: str, *, now: datetime, days: int | None = None, m
 
 
 # ------------------------------------------------------------------------------------------------ WP-13: kurulum karnesi
-def arm_rows(path, bot: str, *, method: str = "barrier") -> list[dict]:
-    """Hesaplanmis karsi-olgu satirlari (kurulum bazinda; `arm_id` yoksa setup@trigger_tf). Salt okunur; depo yoksa []."""
-    if method not in METHODS:
+def arm_rows(path, bot: str, *, method: str | None = None) -> list[dict]:
+    """Hesaplanmis karsi-olgu satirlari (kurulum bazinda; `arm_id` yoksa setup@trigger_tf). Salt okunur; depo yoksa [].
+    `method=None` (24.11): karar basina `plan` satiri varsa o, yoksa `barrier` (`lesson._cf_r_by_decision` ile ayni kural);
+    belirli yontem verilirse yalniz o."""
+    if method is not None and method not in METHODS:
         raise CounterfactualError("gecersiz yontem", "bad_method")
     if not os.path.exists(os.fspath(path)):
         return []
-    minv = 2 if method == "plan" else 1
     with CounterfactualStore(path, read_only=True) as st:
         try:
             # sema 1 depo (gece isi henuz gocurmedi): kurulum kolonlari yok -> NULL kabul edilir (salt okunur, goc yok)
@@ -617,22 +618,48 @@ def arm_rows(path, bot: str, *, method: str = "barrier") -> list[dict]:
             ses = "session_tag" if "session_tag" in have else "NULL"
             rows = st._db.execute(
                 f"SELECT decision_id, COALESCE({arm}, setup || '@' || trigger_tf) AS arm_id, "
-                f"COALESCE({acl}, 'kripto') AS asset_class, {ses} AS session_tag, skip_reason, decision_ts, hyp_r_net "
-                "FROM cf_outcomes WHERE bot=? AND method=? AND version>=? AND hyp_r_net IS NOT NULL "
-                "ORDER BY decision_ts, decision_id", (bot, method, minv)).fetchall()
+                f"COALESCE({acl}, 'kripto') AS asset_class, {ses} AS session_tag, skip_reason, decision_ts, hyp_r_net, method "
+                "FROM cf_outcomes WHERE bot=? AND hyp_r_net IS NOT NULL "
+                "AND ((method='plan' AND version>=2) OR (method='barrier' AND version>=1)) "
+                "ORDER BY decision_ts, decision_id", (bot,)).fetchall()
         except sqlite3.Error as e:
             raise CounterfactualError(f"depo okuma hatasi: {type(e).__name__}", "store_io") from e
-    return [dict(r) for r in rows]
+    out: dict[int, dict] = {}
+    for r in rows:
+        d = dict(r)
+        m = d.pop("method")
+        if method is not None and m != method:
+            continue
+        cur = out.get(d["decision_id"])
+        if cur is None or (m == "plan" and cur["_m"] != "plan"):
+            out[d["decision_id"]] = {**d, "_m": m}
+    res = [{k: v for k, v in d.items() if k != "_m"} for d in out.values()]
+    res.sort(key=lambda d: (d["decision_ts"], d["decision_id"]))
+    return res
+
+
+ARM_DEDUP_MUM = 48            # 24.11: ayni kol + parite + yon icin bu kadar mumluk pencerede yalniz ilk aday sayilir
+_TF_DK = {"s": 1 / 60, "m": 1, "h": 60, "d": 1440, "w": 10080}
+
+
+def _tf_dakika(tf: str) -> float:
+    try:
+        return float(tf[:-1]) * _TF_DK[tf[-1]]
+    except (KeyError, ValueError, IndexError):
+        return 60.0
 
 
 def arm_candidates(*, decisions, trades, cf_rows, asset_class_of) -> list[dict]:
     """Kurulum adaylari (alinan + alinmayan) tek biçimde: {arm_id, asset_class, taken, ts, r, decision_id}.
     `r`: alinan icin gercek kapanmis islem R'si (`r_multiple`), alinmayan icin "alinsaydi" R'si (`hyp_r_net`); sonuc
-    yoksa None (cozulmemis aday). Yalniz `entered` ve gerekceli `skipped` kararlar aday sayilir."""
+    yoksa None (cozulmemis aday). Yalniz `entered` ve gerekceli `skipped` kararlar aday sayilir.
+    Tekillestirme (24.11): ayni kol + parite + yon icin `ARM_DEDUP_MUM` (48) mumluk pencerede yalniz ILK aday sayilir
+    (pencere ilk adayin zamanindan baslar, sonraki pencere ilk disarida kalan adayla acilir)."""
     r_taken = {t.decision_id: t.r_multiple for t in trades if t.r_multiple is not None}
     r_cf = {row["decision_id"]: row["hyp_r_net"] for row in cf_rows}
     out: list[dict] = []
-    for d in decisions:
+    ilk: dict[tuple, datetime] = {}                            # (kol, parite, yon) -> pencereyi acan ilk adayin zamani
+    for d in sorted(decisions, key=lambda x: (x.bar_close_ts, x.id)):
         if d.final_action == "entered":
             taken, r = True, r_taken.get(d.id)
         elif d.final_action == "skipped" and d.skip_reason:
@@ -640,8 +667,14 @@ def arm_candidates(*, decisions, trades, cf_rows, asset_class_of) -> list[dict]:
         else:
             continue
         arm = getattr(d, "arm_id", None) or AT.arm_id_of(d.setup, d.trigger_tf)
+        ts = _utc(d.bar_close_ts)
+        key = (arm, d.pair, getattr(d, "side", None))
+        pencere = timedelta(minutes=ARM_DEDUP_MUM * _tf_dakika(arm.partition("@")[2]))
+        if key in ilk and ts - ilk[key] < pencere:             # tekilleştirme: ayni sinyal art arda mumlarda cift sayilmaz
+            continue
+        ilk[key] = ts
         out.append({"arm_id": arm, "asset_class": asset_class_of(d.pair), "taken": taken,
-                    "ts": _utc(d.bar_close_ts), "r": None if r is None else float(r), "decision_id": d.id})
+                    "ts": ts, "r": None if r is None else float(r), "decision_id": d.id})
     return out
 
 

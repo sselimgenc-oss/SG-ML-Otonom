@@ -119,7 +119,7 @@ def test_tsi_day_boundary(env):
 
 
 def test_empty_cards_hidden_and_unmeasured_text(pano):
-    assert pano["ders"]["durum"].startswith("Açık, veri birikiyor (0/") and pano["ders"]["son"] is None   # veri yok: kart yine uretilir (OZET'te zorunlu)
+    assert pano["ders"]["durum"] == "Açık, veri birikiyor" and pano["ders"]["son"] is None   # veri yok: kart yine uretilir (OZET'te zorunlu); 24.11 kullanici karari: ders hizi / aile destegi - "0/10" etki sayaci kalkti
     assert "ml" not in pano                                    # 24.11: makine ogrenmesi karti (ML filtresi) silindi
     z = pano["kz"]
     assert z["oran"]["kazanma_yuzde"] == 60.0                    # 5 islem >= asgari

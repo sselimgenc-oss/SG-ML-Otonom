@@ -221,9 +221,13 @@ class PanelData:
             except Exception:  # noqa: BLE001 - ders okunamazsa kart gizlenir
                 ders = None
             try:
-                kucultme = PP.kucultme_view(lp, b)
+                kucultme = PP.kucultme_view(lp, b, arms=P.paper_maps()[0], now=now)
             except Exception:  # noqa: BLE001 - kucultme karti istege bagli
                 kucultme = None
+            try:
+                ogrenme = PP.ogrenme_view(lp, ctx, now, arms=P.paper_maps()[0])
+            except Exception:  # noqa: BLE001 - ogrenme karti istege bagli; okunamazsa gizlenir
+                ogrenme = None
             safe = {}
             for k, f in (("health", lambda: P.health_view(self.cfg.health_state, now, self.cfg.health_stale_s)),
                          ("budget", lambda: P.budget_view(self.cfg.budget_config)),
@@ -245,7 +249,7 @@ class PanelData:
             if kismi and isik["renk"] == "yesil":
                 isik = {"renk": "sari", "metin": "Sistem çalışıyor; bazı özellikler kısmen devrede"}
             return {"bot_durum": s["state"], "mod": (status or {}).get("mode"), "serit": serit, "acik": acik, "kz": kz,
-                    "son3": PP.closed_view(lp, b, "tumu", now, 3)["rows"], "ders": ders, "kucultme": kucultme, "teknik": teknik,
+                    "son3": PP.closed_view(lp, b, "tumu", now, 3)["rows"], "ders": ders, "kucultme": kucultme, "ogrenme": ogrenme, "teknik": teknik,
                     "isik": isik, "yapmali": PP.ne_yapmali(s["state"], serit["risk"], acik["n"], kismi, teknik.get("saglik"))}
         return self._wrap(fn)
 

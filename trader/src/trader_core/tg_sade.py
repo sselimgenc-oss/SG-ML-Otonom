@@ -108,7 +108,7 @@ _TF_TR = {"15m": "15 dakika", "1h": "1 saat", "4h": "4 saat", "1d": "1 gün", "5
 # kurulum kodu -> Turkce ad (kaynak: src/trader_engine/strategies/arms/*.py belge dizgileri)
 KURULUM_AD = {"T1": "Trend geri çekilmesi", "R1": "Yatay piyasa kenarı", "TF1": "Trend kırılımı", "B1": "Kırılım yeniden testi",
               "H2": "İki bacaklı geri çekilme", "S1": "Sıkışma kırılımı", "F1": "Sahte kırılım dönüşü",
-              "M1": "Yapay zekâ adayı", "HB1": "Haber kolu",
+              "M1": "Yapay zekâ adayı", "HB1": "Haber kolu", "DL1": "Derin öğrenme",
               # 24.11 kullanici karari: formasyon kutuphanesi (MF1 mum formasyonlari)
               "MF1-YILDIZ": "Mum: sabah yıldızı", "MF1-UCASKER": "Mum: üç asker", "MF1-DELICI": "Mum: delici çizgi",
               "MF1-ICSAHTE": "Mum: iç çubuk sahte kopuş", "MF1-DISBAR": "Mum: dış bar", "MF1-YUTAN": "Mum: yutan",

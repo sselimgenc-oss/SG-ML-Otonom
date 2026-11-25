@@ -357,6 +357,7 @@
     if (dd.son) add(d, el('div', 'yok', dd.son.metin));
     add(d, satir('Son 7 günde değiştirdiği işlem', String(dd.degisen_7g)), katkiSatir(dd.katki));
     add(ig, d);
+    if (p.ogrenme) add(ig, ogrenmeOzetKart(p.ogrenme));
     if (p.isik.renk !== 'kirmizi') add(ig, isikKart(p));
     add(root, ig);
   }
@@ -454,6 +455,57 @@
     if (k.olculemedi) return satir('Katkı', k.olculemedi.replace('Henüz', 'henüz'));
     return satir('Katkı', (k.yaklasik ? '≈ ' : '') + usdS(k.usd) + ' (' + k.n + ' sonucu belli karar)', cls(k.usd));
   }
+  /* Öğrenme: kol x zaman dilimi (veri: defter + kademeli küçültme + karantina dosyası) ve model kolları (paket dosyaları) */
+  var DURUM_RENK = {acik: 'yesil', kucultulmus: 'sari', karantina: 'kirmizi'}, DURUM_SIRA = {acik: 0, kucultulmus: 1, karantina: 2};
+  function kolAd(r) { return r.kol + ' · ' + r.zd; }
+  function netR(x) { return num(x) ? sgn(x) + ' R' : '—'; }
+  function ogrenmeOzetKart(o) {
+    var z = o.ozet, k = kart('Öğrenme', link('Ayrıntı', 'ogrenme'));
+    add(k, satir('Açık kol', String(z.acik), z.acik ? 'iyi' : ''), satir('Küçültülmüş kol', String(z.kucultulmus), z.kucultulmus ? 'kotu' : ''),
+      satir('Karantinada kol', String(z.karantina), z.karantina ? 'kotu' : ''));
+    function liste(ad, rows) {
+      if (!rows.length) return;
+      add(k, el('div', 'yok', ad));
+      rows.forEach(function (r) { add(k, satir(kolAd(r), netR(r.net_r) + ' · ' + r.n + ' işlem', cls(r.net_r))); });
+    }
+    if (!z.en_iyi.length) add(k, el('div', 'yok', 'Henüz kapanan işlem yok; sıralama sonra görünür.'));
+    liste('En iyi 3 (net R)', z.en_iyi);
+    liste('En kötü 3 (net R)', z.en_kotu);
+    return k;
+  }
+  function ogrenmeTablolari(root, o) {
+    add(root, ogrenmeOzetKart(o));
+    var rows = o.kollar.map(function (r) {
+      var dr = add(el('div', 'sg'), rozetRenk(r.durum_ad, DURUM_RENK[r.durum]));
+      if (r.carpan < 1) add(dr, el('div', 'u', '%' + Math.round(r.carpan * 100) + ' boyut'));
+      return {cells: [add(el('div', 'kolad'), el('div', 'n', r.kol), el('div', 'u', r.zd)), el('div', 'n', String(r.n)),
+          el('div', 'n ' + cls(r.net_r), netR(r.net_r)), el('div', 'n', num(r.kazanma) ? '%' + trn(r.kazanma, 0) : '—'), dr],
+        v: [r.kol + ' ' + r.zd, r.n, num(r.net_r) ? r.net_r : null, num(r.kazanma) ? r.kazanma : null, DURUM_SIRA[r.durum]],
+        detail: [['Kol', r.arm], ['Risk çarpanı', '%' + Math.round(r.carpan * 100)], ['Durum', r.durum_ad],
+          ['Son ders değişikliği', r.son_ders ? r.son_ders + ' tarihli bir işlemde ders etkili oldu' : 'Henüz yok']]};
+    });
+    var t = kart('Tüm kollar · zaman dilimine göre');
+    add(t, el('div', 'yok', 'Kapanan işlem, net R (R = işlemde riske atılan tutar), kazanma yüzdesi ve kolun işlem riski çarpanı. Satıra dokun: ayrıntı.'));
+    var w = tablo(['Kol', 'İşlem', 'Net R', 'Kazanma', 'Durum'], rows, [1, 2, 3, 4], 'og_kol');
+    w.className = 'og';
+    add(t, w);
+    add(root, t);
+    if (!o.modeller.length) return;
+    var mrows = o.modeller.map(function (r) {
+      var bil = r.paket === 'okunamadi' ? 'okunamadı' : 'bilinmiyor';
+      return {cells: [add(el('div', 'kolad'), el('div', 'n', r.kol), el('div', 'u', r.zd)), el('div', 'n', r.egitim || bil),
+          el('div', 'n', num(r.yas_gun) ? trn(r.yas_gun, 1) + ' gün' : bil), el('div', 'n', String(r.bugun_aday)), el('div', 'n', String(r.bugun_giris))],
+        v: [r.kol + ' ' + r.zd, num(r.egitim_ts) ? r.egitim_ts : null, num(r.yas_gun) ? r.yas_gun : null, r.bugun_aday, r.bugun_giris],
+        detail: [['Kol', r.arm], ['Model paketi', r.paket === 'var' ? 'var' : (r.paket === 'yok' ? 'yok (bilinmiyor)' : 'okunamadı (bilinmiyor)')],
+          ['Son eğitim (TSİ)', r.egitim || 'bilinmiyor']]};
+    });
+    var m = kart('Model kolları · eğitim ve bugün');
+    add(m, el('div', 'yok', 'Son eğitim = paketin hazırlandığı an (TSİ). Bugün aday = bugün karar verilen, giriş = açılan işlem sayısı.'));
+    var mw = tablo(['Kol', 'Son eğitim', 'Paket yaşı', 'Bugün aday', 'Bugün giriş'], mrows, [1, 2, 3, 4], 'og_model');
+    mw.className = 'og';
+    add(m, mw);
+    add(root, m);
+  }
   function tabOgrenme(root, p) {
     clear(root);
     var ig = el('div', 'ig iki');
@@ -462,6 +514,13 @@
       add(k, add(el('div'), rozetRenk(d.durum, d.renk)));
       if (d.son) add(k, satir('Son öğrendiği', d.son.tarih), el('div', 'yok', d.son.metin));
       add(k, satir('Son 7 günde etkilediği işlem', String(d.degisen_7g)), katkiSatir(d.katki));
+      if (d.ilerleme) {
+        var il = d.ilerleme;
+        add(k, satir('En yakın aday (' + il.ad + ')', il.n + '/' + il.n_hedef + ' işlem, ' + il.gun + '/' + il.gun_hedef + ' gün'));
+      }
+      (d.kol_dersleri || []).forEach(function (r) {
+        add(k, satir('Kol: ' + r.kol, r.metin + ' · ' + r.tarih + (num(r.n) ? ' · ' + r.n + ' aday' : ''), r.olay === 'closed' ? 'kotu' : ''));
+      });
       add(ig, k);
       if (d.son5.length) {
         var l = kart('Son dersler');
@@ -473,12 +532,17 @@
       var kk2 = kart('Kademeli küçültme');
       add(kk2, el('div', 'yok', 'Son işlemleri zararda olan kolların işlem riski küçültüldü (kol kapanmaz; kâra dönünce geri yükselir).'));
       p.kucultme.kollar.forEach(function (r) {
-        add(kk2, satir(r.kol, '%' + Math.round(r.carpan * 100) + ' boyut · son ' + (num(r.net_10) ? '10' : '5') + ': ' + sgn(num(r.net_10) ? r.net_10 : r.net_5) + ' R', 'kotu'));
+        var ml = '%' + Math.round(r.carpan * 100) + ' boyut · kendi ' + r.n + ' işlem';
+        if (!r.aile_nedeni && num(r.net_5)) ml += ' · son ' + (num(r.net_10) ? '10' : '5') + ': ' + sgn(num(r.net_10) ? r.net_10 : r.net_5) + ' R';
+        if (r.aile !== null && r.aile !== undefined) ml += ' · aile ort. ' + sgn(r.aile) + ' R';
+        if (r.aile_nedeni) ml += ' (aile nedeniyle)';
+        add(kk2, satir(r.kol, ml, 'kotu'));
       });
       add(ig, kk2);
     }
-    if (!p.ders && !p.kucultme) add(ig, yokKart('Henüz öğrenme verisi yok.'));
+    if (!p.ders && !p.kucultme && !p.ogrenme) add(ig, yokKart('Henüz öğrenme verisi yok.'));
     add(root, ig);
+    if (p.ogrenme) ogrenmeTablolari(root, p.ogrenme);
   }
 
   /* TEKNİK (katlı) */

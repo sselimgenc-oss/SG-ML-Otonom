@@ -107,8 +107,8 @@ def test_learning_view_scorecard_lesson_m1_sessions_open(world):
     lv = PD.learning_view(world.ledger, world.budget, NOW)
     arms = {r["arm"]: r for r in lv["scorecard"]}
     t1, m1, f1 = arms["T1@1h"], arms["M1@1h"], arms["F1@1h"]
-    assert (t1["candidates"], t1["taken"], t1["mean_r_taken"]) == (3, 1, 1.0)
-    assert t1["mean_r_taken_cf"] == pytest.approx((1.0 - 1.0 + 0.5) / 3)     # alinan + alinmayan (alinsaydi)
+    assert (t1["candidates"], t1["taken"], t1["mean_r_taken"]) == (2, 1, 1.0)   # 24.11 kullanici karari: alinsaydi tekillestirme (48 mum) -> 2 ve 4 tek aday
+    assert t1["mean_r_taken_cf"] == pytest.approx((1.0 - 1.0) / 2)     # alinan + alinmayan; 24.11: tekillestirme 4. karari dusurur
     assert (m1["candidates"], m1["taken"], m1["mean_r_taken"], m1["state"]) == (2, 2, -0.5, "closed")
     assert (f1["candidates"], f1["state"]) == (0, "open")                     # yapilandirilmis, adayi yok
     assert lv["lesson"]["applied"] == 1 and lv["lesson"]["rollbacks"] == 0
@@ -145,7 +145,7 @@ def test_daily_sections_show_learning_and_scorecard(world):
     assert "elenen" not in ogr and "M1: aday 2, giriş 2" in ogr
     assert "Haftalık özet (2026-W47)" in ogr
     karne = T.rapor_kurulum_karnesi(cfg, NOW)
-    assert "T1@1h: aday 3 · alınan 1" in karne and "M1@1h: aday 2 · alınan 2" in karne and "KAPALI" in karne
+    assert "T1@1h: aday 2 · alınan 1" in karne and "M1@1h: aday 2 · alınan 2" in karne and "KAPALI" in karne
     assert "F1@1h" not in karne                                                 # adayi olmayan kurulum satiri yok
     out = T.build_report(cfg, NOW, "2026-11-19", {"Öğrenme": lambda: ogr, "Kurulum karnesi": lambda: karne})
     assert "📚" not in out and "🧪" not in out and len(out.splitlines()) <= 12     # gunluk ozet kisa; bolumler komutlarda
@@ -166,7 +166,7 @@ def test_kurulumlar_and_ders_commands_reply_through_dispatch(world):
     d = T.TelegramDaemon(cfg, Client(), now_fn=lambda: NOW, runner=lambda *a: (0, "{}"), sleep=lambda s: None)
     assert "/kurulumlar" in T.HELP and "/ders" in T.HELP
     assert d._dispatch_text("/kurulumlar", "x") == "ok"
-    assert sent[-1].startswith("🧪 Kurulum karnesi") and "T1@1h: aday 3" in sent[-1]
+    assert sent[-1].startswith("🧪 Kurulum karnesi") and "T1@1h: aday 2" in sent[-1]
     assert d._dispatch_text("/ders", "x") == "ok"
     assert "Uygulanan değişiklik: 1" in sent[-1] and "AKTİF" in sent[-1]
     assert "M1@1h" in sent[-1]                                                  # kapali kurulum
