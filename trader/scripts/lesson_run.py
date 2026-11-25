@@ -130,6 +130,13 @@ def main(argv=None, *, client=None, budget=None, notifier=None, now_fn=None, env
     if args.day and not args.dry_run and args.day > LS._aware(clock()).date().isoformat():
         print("--day gelecekte olamaz (yalniz --dry-run serbest)", file=sys.stderr)
         return EXIT_CONFIG
+    if cfg.dondurulmus and (args.once or args.resolve):    # 25.11: ders sistemi dondurulmus; servis/LLM/bildirimci/defter acilmaz
+        log.info("ders sistemi dondurulmus: calisma atlandi")
+        out = {"status": "dondurulmus", "code": "dondurulmus"}
+        if args.resolve:
+            out["request_id"] = args.resolve
+        print(json.dumps(out))
+        return EXIT_OK
     if args.resolve:
         return _resolve_request(args, cfg, clock, env, sleep_fn)
     if args.rollback_to_user_approved:

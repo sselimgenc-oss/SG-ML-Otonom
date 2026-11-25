@@ -811,29 +811,71 @@ def probe_haber_sinyal(var_dir: str, unit_path: str = HABER_SINYAL_UNIT) -> H.Ha
         return H.HaberSinyalProbe("unreadable", job_installed=True, **ek)
 
 
+# DL1 paket sabitleri (trader_engine.dl1_cikarim ile ayni; esitligi test sinar). Root ortaminda numpy YOK (requirements-root.lock):
+# saglik turu dl1_cikarim'i ice aktaramaz (25.11: ModuleNotFoundError ile her tur dusuyordu); paket burada numpy'siz denetlenir.
+DL1_SEMA = "dl1/1"
+DL1_ZAMAN_DILIMLERI = ("15m", "1h", "4h", "1d")
+DL1_SON_KULLANMA_GUN = 45
+DL1_MAX_PAKET_BAYT = 10 * 1024 * 1024
+
+
+def _dl1_utc(s) -> datetime:
+    d = datetime.fromisoformat(s)
+    return d.replace(tzinfo=timezone.utc) if d.tzinfo is None else d.astimezone(timezone.utc)
+
+
+def dl1_paket_hafif(yol: Path, tf: str):
+    """numpy'siz DL1 paket denetimi (saglik icin): (olusturma, son_kullanma) ya da (None, neden). Neden: yok | buyuk | bozuk | sema | hash.
+    Sema + arm_id + sha256 (kanonik JSON, sha256 alani haric) + tarih; agirliklarin sayisal ici motorda dogrulanir."""
+    import hashlib
+    try:
+        st = yol.stat()
+    except OSError:
+        return None, "yok"
+    if st.st_size > DL1_MAX_PAKET_BAYT:
+        return None, "buyuk"
+    try:
+        paket = json.loads(yol.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None, "bozuk"
+    if not isinstance(paket, dict) or paket.get("schema") != DL1_SEMA or paket.get("arm_id") != f"DL1@{tf}":
+        return None, "sema"
+    try:
+        kanon = json.dumps({k: v for k, v in paket.items() if k != "sha256"}, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    except (TypeError, ValueError):
+        return None, "bozuk"
+    sha = paket.get("sha256")
+    if not isinstance(sha, str) or sha != hashlib.sha256(kanon.encode("utf-8")).hexdigest():
+        return None, "hash"
+    try:
+        olus = _dl1_utc(paket["olusturma"])
+        son = min(_dl1_utc(paket["son_kullanma"]), olus + timedelta(days=DL1_SON_KULLANMA_GUN))
+    except (KeyError, TypeError, ValueError):
+        return None, "bozuk"
+    return (olus, son), None
+
+
 def probe_dl1_paket(env: dict) -> H.Dl1PaketProbe:
     """models/dl1/DL1@<tf>.json x 4 zaman dilimi (veri kokunden; sha256 + sema dogrulamali) -> Dl1PaketProbe (en kotu durum: bozuk > yok > ok;
-    ok ise en eski paket). Yok -> missing; gecersiz -> unreadable."""
-    from datetime import timedelta
-    from trader_engine import dl1_cikarim as DL
+    ok ise en eski paket). Yok -> missing; gecersiz -> unreadable. numpy'siz (root ortami)."""
     en_eski, bozuk, eksik = None, [], []
-    for tf in DL.ZAMAN_DILIMLERI:                      # 25.11: tum dilimler taranir; sorunlu dilim adlari mesaja gider
+    for tf in DL1_ZAMAN_DILIMLERI:                     # 25.11: tum dilimler taranir; sorunlu dilim adlari mesaja gider
         yol = data_root(env) / "models" / "dl1" / f"DL1@{tf}.json"
         try:
-            p, neden = DL.paket_yukle(yol, tf=tf)
+            p, neden = dl1_paket_hafif(yol, tf)
         except Exception:  # noqa: BLE001  (saglik turu paket okumasi yuzunden dusmez)
             bozuk.append(tf)
             continue
         if p is None:
             (eksik if neden == "yok" else bozuk).append(tf)
             continue
-        if en_eski is None or p.olusturma < en_eski.olusturma:
+        if en_eski is None or p[0] < en_eski[0]:
             en_eski = p
     if bozuk:
         return H.Dl1PaketProbe("unreadable", sorunlu=tuple(bozuk))
     if eksik or en_eski is None:
         return H.Dl1PaketProbe("missing", sorunlu=tuple(eksik))
-    return H.Dl1PaketProbe("ok", en_eski.olusturma, en_eski.olusturma + timedelta(days=DL.SON_KULLANMA_GUN))
+    return H.Dl1PaketProbe("ok", en_eski[0], en_eski[1])
 
 
 def dl1_kolda(env: dict) -> bool:

@@ -99,3 +99,58 @@ def test_dl1_kol_ayarda_yoksa_denetim_uretilmez(tmp_path):
     (tmp_path / "engine.paper.json").write_text(json.dumps({"arms": ["T1@1h", "DL1@4h"]}), encoding="utf-8")
     assert m.dl1_kolda({"ENGINE_CONFIG_DIR": str(tmp_path)}) is True
     assert m.dl1_kolda({"ENGINE_CONFIG_DIR": str(tmp_path / "yok")}) is True     # okunamazsa temkinli: denetle
+
+
+def _health_run():
+    spec = importlib.util.spec_from_file_location("health_run_dl1c", ROOT / "scripts" / "health_run.py")
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+def test_saglik_dl1_sabitleri_motorla_ayni():
+    """health_run numpy'siz kopyasi (root ortami) motorun dl1_cikarim sabitleriyle ayni kalmali."""
+    from trader_engine import dl1_cikarim as DL
+    m = _health_run()
+    assert m.DL1_SEMA == DL.SEMA and m.DL1_ZAMAN_DILIMLERI == DL.ZAMAN_DILIMLERI
+    assert m.DL1_SON_KULLANMA_GUN == DL.SON_KULLANMA_GUN and m.DL1_MAX_PAKET_BAYT == DL.MAX_PAKET_BAYT
+
+
+def test_hafif_denetim_motor_dogrulamasiyla_uyumlu(tmp_path):
+    """Gecerli paket: tarihler motorla ayni; hash bozulunca ikisi de reddeder."""
+    from trader_engine import dl1_cikarim as DL
+    m = _health_run()
+    yol = tmp_path / "DL1@4h.json"
+    S.yaz(yol, S.paket_sozlugu(NOW - timedelta(days=2), tf="4h"))
+    p, _ = DL.paket_yukle(yol, tf="4h")
+    h, neden = m.dl1_paket_hafif(yol, "4h")
+    assert neden is None and h == (p.olusturma, p.son_kullanma)
+    assert m.dl1_paket_hafif(yol, "1h") == (None, "sema")                    # yanlis zaman dilimi
+    import json
+    d = json.loads(yol.read_text(encoding="utf-8"))
+    d["esik"] = 0.42
+    yol.write_text(json.dumps(d), encoding="utf-8")
+    assert m.dl1_paket_hafif(yol, "4h") == (None, "hash")
+    assert m.dl1_paket_hafif(tmp_path / "yok.json", "4h") == (None, "yok")
+
+
+def test_saglik_dl1_denetimi_numpy_olmadan_calisir(tmp_path):
+    """25.11 sunucu: root ortaminda numpy yok; saglik turu her 5 dakikada ModuleNotFoundError ile dusuyordu.
+    numpy ice aktarilamazken health_run yuklenir ve probe_dl1_paket calisir."""
+    import subprocess
+    d = tmp_path / "models" / "dl1"
+    d.mkdir(parents=True)
+    for tf in ("15m", "1h", "4h", "1d"):
+        S.yaz(d / f"DL1@{tf}.json", S.paket_sozlugu(NOW - timedelta(days=1), tf=tf))
+    kod = (
+        "import sys, importlib.util\n"
+        "sys.modules['numpy'] = None; sys.modules['pandas'] = None; sys.modules['pyarrow'] = None\n"
+        f"spec = importlib.util.spec_from_file_location('hr', {str(ROOT / 'scripts' / 'health_run.py')!r})\n"
+        "m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)\n"
+        f"p = m.probe_dl1_paket({{'TRADER_DATA_ROOT': {str(tmp_path)!r}}})\n"
+        "assert 'numpy' not in sys.modules or sys.modules['numpy'] is None\n"
+        "print(p.file_state)\n")
+    env = {"PATH": "/usr/bin:/bin", "PYTHONPATH": str(ROOT / "src")}
+    r = subprocess.run([sys.executable, "-c", kod], capture_output=True, text=True, env=env, timeout=60)
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.strip() == "ok"

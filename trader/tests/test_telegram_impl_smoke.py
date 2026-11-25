@@ -337,12 +337,15 @@ def test_lesson_resolve_cli_lock_busy(tmp_path):
     cfg_json = json.loads((ROOT / "config" / "lesson.json").read_text())
     store = tmp_path / "lesson.sqlite"
     env = {"LESSON_STORE_PATH": str(store), "LEDGER_PATH": str(tmp_path / "l.sqlite")}
-    assert LR.main(["--resolve", "bad", "--approve"], env=env) == 1
-    assert LR.main(["--resolve", "lr-2026-11-16-1"], env=env) == 1
+    cfg_json = {**cfg_json, "dondurulmus": False}           # 25.11: repo yapilandirmasi dondurulmus; kilit yolu icin cozulen kopya
+    cfg_p = tmp_path / "lesson_cfg.json"
+    cfg_p.write_text(json.dumps(cfg_json), encoding="utf-8")
+    assert LR.main(["--resolve", "bad", "--approve", "--config", str(cfg_p)], env=env) == 1
+    assert LR.main(["--resolve", "lr-2026-11-16-1", "--config", str(cfg_p)], env=env) == 1
     fl = LS.FileLock(tmp_path / "lesson.lock")
     assert fl.acquire()
     try:
-        assert LR.main(["--resolve", "lr-2026-11-16-1", "--approve"], env=env) == 2
+        assert LR.main(["--resolve", "lr-2026-11-16-1", "--approve", "--config", str(cfg_p)], env=env) == 2
     finally:
         fl.release()
     assert cfg_json

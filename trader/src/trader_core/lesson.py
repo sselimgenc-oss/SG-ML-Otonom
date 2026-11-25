@@ -256,6 +256,7 @@ class LessonConfig:
     paper_auto: bool = False                         # 19.11 kullanici karari (docs/ders-spec.md Rev. 8): KAGITTA cikis onerileri + menu disi oneri
                                                      # onaysiz uygulanir (otomatik geri alma ile); false (varsayilan, canli) => eski: daima kullaniciya sorulur
     proxy_include_ask_user: bool = False
+    dondurulmus: bool = False                        # 25.11 kullanici karari: ders sistemi dondurulur; gece hicbir parametre degistirmez, oneri/talep cozmez
     batch_max_age_h: int = 25
     prompt_max_est_tokens: int = 12000
     shadow_weeks: int = 0                            # DD-12 WP-08: golge donem yok (ders ilk islemden etkin)
@@ -354,6 +355,7 @@ class LessonConfig:
             isint(self.max_user_requests_per_week, "max_user_requests_per_week", 1, 2)
         isbool(self.allow_off_menu, "allow_off_menu")
         isbool(self.paper_auto, "paper_auto")
+        isbool(self.dondurulmus, "dondurulmus")
         isbool(self.proxy_include_ask_user, "proxy_include_ask_user")
         isint(self.batch_max_age_h, "batch_max_age_h", 24)
         isint(self.prompt_max_est_tokens, "prompt_max_est_tokens", 1, 20000)
