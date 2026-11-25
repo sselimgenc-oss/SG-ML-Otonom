@@ -108,7 +108,7 @@ def test_learning_view_scorecard_lesson_m1_sessions_open(world):
     arms = {r["arm"]: r for r in lv["scorecard"]}
     t1, m1, f1 = arms["T1@1h"], arms["M1@1h"], arms["F1@1h"]
     assert (t1["candidates"], t1["taken"], t1["mean_r_taken"]) == (2, 1, 1.0)   # 24.11 kullanici karari: alinsaydi tekillestirme (48 mum) -> 2 ve 4 tek aday
-    assert t1["mean_r_taken_cf"] == pytest.approx((1.0 - 1.0 + 0.5) / 3)     # alinan + alinmayan (alinsaydi)
+    assert t1["mean_r_taken_cf"] == pytest.approx((1.0 - 1.0) / 2)     # alinan + alinmayan; 24.11: tekillestirme 4. karari dusurur
     assert (m1["candidates"], m1["taken"], m1["mean_r_taken"], m1["state"]) == (2, 2, -0.5, "closed")
     assert (f1["candidates"], f1["state"]) == (0, "open")                     # yapilandirilmis, adayi yok
     assert lv["lesson"]["applied"] == 1 and lv["lesson"]["rollbacks"] == 0
