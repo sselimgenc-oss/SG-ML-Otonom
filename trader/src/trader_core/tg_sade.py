@@ -115,7 +115,38 @@ KURULUM_AD = {"T1": "Trend geri çekilmesi", "R1": "Yatay piyasa kenarı", "TF1"
               "MF1-HARAMI": "Mum: harami", "MF1-TERSCEKIC": "Mum: ters çekiç", "MF1-CIMBIZ": "Mum: cımbız dip",
               "MF1-PINBAR": "Mum: pin bar", "MF1-ICCUBUK": "Mum: iç çubuk", "MF1-MARUBOZU": "Mum: marubozu",
               # 24.11 kullanici karari: PA varyantlari (ana kol kimligi + varyant)
-              "B1-BOLGE": "Kırılım yeniden testi: bölge", "B1-MUM": "Kırılım yeniden testi: pin bar / yutan", "F1-IKINCI": "Sahte kırılım: ikinci süpürme", "H2-MINI": "İki bacaklı geri çekilme: mini çizgi", "H2-YARI": "İki bacaklı geri çekilme: yarım kâr", "R1-ALT": "Yatay kenar: bandın ilk üçte biri", "R1-ERKEN": "Yatay kenar: erken zaman stopu", "R1-HA": "Yatay kenar: Heikin Ashi teyidi", "S1-HACIM": "Sıkışma kırılımı: hacim onayı", "S1-OLCULU": "Sıkışma kırılımı: ölçülü hedef", "T1-GERI3": "Trend geri çekilmesi: 3 düşen tepe", "T1-SEVIYE": "Trend geri çekilmesi: eski direnç", "TF1-FITIL": "Trend kırılımı: üst fitilsiz", "TF1-HACIM": "Trend kırılımı: hacim onayı"}
+              "B1-BOLGE": "Kırılım yeniden testi: bölge", "B1-MUM": "Kırılım yeniden testi: pin bar / yutan", "F1-IKINCI": "Sahte kırılım: ikinci süpürme", "H2-MINI": "İki bacaklı geri çekilme: mini çizgi", "H2-YARI": "İki bacaklı geri çekilme: yarım kâr", "R1-ALT": "Yatay kenar: bandın ilk üçte biri", "R1-ERKEN": "Yatay kenar: erken zaman stopu", "R1-HA": "Yatay kenar: Heikin Ashi teyidi", "S1-HACIM": "Sıkışma kırılımı: hacim onayı", "S1-OLCULU": "Sıkışma kırılımı: ölçülü hedef", "T1-GERI3": "Trend geri çekilmesi: 3 düşen tepe", "T1-SEVIYE": "Trend geri çekilmesi: eski direnç", "TF1-FITIL": "Trend kırılımı: üst fitilsiz", "TF1-HACIM": "Trend kırılımı: hacim onayı",
+              # 24.11 kullanici karari: formasyon kutuphanesi (GF1 grafik + IN1 gosterge)
+              "GF1-OBO": "Grafik: ters omuz baş omuz",
+              "GF1-UCLU": "Grafik: üçlü dip",
+              "GF1-KUPA": "Grafik: kupa kulp",
+              "GF1-IKILI": "Grafik: ikili dip",
+              "GF1-KAMA": "Grafik: düşen kama",
+              "GF1-UCGEN": "Grafik: üçgen",
+              "GF1-BAYRAK": "Grafik: bayrak",
+              "GF1-FLAMA": "Grafik: flama",
+              "GF1-RETEST": "Grafik: kırılım retesti",
+              "GF1-SAHTE": "Grafik: sahte kırılım",
+              "GF1-TREND": "Grafik: düşen kanal",
+              "GF1-KANAL": "Grafik: kanal dibi",
+              "GF1-YATAY": "Grafik: yatay direnç kırılımı",
+              "IN1-UYUMSUZ": "Gösterge: RSI uyumsuzluğu",
+              "IN1-MAKESISIM": "Gösterge: SMA50/200 kesişimi",
+              "IN1-KUMO": "Gösterge: bulut üstü kırılımı",
+              "IN1-TK": "Gösterge: tenkan/kijun kesişimi",
+              "IN1-FIBO": "Gösterge: fibonacci geri çekilme",
+              "IN1-HACIM": "Gösterge: hacimli kırılım",
+              "IN1-RSI": "Gösterge: RSI 30 dönüşü",
+              "IN1-RSIDONUS": "Gösterge: RSI 30 üstüne dönüş",
+              "IN1-RSI2": "Gösterge: RSI(2) dip",
+              "IN1-STOK": "Gösterge: stokastik kesişimi",
+              "IN1-MACD": "Gösterge: MACD kesişimi",
+              "IN1-MAGERI": "Gösterge: EMA20 geri çekilmesi",
+              "IN1-BOLLKIR": "Gösterge: Bollinger üst bant kırılımı",
+              "IN1-VWAP": "Gösterge: VWAP üstüne geçiş",
+              "IN1-FIYATMA": "Gösterge: fiyat SMA50 üstüne geçiş",
+              "IN1-HIZLIMA": "Gösterge: EMA4/EMA9 kesişimi",
+              "IN1-BOLL": "Gösterge: Bollinger alt bant dönüşü"}
 
 
 def kurulum_adi(setup: Any) -> str:

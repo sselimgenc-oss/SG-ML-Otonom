@@ -55,6 +55,7 @@ class ArmInput:
     h4: pd.DataFrame                       # 4s OHLCV (rejim kaynagi)
     params: object                         # SignalParams
     core_fn: Callable[[], pd.DataFrame]    # ortak compute_signals tablosu (lazy; lab zaman dilimi basina bir kez hesaplar)
+    side: str | None = None                # 24.11: yalniz kural cikisi (EXIT_RULE) icin: acik pozisyonun yonu
 
     def core(self) -> pd.DataFrame:
         return self.core_fn()

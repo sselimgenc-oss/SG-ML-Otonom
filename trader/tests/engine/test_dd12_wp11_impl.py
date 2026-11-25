@@ -31,6 +31,9 @@ VARYANT_KODLARI = tuple(sorted(("B1-BOLGE", "B1-MUM", "F1-IKINCI", "H2-MINI", "H
 PAPER = load_cli_config(ROOT / "config", "learner", "paper")
 ALL_ARMS = tuple(f"{s_}@{tf}" for s_ in ("T1", "R1", "TF1", "B1", "H2", "S1", "F1") for tf in ("15m", "1h", "4h", "1d"))   # WP-12a: TF1/B1; WP-12b: H2/S1/F1
 PAPER_ARMS = ALL_ARMS + ("M1@1h", "M1@4h", "M1@15m", "M1@1d", "HB1@1h", "DL1@15m", "DL1@1h", "DL1@4h", "DL1@1d") + tuple(f"MF1-{k}@{tf}" for k in ("YILDIZ", "UCASKER", "DELICI", "ICSAHTE", "DISBAR", "YUTAN", "HARAMI", "TERSCEKIC", "CIMBIZ", "PINBAR", "ICCUBUK", "MARUBOZU") for tf in ("15m", "1h", "4h", "1d")) + tuple(f"{s_}@{tf}" for s_ in VARYANT_KODLARI for tf in ("15m", "1h", "4h", "1d"))   # 24.11 kullanici karari: PA varyantlari (14 x 4 = 56 kol); formasyon kutuphanesi (MF1 48 kol); 24.11: DL1 dort zaman dilimi; 23.11: HB1 haber kolu; 20 Kasim: M1 15dk/1g kagitta acik; DD-12 WP-14: M1 (ML'in kendi adayi) config/engine.paper.json'a eklendi
+from trader_engine.strategies import arms as _kutuphane_arms   # 24.11 kullanici karari: formasyon kutuphanesi (GF1 52 + IN1 66 kol; sirali kod, ZD sirasi)
+PAPER_ARMS = PAPER_ARMS + tuple(f"{s}@{tf}" for fam in ("GF1-", "IN1-") for s in sorted(a for a in _kutuphane_arms.list_arms() if a.startswith(fam))
+                                for tf in _kutuphane_arms.find_arm(s).TIMEFRAMES)
 
 
 # --------------------------------------------------------------------------- arms paketi

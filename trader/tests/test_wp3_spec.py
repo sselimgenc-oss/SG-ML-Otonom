@@ -1866,7 +1866,9 @@ def _ledger_pair(tmp_path):
 # 23.11.2026 kullanici karari (kilit acildi): trader_ml/guards.py, trader_ml/config.py ve trader_engine/holdout.py KILIT_ACIK icin
 # bilerek degistirildi; A1 blob esitligi artik bunlar icin aranmaz. 24.11 kullanici karari: ML filtreleri silindi (trader_ml/features*,
 # labels, trader_core/ml_features* kodla birlikte gitti). Digerleri donuk kalir.
-FROZEN = ["src/trader_core/signals.py", "src/trader_core/regime.py", "src/trader_core/indicators.py"]
+# 24.11 kullanici karari: formasyon kutuphanesi: indicators.py'ye GF1/IN1 gostergeleri EKLENDI (mevcut fonksiyonlar ayni; blob esitligi aranmaz,
+# test_dd12_wp18_impl.py sha256 sabiti gercek degerden yeniden hesaplandi).
+FROZEN = ["src/trader_core/signals.py", "src/trader_core/regime.py"]
 
 
 def test_T1_frozen_files_blob_hashes_unchanged():

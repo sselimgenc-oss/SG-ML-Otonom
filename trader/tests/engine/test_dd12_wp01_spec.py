@@ -55,7 +55,7 @@ PINNED_SHA = {
     "engine.base.json": "2ccdf97d21842f2dc54f682e66d65762f7957a7615befd932fbad8c68f49325e",   # 24.11 kullanici karari: veto ve C1 artiklari silindi (veto_mode/veto_config kalkti);   # WP-06a: yalniz veto_config yolu; 24.11 kullanici karari: ML filtreleri silindi (ml_mode/ml_model_path kalkti)
     "engine.learner.json": "30ca2842c40cacafbf6cdd90c9e6f1f54fc62b9a9ec913476d1399ac5352cb12",
     "engine.testnet.json": "eff9eb61dcd9018bf86c195a02f7f25f08960473e705cbd114e104c26a956c9c",   # 24.11 kullanici karari: veto ve C1 artiklari silindi
-    "engine.live.json": "e0b622bce192299dd03e8223559f06b57d96aa05490c5652cda79fc3b26c88a7",   # 24.11 kullanici karari: PA varyantlari (7 ana kol x 14 varyant x 4 ZD = 56 kol + aile/varyant tavani + H2-YARI exit_modes); onceki: formasyon kutuphanesi (MF1 48 kol)
+    "engine.live.json": "HASH_TODO",   # 24.11 kullanici karari: formasyon kutuphanesi birlesik (MF1 48 + GF1 52 + IN1 66 + PA2 29 + PA varyantlari 56 kol; max_positions 36)
     #   # 24.11 kullanici karari: veto ve C1 artiklari silindi (veto_mode, arm_max_positions L1 kalkti);   # 24.11 kullanici karari: DL1 dort zaman dilimi acik; onceki 24.11 ML filtreleri silindi
 }
 # 23.11 kullanici karari: canli = kagit. engine.live.json'a eklenen kagit sistem anahtarlari (+ pairs yerine kagit evreni).

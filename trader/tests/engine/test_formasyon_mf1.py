@@ -314,7 +314,7 @@ def test_kesif_12_formasyon_sanal_kurulum():
     assert arms.parse_arm_id("MF1-YUTAN@1h") == ("MF1-YUTAN", "1h")
     assert sorted(mf1.FORMASYONLAR[k].sira for k in KODLAR) == list(range(1, 13))
     # mevcut kollar kutuphaneden once (en buyuk mevcut 95 < 300)
-    assert max(arms.priority_of(s) for s in ls if not s.startswith("MF1-")) < 300
+    assert max(arms.priority_of(s) for s in ls if "-" not in s) < 200
 
 
 def test_kutuphane_ders_parametresi_okumaz():

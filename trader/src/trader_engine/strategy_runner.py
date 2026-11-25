@@ -480,7 +480,7 @@ class MultiArmSignalSource(WindowedSignalSource):
                 if tf == pos_tf and (key == "core" or exit_view is None):
                     exit_view = self._exit_view(sig, trig, lr, pos, D)
         if exit_view is not None and rule_in is not None and len(pos) > 2:
-            exit_view = self._rule_exit(exit_view, lab, pos[2], rule_in, h4, params, D)
+            exit_view = self._rule_exit(exit_view, lab, pos[2], rule_in, h4, params, D, pos[3] if len(pos) > 3 else None)
         if exit_view is not None:
             self._exit_views[(pair, D)] = (pos_tf, exit_view)
         if not cands:
@@ -495,7 +495,8 @@ class MultiArmSignalSource(WindowedSignalSource):
         extras = tuple(f for f in frames[1:] if f.last.signal or (f.last.setup and f.last.side and f.last.skip_reason in _FILTERED_SKIPS))
         return dataclasses.replace(head, extras=extras)
 
-    def _rule_exit(self, view: ExitContext, lab, setup, rule_in: tuple, h4, params, D: datetime) -> ExitContext:
+    def _rule_exit(self, view: ExitContext, lab, setup, rule_in: tuple, h4, params, D: datetime,
+                   side: str | None = None) -> ExitContext:
         """24.11 kullanici karari: kutuphane kural cikisi (EXIT_RULE): yalniz son kapanmis mum okunur. Hata olursa
         `rule_exit` False kalir (stop ve zaman stopu yine calisir) ve sayac artar."""
         rule = exit_rule_of(setup)
@@ -506,7 +507,7 @@ class MultiArmSignalSource(WindowedSignalSource):
             keep = AG.active_mask(trig)
             trig_a = trig if keep is None else trig[keep]
             inp = ArmInput(pair=ctx.pair, tf=ctx.tf, D=D, trig=trig_a, h4=h4, params=SignalParams.from_mapping(params),
-                           core_fn=lambda c=ctx: lab._core_compact(c))
+                           core_fn=lambda c=ctx: lab._core_compact(c), side=side)
             if bool(rule(inp)):
                 return dataclasses.replace(view, rule_exit=True)
         except Exception as e:  # noqa: BLE001
