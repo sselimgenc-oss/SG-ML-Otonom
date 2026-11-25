@@ -1,9 +1,9 @@
 {
  "sema": "ml.mutabakat.v1",
- "uretim": "2026-11-25T00:56:35Z",
- "uretim_tsi": "2026-11-25 03:56",
- "islem_sayisi": 89,
- "kapanan": 80,
+ "uretim": "2026-11-25T04:40:09Z",
+ "uretim_tsi": "2026-11-25 07:40",
+ "islem_sayisi": 92,
+ "kapanan": 83,
  "acik": 9,
  "uyusmazlik_sayisi": 0,
  "uyusmazliklar": [],
@@ -15,37 +15,27 @@
   "oncesi": 34,
   "dagilim": {
    "Telegram öncesi (mesaj sistemi yoktu)": 34,
-   "gönderildi (kayıt)": 135,
+   "gönderildi (kayıt)": 141,
    "—": 9
   },
   "kaynak": "Telegram geçmişine erişim yok; motorun gönderdi kaydı (imleç) kullanıldı. Sıra: (1) gönderim kaydı islem_gonderildi.jsonl (ts, işlem no, tür, yön, K/Z; kayıt başlangıcından itibaren), (2) outbox 'sent' işaretleri (teslim edilmiş mesajın anahtarı; mesaj metni yok), (3) islem_imleci.json (duyurulmuş işlem numaraları). Gönderim kaydından önceki işlemlerde imleç yalnız 'duyuruldu' sayıldığını gösterir, mesaj metnini kanıtlamaz; mesaj sisteminden önceki işlemler 'Telegram öncesi' sayılır, uyuşmazlık değildir."
  },
- "fiyat_bekleniyor": [
-  20,
-  40,
-  104,
-  105,
-  109,
-  111,
-  112,
-  113
- ],
- "fiyat_bekleniyor_durum": "fiyat bekleniyor (piyasa kapalı/veri yok)",
+ "fiyat_bekleniyor": [],
+ "fiyat_bekleniyor_durum": null,
  "panel_notu": "Panel 'tümü' listesi son 200 kapanan işlemi gösterir; toplamlar tüm işlemleri kapsar.",
  "bilgi": [
-  "Açık işlemlerin anlık kâr/zararı: kasada +2,66 $, panelde -1,00 $ · fark 3,66 $ (fiyat zamanlaması, uyuşmazlık sayılmaz)",
-  "Fiyatı gelmeyen açık işlemler: #20, #40, #104, #105, #109, #111, #112, #113 · fiyat bekleniyor (piyasa kapalı/veri yok); uyuşmazlık sayılmaz"
+  "Açık işlemlerin anlık kâr/zararı: kasada +5,37 $, panelde +5,70 $ · fark 0,34 $ (fiyat zamanlaması, uyuşmazlık sayılmaz)"
  ],
  "kontroller": [
   {
    "ad": "Kasa = başlangıç + Σ net K/Z",
    "sonuc": "geçti",
-   "ayrinti": "Kasa 963,21 $ tutuyor"
+   "ayrinti": "Kasa 954,50 $ tutuyor"
   },
   {
    "ad": "Net K/Z: SQL toplamı = motor toplamı = brüt - komisyon - fonlama",
    "sonuc": "geçti",
-   "ayrinti": "Defter toplamları tutuyor (-35,43 $)"
+   "ayrinti": "Defter toplamları tutuyor (-44,20 $)"
   },
   {
    "ad": "Long toplamı (motor = panel)",
@@ -55,12 +45,12 @@
   {
    "ad": "Short toplamı (motor = panel)",
    "sonuc": "geçti",
-   "ayrinti": "Short işlemler panelle aynı (67 işlem)"
+   "ayrinti": "Short işlemler panelle aynı (70 işlem)"
   },
   {
    "ad": "Toplam kapanan (motor = panel 'tümü')",
    "sonuc": "geçti",
-   "ayrinti": "Kapanan işlemlerin toplamı panelle aynı (80 işlem)"
+   "ayrinti": "Kapanan işlemlerin toplamı panelle aynı (83 işlem)"
   },
   {
    "ad": "Açık pozisyon sayısı (motor = panel = şerit = durum)",
@@ -70,17 +60,8 @@
   {
    "ad": "Açık K/Z fiyat kaynağı (panel = motor mark)",
    "sonuc": "geçti",
-   "ayrinti": "Açık işlemlerin kâr/zararı panelle aynı; fiyat bekleniyor (piyasa kapalı/veri yok): #20, #40, #104, #105, #109, #111, #112, #113",
-   "fiyat_bekleniyor": [
-    20,
-    40,
-    104,
-    105,
-    109,
-    111,
-    112,
-    113
-   ]
+   "ayrinti": "Açık işlemlerin kâr/zararı panelle aynı",
+   "fiyat_bekleniyor": []
   },
   {
    "ad": "Günlük zarar limiti oranı (panel = kâğıt ayarı)",
@@ -411,8 +392,7 @@
    "uyusmazlik": [],
    "panel": "aynı",
    "telegram_acildi": "Telegram öncesi (mesaj sistemi yoktu)",
-   "telegram_kapandi": "—",
-   "fiyat_durumu": "fiyat bekleniyor (piyasa kapalı/veri yok)"
+   "telegram_kapandi": "—"
   },
   {
    "islem_no": 21,
@@ -640,8 +620,7 @@
    "uyusmazlik": [],
    "panel": "aynı",
    "telegram_acildi": "gönderildi (kayıt)",
-   "telegram_kapandi": "—",
-   "fiyat_durumu": "fiyat bekleniyor (piyasa kapalı/veri yok)"
+   "telegram_kapandi": "—"
   },
   {
    "islem_no": 54,
@@ -1610,8 +1589,7 @@
    "uyusmazlik": [],
    "panel": "aynı",
    "telegram_acildi": "gönderildi (kayıt)",
-   "telegram_kapandi": "—",
-   "fiyat_durumu": "fiyat bekleniyor (piyasa kapalı/veri yok)"
+   "telegram_kapandi": "—"
   },
   {
    "islem_no": 105,
@@ -1630,8 +1608,7 @@
    "uyusmazlik": [],
    "panel": "aynı",
    "telegram_acildi": "gönderildi (kayıt)",
-   "telegram_kapandi": "—",
-   "fiyat_durumu": "fiyat bekleniyor (piyasa kapalı/veri yok)"
+   "telegram_kapandi": "—"
   },
   {
    "islem_no": 106,
@@ -1695,20 +1672,19 @@
    "kol": "Trend geri çekilmesi · 15 dakika",
    "coin": "TRX",
    "yon": "short",
-   "durum": "açık",
+   "durum": "kapalı",
    "acilis": "2026-11-24 20:00",
-   "kapanis": null,
+   "kapanis": "2026-11-25 06:21",
    "giris": 0.30776,
-   "cikis": null,
-   "brut": null,
-   "komisyon": 0.46102448,
-   "fonlama": 0.0,
-   "net": null,
+   "cikis": 0.30897,
+   "brut": -3.625160000000133,
+   "komisyon": 0.9238615400000001,
+   "fonlama": -0.09232773200000001,
+   "net": -4.456693808000133,
    "uyusmazlik": [],
    "panel": "aynı",
    "telegram_acildi": "gönderildi (kayıt)",
-   "telegram_kapandi": "—",
-   "fiyat_durumu": "fiyat bekleniyor (piyasa kapalı/veri yok)"
+   "telegram_kapandi": "gönderildi (kayıt)"
   },
   {
    "islem_no": 110,
@@ -1746,48 +1722,102 @@
    "uyusmazlik": [],
    "panel": "aynı",
    "telegram_acildi": "gönderildi (kayıt)",
-   "telegram_kapandi": "—",
-   "fiyat_durumu": "fiyat bekleniyor (piyasa kapalı/veri yok)"
+   "telegram_kapandi": "—"
   },
   {
    "islem_no": 112,
    "kol": "Yapay zekâ adayı · 15 dakika",
    "coin": "XAG",
    "yon": "short",
-   "durum": "açık",
+   "durum": "kapalı",
    "acilis": "2026-11-25 01:15",
-   "kapanis": null,
+   "kapanis": "2026-11-25 05:15",
    "giris": 41.05,
-   "cikis": null,
-   "brut": null,
-   "komisyon": 0.203997975,
-   "fonlama": 0.0,
-   "net": null,
+   "cikis": 41.44,
+   "brut": -3.8762100000000057,
+   "komisyon": 0.409934055,
+   "fonlama": -0.08055130519052528,
+   "net": -4.2055927498094805,
    "uyusmazlik": [],
    "panel": "aynı",
    "telegram_acildi": "gönderildi (kayıt)",
-   "telegram_kapandi": "—",
-   "fiyat_durumu": "fiyat bekleniyor (piyasa kapalı/veri yok)"
+   "telegram_kapandi": "gönderildi (kayıt)"
   },
   {
    "islem_no": 113,
    "kol": "İki bacaklı geri çekilme · 15 dakika",
    "coin": "DOT",
    "yon": "short",
-   "durum": "açık",
+   "durum": "kapalı",
    "acilis": "2026-11-25 02:45",
-   "kapanis": null,
+   "kapanis": "2026-11-25 06:12",
    "giris": 0.651,
+   "cikis": 0.6504,
+   "brut": 0.4084200000000306,
+   "komisyon": 0.44293149000000004,
+   "fonlama": 0.0675547700016,
+   "net": -0.10206626000156944,
+   "uyusmazlik": [],
+   "panel": "aynı",
+   "telegram_acildi": "gönderildi (kayıt)",
+   "telegram_kapandi": "gönderildi (kayıt)"
+  },
+  {
+   "islem_no": 114,
+   "kol": "Sıkışma kırılımı · 1 saat",
+   "coin": "GOOGL",
+   "yon": "short",
+   "durum": "açık",
+   "acilis": "2026-11-25 06:00",
+   "kapanis": null,
+   "giris": 276.44,
    "cikis": null,
    "brut": null,
-   "komisyon": 0.22156785000000004,
+   "komisyon": 0.131309,
    "fonlama": 0.0,
    "net": null,
    "uyusmazlik": [],
    "panel": "aynı",
    "telegram_acildi": "gönderildi (kayıt)",
-   "telegram_kapandi": "—",
-   "fiyat_durumu": "fiyat bekleniyor (piyasa kapalı/veri yok)"
+   "telegram_kapandi": "—"
+  },
+  {
+   "islem_no": 115,
+   "kol": "Yapay zekâ adayı · 15 dakika",
+   "coin": "NFLX",
+   "yon": "short",
+   "durum": "açık",
+   "acilis": "2026-11-25 06:30",
+   "kapanis": null,
+   "giris": 58.84,
+   "cikis": null,
+   "brut": null,
+   "komisyon": 0.3395068,
+   "fonlama": 0.0,
+   "net": null,
+   "uyusmazlik": [],
+   "panel": "aynı",
+   "telegram_acildi": "gönderildi (kayıt)",
+   "telegram_kapandi": "—"
+  },
+  {
+   "islem_no": 116,
+   "kol": "İki bacaklı geri çekilme · 15 dakika",
+   "coin": "HBAR",
+   "yon": "short",
+   "durum": "açık",
+   "acilis": "2026-11-25 06:45",
+   "kapanis": null,
+   "giris": 0.05003,
+   "cikis": null,
+   "brut": null,
+   "komisyon": 0.260481195,
+   "fonlama": 0.0,
+   "net": null,
+   "uyusmazlik": [],
+   "panel": "aynı",
+   "telegram_acildi": "gönderildi (kayıt)",
+   "telegram_kapandi": "—"
   }
  ]
 }

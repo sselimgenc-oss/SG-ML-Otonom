@@ -2,7 +2,7 @@
   "sema": "ortak.gunluk_ozet.v1",
   "proje": "ML",
   "mod": "kagit",
-  "uretim": "2026-11-25T04:00:50Z",
+  "uretim": "2026-11-25T05:03:56Z",
   "gun": "2026-11-25",
   "kasa": {
     "baslangic": 1000.0,
@@ -51,7 +51,115 @@
       "islem": 3
     },
     {
+      "ad": "B1-BOLGE",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "B1-MUM",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
       "ad": "DL1",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "F1-IKINCI",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "GF1-BAYRAK",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "GF1-FLAMA",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "GF1-IKILI",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "GF1-KAMA",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "GF1-KANAL",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "GF1-KUPA",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "GF1-OBO",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "GF1-RETEST",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "GF1-SAHTE",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "GF1-TREND",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "GF1-UCGEN",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "GF1-UCLU",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "GF1-YATAY",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "H2-MINI",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "H2-YARI",
       "gun_pnl": 0.0,
       "toplam_pnl": 0.0,
       "islem": 0
@@ -63,7 +171,283 @@
       "islem": 0
     },
     {
+      "ad": "IN1-BOLL",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "IN1-BOLLKIR",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "IN1-FIBO",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "IN1-FIYATMA",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "IN1-HACIM",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "IN1-HIZLIMA",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "IN1-KUMO",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "IN1-MACD",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "IN1-MAGERI",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "IN1-MAKESISIM",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "IN1-RSI",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "IN1-RSI2",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "IN1-RSIDONUS",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "IN1-STOK",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "IN1-TK",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "IN1-UYUMSUZ",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "IN1-VWAP",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "MF1-CIMBIZ",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "MF1-DELICI",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "MF1-DISBAR",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "MF1-HARAMI",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "MF1-ICCUBUK",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "MF1-ICSAHTE",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "MF1-MARUBOZU",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "MF1-PINBAR",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "MF1-TERSCEKIC",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "MF1-UCASKER",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "MF1-YILDIZ",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "MF1-YUTAN",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "PA2-BOLGE",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "PA2-EMIRBLOK",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "PA2-FVG",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "PA2-ONCEKI",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "PA2-SEVIYE",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "PA2-TCIZGI",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "PA2-TUKENIS",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "PA2-UCVURUS",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
       "ad": "R1",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "R1-ALT",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "R1-ERKEN",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "R1-HA",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "S1-HACIM",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "S1-OLCULU",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "T1-GERI3",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "T1-SEVIYE",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "TF1-FITIL",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "TF1-HACIM",
       "gun_pnl": 0.0,
       "toplam_pnl": 0.0,
       "islem": 0
@@ -82,8 +466,8 @@
     }
   ],
   "ogrenme": {
-    "aktif_ders": 0,
-    "yeni_ders": 0,
+    "aktif_ders": 1,
+    "yeni_ders": 1,
     "emekli_ders": 0,
     "filtre_aktif": null
   },
