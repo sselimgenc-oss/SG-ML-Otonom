@@ -205,6 +205,7 @@ class Candidate:
     leverage: float
     qty_step: float | None = None
     min_notional: float = 0.0
+    risk_override: float | None = None   # ML1 güven bandı (yalnız kağıt): işlem başı risk oranı; None = cfg.target_trade_risk
 
 
 @dataclass(frozen=True)
@@ -272,8 +273,10 @@ def _floor_to_step(qty: float, step: float) -> float:
 
 def size_position(equity: float, entry: float, stop: float, side: str,
                   leverage: float, cfg: RiskConfig = LOCKED_CFG,
-                  qty_step: float | None = None, min_notional: float = 0.0) -> SizeResult:
-    """loss_at_stop(qty) = target_trade_risk*equity denklemini çözer; notional ve adım sınırlı."""
+                  qty_step: float | None = None, min_notional: float = 0.0,
+                  trade_risk: float | None = None) -> SizeResult:
+    """loss_at_stop(qty) = target_trade_risk*equity denklemini çözer; notional ve adım sınırlı. `trade_risk` (ML1 güven bandı,
+    26.11): verilirse hedef risk yerine bu oran kullanılır; (0, max_trade_risk] dışı reddedilir."""
     side = _norm_side(side)
     equity, entry, stop = _num(equity, "equity"), _num(entry, "entry"), _num(stop, "stop")
     leverage = _num(leverage, "leverage")
@@ -289,7 +292,12 @@ def size_position(equity: float, entry: float, stop: float, side: str,
     per_qty = loss_at_stop(1.0, entry, stop, cfg)
     if not per_qty > 0:
         raise ValueError("birim kayıp hesaplanamadı")
-    limit = cfg.target_trade_risk * equity
+    rate = cfg.target_trade_risk
+    if trade_risk is not None:
+        rate = _num(trade_risk, "trade_risk")
+        if not 0 < rate <= cfg.max_trade_risk:
+            raise ValueError("trade_risk (0, max_trade_risk] içinde olmalı")
+    limit = rate * equity
     qty_risk = limit / per_qty
     if loss_at_stop(qty_risk, entry, stop, cfg) > limit:  # savunma amaçlı
         qty_risk = math.nextafter(qty_risk, 0.0)
@@ -367,7 +375,7 @@ def _check_entry(state: AccountState, cand: Candidate, cfg: RiskConfig) -> Decis
         return _deny(f"{pair} için zaten açık pozisyon var")
     # 6. Boyut
     try:
-        size = size_position(equity, entry, stop, side, lev, cfg, qty_step, min_notional)
+        size = size_position(equity, entry, stop, side, lev, cfg, qty_step, min_notional, cand.risk_override)
     except ValueError as exc:
         return _deny(f"boyutlandırma reddedildi: {exc}")
     # 6b. Savunma: boyut sonucunu yeniden doğrula (bozuk sonuca asla güvenme)

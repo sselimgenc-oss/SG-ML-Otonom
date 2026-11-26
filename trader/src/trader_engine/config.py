@@ -158,8 +158,10 @@ _OPTIONAL_KEYS = {"strategy", "target_trade_risk", "startup_wait_s", "pause_file
                   "optional_pairs", "retired_pairs", "max_positions", "risk", "clusters", "flat_bar_guard", "contract_types",
                   "cost_overrides", "arms", "exit_modes", "etiket_kurallari",
                   "ml1"}
-_ML1_KEYS = {"aktif": bool, "paket_yolu": str, "ogrenme": dict}                     # tohum paket YOK (sifirdan ogrenme)
+_ML1_KEYS = {"aktif": bool, "paket_yolu": str, "ogrenme": dict, "risk_bantlari": dict}                     # tohum paket YOK (sifirdan ogrenme)
 _OGRENME_KEYS = {"aktif": bool, "kuru": bool, "yari_omur_gun": (int, float), "min_islem": int, "min_islem_tf": int, "esik": (int, float)}
+_RISK_BANT_KEYS = {"aktif": bool, "bantlar": (list, tuple), "tavan": (int, float)}
+_RISK_BANT_TAVAN_MAX = 0.02
 _PAPER_ONLY_KEYS = ("optional_pairs", "max_positions", "risk", "clusters", "flat_bar_guard", "contract_types",
                     "cost_overrides", "arms")
 # 25.11 sadelestirme: ML1 kapisi secer; boyut/giris frenleri 3 katmana indi (islem basi risk, gunluk zarar siniri, hesap geneli acik
@@ -336,9 +338,39 @@ def _build_ml1(v: Any) -> dict[str, Any]:
                         or (kk == "esik" and not 0.0 < xx < 1.0):
                     raise ConfigError(f"ml1.ogrenme.{kk} aralik disi: {xx!r}")
             continue
+        if k == "risk_bantlari":
+            _build_risk_bantlari(x)
+            continue
         if not isinstance(x, _ML1_KEYS[k]) or (k != "aktif" and not x.strip()):
             raise ConfigError(f"ml1.{k} turu gecersiz: {x!r}")
     return dict(v)
+
+
+def _build_risk_bantlari(x: Any) -> None:
+    """26.11 ML1 guven bandi riski: {"aktif": bool, "bantlar": [[esik, risk], ...], "tavan": float}. Esikler (0,1) ve kesin artan,
+    riskler > 0 ve <= tavan, tavan <= 0.02 (max_trade_risk). Gecersiz = ConfigError."""
+    if not isinstance(x, Mapping) or not set(x) <= set(_RISK_BANT_KEYS) or not {"aktif", "bantlar", "tavan"} <= set(x):
+        raise ConfigError(f"ml1.risk_bantlari {sorted(_RISK_BANT_KEYS)} anahtarlarindan olusmali: {x!r}")
+    if not isinstance(x["aktif"], bool):
+        raise ConfigError(f"ml1.risk_bantlari.aktif bool olmali: {x['aktif']!r}")
+    tavan = x["tavan"]
+    if isinstance(tavan, bool) or not isinstance(tavan, (int, float)) or not 0 < tavan <= _RISK_BANT_TAVAN_MAX:
+        raise ConfigError(f"ml1.risk_bantlari.tavan (0, {_RISK_BANT_TAVAN_MAX}] icinde olmali: {tavan!r}")
+    b = x["bantlar"]
+    if not isinstance(b, (list, tuple)) or not b:
+        raise ConfigError("ml1.risk_bantlari.bantlar bos olmayan liste olmali")
+    onceki = None
+    for it in b:
+        if not isinstance(it, (list, tuple)) or len(it) != 2 or any(isinstance(z, bool) or not isinstance(z, (int, float)) for z in it):
+            raise ConfigError(f"ml1.risk_bantlari.bantlar ogesi [esik, risk] olmali: {it!r}")
+        e, r = float(it[0]), float(it[1])
+        if not (math.isfinite(e) and math.isfinite(r)) or not 0.0 < e < 1.0:
+            raise ConfigError(f"ml1.risk_bantlari esik (0,1) icinde olmali: {it!r}")
+        if onceki is not None and e <= onceki:
+            raise ConfigError("ml1.risk_bantlari esikleri kesin artan siralanmali")
+        if not 0.0 < r <= float(tavan):
+            raise ConfigError(f"ml1.risk_bantlari risk (0, tavan] icinde olmali: {it!r}")
+        onceki = e
 
 
 def _build_cost_overrides(v: Any, pairs: tuple[str, ...]) -> dict[str, dict[str, dict[str, float]]]:

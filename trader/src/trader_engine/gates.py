@@ -94,6 +94,19 @@ def _fin(x) -> bool:
 _INT_CARRIERS = ("pullback_ema", "rh_touches", "rl_touches")
 
 
+def ml1_risk_orani(ml1_cfg: Mapping | None, skor: object) -> float | None:
+    """26.11 ML1 guven bandi riski (yalniz kagit). Ogrenme asamasi (puan yok), ozellik kapali/yok ya da puan ilk bandin altinda ->
+    None (sabit target_trade_risk). Aksi halde puani en yuksek saglayan bandin riski, `tavan` ile sinirli."""
+    rb = (ml1_cfg or {}).get("risk_bantlari")
+    if not rb or not rb.get("aktif") or isinstance(skor, bool) or not isinstance(skor, (int, float)) or not math.isfinite(skor):
+        return None
+    r = None
+    for esik, risk in rb["bantlar"]:
+        if skor >= esik:
+            r = float(risk)
+    return None if r is None else min(r, float(rb["tavan"]))
+
+
 def _features(row: SignalRow) -> dict:
     """Defter ozellikleri: ortak anahtarlar + kurulumun `FEATURES` eslemesi (DD-12 WP-12a, K-7 madde 2). Tasiyici sutun
     adi tamsayiysa (pullback_ema) defterde tamsayi yazilir. T1/R1 eslemesi eski anahtar kumesiyle ayni sirada."""
@@ -419,9 +432,15 @@ class EntryGate:
                               veto_reason="gate:day_start_missing", **tk)
         lev = entry_leverage(self.cfg)
         ref = self.entry_ref_fn(pair, D, row) if self.entry_ref_fn is not None else row.planned_entry
-        cand = K.Candidate(pair, row.side, float(ref), float(row.planned_stop), float(lev),
-                           rules.step, rules.min_notional)
         src = self.ladder if self.ladder is not None else self.cfg
+        rk = None
+        if paper and mv is not None:                                                    # 26.11 ML1 guven bandi riski (puansiz/ogrenme: sabit)
+            rk = ml1_risk_orani(self.cfg.ml1, mv.features.get("ml1_skor"))
+            if rk is not None:
+                rk = min(rk, src.risk_config.target_trade_risk) if src.risk_config.target_trade_risk < self.cfg.risk_config.target_trade_risk else rk
+                tk["features"] = {**tk["features"], "ml1_risk": rk}
+        cand = K.Candidate(pair, row.side, float(ref), float(row.planned_stop), float(lev),
+                           rules.step, rules.min_notional, rk)
         dec = K.check_entry(acct, cand, src.risk_config)
         if not dec.allowed:
             o = self._skip(row, tf, "risk_denied", skip_reason="risk_denied", veto_status=vs,

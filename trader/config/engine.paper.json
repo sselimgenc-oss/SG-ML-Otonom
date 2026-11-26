@@ -11,7 +11,7 @@
   "max_positions": 14,
   "target_trade_risk": 0.01,
   "risk": {"target_trade_risk": 0.01, "max_open_risk": 0.12, "max_same_dir_risk": 0.06, "daily_max_loss": 0.08},
-  "ml1": {"aktif": true, "ogrenme": {"aktif": true, "kuru": false, "min_islem": 200, "min_islem_tf": 0, "esik": 0.50}},
+  "ml1": {"aktif": true, "risk_bantlari": {"aktif": true, "bantlar": [[0.50, 0.005], [0.60, 0.010], [0.70, 0.015]], "tavan": 0.015}, "ogrenme": {"aktif": true, "kuru": false, "min_islem": 200, "min_islem_tf": 0, "esik": 0.50}},
   "clusters": {
     "kripto_buyuk": {"pairs": ["BTC/USDT", "ETH/USDT", "XRP/USDT", "SOL/USDT"]},
     "kripto_diger": {"pairs": ["TRX/USDT"]},
