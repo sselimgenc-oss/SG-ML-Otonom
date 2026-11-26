@@ -155,3 +155,29 @@ def test_shipped_base_config_uses_half_percent_and_sizing_follows(tmp_path):
         assert d.final_action == "entered" and d.size_risk_amount <= 0.005 * 1000.0 * 1.001
     finally:
         env.close()
+
+
+# ------------------------------------------------------------------ P5-02: outbox'ta beklenmeyen istisna
+def test_outbox_unexpected_exception_does_not_crash_and_blocks_entries(tmp_path, monkeypatch):
+    import trader_engine.state as S
+    env = Env(tmp_path)
+    try:
+        with env.state.tx():
+            env.state.outbox_add("entry", 1, ENTRY_PAYLOAD)
+            env.state.outbox_add("entry", 2, ENTRY_PAYLOAD)
+        rows = env.state.outbox_pending()
+        real = S._write_ledger
+
+        def boom(ledger, row):
+            raise KeyError("beklenmeyen_alan")
+        monkeypatch.setattr(S, "_write_ledger", boom)
+        res = env.state.drain_outbox(env.ledger)                      # istisna atmaz
+        assert res.failed == len(rows) and res.written == 0 and "KeyError" in res.first_error
+        env.start()                                                   # cokmez; blok acilista kurulur
+        assert env.state.block_has("outbox_stuck")
+        monkeypatch.setattr(S, "_write_ledger", real)
+        env.ledger.record_trade_entry = lambda *a, **k: None          # yazim basarili (satirlar gecerli sayilir)
+        env.engine._post_commit()                                     # yama kalkinca blok kalkar
+        assert env.state.outbox_pending() == [] and not env.state.block_has("outbox_stuck")
+    finally:
+        env.close()

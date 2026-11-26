@@ -336,7 +336,8 @@ def _f(x, nd=2, plus=False):
 def render_md(summary: dict, setups: list[dict]) -> str:
     L = [f"# Kagit - geri test tutarlilik raporu ({summary['donem']['bas'][:10]} -> {summary['donem']['bit'][:10]})", "",
          "Yalniz bilgi: islemi engellemez, kurulum kapatmaz, kapi degildir. Yontem: `backtest --env paper` (ayni strateji/arms/"
-         "kume/maliyet, ayni `market.sqlite`) ile kagit defteri, anahtar `(pair, side, entry_ts)`.", "",
+         "kume/maliyet, ayni `market.sqlite`) ile kagit defteri, anahtar `(pair, side, entry_ts)`.",
+         "ML1 kapisi geri testte kapalidir (ogrenme kipi); paket sonrasi sapma beklenir.", "",
          f"- Uretim: {summary['uretim']}", f"- Donem: {summary['donem']['bas']} .. {summary['donem']['bit']}"]
     if summary["not"]:
         L.append(f"- Not: {summary['not']}")

@@ -3,7 +3,7 @@
 Kagit motoru (HistoricalSource, tum kural kollari 15m/1h/4h/1d, ML1 acik, ogrenilmis paket: --package) gecmisin son N gununde kosulur; canli hesaplanan
 ozellik/puanlar ayni adaylar icin cevrimdisi hatla (scan + build_features(TUM gecmis mumlari) + score) karsilastirilir.
 Kullanim: cd trader && PYTHONPATH=src python3 research/ml1/serve_parity_real.py --hist <dizin> --pairs BTC/USDT,SOL/USDT,XAU/USDT --days 7 [--cold]
-Cikti: ozellik grubu basina (pa_/reg_/vol_/conf_/turetilen) en buyuk mutlak fark, puan farki, aday kumesi esitligi, 0.58 karar cevirmeleri."""
+Cikti: ozellik grubu basina (pa_/reg_/vol_/conf_/turetilen) en buyuk mutlak fark, puan farki, aday kumesi esitligi, 0.50 karar cevirmeleri."""
 from __future__ import annotations
 
 import argparse

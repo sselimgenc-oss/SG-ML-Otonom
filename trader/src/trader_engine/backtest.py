@@ -11,6 +11,7 @@ import math
 import random
 import subprocess
 import sys
+import tempfile
 import time
 from dataclasses import dataclass, field
 from decimal import ROUND_DOWN, Decimal
@@ -355,7 +356,9 @@ class BacktestRunner:
     def _build_env_config(self, d: Path, out_dir: Path | None) -> EngineConfig:
         """`--env paper`: kagit motorunun yapilandirmasi (base + learner + engine.<env>.json katmani; `load_cli_config` ile ayni) KIPI DAHIL
         aynen yuklenir (mode="paper": kume/arm/risk/maliyet kapilari kagitla ayni kod yolu). Yalniz yollar cikti dizinine tasinir ki
-        kagit var dizinine/KILL/PAUSE dosyalarina HICBIR sey yazilmasin/okunmasin. Holdout kilidi `run_once`ta ayrica denetlenir."""
+        kagit var dizinine/KILL/PAUSE dosyalarina HICBIR sey yazilmasin/okunmasin. Holdout kilidi `run_once`ta ayrica denetlenir.
+        ML1 paket yolu cikti dizinine tasinir, ogrenme kuru: geri test kagit paketini OKUMAZ/YAZMAZ; kapi geri testte ogrenme asamasindadir
+        (herkes gecer)."""
         from .config import load_cli_config
         s = self.spec
         cfg = load_cli_config(d, "learner", s.env)
@@ -377,6 +380,20 @@ class BacktestRunner:
         if out_dir is not None:
             o = str(Path(out_dir).resolve())
             kw.update(var_dir=o, kill_file=f"{o}/KILL.never", pause_file=f"{o}/PAUSE.never")
+        ml1 = dict(cfg.ml1 or {})
+        if ml1.get("aktif"):
+            og = dict(ml1.get("ogrenme") or {})
+            if out_dir is not None:
+                ml1["paket_yolu"] = str(Path(out_dir).resolve() / "models" / "ml1" / "ml1_package.json")
+                if og:
+                    og["kuru"] = True
+            else:
+                ml1["paket_yolu"] = str(Path(tempfile.gettempdir()) / "trader-bt-ml1-yok" / "ml1_package.json")   # var olmayan yol; kimse yazmaz
+                if og:
+                    og["aktif"] = False                                  # ogrenici hic kurulmaz; gunlukleri kagit var dizinine dusemez
+            if og:
+                ml1["ogrenme"] = og
+            kw["ml1"] = ml1
         return apply_overrides(cfg, **kw)
 
     def build_view(self, cfg: EngineConfig):

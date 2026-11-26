@@ -592,6 +592,10 @@ class StateStore:
                 _write_ledger(ledger, row)
             except LedgerError as e:
                 return DrainResult(written=written, failed=len(rows) - i, first_error=str(e) or type(e).__name__)
+            except StateError:
+                raise
+            except Exception as e:  # noqa: BLE001 - beklenmeyen bicim hatasi sureci dusurmez; satir takili sayilir, girisler kapanir
+                return DrainResult(written=written, failed=len(rows) - i, first_error=f"{type(e).__name__}: {e}")
             with self.tx():
                 self.outbox_done(row.id)
             written += 1

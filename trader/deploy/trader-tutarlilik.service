@@ -10,10 +10,10 @@ User=trader
 # Geri test (`backtest --env paper`, ayni strateji/arms/kume/maliyet) son 7 tam UTC gunu icin; kilitli doneme dusen kisim kesilir.
 # Cikti: var/rapor/tutarlilik/<tarih>.md ve var/durum/tutarlilik_v1.json (atomik). Cikis 0: TIKANDI da dosyaya yazilir (motor etkilenmez).
 ExecStart=/usr/bin/python3 -I /opt/trader/scripts/tutarlilik_run.py --once
-# Sure: 44 cift x 7 gun x 672 adet 15 dk karar adimi (kagit motoruyla ayni hesap); olculen ~10-18 sn/adim (tek cekirdek) => ~2-3.5 saat; CPUQuota
+# Sure: 14 cift x 7 gun x 1h/4h/1d karar adimi (kagit motoruyla ayni hesap; eski 15 dk/cok cifte ait sn/adim olcumleri gecersiz); CPUQuota
 # %50 ile ~2 kat; bu yuzden uzun zaman asimi (yalniz bilgi isi; motor etkilenmez, Nice=10)
 TimeoutStartSec=36000
-# MemoryMax: 44 cift, bilesik strateji, store kaynagi icin olculen tepe RSS ~135 MB; ~2,2 kat pay (docs/motor/tutarlilik-raporu-spec.md notu)
+# MemoryMax: eski (cok cift, 15 dk) olcumde bilesik strateji, store kaynagi icin olculen tepe RSS ~135 MB; ~2,2 kat pay (docs/motor/tutarlilik-raporu-spec.md notu)
 MemoryMax=300M
 CPUQuota=50%
 Nice=10
@@ -21,7 +21,7 @@ IOSchedulingClass=idle
 ProtectSystem=strict
 ProtectHome=read-only
 ReadWritePaths=/opt/trader/var/rapor /opt/trader/var/durum -/opt/trader/var/learner -/opt/trader/var/market.sqlite-wal -/opt/trader/var/market.sqlite-shm
-ReadOnlyPaths=-/opt/trader/var/learner/ledger.sqlite -/opt/trader/var/market.sqlite
+ReadOnlyPaths=-/opt/trader/var/learner/ledger.sqlite -/opt/trader/var/learner/models -/opt/trader/var/market.sqlite
 NoNewPrivileges=true
 PrivateTmp=true
 PrivateNetwork=true

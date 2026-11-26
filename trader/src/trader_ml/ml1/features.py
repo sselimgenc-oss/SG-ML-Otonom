@@ -77,7 +77,7 @@ def confluence(c: pd.DataFrame, k: int = K_BARS) -> pd.DataFrame:
 
 
 def events(c: pd.DataFrame, k: int = K_BARS) -> pd.DataFrame:
-    """event_id / event_size / event_weight (egitim agirligi; gelecege bagli, ozellik degil)."""
+    """event_id / event_size / event_weight (egitim agirligi; gelecege bagli, ozellik degil). Olay agirligi etiketli islemlerden hesaplanir."""
     n = len(c)
     eid = np.empty(n, dtype=object)
     if n:

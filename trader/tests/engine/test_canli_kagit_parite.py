@@ -48,7 +48,7 @@ def test_parite_canliya_ozgu_anahtarlar_canlida_kalir():
     assert live["live"]["expected_wallet_max"] == 2000.0 and live["live"]["account_tag"] == "canli-alt1"
 
 
-def test_canli_ml_stratejisi_ve_43_cift_yuklenir():
+def test_canli_ml_stratejisi_ve_14_cift_yuklenir():
     live, paper = load_cli_config(CONFIG, "learner", "live"), load_cli_config(CONFIG, "learner", "paper")
     assert live.mode == "live" and live.strategy == "price_action_lab_ml"
     assert len(live.pairs) == 14 and "TON/USDT" not in live.pairs and list(live.pairs) == list(paper.pairs)

@@ -869,7 +869,7 @@ class Engine:
             self.ledger.drain_spool()
         except Exception as e:  # noqa: BLE001
             log.error("spool bosaltilamadi: %s", e)
-        self.state.drain_outbox(self.ledger)
+        self._outbox_health(self.state.drain_outbox(self.ledger))   # takiliysa outbox_stuck blogu acilista kurulur
         if self.is_paper:
             self._reconcile_orphan_decisions()
         self._refresh_params()
@@ -2252,8 +2252,22 @@ class Engine:
         intent = Intent(kind="entry", bot=self.cfg.bot, pair=pair, side=row.side, signal_bar_close_ts=row.bar_close_ts,
                         setup=row.setup, qty=size.qty, leverage=out.leverage, planned_entry=row.planned_entry,
                         stop_price=row.planned_stop, target_price=row.planned_target, reason="entry", decision_id=did)
-        res = (self.orders.submit_entry(intent, tid, quote=True) if self.orders.quote_fn is not None
-               else self.orders.submit_entry(intent, tid))
+        if self.is_paper:
+            try:
+                res = (self.orders.submit_entry(intent, tid, quote=True) if self.orders.quote_fn is not None
+                       else self.orders.submit_entry(intent, tid))
+            except (StateError, EngineExit, FailClosed):
+                raise                                           # durum/cikis/fail-closed hatalari yutulmaz (motorun ust katmani ele alir)
+            except Exception as e:  # noqa: BLE001 - kagitta beklenmeyen istisna yetim `opening` pozisyon birakmasin
+                self._c["entry_submit_hata"] += 1
+                log.error("giris emri istisnasi (%s): %r", tid, e)
+                cur = self.state.get_position(tid)
+                if cur is not None and cur.status == "opening":
+                    self._close_unopened(cur, self.clock.now())
+                return
+        else:
+            res = (self.orders.submit_entry(intent, tid, quote=True) if self.orders.quote_fn is not None
+                   else self.orders.submit_entry(intent, tid))      # canli/testnet: istisna bugunku gibi yukselir
         if not self.is_paper:
             self._drain_events()                                # 11 §6.4: dolum ayni cagri zincirinde -> stop
             if res.status == "failed" and res.order.status == "unknown":

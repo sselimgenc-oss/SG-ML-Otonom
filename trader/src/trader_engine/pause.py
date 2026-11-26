@@ -1,7 +1,7 @@
 """Giris duraklatma (11 §9): "girisleri durdur, pozisyonlari koru". Kalici dosya, nedenli tutuslar.
 
-Degismezler: dosya varligi = etkin (bozuk icerik de etkin, fail-closed); motor yalniz `add` cagirir, `remove` yalniz
-cli.py'dedir (AST koruma testi); `add` idempotenttir ve ilk kokeni korur; her add/remove `flock` altinda ve denetim
+Degismezler: dosya varligi = etkin (bozuk icerik de etkin, fail-closed); motor yalniz `add` cagirir, `remove` cli.py ve
+Telegram /devam yolundadir (AST koruma testi); `add` idempotenttir ve ilk kokeni korur; her add/remove `flock` altinda ve denetim
 gunlugune yazilir. Zamani `Clock` verir.
 """
 from __future__ import annotations

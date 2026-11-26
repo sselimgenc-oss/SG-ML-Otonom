@@ -458,3 +458,11 @@ def test_uzun_omurlu_daemonlar_reboot_sonrasi_acilir():
     for n in ("trader-telegram.service", "trader-feed.service", "trader-panel.service", "trader-engine@.service"):
         t = (DEPLOY / n).read_text(encoding="utf-8")
         assert "[Install]" in t and "WantedBy=multi-user.target" in t, n
+
+
+def test_tutarlilik_birimi_ml1_modelleri_salt_okunur_ve_eski_olcum_yok():
+    """P6-01 ikinci kilit: geri test kagit ML1 paketine yazamasin; 14 cifte gecildi (44 cift olcumleri kalmasin)."""
+    t = (DEPLOY / "trader-tutarlilik.service").read_text(encoding="utf-8")
+    ro = [ln for ln in t.splitlines() if ln.startswith("ReadOnlyPaths=")]
+    assert ro and "var/learner/models" in ro[0]
+    assert "44 cift" not in t

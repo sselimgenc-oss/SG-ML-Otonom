@@ -163,6 +163,21 @@ def test_refuse_no_review(tmp_path):
     assert not r.d._pending_p.exists()
 
 
+def test_refuse_state_unreadable_not_reported_as_none_pending(tmp_path):
+    """P7-08: kademe durumu okunamiyorsa 'bekleyen yok' denmez; saglikli merdivende eski metin aynen."""
+    r = Rig(tmp_path, build=lambda r: r.ok())
+    r.write_status()
+
+    def boom():
+        raise OSError("bozuk gunluk")
+    r.log.state = boom                                        # type: ignore[method-assign]
+    t = r.say("/kademe_devam")
+    assert "okunamadı" in t and "learner" in t and "Bekleyen kademe incelemesi yok" not in t
+    assert not r.d._pending_p.exists()
+    del r.log.state                                           # saglikli: eski metin
+    assert "Bekleyen kademe incelemesi yok" in r.say("/kademe_devam")
+
+
 def test_refuse_floor(tmp_path):
     r = Rig(tmp_path, build=lambda r: r.floor())
     r.write_status(590.0)

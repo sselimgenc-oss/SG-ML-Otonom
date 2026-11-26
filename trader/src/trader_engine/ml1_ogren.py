@@ -50,7 +50,7 @@ SAKLA_AY = 14
 
 # ----------------------------------------------------------------------------------------------------------- saf matematik
 def olay_agirligi(d: pd.DataFrame) -> np.ndarray:
-    """e_i = 1 / (tampondaki ayni olaydaki sonuc sayisi): `features.events` ile ayni kural (pair|side|tf, bosluk <= 3 mum)."""
+    """Olay agirligi ETIKETLI islemlerden hesaplanir: e_i = 1 / (tampondaki ayni olaydaki sonuc sayisi): `features.events` ile ayni kural (pair|side|tf, bosluk <= 3 mum)."""
     if len(d) == 0:
         return np.zeros(0)
     ev = F.events(d[["decision_ts", "pair", "side", "tf"]].reset_index(drop=True))
@@ -61,7 +61,7 @@ def uydur(d: pd.DataFrame, X: np.ndarray, simdi: datetime, *, yari_omur_gun: flo
           maks_satir: int = MAKS_SATIR, ridge: float = RIDGE) -> dict | None:
     """Sifir merkezli ridge lojistik (Newton/IRLS), standardizasyon KENDI verisinden. `d`: sutunlar k, decision_ts (tz), pair, side, tf, y;
     `X`: d ile ayni sirada ham ozellikler. Sonuc kanonik sirada (decision_ts, k) hesaplanir => girdi sirasindan bagimsiz.
-    Pencerede veri yoksa ya da tek sinif varsa None. Doner st (standardizasyon), coef, b, n_etkin, n_sonuc, tarih araligi."""
+    Olay agirligi etiketli islemlerden hesaplanir. Pencerede veri yoksa ya da tek sinif varsa None. Doner st (standardizasyon), coef, b, n_etkin, n_sonuc, tarih araligi."""
     if len(d) == 0:
         return None
     simdi_ns = pd.Timestamp(simdi).as_unit("ns").value
@@ -163,7 +163,7 @@ class Ml1Ogrenici:
         self.kapali: set[int] = set()                    # sonuclanmis ya da etiketsiz kapatilmis trade_id'ler
         self.bilinen: set[int] = set()
         self._sn: list[tuple] = []                       # (k, ts_ns, y, pair, side, tf, x float32); yalniz etiketli
-        self.n_kapali = 0                                # kapanan ogrenilmis (etiketli) islem sayisi (kalici; dosyalardan)
+        self.n_kapali = 0                                # kapanan ogrenilmis (etiketli) islem sayisi (kalici; son 14 ayin dosyalarindan)
         self.n_tf: Counter = Counter()
         self.surum = 0
         self.duraklat_bitis: datetime | None = None

@@ -741,6 +741,7 @@ class TelegramDaemon:
         self._unauth: list[float] = []
         self._unauth_warned_at = 0.0
         self.kill_watch: float | None = None
+        self._kademe_okunamadi: set[str] = set()                # /kademe_devam: durumu okunamayan botlar ("bekleyen yok" denmesin)
         self._load_seen()
 
     # -- dosyalar -----------------------------------------------------------
@@ -1041,10 +1042,13 @@ class TelegramDaemon:
     def _ladder_candidates(self) -> list[tuple[str, LadderFiles, Any]]:
         """review durumundaki botlar (ya da durum ok iken drawdown_review tutusu kalmis olanlar)."""
         out = []
+        self._kademe_okunamadi = set()
         for b, lf in (self.ladders or {}).items():
             try:
                 st = lf.log.state()
-            except Exception:  # noqa: BLE001
+            except Exception as e:  # noqa: BLE001
+                self._kademe_okunamadi.add(b)
+                log.error("kademe durumu okunamadi (%s): %r", b, e)
                 continue
             if st is None:
                 continue
@@ -1067,10 +1071,14 @@ class TelegramDaemon:
             for b, lf in self.ladders.items():
                 try:
                     st = lf.log.state()
-                except Exception:  # noqa: BLE001
+                except Exception as e:  # noqa: BLE001
+                    self._kademe_okunamadi.add(b)
+                    log.error("kademe durumu okunamadi (%s): %r", b, e)
                     continue
                 if st is not None and st.status == "floor":
                     return "Son taban: Telegram'dan açılamaz; yazılı karar + sunucu gerekir", []
+            if self._kademe_okunamadi:
+                return f"Kademe durumu okunamadı ({', '.join(sorted(self._kademe_okunamadi))}); sunucu günlüğüne bakın", []
             return "Bekleyen kademe incelemesi yok", []
         if self.killswitch is not None and self.killswitch.active():
             return "Önce KILL: /devam", []
