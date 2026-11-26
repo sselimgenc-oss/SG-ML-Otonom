@@ -2,53 +2,29 @@
   "sema": "ortak.gunluk_ozet.v1",
   "proje": "ML",
   "mod": "kagit",
-  "uretim": "2026-11-26T17:00:53Z",
+  "uretim": "2026-11-26T18:01:49Z",
   "gun": "2026-11-26",
   "kasa": {
     "baslangic": 1000.0,
-    "simdi": 901.49,
-    "gun_pnl": -29.71,
-    "toplam_pnl": -98.51,
-    "zirveden_dusus_yuzde": 22.26
+    "simdi": 1000.0,
+    "gun_pnl": 0.0,
+    "toplam_pnl": 0.0,
+    "zirveden_dusus_yuzde": 0.0
   },
   "islem": {
-    "gun_acilan": 8,
-    "gun_kapanan": 11,
-    "kazanan": 3,
-    "kaybeden": 8,
-    "acik_pozisyon": 7,
-    "alinmayan_sinyal": 0
+    "gun_acilan": 0,
+    "gun_kapanan": 0,
+    "kazanan": 0,
+    "kaybeden": 0,
+    "acik_pozisyon": 0,
+    "alinmayan_sinyal": null
   },
   "hesaplar": [
     {
-      "ad": "T1",
-      "gun_pnl": 0.0,
-      "toplam_pnl": 15.49,
-      "islem": 7
-    },
-    {
       "ad": "B1",
       "gun_pnl": 0.0,
-      "toplam_pnl": 10.46,
-      "islem": 4
-    },
-    {
-      "ad": "F1",
-      "gun_pnl": 0.0,
-      "toplam_pnl": 7.75,
-      "islem": 10
-    },
-    {
-      "ad": "GF1-UCLU",
-      "gun_pnl": 0.0,
-      "toplam_pnl": 7.58,
-      "islem": 1
-    },
-    {
-      "ad": "TF1",
-      "gun_pnl": 0.0,
-      "toplam_pnl": 4.58,
-      "islem": 5
+      "toplam_pnl": 0.0,
+      "islem": 0
     },
     {
       "ad": "B1-BOLGE",
@@ -57,19 +33,7 @@
       "islem": 0
     },
     {
-      "ad": "B1-MUM",
-      "gun_pnl": 0.0,
-      "toplam_pnl": 0.0,
-      "islem": 0
-    },
-    {
-      "ad": "DL1",
-      "gun_pnl": 0.0,
-      "toplam_pnl": 0.0,
-      "islem": 0
-    },
-    {
-      "ad": "F1-IKINCI",
+      "ad": "F1",
       "gun_pnl": 0.0,
       "toplam_pnl": 0.0,
       "islem": 0
@@ -82,6 +46,12 @@
     },
     {
       "ad": "GF1-FLAMA",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "GF1-IKILI",
       "gun_pnl": 0.0,
       "toplam_pnl": 0.0,
       "islem": 0
@@ -135,7 +105,19 @@
       "islem": 0
     },
     {
+      "ad": "GF1-UCLU",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
       "ad": "GF1-YATAY",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "H2",
       "gun_pnl": 0.0,
       "toplam_pnl": 0.0,
       "islem": 0
@@ -147,13 +129,7 @@
       "islem": 0
     },
     {
-      "ad": "H2-YARI",
-      "gun_pnl": 0.0,
-      "toplam_pnl": 0.0,
-      "islem": 0
-    },
-    {
-      "ad": "HB1",
+      "ad": "IN1-BOLL",
       "gun_pnl": 0.0,
       "toplam_pnl": 0.0,
       "islem": 0
@@ -208,6 +184,18 @@
     },
     {
       "ad": "IN1-MAKESISIM",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "IN1-RSI",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "IN1-RSI2",
       "gun_pnl": 0.0,
       "toplam_pnl": 0.0,
       "islem": 0
@@ -279,31 +267,19 @@
       "islem": 0
     },
     {
-      "ad": "MF1-MARUBOZU",
-      "gun_pnl": 0.0,
-      "toplam_pnl": 0.0,
-      "islem": 0
-    },
-    {
       "ad": "MF1-PINBAR",
       "gun_pnl": 0.0,
       "toplam_pnl": 0.0,
       "islem": 0
     },
     {
-      "ad": "MF1-TERSCEKIC",
-      "gun_pnl": 0.0,
-      "toplam_pnl": 0.0,
-      "islem": 0
-    },
-    {
-      "ad": "MF1-UCASKER",
-      "gun_pnl": 0.0,
-      "toplam_pnl": 0.0,
-      "islem": 0
-    },
-    {
       "ad": "MF1-YUTAN",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "PA2-BOLGE",
       "gun_pnl": 0.0,
       "toplam_pnl": 0.0,
       "islem": 0
@@ -327,25 +303,7 @@
       "islem": 0
     },
     {
-      "ad": "PA2-SEVIYE",
-      "gun_pnl": 0.0,
-      "toplam_pnl": 0.0,
-      "islem": 0
-    },
-    {
       "ad": "PA2-TCIZGI",
-      "gun_pnl": 0.0,
-      "toplam_pnl": 0.0,
-      "islem": 0
-    },
-    {
-      "ad": "PA2-TUKENIS",
-      "gun_pnl": 0.0,
-      "toplam_pnl": 0.0,
-      "islem": 0
-    },
-    {
-      "ad": "PA2-UCVURUS",
       "gun_pnl": 0.0,
       "toplam_pnl": 0.0,
       "islem": 0
@@ -357,25 +315,19 @@
       "islem": 0
     },
     {
-      "ad": "R1-ALT",
-      "gun_pnl": 0.0,
-      "toplam_pnl": 0.0,
-      "islem": 0
-    },
-    {
-      "ad": "R1-ERKEN",
-      "gun_pnl": 0.0,
-      "toplam_pnl": 0.0,
-      "islem": 0
-    },
-    {
-      "ad": "S1-HACIM",
+      "ad": "S1",
       "gun_pnl": 0.0,
       "toplam_pnl": 0.0,
       "islem": 0
     },
     {
       "ad": "S1-OLCULU",
+      "gun_pnl": 0.0,
+      "toplam_pnl": 0.0,
+      "islem": 0
+    },
+    {
+      "ad": "T1",
       "gun_pnl": 0.0,
       "toplam_pnl": 0.0,
       "islem": 0
@@ -393,64 +345,10 @@
       "islem": 0
     },
     {
-      "ad": "TF1-FITIL",
+      "ad": "TF1",
       "gun_pnl": 0.0,
       "toplam_pnl": 0.0,
       "islem": 0
-    },
-    {
-      "ad": "TF1-HACIM",
-      "gun_pnl": 0.0,
-      "toplam_pnl": 0.0,
-      "islem": 0
-    },
-    {
-      "ad": "IN1-RSI2",
-      "gun_pnl": 0.0,
-      "toplam_pnl": -3.29,
-      "islem": 1
-    },
-    {
-      "ad": "H2",
-      "gun_pnl": 0.0,
-      "toplam_pnl": -5.13,
-      "islem": 3
-    },
-    {
-      "ad": "GF1-IKILI",
-      "gun_pnl": -9.8,
-      "toplam_pnl": -9.8,
-      "islem": 1
-    },
-    {
-      "ad": "PA2-BOLGE",
-      "gun_pnl": 0.0,
-      "toplam_pnl": -9.8,
-      "islem": 1
-    },
-    {
-      "ad": "IN1-RSI",
-      "gun_pnl": -9.83,
-      "toplam_pnl": -9.83,
-      "islem": 1
-    },
-    {
-      "ad": "IN1-BOLL",
-      "gun_pnl": 0.0,
-      "toplam_pnl": -10.64,
-      "islem": 1
-    },
-    {
-      "ad": "M1",
-      "gun_pnl": 0.0,
-      "toplam_pnl": -17.14,
-      "islem": 3
-    },
-    {
-      "ad": "S1",
-      "gun_pnl": 0.0,
-      "toplam_pnl": -48.46,
-      "islem": 10
     }
   ],
   "ogrenme": {
@@ -460,17 +358,15 @@
     "filtre_aktif": null
   },
   "rejim": "trend_down",
-  "drift_uyari": true,
+  "drift_uyari": false,
   "limitler": {
     "gunluk_kayip_yuzde": 8.0,
     "kaldirac_tavan": 5.0,
     "durdu_mu": false
   },
   "saglik": {
-    "son_nabiz": "2026-11-26T16:59:23Z",
-    "hata_sayisi_gun": 1
+    "son_nabiz": "2026-11-26T18:00:13Z",
+    "hata_sayisi_gun": 0
   },
-  "notlar": [
-    "en iyi kurulum: T1"
-  ]
+  "notlar": []
 }
