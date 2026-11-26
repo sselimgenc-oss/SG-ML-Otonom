@@ -102,16 +102,15 @@ def test_server_endpoints_and_snapshot(env):
     finally:
         run.stop()
     html = SN.render(pd_(env))
-    assert "/api/ciktikaniti" in html and "/api/haber" not in html
+    assert "/api/haber" not in html
     data = SN.collect(pd_(env))
-    assert data["/api/ciktikaniti"]["kurulumlar"][0]["kismi"]["n"] == 1
+    assert "/api/ciktikaniti" not in data      # 9b-01: panel.js okumaz; anlik goruntuye gomulmez
     assert "/api/haber" not in data and "/api/habersonuc" not in data
 
 
 def test_snapshot_and_server_with_empty_sources(env):
     data = SN.collect(pd_(env))
-    assert data["/api/ciktikaniti"]["var"] is False
-    assert data["/api/pbo"]["ok"] is True
+    assert "/api/ciktikaniti" not in data and "/api/pbo" not in data
     run = Running(env)
     try:
         assert run.get("/api/ciktikaniti")["neden"] == "dosya_yok"

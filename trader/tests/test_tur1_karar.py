@@ -224,3 +224,13 @@ def test_haftalik_parametreleri_gercek_sdk_imzasina_uyar():
     p = m.istem_parametreleri("x")
     assert "temperature" not in p
     inspect.signature(anthropic.resources.Messages.create).bind(None, **p)
+
+
+def test_kurulum_islemleri_bilinmeyen_tf_ve_plansiz_islem_cokmez():
+    """8-01: at() tanimdan once cagriliyordu -> UnboundLocalError."""
+    from trader_reports import tur1_olcum as O
+    trades = [{"tf": "3m", "pair": "BTC", "entry_ts": "2026-01-01T00:00:00Z"},
+              {"tf": "1h", "pair": "BTC", "entry_ts": "2026-01-01T00:00:00Z", "planned_entry": None, "planned_stop": None}]
+    sonuc, atlanan = O._kurulum_islemleri(trades, None)
+    assert sonuc == {}
+    assert atlanan["toplam"] == 2 and atlanan["neden"] == {"tf_bilinmiyor": 1, "plan_yok": 1}

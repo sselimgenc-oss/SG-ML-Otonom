@@ -1,4 +1,5 @@
 """Anlik goruntu (docs/panel-spec.md §13): kendi kendine yeten, damgali, sirsiz, agsiz."""
+from pathlib import Path
 import json
 import re
 import shutil
@@ -32,11 +33,18 @@ def test_stamp_present_and_tsi(html):
     m = re.search(r'window\.__SNAPSHOT__=(\{.*?\});</script>', html, re.S)
     snap = json.loads(m.group(1))
     assert snap["generated_at"] == "2026-11-16T18:00:00.000Z"
-    assert snap["data"]["/api/status"]["ok"] is True
+    # yalniz panel.js'in okudugu uclar gomulur (9b-01): /api/pano ve /api/kapanan (donem basina)
     for b in ("learner",):
-        for k in ("ledger", "curve", "risk"):
-            assert f"/api/{k}?bot={b}" in snap["data"]
-    assert snap["data"]["/api/budget"]["ok"] is True
+        assert f"/api/pano?bot={b}" in snap["data"]
+        for d in ("bugun", "7g", "30g", "tumu"):
+            assert f"/api/kapanan?bot={b}&period={d}" in snap["data"]
+    for k in snap["data"]:
+        assert k.startswith(("/api/pano?", "/api/kapanan?")), k
+
+
+def test_panel_js_yalniz_gomulen_uclari_okur():
+    js = (Path(__file__).resolve().parents[1] / "src" / "trader_panel" / "static" / "panel.js").read_text(encoding="utf-8")
+    assert set(re.findall(r"/api/([a-z0-9_]+)", js)) == {"kapanan", "pano"}
 
 
 def test_client_side_stale_banner_logic(html):

@@ -102,5 +102,6 @@ def test_snapshot_embeds_unrealized(tmp_path):
     html = SN.render(PanelData(load_config(e.cfg_path), clock=lambda: NOW))
     e.close()
     snap = json.loads(re.search(r'window\.__SNAPSHOT__=(\{.*?\});</script>', html, re.S).group(1))
-    d = snap["data"]["/api/status"]["bots"]["learner"]["data"]
-    assert d["unrealized_pnl_usd"] == 7.61 and d["open_positions"][0]["unrealized_pct"] == 0.45
+    assert "/api/status" not in snap["data"]        # 9b-01: yalniz panel.js'in okudugu uclar gomulur
+    pano = snap["data"]["/api/pano?bot=learner"]
+    assert pano["serit"]["acik_kz"] == 7.61 and pano["acik"]["rows"][0]["kz_yuzde"] == 0.45

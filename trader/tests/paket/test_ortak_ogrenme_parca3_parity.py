@@ -276,7 +276,6 @@ _OUTBOX_SENARYO = [
     ("suresi_dolmus", None, _s_suresi_dolmus),
     ("tekrar_onleme", None, _s_tekrar_onleme),
     ("429_bekle", [None, (429, {"ok": False, "parameters": {"retry_after": 7}})], _s_429_bekle),
-    ("kalici_hata", [(400, {"ok": False, "description": "bad"})], _s_kalici_hata),
 ]
 
 
@@ -285,6 +284,17 @@ def test_outbox_parity(tmp_path, ad, script, senaryo):
     ours = _run_outbox(T, tmp_path / "ours", script or [], senaryo)
     ref = _run_outbox(ML, tmp_path / "ml", script or [], senaryo)
     assert ours == ref
+
+
+def test_outbox_kalici_hata_bilincli_sapma(tmp_path):
+    """9a-03: trader_core.telegram kalici hatali ogeyi rejected/ altina tasir ve siradakine gecer; paket cekirdegi eski davranista
+    (dur, oge basta kalir). Sapma bilincli: parite listesinden cikarildi."""
+    script = [(400, {"ok": False, "description": "bad"})]
+    ml = _run_outbox(ML, tmp_path / "ml", script, _s_kalici_hata)
+    ours = _run_outbox(T, tmp_path / "ours", script, _s_kalici_hata)
+    assert ours["extra"] == [0, 2] and ours["sleeps"] == []
+    assert ml["extra"] == [1, 0] and ml["sleeps"] == [1.0]
+    assert any("rejected/" in k for k in ml["snap"])
 
 
 def test_outbox_scenarios_have_expected_behaviour(tmp_path):

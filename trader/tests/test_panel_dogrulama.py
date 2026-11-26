@@ -92,6 +92,6 @@ def test_pbo_missing_and_corrupt_never_breaks(env):
 
 def test_snapshot_includes_sections_and_survives_missing(env):
     html = SN.render(pd_(env))
-    assert "/api/tutarlilik" in html and "/api/pbo" in html
-    data = SN.collect(pd_(env))
-    assert data["/api/tutarlilik"]["var"] is False and data["/api/pbo"]["ok"] is True
+    assert html
+    data = SN.collect(pd_(env))      # 9b-01: panel.js okumayan uclar gomulmez
+    assert "/api/tutarlilik" not in data and "/api/pbo" not in data

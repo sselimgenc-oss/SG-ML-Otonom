@@ -285,6 +285,7 @@ class Outbox:
     def __init__(self, base: str | Path, now_fn: Callable[[], datetime]):
         self.dir = Path(base) / "outbox"
         self.sent_dir = self.dir / "sent"
+        self.rejected_dir = self.dir / "rejected"
         self.now = now_fn
         self.dropped = 0
 
@@ -302,6 +303,17 @@ class Outbox:
     def _mk(self) -> None:
         self.sent_dir.mkdir(parents=True, exist_ok=True)
         self._sahip_duzelt(self.sent_dir, dizin=True)
+
+    def _reddet(self, p: Path) -> None:
+        """Kalici hatali ogeyi kuyruk basindan alip rejected/ altina tasir (inceleme icin saklanir); tasinamazsa kaydedilir, atlanir."""
+        try:
+            self.rejected_dir.mkdir(parents=True, exist_ok=True)
+            self._sahip_duzelt(self.rejected_dir, dizin=True)
+            hedef = self.rejected_dir / p.name
+            os.replace(p, hedef)
+            self._sahip_duzelt(hedef)
+        except OSError as e:
+            log.warning("outbox oge reddedilene tasinamadi: %s", type(e).__name__)
 
     def _sil(self, p: Path) -> None:
         """Silinemeyen (yetkisiz) dosya dongu/servisi dusurmez: kaydedilir, atlanir."""
@@ -392,7 +404,7 @@ class Outbox:
                     self.dropped += 1
 
     def drain(self, client: TelegramClient, chat_id: int, sleep: Callable[[float], None] = time.sleep) -> int:
-        """Eski->yeni. Basarili dosya silinir. Hata: dur (siradaki tur dener). Gonderilen sayisini dondurur."""
+        """Eski->yeni. Basarili dosya silinir. Gecici hata: dur (siradaki tur dener); kalici hata: oge rejected/ altina, siradakine gec. Gonderilen sayisini dondurur."""
         now = self.now().timestamp()
         items: list[tuple[Path, dict]] = []
         for p in self.list():
@@ -433,7 +445,9 @@ class Outbox:
                                     reply_markup=d.get("reply_markup"))
             except TelegramError as e:
                 if e.kind == "permanent":
-                    log.error("CRIT spool gonderimi kalici hata %s", e.status)
+                    log.error("CRIT spool gonderimi kalici hata %s; oge rejected/ altina tasindi", e.status)
+                    self._reddet(p)
+                    continue       # kuyruk basini tikamasin: siradaki ogeye gec
                 if e.retry_after:
                     sleep(e.retry_after)
                 break
@@ -1957,7 +1971,8 @@ def islem_tick(cfg: TelegramConfig, notifier: "TelegramNotifier", now: datetime 
         zd, _puan = zd_puan(t)
         gitti = _saat_gonder(kayit, now, TS.islem_kapandi(kol(t), t.pair, t.side, pnl, (t.qty or 0.0) * (t.entry_price or 0.0),
                                                           t.exit_reason, r=t.r_multiple, zd=zd,
-                                                          sure=TS.sure_metni(t.entry_ts, t.exit_ts), setup=t.setup),
+                                                          sure=TS.sure_metni(t.entry_ts, t.exit_ts), setup=t.setup,
+                                                          hedef=t.planned_target),
                              notifier, f"islem-kapat:{t.trade_id}", {"kapanan": 1, "net": pnl})
         if gitti:
             gonderildi_yaz(cfg.var_dir, now, "kapandi", t, pnl)

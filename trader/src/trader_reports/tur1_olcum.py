@@ -200,6 +200,13 @@ def _kurulum_islemleri(trades, mumlar: MumDeposu):
     ayri parca ('once' < kilit payi <= 'sonra'): simulasyon mumlari kilitli donemi asla icermez."""
     from trader_core import tur1_rastgele as RG
     gruplar: dict = defaultdict(list)
+    sonuc = {}
+    neden: dict = defaultdict(int)          # atlanma nedeni -> sayı
+    atlanan_tf: dict = defaultdict(int)     # zaman dilimi -> atlanan işlem sayısı (sessiz düşme yok)
+
+    def at(t, ne):
+        neden[ne] += 1
+        atlanan_tf[t.get("tf") or "?"] += 1
     for t in trades:
         if t["tf"] not in TF_MS:
             at(t, "tf_bilinmiyor")
@@ -209,13 +216,6 @@ def _kurulum_islemleri(trades, mumlar: MumDeposu):
             continue
         parca = "once" if t["entry_ts"] < guard.H0_PAD_ISO else "sonra"
         gruplar[(t["pair"], t["tf"], parca)].append(t)
-    sonuc = {}
-    neden: dict = defaultdict(int)          # atlanma nedeni -> sayı
-    atlanan_tf: dict = defaultdict(int)     # zaman dilimi -> atlanan işlem sayısı (sessiz düşme yok)
-
-    def at(t, ne):
-        neden[ne] += 1
-        atlanan_tf[t.get("tf") or "?"] += 1
     for (pair, tf, parca), ts in gruplar.items():
         ms = TF_MS[tf]
         giris = [_ms(t["entry_ts"]) - _ms(t["entry_ts"]) % ms for t in ts]

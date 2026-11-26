@@ -276,8 +276,12 @@ _ZORUNLU = ("bot kapattı (zorunlu)", "Acil durdurma ya da zorunlu kapatma.")
 _BILINMIYOR = ("bilinmiyor", "Kapanış nedeni kayıtta yok.")
 
 
-def _kapanis(kod: Any, pnl: float | None, setup: Any) -> tuple[str, str]:
+def _kapanis(kod: Any, pnl: float | None, setup: Any, hedef: Any = None) -> tuple[str, str]:
     k = str(kod or "")
+    # Hedefli (iz sürmeyen) kolda stop yalnız başa-baş ile taşınabilir; motor bu çıkışı `trail_stop` diye kaydeder (ML1 simülasyonuyla
+    # birebir eşdeğerlik için kayıt kodu değişmez) -> gösterimde kârdaysa "kâr al (stop)".
+    if k == "trail_stop" and hedef is not None and pnl is not None and pnl > 0:
+        return _STOP_KAR
     if k == "stop" and pnl is not None and pnl > 0:
         return _STOP_KAR
     if k == "force_exit":
@@ -285,25 +289,25 @@ def _kapanis(kod: Any, pnl: float | None, setup: Any) -> tuple[str, str]:
     return KAPANIS_NEDEN.get(k, _BILINMIYOR)
 
 
-def kapanis_neden(kod: Any, pnl: float | None = None, setup: Any = None) -> str:
+def kapanis_neden(kod: Any, pnl: float | None = None, setup: Any = None, hedef: Any = None) -> str:
     """Kapanis nedeni -> dürüst sade etiket (Telegram ve pano ayni fonksiyon). 'elle' yalniz `manual` (borsadan, bot disi) icindir;
     bilinmeyen/bos kod 'bilinmiyor' olur."""
-    return _kapanis(kod, pnl, setup)[0]
+    return _kapanis(kod, pnl, setup, hedef)[0]
 
 
-def kapanis_aciklama(kod: Any, pnl: float | None = None, setup: Any = None) -> str:
-    return _kapanis(kod, pnl, setup)[1]
+def kapanis_aciklama(kod: Any, pnl: float | None = None, setup: Any = None, hedef: Any = None) -> str:
+    return _kapanis(kod, pnl, setup, hedef)[1]
 
 
 def islem_kapandi(kol: str, pair: Any, side: Any, pnl: float, notional: float | None, neden: Any, kritik: bool = False, *,
-                  r: Any = None, zd: Any = None, sure: str | None = None, setup: Any = None) -> str:
+                  r: Any = None, zd: Any = None, sure: str | None = None, setup: Any = None, hedef: Any = None) -> str:
     """2 satir: sonuc (K/Z ve R; R yoksa yuzde) · neden, zaman dilimi, sure."""
     if r is not None and _sonlu(r):
         yuz = f" ({isaretli(float(r), 2)} R)"
     else:
         yuz = f" ({isaretli(pnl / notional * 100, 1)}%)" if notional else ""
     isaret = "🔴" if kritik else ("🟢" if pnl > 0 else ("🔻" if pnl < 0 else "⚪"))
-    et = kapanis_neden(neden, pnl, setup)
+    et = kapanis_neden(neden, pnl, setup, hedef)
     ikinci = "Kol kaldırıldı: bot pozisyonu kapattı" if et == "kol kaldırıldı" else ilk_buyuk(et)
     if zd:
         ikinci += f" · {zd_adi(zd)}"

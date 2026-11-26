@@ -120,3 +120,21 @@ def test_install_sh_sent_dizinini_ve_sahipligi_her_kurulumda_onarir():
     s = (ROOT / "deploy" / "install.sh").read_text(encoding="utf-8")
     assert 'install -d -m 2770 -o "$TRADER_USER" -g "$TG_GROUP" "$TRADER_DIR/var/telegram/outbox/sent"' in s
     assert 'find "$TRADER_DIR/var/telegram/outbox" -mindepth 1 -xdev -exec chown -h "$TRADER_USER:$TG_GROUP" {} +' in s
+
+
+def test_kalici_hata_ogeyi_rejected_e_tasir_ve_siradakine_gecer(tmp_path):
+    ob = tg.Outbox(tmp_path, lambda: T0)
+    kotu = dict(ITEM, dedup_key="kotu", text="bozuk")
+    iyi = dict(ITEM, dedup_key="iyi", text="iyi")
+    assert ob.enqueue(kotu) and ob.enqueue(iyi)
+    gonderilen = []
+
+    def send(chat, text, **k):
+        if text == "bozuk":
+            raise tg.TelegramError("permanent", 400, desc="bad request")
+        gonderilen.append(text)
+    assert ob.drain(SimpleNamespace(send_message=send), 1, lambda s: None) == 1
+    assert gonderilen == ["iyi"]
+    assert ob.list() == []                                      # kuyruk basi tikanmadi
+    assert len(list((ob.dir / "rejected").glob("*.json"))) == 1  # kotu oge saklandi
+    assert ob.drain(SimpleNamespace(send_message=send), 1, lambda s: None) == 0

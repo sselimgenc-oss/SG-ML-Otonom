@@ -52,3 +52,12 @@ def test_defterdeki_her_cikis_kodu_icin_elle_yalniz_manual():
 
 def test_turkce_ilk_harf_buyutme():
     assert TS.ilk_buyuk("iz süren stop") == "İz süren stop" and TS.ilk_buyuk("kâr al") == "Kâr al" and TS.ilk_buyuk("") == ""
+
+
+def test_basabas_stopu_hedefli_kolda_kar_al_stop_gorunur():
+    """5-01: hedefli (iz sürmeyen) kolda `trail_stop` = başa-baş stop; kârdaysa 'kâr al (stop)'. Kayıt kodu değişmez."""
+    assert TS.kapanis_neden("trail_stop", 0.4, "R1@1h", 105.0) == "kâr al (stop)"
+    assert TS.kapanis_aciklama("trail_stop", 0.4, "R1@1h", 105.0).endswith(".")
+    assert TS.kapanis_neden("trail_stop", -0.4, "R1@1h", 105.0) == "iz süren stop"   # zararda değişmez
+    assert TS.kapanis_neden("trail_stop", 0.4, "T1@1h", None) == "iz süren stop"     # iz süren kol (hedefsiz)
+    assert TS.kapanis_neden("trail_stop", 0.4, "T1@1h") == "iz süren stop"
