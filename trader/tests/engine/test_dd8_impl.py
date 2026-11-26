@@ -652,16 +652,16 @@ def test_e4_health_and_backup(tmp_path):
 def test_e4_health_checks_and_alerts():
     import trader_core.health as H
     assert "spool_corrupt" in H.IMMEDIATE_CODES
-    lp = H.LedgerProbe(None, 5, (), (), True, True, 1)
+    lp = H.LedgerProbe(None, 5, (), True, True, 1)
     snap = _snap(lp)
     rep = H.evaluate(snap)
     codes = {r.name: r.code for r in rep.results}
     assert codes["ledger_gate:learner"] == "spool_pending" and codes["spool_corrupt:learner"] == "spool_corrupt"
     assert rep.overall is H.Status.CRIT
     for n, exp in ((0, "ok"), (None, "spool_corrupt_unreadable")):
-        r = {x.name: x for x in H.evaluate(_snap(H.LedgerProbe(None, 0, (), (), True, True, n))).results}["spool_corrupt:learner"]
+        r = {x.name: x for x in H.evaluate(_snap(H.LedgerProbe(None, 0, (), True, True, n))).results}["spool_corrupt:learner"]
         assert r.code == exp
-    H.LedgerProbe(None, 1, (), (), True, True)      # konumsal 6 argumanli kurucu bozulmaz
+    H.LedgerProbe(None, 1, (), True, True)      # konumsal 6 argumanli kurucu bozulmaz
 
 
 def _snap(lp):

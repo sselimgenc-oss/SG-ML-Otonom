@@ -70,7 +70,7 @@ def good_ledger(**kw):
         last_write_at=at(12, 0, 2),
         spool_lines=0,
         unledgered_ids=(),
-        orphan_ids=(),
+        
         schema_ok=True,
         has_active_params=True,
         spool_corrupt_lines=0,       # DD-8 E4: None = UNKNOWN (spool_corrupt_unreadable); saglikli taban 0
@@ -103,13 +103,13 @@ def snap(**over):
         ledger={b: good_ledger() for b in BOTS},
         disk_free_bytes=20 * GiB,
         disk_total_bytes=100 * GiB,
-        mem_available_bytes=900 * MiB,
-        swap_total_bytes=2048 * MiB,
-        swap_used_bytes=int(0.10 * 2048 * MiB),
+        
+        
+        
         containers={f"trader-{b}": good_container() for b in BOTS},
         prev_restart_counts={f"trader-{b}": 4 for b in BOTS},
-        veto_file_mtime=None,
-        budget_state=None,
+        
+        
         last_backup_at=at(3, 10),
     )
     base.update(over)
@@ -181,8 +181,6 @@ class TestStructures:
         c = h.DEFAULT_CFG
         assert c.warmup_s == 600
         assert tuple(c.require_bots) == ("learner",)
-        assert c.veto_max_age_s is None
-        assert c.budget_check_enabled is False
         with pytest.raises(dataclasses.FrozenInstanceError):
             c.warmup_s = 1  # type: ignore[misc]
 
@@ -216,24 +214,16 @@ class TestAllHealthy:
         assert rep.healthy is True
         assert rep.failing() == ()
 
-    def test_placeholders_skipped_and_swap_ok(self):
-        rep = ev()
-        for name in ("veto_file_age", "budget_status"):
-            r = one(rep, name)
-            assert r.status == Status.SKIPPED
-        assert one(rep, "veto_file_age").code == "placeholder"
-        assert one(rep, "swap").status == Status.OK
-
     def test_per_bot_results_named(self):
         rep = ev()
-        for chk in ("api_reachable", "bot_loop_age", "candle_age", "ledger_write_age"):
+        for chk in ("bot_loop_age", "candle_age", "ledger_write_age"):
             names = {r.name for r in pick(rep, chk)}
             assert names >= {f"{chk}:learner", f"{chk}:twin"}
 
     def test_all_required_checks_present(self):
         rep = ev()
-        for chk in ("api_reachable", "bot_loop_age", "candle_age", "ledger_write_age",
-                    "ledger_gate", "disk_free", "memory", "container_restarts"):
+        for chk in ("bot_loop_age", "candle_age", "ledger_write_age",
+                    "ledger_gate", "disk_free", "container_restarts"):
             assert pick(rep, chk), chk
 
     def test_skipped_never_overall(self):
@@ -246,24 +236,6 @@ class TestAllHealthy:
 def _api_check(check, bot="learner", **kw):
     rep = ev(**with_bot("api", bot, **kw))
     return one(rep, check, bot)
-
-
-class TestApiReachable:
-    def test_true_ok(self):
-        assert _api_check("api_reachable").status == Status.OK
-
-    def test_false_crit(self):
-        r = _api_check("api_reachable", ping_ok=False)
-        assert r.status == Status.CRIT and r.code == "api_unreachable"
-
-    def test_none_unknown(self):
-        assert _api_check("api_reachable", ping_ok=None).status == Status.UNKNOWN
-
-    def test_false_crit_also_in_warmup(self):
-        s = snap(**with_bot("api", "learner", ping_ok=False),
-                 containers={"trader-learner": good_container(started_at=NOW - timedelta(seconds=300)),
-                             "trader-twin": good_container()})
-        assert one(ev(s), "api_reachable", "learner").status == Status.CRIT
 
 
 class TestBotLoopAge:
@@ -366,28 +338,12 @@ class TestLedgerGate:
         r, _ = self.gate(schema_ok=False)
         assert r.status == Status.CRIT and r.code == "schema"
 
-    def test_orphans_warn_healthy(self):
-        r, rep = self.gate(orphan_ids=(31,))
-        assert r.status == Status.WARN and r.code == "orphan_decisions"
-        assert rep.overall == Status.WARN and rep.healthy is True
-
-    def test_orphan_detail_lists_first_five_ids(self):
-        r, _ = self.gate(orphan_ids=tuple(range(100, 108)))
-        for i in range(100, 105):
-            assert str(i) in r.detail
-        assert "105" not in r.detail
-
     @pytest.mark.parametrize("field", ["spool_lines", "unledgered_ids", "has_active_params",
                                        "schema_ok"])
     def test_none_field_unknown(self, field):
         r, rep = self.gate(**{field: None})
         assert r.status == Status.UNKNOWN
         assert rep.healthy is False
-
-    def test_none_orphan_does_not_hide(self):
-        # orphan_ids None spesifikasyonda acik degil; en az saglikli sayilmamali ya da WARN/UNKNOWN
-        r, rep = self.gate(orphan_ids=None)
-        assert r.status in (Status.UNKNOWN, Status.WARN, Status.OK)
 
     def test_crit_beats_other_gate_problem_none(self):
         # spool dolu (kapali) + baska alan None => kapali olurdu: CRIT veya UNKNOWN, asla saglikli
@@ -419,50 +375,6 @@ class TestDisk:
     def test_none_unknown(self):
         r = one(ev(disk_free_bytes=None), "disk_free")
         assert r.status == Status.UNKNOWN
-
-
-class TestMemory:
-    @pytest.mark.parametrize("mib,exp", [
-        (900, Status.OK), (250, Status.OK), (249, Status.WARN), (120, Status.WARN),
-        (119, Status.CRIT), (0, Status.CRIT),
-    ])
-    def test_thresholds(self, mib, exp):
-        assert one(ev(mem_available_bytes=mib * MiB), "memory").status == exp
-
-    def test_none_unknown(self):
-        assert one(ev(mem_available_bytes=None), "memory").status == Status.UNKNOWN
-
-
-class TestSwap:
-    TOT = 2048 * MiB
-
-    @pytest.mark.parametrize("used_mib,exp", [
-        (0, Status.OK), (1024, Status.OK), (1100, Status.WARN), (1700, Status.CRIT),
-    ])
-    def test_spec_13_4(self, used_mib, exp):
-        r = one(ev(swap_total_bytes=self.TOT, swap_used_bytes=used_mib * MiB), "swap")
-        assert r.status == exp
-
-    def test_exact_boundaries(self):
-        tot = 1000
-        assert one(ev(swap_total_bytes=tot, swap_used_bytes=500), "swap").status == Status.OK
-        assert one(ev(swap_total_bytes=tot, swap_used_bytes=501), "swap").status == Status.WARN
-        assert one(ev(swap_total_bytes=tot, swap_used_bytes=800), "swap").status == Status.WARN
-        assert one(ev(swap_total_bytes=tot, swap_used_bytes=801), "swap").status == Status.CRIT
-
-    def test_total_zero_skipped(self):
-        rep = ev(swap_total_bytes=0, swap_used_bytes=0)
-        assert one(rep, "swap").status == Status.SKIPPED
-        assert rep.overall == Status.OK and rep.healthy
-
-    def test_none_unknown(self):
-        assert one(ev(swap_used_bytes=None), "swap").status == Status.UNKNOWN
-        assert one(ev(swap_total_bytes=None), "swap").status == Status.UNKNOWN
-
-    def test_swap_not_required(self):
-        # Z degil: swap UNKNOWN olsa da "missing_check" sebebi degil; yine de UNKNOWN fail-closed
-        rep = ev(swap_total_bytes=None)
-        assert rep.overall == Status.UNKNOWN and not rep.healthy
 
 
 class TestContainerRestarts:
@@ -609,50 +521,13 @@ class TestClockSkew:
         assert rep.overall == Status.UNKNOWN and not rep.healthy
 
 
-class TestPlaceholders:
-    def test_veto_none_skipped(self):
-        r = one(ev(), "veto_file_age")
-        assert r.status == Status.SKIPPED and r.code == "placeholder"
-
-    @pytest.mark.parametrize("age,exp", [
-        (900, Status.OK), (901, Status.WARN), (1000, Status.WARN), (2700, Status.WARN),
-        (2701, Status.CRIT), (2800, Status.CRIT),
-    ])
-    def test_veto_thresholds(self, age, exp):
-        cfg = h.HealthConfig(veto_max_age_s=900)
-        rep = ev(cfg=cfg, veto_file_mtime=NOW - timedelta(seconds=age))
-        assert one(rep, "veto_file_age").status == exp
-
-    def test_veto_enabled_none_unknown(self):
-        cfg = h.HealthConfig(veto_max_age_s=900)
-        rep = ev(cfg=cfg, veto_file_mtime=None)
-        assert one(rep, "veto_file_age").status == Status.UNKNOWN
-        assert not rep.healthy
-
-    @pytest.mark.parametrize("state,exp", [
-        ("ok", Status.OK), ("warn", Status.WARN), ("exhausted", Status.CRIT),
-        ("weird", Status.UNKNOWN), (None, Status.UNKNOWN), ("OK ", Status.UNKNOWN),
-    ])
-    def test_budget_enabled(self, state, exp):
-        cfg = h.HealthConfig(budget_check_enabled=True)
-        assert one(ev(cfg=cfg, budget_state=state), "budget_status").status == exp
-
-    def test_budget_disabled_ignores_state(self):
-        r = one(ev(budget_state="exhausted"), "budget_status")
-        assert r.status == Status.SKIPPED
-
-    def test_skipped_placeholders_dont_affect_overall(self):
-        rep = ev(budget_state="exhausted", veto_file_mtime=NOW - timedelta(days=9))
-        assert rep.overall == Status.OK and rep.healthy
-
-
 # ==========================================================================
 # 4. Spec ornekleri 13.3, 13.4, 13.5, 13.6, 13.7
 # ==========================================================================
 class TestSpecExamples:
     def test_13_3_api_unreadable(self):
         rep = ev(api={"learner": none_api(), "twin": good_api()})
-        for chk in ("api_reachable", "bot_loop_age", "candle_age"):
+        for chk in ("bot_loop_age", "candle_age"):
             assert one(rep, chk, "learner").status == Status.UNKNOWN
             assert one(rep, chk, "twin").status == Status.OK
         assert rep.overall == Status.UNKNOWN and rep.healthy is False
@@ -679,17 +554,11 @@ class TestSpecExamples:
                  **with_bot("api", "learner", last_candle_open=at(9, 27)))
         r = one(ev(s), "candle_age", "learner")
         assert r.status == Status.WARN and r.code == "stale_candle_warmup"
-        s2 = snap(containers={"trader-learner": good_container(started_at=at(12, 25)),
-                              "trader-twin": good_container()},
-                  **with_bot("api", "learner", ping_ok=False))
-        assert one(ev(s2), "api_reachable", "learner").status == Status.CRIT
 
     def test_13_6_gate(self):
         rep = ev(**with_bot("ledger", "learner", spool_lines=1))
         assert one(rep, "ledger_gate", "learner").code == "spool_pending"
         assert rep.overall == Status.CRIT and not rep.healthy
-        rep = ev(**with_bot("ledger", "learner", orphan_ids=(31,)))
-        assert rep.healthy and rep.overall == Status.WARN
         rep = ev(**with_bot("ledger", "learner", spool_lines=None))
         assert one(rep, "ledger_gate", "learner").status == Status.UNKNOWN
 
@@ -739,19 +608,19 @@ class TestAggregation:
         assert {r.name for r in rep.failing()} == {"disk_free"}
 
     def test_failing_contents(self):
-        rep = ev(disk_free_bytes=0, mem_available_bytes=200 * MiB,
+        rep = ev(disk_free_bytes=0, 
                  api={"learner": none_api(), "twin": good_api()})
         assert all(r.status in (Status.WARN, Status.CRIT, Status.UNKNOWN)
                    for r in rep.failing())
-        assert {r.status for r in rep.failing()} == {Status.WARN, Status.CRIT, Status.UNKNOWN}
+        assert {r.status for r in rep.failing()} == {Status.CRIT, Status.UNKNOWN}
         assert len(rep.failing()) == sum(
             r.status in (Status.WARN, Status.CRIT, Status.UNKNOWN) for r in rep.results)
 
     def test_everything_unmeasured_is_unknown(self):
         s = snap(api={b: none_api() for b in BOTS},
-                 ledger={b: h.LedgerProbe(None, None, None, None, None, None) for b in BOTS},
+                 ledger={b: h.LedgerProbe(None, None, None, None, None) for b in BOTS},
                  disk_free_bytes=None, disk_total_bytes=None,
-                 mem_available_bytes=None, swap_total_bytes=None, swap_used_bytes=None,
+                 
                  containers={f"trader-{b}": h.ContainerProbe(None, None, None, None)
                              for b in BOTS},
                  last_backup_at=None, timeframe_s=None)
@@ -782,7 +651,7 @@ def _rand_snapshot(rnd: random.Random):
             last_write_at=maybe(NOW - td(-100, 9000)),
             spool_lines=maybe(rnd.choice([0, 0, 0, 2])),
             unledgered_ids=maybe(rnd.choice([(), (), (), (9,)])),
-            orphan_ids=maybe(rnd.choice([(), (), (31,)])),
+            
             schema_ok=maybe(rnd.random() > 0.05),
             has_active_params=maybe(rnd.random() > 0.05))
 
@@ -799,13 +668,13 @@ def _rand_snapshot(rnd: random.Random):
         api={b: rapi() for b in BOTS},
         ledger={b: rled() for b in BOTS},
         disk_free_bytes=maybe(int(rnd.uniform(0, 30) * GiB)),
-        mem_available_bytes=maybe(int(rnd.uniform(50, 1000) * MiB)),
-        swap_total_bytes=maybe(tot),
-        swap_used_bytes=maybe(int(rnd.uniform(0, 1) * tot)),
+        
+        
+        
         containers={f"trader-{b}": rcont() for b in BOTS},
         last_backup_at=maybe(NOW - td(0, 60 * 3600)),
-        veto_file_mtime=maybe(NOW - td(0, 5000)),
-        budget_state=rnd.choice([None, "ok", "warn", "exhausted", "weird"]),
+        
+        
     )
 
 
@@ -813,7 +682,7 @@ def _rand_snapshot(rnd: random.Random):
 def test_property_aggregation_invariants(seed):
     rnd = random.Random(seed)
     cfgs = [h.DEFAULT_CFG,
-            h.HealthConfig(veto_max_age_s=900, budget_check_enabled=True)]
+            h.HealthConfig()]
     for _ in range(300):
         cfg = rnd.choice(cfgs)
         rep = h.evaluate(_rand_snapshot(rnd), cfg)
@@ -1193,7 +1062,7 @@ class TestPlanAlertsCrit:
         assert [a.code for a in out[1][1]] == [code]
 
     def test_non_immediate_critical_not_first_turn(self):
-        out, _ = run_turns([(0, ev(mem_available_bytes=100 * MiB))])
+        out, _ = run_turns([(0, ev())])
         assert out[0][1] == []
 
     def test_unknown_same_as_crit_debounce(self):
@@ -1239,7 +1108,7 @@ class TestPlanAlertsCrit:
 
 class TestPlanAlertsWarn:
     def warn_report(self):
-        return ev(**with_bot("ledger", "learner", orphan_ids=(31,)))
+        return ev(disk_free_bytes=2 * GiB)
 
     def test_warn_timeline(self):
         steps = [(m, self.warn_report()) for m in range(0, 735, 5)]
@@ -1258,10 +1127,10 @@ class TestPlanAlertsWarn:
 class TestPlanAlertsMultiple:
     def many_report(self):
         return ev(api={b: h.ApiProbe(False, NOW, NOW, (), True) for b in BOTS},
-                  disk_free_bytes=0, mem_available_bytes=10 * MiB,
+                  disk_free_bytes=0, 
                   **{}) if False else ev(
-            api={b: good_api(ping_ok=False) for b in BOTS},
-            disk_free_bytes=0, mem_available_bytes=10 * MiB,
+            api={b: good_api(last_process_at=NOW - timedelta(hours=1)) for b in BOTS},
+            disk_free_bytes=0, 
             ledger={b: good_ledger(spool_lines=1) for b in BOTS})
 
     def test_single_summary(self):
@@ -1274,7 +1143,7 @@ class TestPlanAlertsMultiple:
         assert "disk" in first[0].body and "disk_free" not in first[0].body
 
     def test_three_failing_not_summarized(self):
-        rep = ev(disk_free_bytes=0, mem_available_bytes=10 * MiB,
+        rep = ev(disk_free_bytes=0, 
                  **with_bot("ledger", "learner", spool_lines=1))
         out, _ = run_turns([(0, rep), (5, rep)])
         assert all(a.code != "multiple" for a in out[1][1])

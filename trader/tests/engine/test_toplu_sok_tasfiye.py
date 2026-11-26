@@ -10,7 +10,6 @@ from types import SimpleNamespace
 
 import pytest
 
-from trader_core import health as H
 from trader_core import risk as K
 from trader_engine import status as TS
 from trader_engine.config import load_cli_config
@@ -91,20 +90,6 @@ def test_kayma_haritasi_en_buyuk_seans():
     ov = {"NVDA/USDT": {"open": {"slip_stop_bps": 10.0}, "weekend": {"slip_stop_bps": 20.0}}}
     m = TS.kayma_haritasi(["NVDA/USDT", "BTC/USDT"], 5.0, ov)
     assert m["NVDA/USDT"] == 20.0 and m["*"] == 5.0 and "BTC/USDT" not in m
-
-
-def test_saglik_satiri_warn_ve_ok():
-    doc = TS.hesapla(POS, 1000.0, gunluk_limit=0.08)
-    oz = TS.saglik_ozeti(doc)
-    assert oz["sok10"] == 23.0 and oz["limit"] == 8.0
-    snap = H.HealthSnapshot(now=NOW, api={"learner": H.ApiProbe(toplu_sok=oz)})
-    r = {x.name: x for x in H.evaluate(snap).results}["toplu_sok:learner"]
-    assert r.status is H.Status.WARN and r.code == "toplu_sok_limit_asimi"
-    assert H._health_tr(r.name, r.code)[0].startswith("Toplu şok")
-    ok = TS.saglik_ozeti(TS.hesapla([{**POS[0], "qty": 0.0005}], 1000.0, gunluk_limit=0.08))
-    r2 = {x.name: x for x in H.evaluate(H.HealthSnapshot(now=NOW, api={"learner": H.ApiProbe(toplu_sok=ok)})).results}["toplu_sok:learner"]
-    assert r2.status is H.Status.OK
-    assert "toplu_sok:learner" not in {x.name for x in H.evaluate(H.HealthSnapshot(now=NOW, api={"learner": H.ApiProbe()})).results}
 
 
 def test_status_blogu_ve_json_dosyasi(tmp_path):

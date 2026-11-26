@@ -346,35 +346,13 @@ def test_module_has_no_backtest_or_holdout_access():
 
 
 # ------------------------------------------------------------------ runner + saglik kancasi + dagitim
-def test_runner_end_to_end_and_health_probe(tmp_path):
+def test_runner_end_to_end(tmp_path):
     import drift_run
-    import health_run as HR
-    from trader_core import health as H
     _real_ledger(tmp_path)
     rc = drift_run.main(["--bot", "learner", "--once", "--var-dir", str(tmp_path)], now_fn=lambda: NOW)
     assert rc == 0
-    pr = HR.probe_drift(str(tmp_path / "learner" / "drift.json"), "learner")
-    assert pr.file_state == "ok" and pr.generated_at == NOW and pr.overall in D.LEVELS
-    assert HR.probe_drift(str(tmp_path / "twin" / "drift.json"), "twin").file_state == "missing"
-    (tmp_path / "learner" / "drift.json").write_text("{bozuk")
-    assert HR.probe_drift(str(tmp_path / "learner" / "drift.json"), "learner").file_state == "unreadable"
-    assert HR.probe_drift(str(tmp_path / "learner" / "drift.json"), "twin").file_state in ("unreadable", "missing")
+    assert (tmp_path / "learner" / "drift.json").exists()
     assert drift_run.main(["--bot", "learner"]) == 1
-
-
-def test_health_probe_collects_uyari_rules(tmp_path):
-    import health_run as HR
-    (tmp_path / "learner").mkdir()
-    (tmp_path / "learner" / "drift.json").write_text(json.dumps(
-        {"schema": "drift/1", "bot": "learner", "generated_at": z(NOW), "overall": "UYARI",
-         "rules": {"S2": {"level": "UYARI"}, "M3": {"level": "OK"}, "C1": {"level": "UYARI"}}}))
-    pr = HR.probe_drift(str(tmp_path / "learner" / "drift.json"), "learner")
-    assert pr.overall == "UYARI" and pr.rules_at_uyari == ("C1", "S2")
-    assert HR.collect_drift({"HEALTH_BOTS": "learner"}, str(tmp_path)) is None          # kapali
-    on = HR.collect_drift({"HEALTH_BOTS": "learner,twin", "DRIFT_CHECK_ENABLED": "1"}, str(tmp_path))
-    assert on["learner"].overall == "UYARI" and on["twin"].file_state == "missing"
-    assert HR.make_cfg({"DRIFT_CHECK_ENABLED": "1"}).drift_check_enabled is True
-    assert HR.make_cfg({"DRIFT_CHECK_ENABLED": ""}).drift_check_enabled is False
 
 
 def test_deploy_units_and_install_wiring():
@@ -387,11 +365,9 @@ def test_deploy_units_and_install_wiring():
     assert "EnvironmentFile=/etc/trader-telegram.env" not in svc
     assert "Europe/Istanbul" in tm and "WantedBy=timers.target" in tm
     assert "enable_now trader-drift@learner.timer" in ins and "enable_now trader-drift@twin.timer" not in ins   # DD-12
-    assert "DRIFT_CHECK_ENABLED=1" in ins
-    assert "DRIFT_CHECK_ENABLED=" in (dep / "trader-health.env.example").read_text(encoding="utf-8")
+    assert "DRIFT_CHECK_ENABLED" not in ins        # saglik bekcisi artik sapma izleyicisini okumaz
 
 
 def test_install_first_run_and_env_newline_safe():
     ins = (ROOT / "deploy" / "install.sh").read_text(encoding="utf-8")
     assert 'systemctl start "trader-drift@$1.service" || true' in ins and 'install -d -o "$TRADER_USER"' in ins
-    assert "tail -c1 /etc/trader-health.env" in ins

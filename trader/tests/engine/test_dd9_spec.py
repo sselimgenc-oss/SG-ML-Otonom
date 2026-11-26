@@ -741,14 +741,13 @@ def test_r_06_install_chowns_user_data_to_trader():
 def test_r_07_trader_data_root_resolves_data_paths_only_when_absolute():
     tgm = importlib.import_module("trader_core.telegram")
     R = load_script("health_run")
-    base_pause = R.pause_base({})
-    assert R.pause_base({"TRADER_DATA_ROOT": "/x"}) == "/x/shared/PAUSE"
-    assert R.pause_base({"TRADER_DATA_ROOT": "x"}) == base_pause
+    assert str(R.data_root({"TRADER_DATA_ROOT": "/x"})) == "/x"
+    assert R.data_root({"TRADER_DATA_ROOT": "x"}) == R.data_root({})
     tg_env = {"TELEGRAM_BOT_TOKEN": "123456:SIZMA", "TELEGRAM_CHAT_ID": "42"}
     base_var = tgm.TelegramConfig.from_env(dict(tg_env)).var_dir
     assert tgm.TelegramConfig.from_env({**tg_env, "TRADER_DATA_ROOT": "/x"}).var_dir == "/x/var/telegram"
     assert tgm.TelegramConfig.from_env({**tg_env, "TRADER_DATA_ROOT": "x"}).var_dir == base_var
-    assert base_pause == str(ROOT / "shared" / "PAUSE") and base_var == str(ROOT / "var" / "telegram")
+    assert base_var == str(ROOT / "var" / "telegram")
 
 
 def test_r_08_proc_guard_makes_process_nondumpable_and_environ_owned_by_root():
@@ -1345,15 +1344,9 @@ def test_y_07_health_collect_reads_live_bot_from_live_paths(tmp_path):
     ex = {"reachable": True, "last_sync": z(NOW), "naked": []}
     put_status(root / "var-live", "learner", _status_doc("learner", "live", NOW, ex))
     put_status(root / "var", "twin", _status_doc("twin", "paper", NOW))
-    live_pause = root / "shared" / "live" / "PAUSE.learner"
-    live_pause.parent.mkdir(parents=True)
-    live_pause.write_text(json.dumps({"schema": "pause/1", "bot": "learner",
-                                      "holds": [{"reason": "user_cmd", "by": "t", "at": None, "note": ""}]}))
     snap = R.collect(health_env(tmp_path, root), {}, NOW)
     assert snap.api["learner"].mode == "live"
     assert snap.api["twin"].mode == "paper"
-    assert snap.pause["learner"].holds == ("user_cmd",)
-    assert snap.pause["twin"].holds == ()
 
 
 def test_y_08_health_collect_with_invalid_live_env_does_not_crash(tmp_path):
@@ -1696,8 +1689,8 @@ def test_t_07_existing_telegram_suites_still_pass_with_flat_fixtures():
 # ====================================================================================== H: saglik
 def _snap_h(api, **kw):
     from trader_core import health as H
-    return H.HealthSnapshot(now=NOW, timeframe_s=3600, api=api, ledger={}, disk_free_bytes=50 * H.GIB, mem_available_bytes=900 * H.MIB,
-                            swap_total_bytes=0, swap_used_bytes=0, last_backup_at=NOW - timedelta(hours=1), **kw)
+    return H.HealthSnapshot(now=NOW, timeframe_s=3600, api=api, ledger={}, disk_free_bytes=50 * H.GIB, 
+                            last_backup_at=NOW - timedelta(hours=1), **kw)
 
 
 def _probe_h(**kw):
@@ -1923,18 +1916,6 @@ def test_h_12_collect_flags_live_bot_whose_status_mode_is_not_live(tmp_path):
     put_status(root / "var-live", "learner", _status_doc("learner", "paper", NOW))
     snap = R.collect(health_env(tmp_path, root), {}, NOW)
     assert "status_mode_mismatch:learner" in tuple(snap.live_path_issues or ())
-
-
-def test_h_13_drift_monitor_check_skipped_for_live_bot_only(tmp_path):
-    from trader_core import health as H
-    R = load_script("health_run")
-    root, _ = live_root(tmp_path)
-    env = health_env(tmp_path, root, DRIFT_CHECK_ENABLED="1")
-    put_status(root / "var-live", "learner", _status_doc("learner", "live", NOW, {"reachable": True, "last_sync": z(NOW), "naked": []}))
-    snap = R.collect(env, {}, NOW)
-    names = {r.name for r in H.evaluate(snap, R.make_cfg(env)).results}
-    assert "drift_monitor:learner" not in names     # SPEC-AMBIGUOUS: LIVE_BOTS'un HealthSnapshot/yapilandirmaya nasil tasindigi adlandirilmamis
-    assert "drift_monitor:twin" in names
 
 
 def test_h_14_existing_constructors_keep_working():

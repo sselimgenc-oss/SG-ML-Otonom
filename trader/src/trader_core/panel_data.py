@@ -22,6 +22,7 @@ from typing import Any
 from . import budget as B
 from . import ledger as L
 from . import kol_yasam as KY
+from . import health as H
 from .health import DEFAULT_CFG as HEALTH_CFG
 from .arm_time import arm_id_of
 
@@ -349,7 +350,7 @@ def _meminfo() -> dict[str, int]:
 
 
 def system_view(disk_path: str) -> dict:
-    """/proc/meminfo + statvfs; renk esikleri health varsayilan yapilandirmasindan."""
+    """/proc/meminfo + statvfs; bellek/takas/disk renk esikleri health modulunden."""
     c = HEALTH_CFG
     try:
         m = _meminfo()
@@ -365,9 +366,9 @@ def system_view(disk_path: str) -> dict:
     ratio = (sw_used / sw_tot) if sw_tot else 0.0
     lvl = lambda warn, crit: "kotu" if crit else ("uyari" if warn else "iyi")  # noqa: E731
     return {"mem_available": avail, "mem_total": tot,
-            "mem_level": lvl(avail < c.mem_warn_bytes, avail < c.mem_crit_bytes),
+            "mem_level": lvl(avail < H.PANEL_MEM_WARN_BYTES, avail < H.PANEL_MEM_CRIT_BYTES),
             "swap_total": sw_tot, "swap_used": sw_used,
-            "swap_level": lvl(ratio >= c.swap_warn_ratio, ratio >= c.swap_crit_ratio),
+            "swap_level": lvl(ratio >= H.PANEL_SWAP_WARN_RATIO, ratio >= H.PANEL_SWAP_CRIT_RATIO),
             "disk_free": free, "disk_total": dtot,
             "disk_level": None if free is None else lvl(free < c.disk_warn_bytes, free < c.disk_crit_bytes)}
 

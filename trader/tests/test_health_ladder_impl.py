@@ -35,7 +35,7 @@ def api(ladder, mode="testnet", open_ids=(7,)):
 def check(a, bot="learner"):
     cfg = H.HealthConfig(require_bots=(bot,))
     snap = H.HealthSnapshot(now=NOW, timeframe_s=3600, api={bot: a}, ledger={}, disk_free_bytes=50 * H.GIB,
-                            mem_available_bytes=900 * H.MIB, swap_total_bytes=0, swap_used_bytes=0,
+                            
                             last_backup_at=NOW - timedelta(hours=1))
     rep = H.evaluate(snap, cfg)
     return {r.name: r for r in rep.results}.get(f"risk_ladder:{bot}"), rep
@@ -94,23 +94,6 @@ def test_capital_unverified_warn():
     expect(api(block(gate_code="capital_unverified")), Status.WARN, "capital_unverified")
 
 
-def test_near_and_step_down_and_would_warn():
-    expect(api(block(near=True, equity=840.0)), Status.WARN, "ladder_near")
-    expect(api(block(near=True, state="review")), Status.CRIT, "drawdown_review")          # near yalniz ok'ta
-    expect(api(block(last_down_at=z(NOW - timedelta(hours=23)), step=-1, step_name="K-1")), Status.WARN, "ladder_step_down")
-    expect(api(block(last_down_at=z(NOW - timedelta(hours=25)))), Status.OK, "ok")
-    expect(api(block(enforce=False, would={"kind": "review_stop", "at": z(NOW - timedelta(hours=1))}), "paper"),
-           Status.WARN, "ladder_would")
-    expect(api(block(enforce=False, would={"kind": "review_stop", "at": z(NOW - timedelta(hours=30))}), "paper"),
-           Status.OK, "ok")
-
-
-@pytest.mark.parametrize("age_min,status,code", [(9, Status.OK, "ok"), (11, Status.WARN, "ladder_hold_stale")])
-def test_hold_stale_after_10_min(age_min, status, code):
-    holds = [{"reason": "drawdown_review", "at": z(NOW - age_min * M)}]
-    expect(api(block(pause_holds=holds)), status, code)
-
-
 def test_hold_stale_ignores_other_reasons_and_review_state():
     holds = [{"reason": "user_cmd", "at": z(NOW - 60 * M)}]
     expect(api(block(pause_holds=holds)), Status.OK, "ok")
@@ -145,8 +128,8 @@ def test_critical_ladder_codes_alert_immediately_and_overall_is_crit():
         assert code in H.IMMEDIATE_CODES
     cfg = H.HealthConfig(require_bots=("learner",), multiple_threshold=50)
     snap = H.HealthSnapshot(now=NOW, timeframe_s=3600, api={"learner": api(block(state="floor"))}, ledger={},
-                            disk_free_bytes=50 * H.GIB, mem_available_bytes=900 * H.MIB, swap_total_bytes=0,
-                            swap_used_bytes=0, last_backup_at=NOW - timedelta(hours=1))
+                            disk_free_bytes=50 * H.GIB, 
+                            last_backup_at=NOW - timedelta(hours=1))
     rep = H.evaluate(snap, cfg)
     assert rep.overall is Status.CRIT
     a0, st0 = H.plan_alerts(rep, H.empty_state(), NOW, cfg)
@@ -194,7 +177,7 @@ def test_probe_status_maps_ladder_block_and_pause_holds(tmp_path):
 def _check_warm(a, started_ago):
     cfg = H.HealthConfig(require_bots=("learner",))
     snap = H.HealthSnapshot(now=NOW, timeframe_s=3600, api={"learner": a}, ledger={}, disk_free_bytes=50 * H.GIB,
-                            mem_available_bytes=900 * H.MIB, swap_total_bytes=0, swap_used_bytes=0,
+                            
                             last_backup_at=NOW - timedelta(hours=1),
                             containers={"trader-learner": H.ContainerProbe("running", 0, NOW - started_ago, False)})
     return {r.name: r for r in H.evaluate(snap, cfg).results}["risk_ladder:learner"]
@@ -221,7 +204,7 @@ def test_capital_latch_hold_emits_warn_and_telegram_alert():
     assert "capital_latch" in r.detail
     cfg = H.HealthConfig(require_bots=("learner",), multiple_threshold=50)
     snap = H.HealthSnapshot(now=NOW, timeframe_s=3600, api={"learner": api(b)}, ledger={}, disk_free_bytes=50 * H.GIB,
-                            mem_available_bytes=900 * H.MIB, swap_total_bytes=0, swap_used_bytes=0,
+                            
                             last_backup_at=NOW - timedelta(hours=1))
     rep = H.evaluate(snap, cfg)
     a0, st0 = H.plan_alerts(rep, H.empty_state(), NOW, cfg)

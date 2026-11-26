@@ -66,13 +66,6 @@ def run_checks(env, snap, state, *, run=subprocess.run, expected_dry_run=True) -
                             "elle karar: geriye donuk (isaretli) giris ekle ya da pozisyonu kapat; otomatik duzeltme yok"))
         else:
             out.append(step("R5", "PASS", f"{bot} acik islemlerin hepsi defterde"))
-        if lp.orphan_ids is None:
-            out.append(step("R6", "UNKNOWN", f"{bot} sahipsiz karar olculemedi"))
-        elif lp.orphan_ids:
-            out.append(step("R6", "WARN", f"{bot} sahipsiz giris kararlari: {list(lp.orphan_ids)[:5]}",
-                            "record_decision ile supersedes_id duzeltmesi (defter-spec 7.2)"))
-        else:
-            out.append(step("R6", "PASS", f"{bot} sahipsiz karar yok"))
         if ap is None or ap.unprotected_ids is None:
             out.append(step("R7", "UNKNOWN", f"{bot} acik pozisyon stop'lari status.json'dan okunamadi",
                             "status.json yok/bozuk: motoru ve pozisyonlari elle kontrol et"))

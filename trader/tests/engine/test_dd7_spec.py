@@ -1045,7 +1045,7 @@ def good_api(**kw):
 
 
 def good_ledger():
-    return H.LedgerProbe(last_write_at=_hat(12, 0, 2), spool_lines=0, unledgered_ids=(), orphan_ids=(), schema_ok=True,
+    return H.LedgerProbe(last_write_at=_hat(12, 0, 2), spool_lines=0, unledgered_ids=(), schema_ok=True,
                          has_active_params=True, spool_corrupt_lines=0)
 
 
@@ -1055,10 +1055,10 @@ def good_container():
 
 def hsnap(**over):
     base = dict(now=NOWH, timeframe_s=3600, api={b: good_api() for b in BOTS}, ledger={b: good_ledger() for b in BOTS},
-                disk_free_bytes=20 * GIB, disk_total_bytes=100 * GIB, mem_available_bytes=900 * MIB,
-                swap_total_bytes=2048 * MIB, swap_used_bytes=int(0.10 * 2048 * MIB),
+                disk_free_bytes=20 * GIB, disk_total_bytes=100 * GIB, 
+                
                 containers={f"trader-{b}": good_container() for b in BOTS}, prev_restart_counts={f"trader-{b}": 4 for b in BOTS},
-                veto_file_mtime=None, budget_state=None, last_backup_at=_hat(3, 10))
+                last_backup_at=_hat(3, 10))
     base.update(over)
     return H.HealthSnapshot(**base)
 

@@ -23,7 +23,6 @@ sys.path.insert(0, str(_HERE))
 
 from trader_core import health as H  # noqa: E402
 from trader_core import live_paths as LP  # noqa: E402
-from trader_engine import status as TSK  # noqa: E402
 
 log = logging.getLogger("trader.health.run")
 
@@ -60,11 +59,6 @@ def _env_num(env, name, cast, default, *, minimum=0):
     return v if v >= minimum and v == v and v not in (float("inf"),) else default
 
 
-def drift_enabled_from_env(env) -> bool:
-    """DRIFT_CHECK_ENABLED (1/true/yes/on) -> drift_check_enabled (saglik-spec 16.6). Bos/diger -> kapali."""
-    return str(env.get("DRIFT_CHECK_ENABLED") or "").strip().lower() in ("1", "true", "yes", "on")
-
-
 def install_quiet_until(env, now: datetime) -> datetime | None:
     """Kurulum sonrasi sessizlik: install.sh'in yazdigi isaretten (`kurulum.json`: {"at": ISO}) bitis zamani (at + 15 dk).
     Isaret yok/bozuk/pencere bitmis -> None (normal uyari akisi)."""
@@ -88,7 +82,6 @@ def _cut_title(t: str) -> str:
 def make_cfg(env) -> H.HealthConfig:
     import dataclasses
     return dataclasses.replace(H.DEFAULT_CFG, require_bots=bots_from_env(env),
-                               drift_check_enabled=drift_enabled_from_env(env),
                                naked_alarm_s=_env_num(env, "NAKED_ALARM_S", float, H.DEFAULT_CFG.naked_alarm_s),
                                exchange_unreachable_s=_env_num(env, "EXCHANGE_UNREACH_S", int,
                                                                H.DEFAULT_CFG.exchange_unreachable_s, minimum=1))
@@ -211,12 +204,6 @@ def probe_status(path: str, bot: str, now: datetime) -> tuple[H.ApiProbe, int | 
                                    and p["stop"] > 0))
         except (KeyError, TypeError, ValueError):
             unprot = None
-    open_pairs = None
-    if isinstance(pos, list) and all(isinstance(p, dict) for p in pos):
-        try:
-            open_pairs = tuple((str(p["pair"]), str(p["asset_class"])) for p in pos)    # sinif yoksa (eski motor) denetim uretilmez
-        except KeyError:
-            open_pairs = None
     dry = d.get("dry_run") if isinstance(d.get("dry_run"), bool) else None
     mode = d.get("mode") if isinstance(d.get("mode"), str) else None
     ex = d.get("exchange")
@@ -232,13 +219,12 @@ def probe_status(path: str, bot: str, now: datetime) -> tuple[H.ApiProbe, int | 
         acct_u = None if un is None or ub is None else max(un - ub, 0)
     probe = H.ApiProbe(ping, loop_at, _parse_dt(d.get("last_candle_open")), _ids(d.get("open_trade_ids")), dry,
                        gate_code, kill, le, unprot, mode, has_ex, reach, last_sync, naked, _ladder_block(d),
-                       acct_drift=acct_d, acct_unverified=acct_u, open_pairs=open_pairs,
-                       toplu_sok=TSK.saglik_ozeti(d.get("toplu_sok")))
+                       acct_drift=acct_d, acct_unverified=acct_u)
     return probe, timeframe_to_s(d.get("trigger_tf"))
 
 
 def _ladder_block(d: dict):
-    """12 §11: status.json `risk_ladder` blogu (+ status.pause.holds, 'ladder_hold_stale' icin). Blok yok/bozuk -> None."""
+    """12 §11: status.json `risk_ladder` blogu (+ status.pause.holds, 'capital_latch' icin). Blok yok/bozuk -> None."""
     b = d.get("risk_ladder")
     if not isinstance(b, dict):
         return None
@@ -267,44 +253,6 @@ def _naked_rows(v):
 
 
 # --------------------------------------------------------------------------- PAUSE / denetim gunlugu (11 §9.2)
-def pause_base(env) -> str:
-    """PAUSE_FILE (varsayilan shared/PAUSE; goreli -> repo koku) + `.<bot>` = motorun/telegram'in yazdigi dosya.
-    Canli bot icin LIVE_PAUSE_FILE (live_paths.bot_pause_base) kullanilir; bu islev kagit tabanidir (DD-9)."""
-    v = (env.get("PAUSE_FILE") or "").strip() or "shared/PAUSE"
-    return v if os.path.isabs(v) else str(data_root(env) / v)
-
-
-def probe_pause(base: str, audit_path: str, bot: str) -> H.PauseProbe:
-    holds = None
-    try:
-        with open(f"{base}.{bot}", "rb") as f:
-            raw = f.read(STATUS_MAX_BYTES).decode("utf-8", errors="replace")
-        try:
-            d = json.loads(raw)
-            hs = d["holds"]
-            holds = tuple(str(h["reason"]) for h in hs) if isinstance(hs, list) and hs else ("unreadable",)
-        except (ValueError, KeyError, TypeError):
-            holds = ("unreadable",)
-    except FileNotFoundError:
-        holds = ()
-    except OSError:
-        holds = None
-    ops: dict[str, str] = {}
-    audit_ok = True
-    try:
-        with open(audit_path, "rb") as f:
-            for line in f.read(STATUS_MAX_BYTES * 5).decode("utf-8", errors="replace").splitlines():
-                try:
-                    r = json.loads(line)
-                    if r.get("op") in ("add", "remove") and isinstance(r.get("reason"), str):
-                        ops[r["reason"]] = r["op"]
-                except (ValueError, AttributeError):
-                    continue
-    except FileNotFoundError:
-        pass
-    except OSError:
-        audit_ok = False
-    return H.PauseProbe(holds, ops, audit_ok)
 
 
 def engine_container(path: str, bot: str, now: datetime, state: dict, key: str) -> H.ContainerProbe:
@@ -334,7 +282,7 @@ _TS_TABLES = (("health_probes", "probed_at"), ("decision_events", "recorded_at")
 
 def probe_ledger(db_path: str, bot: str, open_ids) -> H.LedgerProbe:
     """Salt okunur. Kapi, yazmadan turetilir (spec 3.2)."""
-    last = spool = unl = orphan = schema_ok = active = None
+    last = spool = unl = schema_ok = active = None
     corrupt = None
     cp = db_path + ".spool.corrupt.jsonl"          # DD-8 (E4): dosya yok -> 0; okunur -> satir sayisi; baska OSError -> None
     try:
@@ -356,7 +304,7 @@ def probe_ledger(db_path: str, bot: str, open_ids) -> H.LedgerProbe:
         name = type(e).__name__
         if name == "LedgerSchemaError":
             schema_ok = False
-        return H.LedgerProbe(None, spool, None, None, schema_ok, None, corrupt)
+        return H.LedgerProbe(None, spool, None, schema_ok, None, corrupt)
     try:
         schema_ok = True
         try:
@@ -364,10 +312,6 @@ def probe_ledger(db_path: str, bot: str, open_ids) -> H.LedgerProbe:
                 unl = tuple(led.find_unledgered_trades(open_ids))
         except Exception:  # noqa: BLE001
             unl = None
-        try:
-            orphan = tuple(led.find_orphan_decisions(older_than_s=3600))
-        except Exception:  # noqa: BLE001
-            orphan = None
     finally:
         try:
             led.close()
@@ -391,7 +335,7 @@ def probe_ledger(db_path: str, bot: str, open_ids) -> H.LedgerProbe:
             c.close()
     except Exception:  # noqa: BLE001
         pass
-    return H.LedgerProbe(last, spool, unl, orphan, schema_ok, active, corrupt)
+    return H.LedgerProbe(last, spool, unl, schema_ok, active, corrupt)
 
 
 def _count_lines(path) -> int:
@@ -514,18 +458,6 @@ def probe_disk(paths) -> int | None:
     return best
 
 
-def probe_mem(meminfo_path="/proc/meminfo"):
-    try:
-        d = {}
-        with open(meminfo_path) as f:
-            for line in f:
-                k, _, rest = line.partition(":")
-                d[k] = int(rest.split()[0]) * 1024
-        return d["MemAvailable"], d["SwapTotal"], d["SwapTotal"] - d["SwapFree"]
-    except (OSError, KeyError, ValueError, IndexError):
-        return None, None, None
-
-
 # --------------------------------------------------------------------------- ortam
 def load_env(environ=None) -> dict:
     env = dict(os.environ if environ is None else environ)
@@ -561,158 +493,6 @@ def _int_or_none(v):
     return v if isinstance(v, int) and not isinstance(v, bool) and v >= 0 else None
 
 
-def _parse_dt_utc(s):
-    """Motorla ayni: tz'siz zaman UTC sayilir."""
-    if not isinstance(s, str):
-        return None
-    try:
-        dt = datetime.fromisoformat(s.strip().replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
-
-
-# Ek (bilgi amacli) uyarilar: sade Turkce metin; dosya/servis adi yok. Ayni uyari bir kez gider, sorun surerse en fazla
-# EK_HATIRLATMA_SAAT'te bir hatirlatma, kapaninca tek "Duzeldi" (uyarilar her turda tekrarlanmasin).
-EK_HATIRLATMA_SAAT = 6
-EK_METIN = {   # parmak izi -> (baslik, anlami, duzeldi)
-    "tutarlilik|sapma": ("Kâğıt ile geri test arasında fark var",
-                         "Haftalık tutarlılık raporu bir sapma buldu; ayrıntı panoda Doğrulama sekmesinde. İşlemler etkilenmez.",
-                         "Kâğıt ile geri test yeniden uyumlu"),
-    "disk|dolu": ("Disk dolmak üzere", "Veri diskinin %80'inden fazlası dolu; haftalık bakım eski çıktıları temizler, yetmezse yer açılmalı. İşlemler etkilenmez.",
-                  "Disk doluluğu yeniden normal"),
-    "disk|kritik": ("Disk neredeyse dolu", "Veri diskinin %95'inden fazlası dolu; yer açılmazsa kayıtlar yazılamaz.",
-                    "Disk doluluğu kritik seviyeden indi"),
-}
-DISK_UYARI_ORAN = 0.80      # var/ dosya sisteminde kullanim >= %80 -> WARN
-DISK_KRITIK_ORAN = 0.95     # >= %95 -> ayrica CRIT
-
-
-def ek_uyari_plani(ek: list, onceki, now: datetime):
-    """Saf: (gonderilecek uyarilar, yeni durum). Yeni sorun -> bir kez; suren sorun -> EK_HATIRLATMA_SAAT'te bir;
-    kapanan sorun -> tek 'Duzeldi' (INFO). Durum: {parmak_izi: {"ilk": iso, "son": iso}}."""
-    eski = onceki if isinstance(onceki, dict) else {}
-    yeni: dict = {}
-    out = []
-    for a in ek:
-        fp = a.fingerprint
-        baslik, anlam, _ = EK_METIN.get(fp, (a.title, a.body, "Sorun düzeldi"))
-        e = eski.get(fp) if isinstance(eski.get(fp), dict) else {}
-        son = H._from_iso(e.get("son")) if e.get("son") else None
-        gonder = son is None or (now - son) >= timedelta(hours=EK_HATIRLATMA_SAAT)
-        yeni[fp] = {"ilk": e.get("ilk") or H._iso(now), "son": H._iso(now) if gonder else e.get("son")}
-        if gonder:
-            isaret = "⚠️ Dikkat" if a.level is H.Status.WARN else "🚨 Sorun"
-            if fp.startswith("disk|") and "(%" in a.title:      # doluluk yuzdesi basliga (metin sabit kalir)
-                baslik = f"{baslik} (%{a.title.rsplit('(%', 1)[1]}"
-            out.append(H.Alert(a.level, a.code, f"{isaret}: {baslik}", anlam, f"{fp}|{H._iso(now)}", now))
-    for fp, e in eski.items():
-        if fp not in yeni:
-            duzeldi = EK_METIN.get(fp, ("", "", "Sorun düzeldi"))[2]
-            out.append(H.Alert(H.Status.OK, fp.partition("|")[2] or fp, f"✅ Düzeldi: {duzeldi}", "Her şey yeniden normal.",
-                               f"{fp}|duzeldi|{H._iso(now)}", now))
-    return out, yeni
-
-
-def ek_uyari_geri_al(yeni, onceki, basarisiz: list) -> dict:
-    """Saf: iletilemeyen ek uyarilarin durumunu geri alir (sonraki turda yeniden denenir). Ilk uyari iletilemediyse kayit silinir;
-    hatirlatma/duzeldi iletilemediyse onceki kayit (eski `son`) korunur."""
-    out = dict(yeni) if isinstance(yeni, dict) else {}
-    eski = onceki if isinstance(onceki, dict) else {}
-    for a in basarisiz:
-        fp = "|".join(str(a.fingerprint).split("|")[:2])
-        if fp in eski:
-            out[fp] = eski[fp]
-        elif a.level is not H.Status.OK:
-            out.pop(fp, None)
-    return out
-
-
-def disk_alerts(env: dict, now: datetime, var_dir: str | None = None, usage_fn=None) -> list:
-    """var/ dosya sisteminde kullanim >= %80 -> WARN `disk|dolu` (\"Disk dolmak üzere (%NN)\"); >= %95 -> ayrica CRIT `disk|kritik`.
-    Okunamazsa uyari yok. usage_fn: shutil.disk_usage yerine (test)."""
-    import shutil
-    d = Path(var_dir) if var_dir else data_root(env) / "var"
-    try:
-        u = (usage_fn or shutil.disk_usage)(str(d))
-    except OSError:
-        return []
-    dolu = u.used + u.free                         # df "Use%" ile ayni: used / (used + avail); kok payi haric
-    if not dolu:
-        return []
-    oran = u.used / dolu
-    pct = int(oran * 100)
-    out = []
-    if oran >= DISK_UYARI_ORAN:
-        out.append(H.Alert(H.Status.WARN, "disk_dolu", f"Disk dolmak üzere (%{pct})", "", "disk|dolu", now))
-    if oran >= DISK_KRITIK_ORAN:
-        out.append(H.Alert(H.Status.CRIT, "disk_kritik", f"Disk neredeyse dolu (%{pct})", "", "disk|kritik", now))
-    return out
-
-
-def tutarlilik_alerts(env: dict, now: datetime, durum_dir: str | None = None) -> list:
-    """Faz 2a: var/durum/tutarlilik_v1.json `uyari=true` -> WARN `tutarlilik_sapma` (kagit-geri test tutarlilik raporu; yalniz bilgi,
-    motor etkilenmez). Dosya yok/bozuk/uyari yok -> uyari yok (haftalik is henuz calismadiysa bayatlik olculemez)."""
-    d = Path(durum_dir) if durum_dir else data_root(env) / "var" / "durum"
-    try:
-        doc = json.loads((d / "tutarlilik_v1.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return []
-    if not isinstance(doc, dict) or doc.get("uyari") is not True:
-        return []
-    why = doc.get("uyari_nedenleri")
-    why = [str(x) for x in why][:5] if isinstance(why, list) else []
-    donem = doc.get("donem") if isinstance(doc.get("donem"), dict) else {}
-    return [H.Alert(H.Status.WARN, "tutarlilik_sapma", "Kagit-geri test tutarlilik sapmasi",
-                    f"Haftalik tutarlilik raporu uyari verdi ({str(donem.get('bas', '?'))[:10]} .. {str(donem.get('bit', '?'))[:10]}): "
-                    + ("; ".join(why) if why else "ayrinti var/rapor/tutarlilik/ altinda") + ". Yalniz bilgi; motor etkilenmez.",
-                    "tutarlilik|sapma", now)]
-
-
-DRIFT_SCHEMA = "drift/1"
-
-
-def probe_drift(path: str, bot: str) -> H.DriftProbe:
-    """<var>/<bot>/drift.json -> DriftProbe (16.6). Yalniz okur, hicbir istatistik hesaplamaz. Yok -> missing;
-    bozuk/sema ya da bot uyusmaz/zaman okunamaz -> unreadable."""
-    try:
-        with open(path, "rb") as f:
-            raw = f.read(2_000_001)
-    except FileNotFoundError:
-        return H.DriftProbe("missing")
-    except OSError:
-        return H.DriftProbe("unreadable")
-    try:
-        if len(raw) > 2_000_000:
-            raise ValueError("buyuk")
-        d = json.loads(raw.decode("utf-8"))
-        if not isinstance(d, dict) or d.get("schema") != DRIFT_SCHEMA or d.get("bot") != bot:
-            return H.DriftProbe("unreadable")
-        gen = _parse_dt(d.get("generated_at"))
-        ov = d.get("overall")
-        if gen is None or not isinstance(ov, str):
-            return H.DriftProbe("unreadable")
-        rules = d.get("rules")
-        up = tuple(sorted(k for k, v in rules.items() if isinstance(v, dict) and v.get("level") == "UYARI")) \
-            if isinstance(rules, dict) else ()
-        return H.DriftProbe("ok", gen, ov, up)
-    except (ValueError, UnicodeDecodeError, AttributeError):
-        return H.DriftProbe("unreadable")
-
-
-def collect_drift(env: dict, var_dir: str):
-    """drift_check_enabled kapaliysa None (kontrol SKIPPED); aciksa bot basina probe."""
-    if not drift_enabled_from_env(env):
-        return None
-    out = {}
-    for bot in bots_from_env(env):
-        try:
-            out[bot] = probe_drift(os.path.join(var_dir, bot, "drift.json"), bot)
-        except Exception:  # noqa: BLE001
-            out[bot] = H.DriftProbe("unreadable")
-    return out
-
-
 def collect(env: dict, state: dict, now: datetime, *, deadline: float = 0.0) -> H.HealthSnapshot:
     var_dir = env["ENGINE_VAR_DIR"]
     api, ledger, containers = {}, {}, {}
@@ -746,17 +526,6 @@ def collect(env: dict, state: dict, now: datetime, *, deadline: float = 0.0) -> 
             containers[f"trader-{bot}"] = engine_container(sp, bot, now, state, f"trader-{bot}")
         except Exception:  # noqa: BLE001
             containers[f"trader-{bot}"] = H.ContainerProbe()
-    pause = {}
-    pbase = pause_base(env)
-    for bot in bots_from_env(env):
-        if bot in live and live_err is not None:
-            pause[bot] = H.PauseProbe()
-            continue
-        try:
-            bvar = _bot_var(env, bot, var_dir)
-            pause[bot] = probe_pause(LP.bot_pause_base(env, bot, pbase), os.path.join(bvar, bot, "pause_audit.jsonl"), bot)
-        except Exception:  # noqa: BLE001
-            pause[bot] = H.PauseProbe()
     shadow = (env.get("HEALTH_SHADOW_VAR_DIR") or "").strip()
     if shadow:   # testnet golge motoru (var-testnet): yalniz status.json tabanli kontroller (dongu/mum/stopsuz/borsa)
         try:
@@ -777,7 +546,6 @@ def collect(env: dict, state: dict, now: datetime, *, deadline: float = 0.0) -> 
     if (env.get("LIVE_VAR_DIR") or "").strip():
         disk_paths.append(env["LIVE_VAR_DIR"].strip())
     free = probe_disk(disk_paths)
-    mem, swap_t, swap_u = probe_mem()
     last_backup = None
     try:
         from health_backup import latest_ok_backup
@@ -791,14 +559,11 @@ def collect(env: dict, state: dict, now: datetime, *, deadline: float = 0.0) -> 
             prev_am[b] = (v[0], v[1])
     return H.HealthSnapshot(
         prev_account_mode=prev_am, live_path_issues=live_path_issues,
-        drift=collect_drift(env, var_dir),
-        market=market, bans=collect_bans(env, var_dir), prev_rules_missing=dict(state.get("rules_missing", {})),
-        now=now, timeframe_s=tf_s, api=api, ledger=ledger, disk_free_bytes=free, mem_available_bytes=mem,
-        swap_total_bytes=swap_t, swap_used_bytes=swap_u, containers=containers,
+        market=market, bans=collect_bans(env, var_dir),
+        now=now, timeframe_s=tf_s, api=api, ledger=ledger, disk_free_bytes=free, containers=containers,
         prev_restart_counts=dict(state.get("restart_counts", {})),
         consecutive_restart_runs=dict(state.get("consecutive_restart_runs", {})),
-        installed_at=H._from_iso(state.get("installed_at")), last_backup_at=last_backup,
-        pause=pause, prev_pause_holds={b: tuple(v) for b, v in (state.get("pause_holds") or {}).items()})
+        installed_at=H._from_iso(state.get("installed_at")), last_backup_at=last_backup)
 
 
 def run_once(env: dict, *, now: datetime | None = None, state_path=None, notifier=None, sender=None,
@@ -827,13 +592,6 @@ def run_once(env: dict, *, now: datetime | None = None, state_path=None, notifie
     alerts, held = H.quiet_split(alerts, report, now, quiet_until)
     if held:   # tutulan uyarilar iletilmis sayilmaz: durum geri alinir, sorun surerse pencere sonrasinda kendiliginden gider
         new_state = H.revert_failed_alerts(new_state, state, held)
-    ek_gonder: list = []
-    if quiet_until is not None:   # ek uyarilar (disk/...) olumcul degil: pencere boyunca tutulur, durum aynen kalir
-        new_state["ek_uyarilar"] = state.get("ek_uyarilar") or {}
-    else:
-        ek = tutarlilik_alerts(env, now) + disk_alerts(env, now)
-        ek_gonder, new_state["ek_uyarilar"] = ek_uyari_plani(ek, state.get("ek_uyarilar"), now)
-        alerts.extend(ek_gonder)
     # sessizlik ozeti: pencerede tutulan uyari basliklari state'te birikir; pencere bitince TEK ozet gider
     tutulan = list(state.get("quiet_held") or [])
     if quiet_until is not None:
@@ -863,11 +621,6 @@ def run_once(env: dict, *, now: datetime | None = None, state_path=None, notifie
             starts[k] = H._iso(c.started_at)
     new_state["engine_started_at"] = starts
     new_state["installed_at"] = state["installed_at"]
-    new_state["pause_holds"] = {b: list(p.holds) for b, p in snap.pause.items() if p.holds is not None}
-    if snap.market is not None:   # rules_missing artis tespiti icin son gorulen sayaclar
-        rm = dict(state.get("rules_missing", {}))
-        rm.update({b: v for b, v in snap.market.rules_missing.items() if v is not None})
-        new_state["rules_missing"] = rm
 
     am_state = dict(state.get("account_mode") if isinstance(state.get("account_mode"), dict) else {})
     for b, ap in snap.api.items():               # DD-9 §8.1: onceki tur sayaclari (None saklanmaz)
@@ -886,10 +639,6 @@ def run_once(env: dict, *, now: datetime | None = None, state_path=None, notifie
             failed.append(a)
     if failed:
         new_state = H.revert_failed_alerts(new_state, state, failed)
-        ek_ids = {id(a) for a in ek_gonder}
-        ek_basarisiz = [a for a in failed if id(a) in ek_ids]
-        if ek_basarisiz:   # ek uyari iletilemedi: ek_uyarilar durumu da geri alinir (yoksa sessizce yutulurdu)
-            new_state["ek_uyarilar"] = ek_uyari_geri_al(new_state.get("ek_uyarilar"), state.get("ek_uyarilar"), ek_basarisiz)
 
     code = EXIT_OK
     hb_ok = None

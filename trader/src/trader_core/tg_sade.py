@@ -343,8 +343,6 @@ _SADE: dict[str, tuple[str, str, str | None, str]] = {
     "ml_no_model": ("Model yüklenemedi.", "Yeni işlem açılmıyor; açık pozisyonlar stoplarıyla izleniyor.", None,
                     "model yüklendi, yeni işlemler açık"),
     "ml_expiring_1d": ("Modelin süresi yarın doluyor.", "Yenilenmezse yeni işlemler durur.", None, "model yenilendi"),
-    "budget_exhausted": ("Yapay zekâ bütçesi tükendi.", "Yeni işlem açılmıyor; açık pozisyonlar izleniyor.", None,
-                         "yapay zekâ bütçesi yeniden yeterli"),
     "exchange_ban_open_positions": ("Borsa geçici engel koydu, açık pozisyon var.",
                                     "Borsadaki stoplar yerinde; engel bitince bot emir göndermeye devam eder.",
                                     "Gerekirse pozisyonu Binance uygulamasından elle kapat.", "borsa engeli kalktı"),
@@ -363,15 +361,15 @@ _SADE: dict[str, tuple[str, str, str | None, str]] = {
     "disk_low": ("Disk neredeyse dolu.", "Dolarsa kayıtlar yazılamaz.", "Hemen yer açılması gerekiyor; bana haber ver.",
                  "disk doluluğu normale döndü"),
     "candle_age": ("Piyasa verisi güncel değil.", "Yeni işlem açılmıyor; veri bekleniyor.", None, "piyasa verisi güncel"),
-    "feed_status_age": ("Fiyat akışı durmuş görünüyor.", "Yeni işlem açılmıyor; akış yeniden başlatılıyor.", None,
-                        "fiyat akışı yeniden çalışıyor"),
     "market_bar_age": ("Piyasa verisi güncel değil.", "Yeni işlem açılmıyor; veri bekleniyor.", None, "piyasa verisi güncel"),
-    "acik_pozisyon_fiyat_bayat": ("Açık pozisyonun fiyatı gelmiyor.", "Stop, fiyat gelince işlenir; veri bekleniyor.", None,
-                                  "açık pozisyonun fiyatı yeniden geliyor"),
-    "open_price_stale": ("Açık pozisyonun fiyatı gelmiyor.", "Stop, fiyat gelince işlenir; veri bekleniyor.", None,
-                         "açık pozisyonun fiyatı yeniden geliyor"),
-    "veto_file_age": ("Yapay zekâ filtresi güncel değil.", "Yeni işlem açılmıyor; açık pozisyonlar korunuyor.", None,
-                      "yapay zekâ filtresi güncel"),
+    "ledger_write_age": ("Kayıt defterine uzun süredir yazılmadı.", "Kayıtlar gecikmiş olabilir; izleniyor.", None,
+                         "kayıt defterine yeniden yazılıyor"),
+    "ledger_gate": ("İşlem kayıt sistemi giriş kapısı kapalı.", "Yeni işlem açılmıyor; açık pozisyonlar izleniyor.", None,
+                    "kayıt sistemi yeniden açık"),
+    "spool_corrupt": ("Deftere yazılamayan bozuk kayıt var.", "Kayıtlar incelenmeli; açık pozisyonlar izleniyor.", "Bana haber ver.",
+                      "bozuk kayıt kalmadı"),
+    "risk_ladder": ("Risk koruması devrede.", "Sermaye koruma kuralları yeni işlemleri kısıtlayabilir.", None,
+                    "risk koruması yeniden normal"),
     "backup_age": ("Yedek alınmıyor ya da çok eski.", "Yedekleme yeniden deneniyor.", None, "yedekleme düzenli"),
     "container_restarts": ("Bot sık sık yeniden başlıyor.", "Kendini toparlıyor; izleniyor.", None, "bot kararlı çalışıyor"),
 }
@@ -380,16 +378,11 @@ _SADE: dict[str, tuple[str, str, str | None, str]] = {
 SAGLIK_BILINMEYEN = "Bir sistem kontrolü uyarı veriyor (kod gösterilmez)"
 _SAGLIK_EK: dict[str, tuple[str, str | None]] = {
     # sunucu kaynaklari
-    "disk_unknown": ("Disk doluluğu okunamıyor", None), "memory_low": ("Sunucuda bellek azaldı", None),
-    "memory_unknown": ("Bellek durumu okunamıyor", None), "swap_high": ("Sunucu yavaşlıyor (takas belleği yüksek)", None),
-    "swap_unknown": ("Takas belleği durumu okunamıyor", None), "no_backup": ("Henüz yedek alınmamış", None),
+    "disk_unknown": ("Disk doluluğu okunamıyor", None),
+    "no_backup": ("Henüz yedek alınmamış", None),
     "clock_skew": ("Sunucu saati ile kayıt zamanları uyuşmuyor", None),
-    "veto_missing": ("Yapay zekâ filtresi dosyası yok", None), "veto_stale": ("Yapay zekâ filtresi güncel değil", None),
-    "veto_unknown": ("Yapay zekâ filtresi durumu okunamıyor", None),
-    "budget_warn": ("Yapay zekâ bütçesi azaldı", None), "budget_unknown": ("Yapay zekâ bütçesi okunamıyor", None),
     "internal_error": ("Sağlık kontrolü kendi içinde hata verdi", None), "missing_check": ("Bir sağlık kontrolü çalışmadı", None),
     # bot / motor
-    "api_unreachable": ("Bot yanıt vermiyor", None), "api_unknown": ("Bot durumu doğrulanamıyor", None),
     "loop_unknown": ("Bot döngüsü doğrulanamıyor", None),
     "container_not_running": ("Bot çalışmıyor", None), "container_restarted": ("Bot yeniden başladı", None),
     "container_unknown": ("Bot çalışma durumu okunamıyor", None), "oom_killed": ("Bot bellek yetmediği için kapandı", None),
@@ -399,23 +392,16 @@ _SAGLIK_EK: dict[str, tuple[str, str | None]] = {
     "naked_unknown": ("Stop emirleri doğrulanamıyor", None),
     # borsa ve piyasa verisi
     "exchange_unknown": ("Borsa bağlantısı doğrulanamıyor", None), "exchange_ban_file_corrupt": ("Borsa engel kaydı bozuk", None),
-    "feed_status_missing": ("Fiyat akışı durumu yok", None), "feed_status_stale": ("Fiyat akışı durmuş görünüyor", None),
-    "feed_status_unknown": ("Fiyat akışı durumu okunamıyor", None), "market_bars_stale": ("Piyasa verisi güncel değil", None),
+    "market_bars_stale": ("Piyasa verisi güncel değil", None),
     "market_db_missing": ("Piyasa veri dosyası yok", None), "market_db_unreadable": ("Piyasa veri dosyası okunamıyor", None),
     "candle_unknown": ("Piyasa mumları doğrulanamıyor", None), "pairs_unknown": ("İşlem çiftleri doğrulanamıyor", None),
-    "rules_incomplete": ("Bazı paritelerin borsa kuralı eksik", None), "rules_missing_increase": ("Borsa kuralı eksik parite sayısı arttı", None),
-    "rules_stale": ("Borsa kuralları eski", None), "rules_unknown": ("Borsa kuralları okunamıyor", None),
-    "rules_age_unknown": ("Borsa kuralı yaşı okunamıyor", None), "rules_missing_unknown": ("Borsa kuralı eksikliği okunamıyor", None),
     # kayit defteri
     "ledger_age_unknown": ("Kayıt defteri son yazım zamanı okunamıyor", None),
-    "ledger_errors": ("Kayıt defterinde yazma hataları var", None), "orphan_decisions": ("Yeniden başlatma sırasında yarım kalan giriş kararları var; işlemleri etkilemez", None),
+    "ledger_errors": ("Kayıt defterinde yazma hataları var", None),
     "schema": ("Kayıt defteri şeması beklenenden farklı", "Bana haber ver."),
     "spool_corrupt": ("Deftere yazılamayan bozuk kayıt var", None), "spool_pending": ("Deftere yazılmayı bekleyen kayıt birikti", None),
     "spool_corrupt_unreadable": ("Bozuk kayıt dosyası okunamıyor", None),
     "unledgered_trades": ("Deftere işlenmemiş işlem var", "Bana haber ver."),
-    "pause_audit": ("Duraklatma kaydı tutarsız", None), "pause_hold_lost": ("Duraklatma kaydı kaybolmuş", None),
-    "pause_hold_unaudited": ("Duraklatma kaydı doğrulanamadı", None), "pause_audit_unreadable": ("Duraklatma kaydı okunamıyor", None),
-    "pause_unknown": ("Duraklatma durumu okunamıyor", None),
     # risk, hesap, canli
     "ladder_missing": ("Risk kademesi bilgisi yok", None), "ladder_invalid": ("Risk kademesi bilgisi geçersiz", None),
     "capital_missing": ("Sermaye bilgisi okunamıyor", None), "equity_unreadable": ("Kasa bilgisi okunamıyor", None),
@@ -424,18 +410,13 @@ _SAGLIK_EK: dict[str, tuple[str, str | None]] = {
     "account_mode_unverified": ("Hesap ayarı doğrulanamadı, bir giriş atlandı", None),
     "account_mode_unknown": ("Hesap ayarı bilgisi okunamıyor", None),
     "live_paths_mismatch": ("Canlı bot ayar yolları tutarsız", "Kurulumun yeniden çalıştırılması gerekiyor; bana haber ver."),
-    # yapay zeka / egitim / davranis
-    "drift_alert": ("Bot beklenenden farklı davranıyor", None), "drift_missing": ("Davranış izleyicisi çalışmıyor", None),
-    "drift_stale": ("Davranış izleyicisi çalışmıyor", None), "drift_unreadable": ("Davranış izleyicisi çalışmıyor", None),
 }
 _SAGLIK_EK_AD: dict[str, str] = {   # kod taninmazsa kontrol adinin (":bot" oncesi) genel cumlesi
-    "disk_free": "Sunucuda boş disk alanı azaldı", "memory": "Sunucuda bellek azaldı", "swap": "Sunucu yavaşlıyor (takas belleği yüksek)",
-    "api_reachable": "Bot yanıt vermiyor", "bot_loop_age": "Bot döngüsü durmuş görünüyor", "ledger_write_age": "Kayıt defterine uzun süredir yazılmadı",
+    "disk_free": "Sunucuda boş disk alanı azaldı",
+    "bot_loop_age": "Bot döngüsü durmuş görünüyor", "ledger_write_age": "Kayıt defterine uzun süredir yazılmadı",
     "ledger_gate": "Kayıt sistemi giriş kapısı kapalı", "spool_corrupt": "Deftere yazılamayan bozuk kayıt var",
-    "rules_coverage": "Borsa kuralları eksik", "rules_age": "Borsa kuralları eski", "rules_missing": "Bazı paritelerin borsa kuralı eksik",
-    "drift_monitor": "Bot beklenenden farklı davranıyor",
-    "account_mode": "Hesap ayarı bilgisi sorunlu", "exchange_reachable": "Borsaya ulaşılamıyor", "pause_audit": "Duraklatma kaydı tutarsız",
-    "risk_ladder": "Risk kademesi sorunlu", "budget_status": "Yapay zekâ bütçesi sorunlu", "live_paths": "Canlı bot ayar yolları tutarsız",
+    "account_mode": "Hesap ayarı bilgisi sorunlu", "exchange_reachable": "Borsaya ulaşılamıyor",
+    "risk_ladder": "Risk kademesi sorunlu", "live_paths": "Canlı bot ayar yolları tutarsız",
 }
 
 
@@ -458,12 +439,9 @@ def saglik_cumlesi(name: Any, code: Any) -> tuple[str, str | None]:
 
 # bu kodlar/adlar kullaniciya hic gitmez (yapabilecegi bir sey yok ya da isleme etkisi yok)
 _SUSTUR = frozenset({
-    "drift_missing", "drift_stale", "drift_unreadable", "drift_monitor", "drift_unknown",
-    "heartbeat_send_failed", "tutarlilik_sapma",
-    "state_reset", "rules_age", "rules_coverage", "rules_missing", "swap", "memory", "ledger_write_age", "ledger_gate",
-    "pause_audit", "risk_ladder", "exchange_ban_file_corrupt", "account_mode_unverified", "account_mode_unknown",
-    "live_paths_mismatch", "spool_corrupt", "budget_status", "multiple"})
-_BOT_DURDU = frozenset({"api_unreachable", "api_reachable", "bot_loop_age", "engine_retry_exhausted"})
+    "heartbeat_send_failed", "state_reset", "exchange_ban_file_corrupt", "account_mode_unverified", "account_mode_unknown",
+    "live_paths_mismatch", "multiple"})
+_BOT_DURDU = frozenset({"bot_loop_age", "engine_retry_exhausted"})
 
 
 def _kod_ad(alert: Any) -> tuple[str, str]:
@@ -485,9 +463,9 @@ def saglik_mesaji(alert: Any, status_path: str | None = None) -> tuple[str, str 
     code, ad = _kod_ad(alert)
     key = alarm_anahtari(alert)
     lvl = str(getattr(getattr(alert, "level", ""), "value", getattr(alert, "level", ""))).upper()
-    bot = code in _BOT_DURDU or ad in _BOT_DURDU or ad == "api_reachable"
+    bot = code in _BOT_DURDU or ad in _BOT_DURDU
     ok = lvl in ("OK", "INFO")
-    if code in _SUSTUR or ad in _SUSTUR:
+    if code in _SUSTUR or ad in _SUSTUR or "@testnet" in str(getattr(alert, "fingerprint", "")):   # testnet golge botu Telegram'a gitmez
         return "sustur", None, key
     if bot:
         return ("bot_duzeldi", bot_duzeldi(), key) if ok else ("bot_durdu", bot_durdu(status_path), key)
@@ -498,9 +476,6 @@ def saglik_mesaji(alert: Any, status_path: str | None = None) -> tuple[str, str 
             return "sustur", None, key
         return "alarm", _bagla(["🔴 Bir sistem kontrolü ciddi şekilde sorunlu.", "Açık pozisyonlar stoplarıyla izleniyor; inceleniyor."]), key
     ne, yap, senden, duz = ent
-    govde = str(getattr(alert, "body", "") or "")
-    if code == "open_price_stale" and "için fiyat gelmiyor" in govde:
-        yap = govde[:200]                      # '<COIN> için fiyat gelmiyor; açık pozisyonun stopu fiyat gelince işler'
     if ok:
         return "duzeldi", duzeldi(duz), key
     if code in ("disk_dolu", "disk_kritik"):

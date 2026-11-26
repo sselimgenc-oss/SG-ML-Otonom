@@ -1782,7 +1782,7 @@ def _eval(probe, **kw):
 
 def _good_probe(**kw):
     from trader_core import health as H
-    base = dict(last_write_at=datetime(2026, 11, 16, 12, 0, 2, tzinfo=UTC), spool_lines=0, unledgered_ids=(), orphan_ids=(),
+    base = dict(last_write_at=datetime(2026, 11, 16, 12, 0, 2, tzinfo=UTC), spool_lines=0, unledgered_ids=(), 
                 schema_ok=True, has_active_params=True)
     base.update(kw)
     return H.LedgerProbe(**base)
@@ -1872,7 +1872,7 @@ def test_e4_07_quarantined_spool_row_makes_next_health_run_crit_spool_corrupt(tm
 
 def test_e4_08_positional_six_argument_ledger_probe_still_works():
     from trader_core import health as H
-    p = H.LedgerProbe(datetime(2026, 11, 16, tzinfo=UTC), 0, (), (), True, True)
+    p = H.LedgerProbe(datetime(2026, 11, 16, tzinfo=UTC), 0, (), True, True)
     assert p.spool_corrupt_lines is None
     last = dataclasses.fields(H.LedgerProbe)[-1]
     assert last.name == "spool_corrupt_lines" and last.default is None

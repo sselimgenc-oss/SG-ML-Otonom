@@ -128,7 +128,7 @@ def test_tekrarlayan_yeniden_baslama_geri_alir(w):
 
 
 def test_saglikta_olumcul_kirmizi_geri_alir_olumcul_olmayan_almaz(w):
-    w.health_red("veto_stale", name="veto_file_age")                        # olumcul degil
+    w.health_red("backup_stale", name="backup_age")                        # olumcul degil
     assert w.tick(6) == "saglikli" and w.tick(8) == "saglikli" and w.rollbacks == []
     w.health_red("oom_killed", name="container_restarts:trader-learner")    # olumcul
     w.tick(10)
@@ -143,17 +143,17 @@ def test_tek_turluk_saglik_kirmizisi_sayilmaz(tmp_path):
 
 
 def test_oz_kontrol_20_dk_sorun_varsa_tek_mesaj_yoksa_sessiz(w):
-    w.health_red("veto_stale", name="veto_file_age")                        # olumcul degil -> geri alma yok, oz-kontrol uyarir
+    w.health_red("backup_stale", name="backup_age")                        # olumcul degil -> geri alma yok, oz-kontrol uyarir
     assert w.tick(19) == "saglikli" and w.messages == []
     assert w.tick(20) == "oz_kontrol_sorun"
-    assert len(w.messages) == 1 and "20 dk sonra" in w.messages[0] and "Veto" in w.messages[0]
+    assert len(w.messages) == 1 and "20 dk sonra" in w.messages[0] and "Yedek" in w.messages[0]
     w.tick(22)
     w.tick(40)
     assert len(w.messages) == 1                                              # bir kez
 
 
 def test_oz_kontrol_izleme_sorun_gorurken_ikinci_mesaj_gondermez(w):
-    w.health_red("veto_stale", name="veto_file_age")
+    w.health_red("backup_stale", name="backup_age")
     w.active = False
     w.tick(18)
     assert w.tick(20) == "geri_alindi"                                       # geri alma mesaji trader-geri-al'dan
@@ -232,10 +232,9 @@ def _snap(**over):
     base = dict(now=T0, timeframe_s=3600,
                 api={"learner": H.ApiProbe(ping_ok=True, last_process_at=T0, last_candle_open=T0.replace(minute=0), open_trade_ids=(),
                                            dry_run=True)},
-                ledger={"learner": H.LedgerProbe(last_write_at=T0, spool_lines=0, unledgered_ids=(), orphan_ids=(), schema_ok=True,
+                ledger={"learner": H.LedgerProbe(last_write_at=T0, spool_lines=0, unledgered_ids=(), schema_ok=True,
                                                  has_active_params=True, spool_corrupt_lines=0)},
-                disk_free_bytes=20 * 2**30, disk_total_bytes=100 * 2**30, mem_available_bytes=900 * 2**20,
-                swap_total_bytes=2**31, swap_used_bytes=0,
+                disk_free_bytes=20 * 2**30, disk_total_bytes=100 * 2**30, 
                 containers={"trader-learner": H.ContainerProbe(state="running", restart_count=1, started_at=T0 - timedelta(days=2),
                                                               oom_killed=False)},
                 prev_restart_counts={"trader-learner": 1}, last_backup_at=T0 - timedelta(hours=2))
@@ -243,11 +242,11 @@ def _snap(**over):
     return H.HealthSnapshot(**base)
 
 
-@pytest.fixture(autouse=True)
-def _ek_uyarilar_kapali(monkeypatch):
-    """Sunucuya/diske bagli ek uyarilar (disk doluluk, tutarlilik) bu testlerin konusu degil."""
-    for n in ("tutarlilik_alerts", "disk_alerts"):
-        monkeypatch.setattr(HR, n, lambda *a, **k: [])
+def _taze(sn, n):
+    """Motor dongusu her turda tazelenir (yalniz 'dongu bayat' senaryosu bayat kalir)."""
+    api = {b: p if p.last_process_at < T0 - timedelta(minutes=30) else dataclasses.replace(p, last_process_at=n)
+           for b, p in sn.api.items()}
+    return dataclasses.replace(sn, now=n, api=api)
 
 
 def _run_turns(tmp_path, turns, marker_at=T0):
@@ -259,18 +258,18 @@ def _run_turns(tmp_path, turns, marker_at=T0):
         now = T0 + timedelta(minutes=minute)
         notifier = H.NullNotifier()
         HR.run_once(env, now=now, state_path=sp, notifier=notifier, sender=HR.NoHeartbeat(),
-                    snapshot_fn=lambda e, s, n, sn=snapshot: dataclasses.replace(sn, now=n))
+                    snapshot_fn=lambda e, s, n, sn=snapshot: _taze(sn, n))
         out.append((minute, [(a.code, a.level.value) for a in notifier.sent]))
     return out
 
 
 def test_saglik_kurulumdan_sonra_15_dk_yalniz_olumcul_sonra_tek_ozet(tmp_path):
-    down = {"learner": dataclasses.replace(_snap().api["learner"], ping_ok=False)}   # api_unreachable: olumcul
+    down = {"learner": dataclasses.replace(_snap().api["learner"], last_process_at=T0 - timedelta(hours=1))}   # stale_loop: olumcul
     soft = _snap(disk_free_bytes=int(0.5 * 2**30))                             # disk_low: olumcul degil
     both = _snap(api=down, disk_free_bytes=int(0.5 * 2**30))
     out = dict(_run_turns(tmp_path, [(1, both), (6, both), (11, both), (16, both), (21, both)]))
     assert out[1] == []                                                        # cift dogrulama: ilk tur sari
-    assert out[6] == [("api_unreachable", "CRIT")]                             # olumcul: sessizlikte gecer, disk_low tutulur
+    assert out[6] == [("stale_loop", "CRIT")]                             # olumcul: sessizlikte gecer, disk_low tutulur
     assert out[11] == []
     codes16 = [c for c, _ in out[16]]                                          # pencere bitti (T0+15): tutulanlar ozetle gelir
     assert "quiet_summary" in codes16 and codes16.count("quiet_summary") == 1 and "disk_low" in codes16
@@ -279,7 +278,7 @@ def test_saglik_kurulumdan_sonra_15_dk_yalniz_olumcul_sonra_tek_ozet(tmp_path):
     sub_dir = tmp_path / "x"
     sub_dir.mkdir()
     out2 = dict(_run_turns(sub_dir, [(1, soft), (6, soft), (11, soft)]))
-    assert all(v == [] for v in out2.values())
+    assert all(v == [] for v in out2.values()), out2
 
 
 def test_marker_yoksa_ya_da_eski_ise_sessizlik_uygulanmaz(tmp_path):

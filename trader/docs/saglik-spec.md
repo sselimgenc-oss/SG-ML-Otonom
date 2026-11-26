@@ -3,6 +3,8 @@
 > 25 Kasım: sahip kararıyla ders sistemi KALDIRILDI (`trader_core/lesson.py`, `lesson_run`, gece notu, onay/ret akışı, panel/Telegram ders bölümleri; öğrenme ML1'e taşındı). Bu belgedeki ders/not/onay (`/ders`, `/onayla`, `/reddet`) bölümleri tarihsel kayıttır, geçerli değildir. Defterin parametre sürümü mekanizması (kullanıcı sürümü, etkinleştirme, `parent_version_id`) ve şeması AYNEN kalır.
 
 
+> 26 Kasım (sadelesme 4/4): bekçi az sayıda temel denetime indirildi. KALAN: `bot_loop_age`, `candle_age`, `market_bar_age`, `ledger_write_age`, `ledger_gate` (+ `spool_corrupt`), `container_restarts`, `risk_ladder` (yalnız para-koruma kodları), `disk_free`, `backup_age`; canlı kipte `naked_position`, `exchange_reachable`, `exchange_ban`, `account_mode`, `live_paths`. KALDIRILDI: `api_reachable` (`bot_loop_age` ile çift), `memory`, `swap`, `veto_file_age`, `budget_status`, `feed_status_age`, `acik_pozisyon_fiyat_bayat`, `rules_*`, `toplu_sok`, `drift_monitor`, `pause_audit`, `tutarlilik_sapma` ve yüzde bazlı disk ek uyarısı (`disk_free` bayt eşiği kalır), `orphan_decisions`, kademe bilgi uyarıları (`ladder_step_down/would/hold_stale`). Aşağıdaki bölümler bu kalan/kaldırılan ayrımına göre okunmalıdır.
+
 > 18 Kasım: kullanıcı kararıyla değişti. Veto tazeliği alarmı ve ikiz sağlık kontrolleri kaldırıldı (veto/ikiz yok).
 
 Bu belge kod ve test içermez; testler bu belgeden yazılır. Biçim `risk-kilidi-spec.md` ile aynıdır. Defter arayüzleri `defter-spec.md`'den (Bölüm 4, 7.2, 8) alınmıştır; çelişkide o belge geçerlidir.

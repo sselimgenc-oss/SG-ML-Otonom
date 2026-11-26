@@ -346,6 +346,12 @@ install -d -m 0750 -o "$TRADER_USER" -g "$TRADER_USER" "$TRADER_DIR/var" "$TRADE
   "$TRADER_DIR/var/telegram" "$TRADER_DIR/var-testnet" "$TRADER_DIR/shared/testnet" \
   "$TRADER_DIR/var-live" "$TRADER_DIR/shared/live"
 install -d -m 2770 -o "$TRADER_USER" -g "$TG_GROUP" "$TRADER_DIR/var/telegram/outbox"
+# outbox sahiplik onarimi (idempotent, her kurulumda): saglik birimi (root) sent/ ya da dosya olusturmus olabilir; trader (grup uyesi degil)
+# bunlari okuyamaz/tasiyamaz (mutabakat PermissionError). sent/ her zaman var olsun; icindeki her sey trader:trader-tg olsun.
+install -d -m 2770 -o "$TRADER_USER" -g "$TG_GROUP" "$TRADER_DIR/var/telegram/outbox/sent"
+find "$TRADER_DIR/var/telegram/outbox" -mindepth 1 -xdev -exec chown -h "$TRADER_USER:$TG_GROUP" {} +
+find "$TRADER_DIR/var/telegram/outbox" -mindepth 1 -xdev -type d -exec chmod 2770 {} +
+find "$TRADER_DIR/var/telegram/outbox" -mindepth 1 -xdev -type f -exec chmod 0660 {} +
 # model paketi calisma zamani dizini (git-izli models/ yazilmaz): var/learner/models
 safe_tree_path "$TRADER_DIR/var/learner" "$TRADER_DIR/var/learner/models"
 install -d -m 0750 -o "$TRADER_USER" -g "$TRADER_USER" "$TRADER_DIR/var/learner" "$TRADER_DIR/var/learner/models"
@@ -394,13 +400,6 @@ sed -i "s#^ENGINE_VAR_DIR=\$#ENGINE_VAR_DIR=${TRADER_DIR}/var#" /etc/trader-heal
 # piyasa verisi alarmlari varsayilan acik (bos ise doldur; kullanici degeri korunur)
 sed -i "s#^MARKET_DB=\$#MARKET_DB=${TRADER_DIR}/var/market.sqlite#" /etc/trader-health.env
 sed -i "s#^ENGINE_CONFIG_DIR=\$#ENGINE_CONFIG_DIR=${TRADER_DIR}/config#" /etc/trader-health.env
-# sapma izleyicisi kancasi (saglik-spec 16.6): izleyici birimleri kuruldugu icin drift_check_enabled acilir; bos/eksik ise 1 yazilir, kullanici degeri korunur
-if ! grep -q '^DRIFT_CHECK_ENABLED=' /etc/trader-health.env; then
-  # dosya sonunda satir sonu yoksa once ekle (son satirin sonuna yapismasin)
-  if [ -s /etc/trader-health.env ] && [ -n "$(tail -c1 /etc/trader-health.env)" ]; then echo >> /etc/trader-health.env; fi
-  echo "DRIFT_CHECK_ENABLED=1" >> /etc/trader-health.env
-fi
-sed -i "s#^DRIFT_CHECK_ENABLED=\$#DRIFT_CHECK_ENABLED=1#" /etc/trader-health.env
 # beklenen motorlar (DD-12: ikiz yok, yalniz learner); her calistirmada guncellenir
 HEALTH_BOTS_VAL="learner"
 if grep -q '^HEALTH_BOTS=' /etc/trader-health.env; then

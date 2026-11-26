@@ -278,14 +278,36 @@ def _key_hash(key: str) -> str:
 # Spool
 # ---------------------------------------------------------------------------
 class Outbox:
+    """Sahiplik modeli: outbox dizini trader:trader-tg 2770'dir (install.sh kurar). Yazanlar farkli kullanicidir (saglik birimi root,
+    motor/mutabakat trader); root'un olusturdugu her dosya/dizin dizinin sahibine (uid/gid) cevrilir, aksi halde trader okuyamaz."""
+
     def __init__(self, base: str | Path, now_fn: Callable[[], datetime]):
         self.dir = Path(base) / "outbox"
         self.sent_dir = self.dir / "sent"
         self.now = now_fn
         self.dropped = 0
 
+    def _sahip_duzelt(self, p: Path, dizin: bool = False) -> None:
+        """p'yi outbox dizininin uid/gid'ine cevirir (yalniz farkliysa; yetki yoksa sessizce gecer). Dizinse mod 2770, dosyaysa 0660."""
+        try:
+            ref = os.stat(self.dir)
+            st = os.lstat(p)
+            if (st.st_uid, st.st_gid) != (ref.st_uid, ref.st_gid):
+                os.chown(p, ref.st_uid, ref.st_gid)
+                os.chmod(p, 0o2770 if dizin else 0o660)
+        except OSError as e:
+            log.warning("outbox sahiplik duzeltilemedi: %s", type(e).__name__)
+
     def _mk(self) -> None:
         self.sent_dir.mkdir(parents=True, exist_ok=True)
+        self._sahip_duzelt(self.sent_dir, dizin=True)
+
+    def _sil(self, p: Path) -> None:
+        """Silinemeyen (yetkisiz) dosya dongu/servisi dusurmez: kaydedilir, atlanir."""
+        try:
+            p.unlink(missing_ok=True)
+        except OSError as e:
+            log.warning("outbox dosyasi silinemedi: %s", type(e).__name__)
 
     def sent_recently(self, key: str) -> bool:
         try:
@@ -298,7 +320,9 @@ class Outbox:
         try:
             self._mk()
             until = until_epoch if until_epoch else self.now().timestamp() + DEDUP_WINDOW_S
-            (self.sent_dir / _key_hash(key)).write_text(f"{until:.0f}\n")
+            f = self.sent_dir / _key_hash(key)
+            f.write_text(f"{until:.0f}\n")
+            self._sahip_duzelt(f)
         except OSError as e:
             log.warning("sent isareti yazilamadi: %s", type(e).__name__)
 
@@ -328,6 +352,7 @@ class Outbox:
                 os.chmod(p, 0o660)
             except OSError:
                 pass
+            self._sahip_duzelt(p)
         except Exception as e:  # noqa: BLE001
             log.error("spool yazilamadi: %s", type(e).__name__)
             return False
@@ -343,7 +368,12 @@ class Outbox:
 
     def _enforce_limits(self) -> None:
         files = self.list()
-        total = sum(p.stat().st_size for p in files if p.exists())
+        total = 0
+        for p in files:
+            try:
+                total += p.stat().st_size
+            except OSError:
+                pass
         if len(files) <= SPOOL_MAX_FILES and total <= SPOOL_MAX_BYTES:
             return
         for sev in ("INFO", "WARN"):
@@ -352,8 +382,11 @@ class Outbox:
                     return
                 d = self._read(p)
                 if d and d.get("severity") == sev:
-                    total -= p.stat().st_size
-                    p.unlink(missing_ok=True)
+                    try:
+                        total -= p.stat().st_size
+                    except OSError:
+                        pass
+                    self._sil(p)
                     files.remove(p)
                     self.dropped += 1
 
@@ -367,13 +400,13 @@ class Outbox:
                 continue
             exp = d.get("expires_at")
             if exp is not None and exp <= now:
-                p.unlink(missing_ok=True)       # suresi dolmus onay talebi gonderilmez
+                self._sil(p)       # suresi dolmus onay talebi gonderilmez
                 continue
             if d.get("severity") == "INFO" and now - float(d.get("created_at", now)) > INFO_MAX_AGE_S:
-                p.unlink(missing_ok=True)
+                self._sil(p)
                 continue
             if self.sent_recently(d["dedup_key"]):
-                p.unlink(missing_ok=True)
+                self._sil(p)
                 continue
             items.append((p, d))
         # hiz siniri: tur basina <= RATE_PER_MIN; asan INFO tek ozet
@@ -388,7 +421,7 @@ class Outbox:
                 try:
                     client.send_message(chat_id, f"{len(merge)} mesaj birlestirildi", disable_notification=True)
                     for p, d in merge:
-                        p.unlink(missing_ok=True)
+                        self._sil(p)
                         self.mark_sent(d["dedup_key"])
                 except TelegramError:
                     pass
@@ -404,7 +437,7 @@ class Outbox:
                     sleep(e.retry_after)
                 break
             self.mark_sent(d["dedup_key"], d.get("expires_at"))
-            p.unlink(missing_ok=True)
+            self._sil(p)
             sent += 1
             sleep(1.0)
         return sent

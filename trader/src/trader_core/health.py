@@ -26,9 +26,9 @@ __all__ = [
     "Status", "CheckResult", "HealthReport", "HealthSnapshot", "ApiProbe", "LedgerProbe",
     "ContainerProbe", "HealthConfig", "DEFAULT_CFG", "evaluate", "combine", "Alert", "Notifier",
     "LogNotifier", "NullNotifier", "plan_alerts", "revert_failed_alerts", "empty_state",
-    "PauseProbe", "quiet_http_loggers", "IMMEDIATE_CODES", "HeartbeatSender", "HttpsHeartbeat", "parse_env_text",
+    "quiet_http_loggers", "IMMEDIATE_CODES", "HeartbeatSender", "HttpsHeartbeat", "parse_env_text",
     "parse_maintenance", "heartbeat_message", "should_send_ok", "REQUIRED_CHECKS", "MarketProbe",
-    "DriftProbe", "BanProbe",
+    "BanProbe",
 ]
 
 log = logging.getLogger("trader.health")
@@ -43,6 +43,9 @@ def quiet_http_loggers() -> None:
 
 GIB = 1024 ** 3
 MIB = 1024 ** 2
+# Panel sistem karti renk esikleri (yalniz gosterim; bekci bellek/takas denetlemez, uyari uretmez).
+PANEL_MEM_WARN_BYTES, PANEL_MEM_CRIT_BYTES = 250 * MIB, 120 * MIB
+PANEL_SWAP_WARN_RATIO, PANEL_SWAP_CRIT_RATIO = 0.50, 0.80
 
 
 class Status(str, Enum):
@@ -64,10 +67,8 @@ class CheckResult:
 
 
 # Zorunlu kontroller (Z): taban adlari. Bot bazlilar "<ad>:<bot>" olur.
-REQUIRED_CHECKS = ("api_reachable", "bot_loop_age", "candle_age", "ledger_write_age", "ledger_gate",
-                   "disk_free", "memory", "container_restarts")
-_PER_BOT = ("api_reachable", "bot_loop_age", "candle_age", "ledger_write_age", "ledger_gate",
-            "container_restarts")
+REQUIRED_CHECKS = ("bot_loop_age", "candle_age", "ledger_write_age", "ledger_gate", "disk_free", "container_restarts")
+_PER_BOT = ("bot_loop_age", "candle_age", "ledger_write_age", "ledger_gate", "container_restarts")
 
 
 @dataclass(frozen=True)
@@ -112,8 +113,6 @@ class ApiProbe:
     expect_exchange: bool = False
     # Acik pozisyonlarin (cift, varlik sinifi kripto|hisse|emtia); None = okunamadi / sinif bilinmiyor (denetim uretilmez).
     open_pairs: tuple[tuple[str, str], ...] | None = None
-    # 23.11 toplu sok: status.json `toplu_sok` ozeti {sok10, limit, sok10_usd} (kasa %); None = blok yok (denetim uretilmez).
-    toplu_sok: Mapping | None = None
 
 
 @dataclass(frozen=True)
@@ -128,20 +127,10 @@ class BanProbe:
 
 
 @dataclass(frozen=True)
-class PauseProbe:
-    """PAUSE dosyasi + denetim gunlugu (11 §9.2). holds: simdiki tutus nedenleri (None = okunamadi);
-    last_ops: neden -> gunlukteki SON islem ("add" | "remove"); audit_ok: gunluk okunabildi mi (yok = bos, okunabilir)."""
-    holds: tuple[str, ...] | None = None
-    last_ops: Mapping[str, str] = field(default_factory=dict)
-    audit_ok: bool = True
-
-
-@dataclass(frozen=True)
 class LedgerProbe:
     last_write_at: datetime | None = None
     spool_lines: int | None = None
     unledgered_ids: tuple[int, ...] | None = None
-    orphan_ids: tuple[int, ...] | None = None
     schema_ok: bool | None = None
     has_active_params: bool | None = None
     spool_corrupt_lines: int | None = None    # DD-8 (E4): `<defter>.spool.corrupt.jsonl` satir sayisi (None = okunamadi)
@@ -170,15 +159,6 @@ class MarketProbe:
 
 
 @dataclass(frozen=True)
-class DriftProbe:
-    """Sapma izleyicisi cikti dosyasi olcumu (Bolum 16.6; WP-2). Saglik istatistik hesaplamaz."""
-    file_state: str = "missing"             # "ok" | "missing" | "unreadable"
-    generated_at: datetime | None = None
-    overall: str | None = None
-    rules_at_uyari: tuple[str, ...] = ()
-
-
-@dataclass(frozen=True)
 class HealthSnapshot:
     now: datetime
     timeframe_s: int | None = None
@@ -186,13 +166,8 @@ class HealthSnapshot:
     ledger: Mapping[str, LedgerProbe] = field(default_factory=dict)
     disk_free_bytes: int | None = None
     disk_total_bytes: int | None = None
-    mem_available_bytes: int | None = None
-    swap_total_bytes: int | None = None
-    swap_used_bytes: int | None = None
     containers: Mapping[str, ContainerProbe] = field(default_factory=dict)
     prev_restart_counts: Mapping[str, int] = field(default_factory=dict)
-    veto_file_mtime: datetime | None = None
-    budget_state: str | None = None
     last_backup_at: datetime | None = None
     # Ek (spec 5.3 / 6.7): runner durum dosyasindan doldurur; yoksa varsayilan.
     consecutive_restart_runs: Mapping[str, int] = field(default_factory=dict)
@@ -200,11 +175,6 @@ class HealthSnapshot:
     # Piyasa verisi alarmlari; None = bu denetimler kapali (MARKET_DB yapilandirilmamis).
     market: MarketProbe | None = None
     prev_rules_missing: Mapping[str, int] = field(default_factory=dict)
-    # WP-B8: bot -> PauseProbe; onceki turda gorulen tutuslar (kayip tutus: kaybolan + gunlukte "remove" yok).
-    pause: Mapping[str, PauseProbe] = field(default_factory=dict)
-    prev_pause_holds: Mapping[str, tuple] = field(default_factory=dict)
-    # Bolum 16.6 (WP-2 yer tutucusu): bot -> DriftProbe; None = yok.
-    drift: Mapping[str, DriftProbe] | None = None
     # DD-7 §6: ban dosyasi yoklamasi; None = yoklanmadi (exchange_ban denetimi uretilmez), () = dosya yok.
     bans: tuple[BanProbe, ...] | None = None
     # DD-9 §8.1: bot -> onceki kosudaki (acct_drift, acct_unverified); None = onceki yok.
@@ -237,10 +207,6 @@ class HealthConfig:
     ledger_margin_s: int = 300
     disk_warn_bytes: int = 3 * GIB
     disk_crit_bytes: int = 1 * GIB
-    mem_warn_bytes: int = 250 * MIB
-    mem_crit_bytes: int = 120 * MIB
-    swap_warn_ratio: float = 0.50
-    swap_crit_ratio: float = 0.80
     restart_warn_delta: int = 1
     restart_crit_delta: int = 3
     restart_crit_runs: int = 3
@@ -249,9 +215,6 @@ class HealthConfig:
     warmup_s: int = 600
     clock_skew_tolerance_s: int = 5
     require_bots: tuple[str, ...] = ("learner",)
-    veto_max_age_s: int | None = None
-    veto_strict: bool = False   # True: veto belgesi yok -> CRIT; yas > veto_max_age_s -> CRIT (WARN bandi yok)
-    budget_check_enabled: bool = False
     # Uyari bastirma (Bolum 5)
     confirm_runs: int = 2
     crit_repeat_min: int = 180
@@ -267,20 +230,15 @@ class HealthConfig:
     naked_alarm_s: float = 0.0
     exchange_unreachable_s: int = 60
     # Sapma izleyicisi kancasi (16.6): WP-2 teslimine kadar kapali
-    drift_max_age_s: int = 129600
-    drift_check_enabled: bool = False
 
     def __post_init__(self):
         for n in ("loop_warn_s", "loop_crit_s", "candle_warn_mult", "candle_crit_mult", "candle_margin_s",
                   "ledger_warn_mult", "ledger_crit_mult", "ledger_margin_s", "disk_warn_bytes",
-                  "disk_crit_bytes", "mem_warn_bytes", "mem_crit_bytes", "swap_warn_ratio",
-                  "swap_crit_ratio", "restart_warn_delta", "restart_crit_delta", "restart_crit_runs",
+                  "disk_crit_bytes", "restart_warn_delta", "restart_crit_delta", "restart_crit_runs",
                   "backup_warn_s", "backup_crit_s", "warmup_s", "confirm_runs", "crit_repeat_min",
-                  "warn_repeat_min", "multiple_threshold", "feed_status_crit_s", "market_bar_crit_s", "open_price_stale_s", "rules_warn_s",
-                  "exchange_unreachable_s", "drift_max_age_s"):
+                  "warn_repeat_min", "multiple_threshold", "feed_status_crit_s", "market_bar_crit_s",
+                  "exchange_unreachable_s"):
             _pos(n, getattr(self, n))
-        if not isinstance(self.drift_check_enabled, bool):
-            raise ValueError("drift_check_enabled bool olmali")
         v = self.naked_alarm_s
         if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v < 0:
             raise ValueError("naked_alarm_s sonlu ve >= 0 olmali")
@@ -296,18 +254,10 @@ class HealthConfig:
             raise ValueError("ledger_warn_mult < ledger_crit_mult olmali")
         if not self.disk_crit_bytes < self.disk_warn_bytes:
             raise ValueError("disk_crit_bytes < disk_warn_bytes olmali")
-        if not self.mem_crit_bytes < self.mem_warn_bytes:
-            raise ValueError("mem_crit_bytes < mem_warn_bytes olmali")
-        if not self.swap_warn_ratio < self.swap_crit_ratio:
-            raise ValueError("swap_warn_ratio < swap_crit_ratio olmali")
         if not self.restart_warn_delta < self.restart_crit_delta:
             raise ValueError("restart_warn_delta < restart_crit_delta olmali")
         if not self.backup_warn_s < self.backup_crit_s:
             raise ValueError("backup_warn_s < backup_crit_s olmali")
-        if self.veto_max_age_s is not None:
-            _pos("veto_max_age_s", self.veto_max_age_s)
-        if not isinstance(self.budget_check_enabled, bool):
-            raise ValueError("budget_check_enabled bool olmali")
         if not isinstance(self.require_bots, tuple) or not self.require_bots \
                 or not all(isinstance(b, str) and b for b in self.require_bots):
             raise ValueError("require_bots bos olmayan metin demeti olmali")
@@ -370,16 +320,6 @@ def _warm(r: CheckResult, warm: bool) -> CheckResult:
         return replace(r, status=Status.WARN, code=r.code + "_warmup",
                        detail=r.detail + " (isinma suresi icinde)")
     return r
-
-
-def _c_api(snap, bot, cfg):
-    name = f"api_reachable:{bot}"
-    p = snap.api[bot].ping_ok
-    if p is None:
-        return _unknown(name, "api_unknown", f"{bot} API durumu olculemedi")
-    if p is True:
-        return _res(name, Status.OK, "ok", f"{bot} API yanit veriyor")
-    return _res(name, Status.CRIT, "api_unreachable", f"{bot} API yanit vermiyor")
 
 
 def _c_loop(snap, bot, cfg):
@@ -464,11 +404,6 @@ def _c_gate(snap, bot, cfg):
     if a is not None and a.ledger_errors:
         return _res(name, Status.WARN, "ledger_errors", f"{bot} motor surec basindan beri {a.ledger_errors} defter hatasi saydi",
                     a.ledger_errors, 0)
-    if p.orphan_ids:
-        ids = ",".join(str(i) for i in list(p.orphan_ids)[:5])
-        return _res(name, Status.WARN, "orphan_decisions",
-                    f"{bot} yeniden baslatma sirasinda yarim kalan {len(p.orphan_ids)} giris karari var (islemleri etkilemez; "
-                    f"motor acilista duzeltir): {ids}", len(p.orphan_ids), 0)
     return _res(name, Status.OK, "ok", f"{bot} defter kapisi acik olurdu")
 
 
@@ -481,35 +416,6 @@ def _c_disk(snap, cfg):
     if v < cfg.disk_warn_bytes:
         return _res("disk_free", Status.WARN, "disk_low", f"bos alan {v / GIB:.2f} GiB, dusuk", v, cfg.disk_warn_bytes)
     return _res("disk_free", Status.OK, "ok", f"bos alan {v / GIB:.2f} GiB", v, cfg.disk_warn_bytes)
-
-
-def _c_mem(snap, cfg):
-    v = snap.mem_available_bytes
-    if v is None:
-        return _unknown("memory", "memory_unknown", "kullanilabilir bellek olculemedi")
-    if v < cfg.mem_crit_bytes:
-        return _res("memory", Status.CRIT, "memory_low", f"kullanilabilir bellek {v / MIB:.0f} MiB, kritik", v,
-                    cfg.mem_crit_bytes)
-    if v < cfg.mem_warn_bytes:
-        return _res("memory", Status.WARN, "memory_low", f"kullanilabilir bellek {v / MIB:.0f} MiB, dusuk", v,
-                    cfg.mem_warn_bytes)
-    return _res("memory", Status.OK, "ok", f"kullanilabilir bellek {v / MIB:.0f} MiB", v, cfg.mem_warn_bytes)
-
-
-def _c_swap(snap, cfg):
-    tot, used = snap.swap_total_bytes, snap.swap_used_bytes
-    if tot is None or used is None:
-        return _unknown("swap", "swap_unknown", "swap durumu olculemedi")
-    if tot == 0:
-        return _res("swap", Status.SKIPPED, "no_swap", "swap tanimli degil")
-    if tot < 0 or used < 0:
-        return _unknown("swap", "swap_unknown", "swap degerleri gecersiz")
-    ratio = used / tot
-    if ratio > cfg.swap_crit_ratio:
-        return _res("swap", Status.CRIT, "swap_high", f"swap kullanimi {ratio:.2f}, kritik", ratio, cfg.swap_crit_ratio)
-    if ratio > cfg.swap_warn_ratio:
-        return _res("swap", Status.WARN, "swap_high", f"swap kullanimi {ratio:.2f}, yuksek", ratio, cfg.swap_warn_ratio)
-    return _res("swap", Status.OK, "ok", f"swap kullanimi {ratio:.2f}", ratio, cfg.swap_warn_ratio)
 
 
 def _c_container(snap, key, cfg):
@@ -554,58 +460,6 @@ def _c_backup(snap, cfg):
     except _Skew:
         return _unknown("backup_age", "clock_skew", "yedek zamani gelecekte; saat uyumsuz")
     return _graded("backup_age", age, cfg.backup_warn_s, cfg.backup_crit_s, "ok", "backup_stale", "son yedek yasi")
-
-
-def _c_veto(snap, cfg):
-    mx = cfg.veto_max_age_s
-    if mx is None:
-        return _res("veto_file_age", Status.SKIPPED, "placeholder", "veto dosyasi denetimi kapali")
-    t = snap.veto_file_mtime
-    if t is None:
-        if cfg.veto_strict:
-            return _res("veto_file_age", Status.CRIT, "veto_missing", "veto belgesi yok/bayat: girisler kapali")
-        return _unknown("veto_file_age", "veto_unknown", "veto dosyasi yok ya da okunamadi")
-    try:
-        age = _age_s(snap.now, t, cfg)
-    except _Skew:
-        return _unknown("veto_file_age", "clock_skew", "veto dosya zamani gelecekte; saat uyumsuz")
-    if cfg.veto_strict:
-        if age > mx:
-            return _res("veto_file_age", Status.CRIT, "veto_stale",
-                        f"veto belgesi yok/bayat: girisler kapali (yas {age:.0f} sn, esik {mx:.0f} sn)", age, mx)
-        return _res("veto_file_age", Status.OK, "ok", f"veto dosyasi yasi {age:.0f} sn", age, mx)
-    return _graded("veto_file_age", age, mx, 3 * mx, "ok", "veto_stale", "veto dosyasi yasi")
-
-
-def _c_budget(snap, cfg):
-    if not cfg.budget_check_enabled:
-        return _res("budget_status", Status.SKIPPED, "placeholder", "butce denetimi kapali")
-    s = snap.budget_state
-    if s == "ok":
-        return _res("budget_status", Status.OK, "ok", "butce durumu iyi")
-    if s == "warn":
-        return _res("budget_status", Status.WARN, "budget_warn", "butce uyari duzeyinde")
-    if s == "exhausted":
-        return _res("budget_status", Status.CRIT, "budget_exhausted", "butce tukendi")
-    return _unknown("budget_status", "budget_unknown", "butce durumu olculemedi ya da taninmiyor")
-
-
-def _c_feed_status(snap, cfg):
-    m = snap.market
-    name = "feed_status_age"
-    if m.feed_status_state == "missing":
-        return _res(name, Status.CRIT, "feed_status_missing", "feed-status.json yok; feed calismiyor olabilir")
-    if m.feed_status_state != "ok" or m.feed_status_at is None:
-        return _unknown(name, "feed_status_unknown", "feed-status.json okunamadi/bozuk")
-    try:
-        age = _age_s(snap.now, m.feed_status_at, cfg)
-    except _Skew:
-        return _unknown(name, "clock_skew", "feed durum zamani gelecekte; saat uyumsuz")
-    if age > cfg.feed_status_crit_s:
-        return _res(name, Status.CRIT, "feed_status_stale",
-                    f"feed durum dosyasi {age:.0f} sn eski, kritik esik {cfg.feed_status_crit_s} sn", age,
-                    cfg.feed_status_crit_s)
-    return _res(name, Status.OK, "ok", f"feed durum dosyasi {age:.0f} sn", age, cfg.feed_status_crit_s)
 
 
 def _db_problem(name, m):
@@ -655,112 +509,6 @@ def _c_market_bars(snap, cfg):
 
 def _canon(p: str) -> str:
     return str(p).strip().upper().split(":", 1)[0]
-
-
-def _c_open_price(snap, bot, cfg):
-    """Acik pozisyonun cifti icin fiyat (1m mum) gelmiyor mu? Paper'da stop yalniz gelen mumda islenir (brokers/paper.py advance);
-    mum yoksa stop beklemede kalir. Seans kapaliyken (hisse/emtia hafta sonu ve seans disi) mum gelmemesi NORMALDIR: uyari yok.
-    Esik oncesi de seans aciksa (yeni acilis) sayilir; boylece acilisin ilk dakikalarinda sahte uyari cikmaz."""
-    from trader_core.arm_time import session_tag   # noqa: PLC0415
-    name = f"acik_pozisyon_fiyat_bayat:{bot}"
-    a = snap.api[bot]
-    m = snap.market
-    if not a.open_pairs:
-        return _res(name, Status.OK, "ok", "acik pozisyon yok")
-    newest = {_canon(k): v for k, v in m.newest_bar_at.items()}
-    esik = cfg.open_price_stale_s
-    once = snap.now - timedelta(seconds=esik)
-    bayat, kapali = [], 0
-    for pair, cls in a.open_pairs:
-        try:
-            if session_tag(cls, snap.now) != "open" or session_tag(cls, once) != "open":
-                kapali += 1
-                continue
-        except ValueError:
-            continue
-        t = newest.get(_canon(pair))
-        try:
-            age = float("inf") if t is None else _age_s(snap.now, t, cfg)
-        except _Skew:
-            continue
-        if age > esik:
-            bayat.append(pair)
-    if not bayat:
-        return _res(name, Status.OK, "ok", "acik pozisyonlarin fiyati geliyor" + (f" ({kapali} cift seans disi)" if kapali else ""))
-    coins = ", ".join(dict.fromkeys(p.split("/")[0].upper() for p in bayat))
-    return _res(name, Status.WARN, "open_price_stale",
-                f"{coins} için fiyat gelmiyor; açık pozisyonun stopu fiyat gelince işler", None, esik)
-
-
-def _c_rules_count(snap, cfg):
-    m = snap.market
-    name = "rules_coverage"
-    bad = _db_problem(name, m)
-    if bad:
-        return bad
-    if not m.pairs or m.rules_count is None:
-        return _unknown(name, "rules_unknown", "kural satir sayisi ya da cift listesi bilinmiyor")
-    if m.rules_count < len(m.pairs):
-        return _res(name, Status.CRIT, "rules_incomplete",
-                    f"kural satiri {m.rules_count} < yapilandirilmis cift {len(m.pairs)}", m.rules_count, len(m.pairs))
-    return _res(name, Status.OK, "ok", f"kural satiri {m.rules_count}/{len(m.pairs)}", m.rules_count, len(m.pairs))
-
-
-def _c_rules_age(snap, cfg):
-    m = snap.market
-    name = "rules_age"
-    bad = _db_problem(name, m)
-    if bad:
-        return bad
-    if m.rules_fetched_at is None:
-        return _unknown(name, "rules_age_unknown", "rules_fetched_at yok (kural hic cekilmemis)")
-    try:
-        age = _age_s(snap.now, m.rules_fetched_at, cfg)
-    except _Skew:
-        return _unknown(name, "clock_skew", "rules_fetched_at gelecekte; saat uyumsuz")
-    if age > cfg.rules_warn_s:
-        return _res(name, Status.WARN, "rules_stale", f"kurallar {age / 3600:.1f} sa once cekildi, esik "
-                    f"{cfg.rules_warn_s / 3600:.0f} sa", age, cfg.rules_warn_s)
-    return _res(name, Status.OK, "ok", f"kurallar {age / 3600:.1f} sa once cekildi", age, cfg.rules_warn_s)
-
-
-def _c_rules_missing(snap, bot, cfg):
-    name = f"rules_missing:{bot}"
-    cur = snap.market.rules_missing.get(bot)
-    if cur is None:
-        return _unknown(name, "rules_missing_unknown", f"{bot} rules_missing sayaci okunamadi")
-    prev = snap.prev_rules_missing.get(bot)
-    if prev is not None and cur > prev:
-        return _res(name, Status.CRIT, "rules_missing_increase",
-                    f"{bot} rules_missing {prev} -> {cur} (artti)", cur - prev, 0)
-    return _res(name, Status.OK, "ok", f"{bot} rules_missing {cur} (artis yok)", cur, 0)
-
-
-def _c_drift(snap, bot, cfg):
-    """drift_monitor:<bot> (Bolum 16.6). Bilincli istisna: hicbir kosulda CRIT/UNKNOWN uretmez."""
-    name = f"drift_monitor:{bot}"
-    try:
-        if not cfg.drift_check_enabled or snap.drift is None:
-            return _res(name, Status.SKIPPED, "placeholder", "sapma izleyicisi kapali")
-        d = snap.drift.get(bot)
-        if d is None or d.file_state == "missing":
-            return _res(name, Status.WARN, "drift_missing", "drift.json yok")
-        if d.file_state != "ok" or not isinstance(d.generated_at, datetime) or d.generated_at.tzinfo is None:
-            return _res(name, Status.WARN, "drift_unreadable", "drift.json okunamadi/bozuk")
-        age = (snap.now - d.generated_at).total_seconds()
-        if age < -cfg.clock_skew_tolerance_s:
-            return _res(name, Status.WARN, "drift_unreadable", "drift.json zamani gelecekte")
-        if age > cfg.drift_max_age_s:
-            return _res(name, Status.WARN, "drift_stale",
-                        f"drift.json {age:.0f} sn eski, esik {cfg.drift_max_age_s} sn", age, cfg.drift_max_age_s)
-        if d.overall == "UYARI":
-            kurallar = ", ".join(str(x) for x in d.rules_at_uyari) or "-"
-            return _res(name, Status.WARN, "drift_alert", f"sapma izleyicisi UYARI; kurallar: {kurallar}")
-        if d.overall in ("OK", "IZLE", "YETERSIZ"):
-            return _res(name, Status.OK, "ok", f"sapma izleyicisi {d.overall}")
-        return _res(name, Status.WARN, "drift_unreadable", "drift.json genel durumu taninmiyor")
-    except Exception:  # noqa: BLE001 - UNKNOWN uretilmez (16.6)
-        return _res(name, Status.WARN, "drift_unreadable", "drift.json degerlendirilemedi")
 
 
 def _live_mode(a: ApiProbe) -> bool:
@@ -876,33 +624,8 @@ def _c_exchange_ban(snap, cfg):
     return _res(name, Status.OK, "ok", "borsa engeli yok")
 
 
-def _c_pause_audit(snap, bot, cfg):
-    """11 §9.2: (a) tutus var ama gunlukte o neden icin SON islem "add" degil -> kimse eklemedi (CRIT);
-    (b) onceki turda vardi, simdi yok ve gunlukte "remove" yok -> dosya elle silindi/kayboldu (CRIT, bir tur)."""
-    name = f"pause_audit:{bot}"
-    p = snap.pause[bot]
-    if p.holds is None:
-        return _unknown(name, "pause_unknown", f"{bot} PAUSE dosyasi okunamadi")
-    if not p.audit_ok:
-        return _unknown(name, "pause_audit_unreadable", f"{bot} pause denetim gunlugu okunamadi")
-    unaudited = [h for h in p.holds if p.last_ops.get(h) != "add"]
-    if unaudited:
-        return _res(name, Status.CRIT, "pause_hold_unaudited",
-                    f"{bot} duraklatma tutusu denetim gunlugunde 'add' satiri olmadan duruyor: {', '.join(unaudited[:5])}",
-                    len(unaudited), 0)
-    prev = snap.prev_pause_holds.get(bot) or ()
-    lost = [h for h in prev if h not in p.holds and p.last_ops.get(h) != "remove"]
-    if lost:
-        return _res(name, Status.CRIT, "pause_hold_lost",
-                    f"{bot} duraklatma tutusu denetim gunlugunde 'remove' olmadan kayboldu: {', '.join(lost[:5])}",
-                    len(lost), 0)
-    return _res(name, Status.OK, "ok", f"{bot} duraklatma tutuslari denetim gunluguyle tutarli ({len(p.holds)})")
-
-
 # 12 §11: risk kademe denetimi alarmlari (status.json risk_ladder blogundan). Zaman esikleri alarm zamanlamasidir (risk sabiti degil).
 LADDER_MISMATCH_CRIT_S = 30 * 60
-LADDER_STEP_DOWN_WINDOW_S = 24 * 3600
-LADDER_HOLD_STALE_S = 10 * 60
 _LADDER_RANK = {Status.CRIT: 2, Status.WARN: 1, Status.OK: 0}
 
 
@@ -918,18 +641,6 @@ def _num_s(x, nd=2) -> str:
 
 
 _LADDER_WARMUP_OK = frozenset({"ladder_missing", "capital_missing", "ladder_invalid", "equity_unreadable"})
-
-
-def _c_toplu_sok(snap, bot, cfg):
-    """%10 ortak sok kaybi (tum pozisyonlar ayni anda kendi aleyhine) gunluk zarar siniri (risk ayari) asiyor mu? Asiyorsa WARN
-    (bilgi; giris engellenmez). Hesap bilinmiyorsa denetim hic uretilmez."""
-    name = f"toplu_sok:{bot}"
-    t = snap.api[bot].toplu_sok
-    s10, lim = float(t["sok10"]), float(t["limit"])
-    if s10 > lim:
-        return _res(name, Status.WARN, "toplu_sok_limit_asimi",
-                    f"{bot} %10 toplu sok kaybi {s10:.1f}% kasa (${float(t.get('sok10_usd', 0)):.0f}) > gunluk zarar siniri {lim:.1f}%", s10, lim)
-    return _res(name, Status.OK, "ok", f"{bot} %10 toplu sok kaybi {s10:.1f}% kasa <= gunluk zarar siniri {lim:.1f}%", s10, lim)
 
 
 def _c_ladder(snap, bot, cfg):
@@ -983,27 +694,11 @@ def _c_ladder_inner(snap, bot, cfg):
     if b.get("near") is True and state == "ok":
         add(Status.WARN, "ladder_near",
             f"{bot} durma esigine yaklasildi (ozsermaye {_num_s(b.get('equity'))} <= tabanin %85'i)")
-    ld = _z(b.get("last_down_at"))
-    if state == "ok" and ld is not None and 0 <= (now - ld).total_seconds() <= LADDER_STEP_DOWN_WINDOW_S:
-        add(Status.WARN, "ladder_step_down", f"{bot} basamak indi: {b.get('step_name')}")
     if isinstance(b.get("pause_holds"), (list, tuple)) and any(
             isinstance(h, Mapping) and h.get("reason") == "capital_latch" for h in b["pause_holds"]):
         add(Status.WARN, "capital_latch",
             f"{bot} ana para kilidi (capital_latch): ozsermaye {_num_s(b.get('equity'))} <= yatirilanin %85'i "
             f"({_num_s(b.get('dep_net'))}); yeni girisler kapali; acmak icin Telegram /devam")
-    if state == "ok":
-        for h in b.get("pause_holds") or ():
-            if isinstance(h, Mapping) and h.get("reason") == "drawdown_review":
-                t = _z(h.get("at"))
-                if t is not None and (now - t).total_seconds() > LADDER_HOLD_STALE_S:
-                    add(Status.WARN, "ladder_hold_stale",
-                        f"{bot} devam yarim kaldi (kademe ok ama drawdown_review tutusu duruyor); /kademe_devam yinelenmeli")
-                    break
-    w = b.get("would")
-    if isinstance(w, Mapping):
-        wt = _z(w.get("at"))
-        if wt is not None and 0 <= (now - wt).total_seconds() <= LADDER_STEP_DOWN_WINDOW_S:
-            add(Status.WARN, "ladder_would", f"{bot} kagitta: canli olsaydi {w.get('kind')}")
     if not found:
         return _res(name, Status.OK, "ok", f"{bot} kademe denetimi normal")
     return max(found, key=lambda r: _LADDER_RANK.get(r.status, 0))      # esitlikte tablo sirasi (ilk bulunan)
@@ -1032,25 +727,18 @@ def combine(results, cfg: HealthConfig = DEFAULT_CFG) -> Status:
 
 def evaluate(snap: HealthSnapshot, cfg: HealthConfig = DEFAULT_CFG) -> HealthReport:
     results: list[CheckResult] = []
-    bots = list(dict.fromkeys(list(cfg.require_bots) + list(snap.api) + list(snap.ledger) + list(snap.pause)))
+    bots = list(dict.fromkeys(list(cfg.require_bots) + list(snap.api) + list(snap.ledger)))
     for bot in bots:
         if bot in snap.api:
-            results.append(_safe(f"api_reachable:{bot}", _c_api, snap, bot, cfg))
             results.append(_safe(f"bot_loop_age:{bot}", _c_loop, snap, bot, cfg))
             results.append(_safe(f"candle_age:{bot}", _c_candle, snap, bot, cfg))
-            if snap.api[bot].open_pairs is not None and snap.market is not None and snap.market.db_state == "ok":
-                results.append(_safe(f"acik_pozisyon_fiyat_bayat:{bot}", _c_open_price, snap, bot, cfg))
             if _live_mode(snap.api[bot]):
                 results.append(_safe(f"naked_position:{bot}", _c_naked, snap, bot, cfg))
                 results.append(_safe(f"exchange_reachable:{bot}", _c_exchange, snap, bot, cfg))
             if _live_mode(snap.api[bot]):
                 results.append(_safe(f"account_mode:{bot}", _c_account_mode, snap, bot, cfg))
-            if snap.api[bot].toplu_sok is not None:
-                results.append(_safe(f"toplu_sok:{bot}", _c_toplu_sok, snap, bot, cfg))
             if snap.api[bot].ladder is not None or snap.api[bot].mode in ("live", "testnet"):
                 results.append(_safe(f"risk_ladder:{bot}", _c_ladder, snap, bot, cfg))
-        if bot in snap.pause:
-            results.append(_safe(f"pause_audit:{bot}", _c_pause_audit, snap, bot, cfg))
         if bot in snap.ledger:
             results.append(_safe(f"ledger_write_age:{bot}", _c_ledger_age, snap, bot, cfg))
             results.append(_safe(f"ledger_gate:{bot}", _c_gate, snap, bot, cfg))
@@ -1060,8 +748,6 @@ def evaluate(snap: HealthSnapshot, cfg: HealthConfig = DEFAULT_CFG) -> HealthRep
     if snap.live_path_issues is not None:
         results.append(_safe("live_paths", _c_live_paths, snap, cfg))
     results.append(_safe("disk_free", _c_disk, snap, cfg))
-    results.append(_safe("memory", _c_mem, snap, cfg))
-    results.append(_safe("swap", _c_swap, snap, cfg))
     keys = list(snap.containers)
     for bot in cfg.require_bots:
         k = _container_key(snap, bot)
@@ -1074,22 +760,9 @@ def evaluate(snap: HealthSnapshot, cfg: HealthConfig = DEFAULT_CFG) -> HealthRep
         seen_keys.add(k)
         results.append(_safe(f"container_restarts:{k}", _c_container, snap, k, cfg))
     results.append(_safe("backup_age", _c_backup, snap, cfg))
-    results.append(_safe("veto_file_age", _c_veto, snap, cfg))
-    results.append(_safe("budget_status", _c_budget, snap, cfg))
 
     if snap.market is not None:
-        results.append(_safe("feed_status_age", _c_feed_status, snap, cfg))
         results.append(_safe("market_bar_age", _c_market_bars, snap, cfg))
-        results.append(_safe("rules_coverage", _c_rules_count, snap, cfg))
-        results.append(_safe("rules_age", _c_rules_age, snap, cfg))
-        for bot in cfg.require_bots:
-            results.append(_safe(f"rules_missing:{bot}", _c_rules_missing, snap, bot, cfg))
-
-    for bot in dict.fromkeys(list(cfg.require_bots) + list(snap.drift or {})):
-        ap = snap.api.get(bot)
-        if ap is not None and (ap.expect_exchange or ap.mode == "live"):
-            continue                        # DD-9 §8.4: canli bot icin sapma izleyicisi denetimi uretilmez (canli yol destegi ayri paket)
-        results.append(_c_drift(snap, bot, cfg))
 
     have = {r.name for r in results}
     required = []
@@ -1117,8 +790,7 @@ def should_send_ok(report: HealthReport) -> bool:
 # Uyari yolu
 # ---------------------------------------------------------------------------------------------
 IMMEDIATE_CODES = frozenset({"account_mode_drift", "live_paths_mismatch", "disk_low", "unledgered_trades", "spool_pending", "spool_corrupt", "schema", "oom_killed",
-                             "rules_missing_increase", "naked_position", "pause_hold_unaudited",
-                             "pause_hold_lost", "capital_floor", "drawdown_review", "ladder_missing",
+                             "naked_position", "capital_floor", "drawdown_review", "ladder_missing",
                              "capital_missing", "ladder_invalid", "equity_unreadable",
                              "exchange_ban_open_positions"})
 
@@ -1134,7 +806,7 @@ RED_SINGLE_OK = frozenset({"naked_position", "exchange_ban_open_positions", "acc
 # Kurulum sonrasi sessizlik penceresinde (QUIET_MINUTES) YALNIZ bu kodlar iletilir (olumcul: islem/para/veri butunlugu ya da
 # motor tamamen duruyor); digerleri tutulur ve pencere bitince tek ozetle bildirilir.
 FATAL_CODES = frozenset({"naked_position", "account_mode_drift", "unledgered_trades", "schema", "oom_killed",
-                         "container_not_running", "restart_loop", "api_unreachable", "spool_corrupt",
+                         "container_not_running", "restart_loop", "stale_loop", "spool_corrupt",
                          "exchange_ban_open_positions", "capital_floor", "live_paths_mismatch"})
 QUIET_MINUTES = 15
 
@@ -1225,8 +897,6 @@ def _cut(s: str, n: int) -> str:
 # Kullanıcıya giden uyarı metinleri (sade Türkçe). Anahtar: kontrol adının ":bot" ekinden önceki kısmı.
 # Değer: (sorun cümlesi, düzeldi cümlesi, ne anlama geliyor). Sorun/düzeldi cümleleri <= 68 karakter (başlık 80 sınırı).
 _HEALTH_TR: dict[str, tuple[str, str, str]] = {
-    "api_reachable": ("Motor yanıt vermiyor", "Motor yeniden yanıt veriyor",
-                      "Bot çalışmıyor olabilir; yeni işlem açılmaz, açık pozisyonları kontrol et."),
     "bot_loop_age": ("Motor döngüsü durmuş görünüyor", "Motor döngüsü yeniden işliyor",
                      "Motor takılmış olabilir; yeni işlemler bekletilebilir."),
     "candle_age": ("Piyasa mumları güncel değil", "Piyasa mumları yeniden güncel",
@@ -1239,58 +909,22 @@ _HEALTH_TR: dict[str, tuple[str, str, str]] = {
                       "Bazı işlem/karar kayıtları okunamadığı için deftere yazılamadı; dosya incelenip taşınmalı."),
     "disk_free": ("Sunucuda boş disk alanı azaldı", "Boş disk alanı yeniden yeterli",
                   "Disk dolarsa kayıtlar yazılamaz ve bot durabilir; yer açılmalı."),
-    "memory": ("Sunucuda bellek azaldı", "Bellek durumu yeniden normal",
-               "Bellek biterse bot kapanabilir; sunucuyu kontrol et."),
-    "swap": ("Sunucu yavaşlıyor (takas belleği yüksek)", "Sunucu takas belleği yeniden normal",
-             "Sunucu yavaşlayabilir; bellek durumunu kontrol et."),
     "container_restarts": ("Bot sık sık yeniden başlıyor", "Bot yeniden kararlı çalışıyor",
                            "Bot kendini toparlıyor ama sorun sürebilir; kayıtlara bak."),
     "backup_age": ("Yedek alınmıyor ya da çok eski", "Yedekleme yeniden düzenli",
                    "Veri kaybı riskine karşı yedeğin alındığından emin ol."),
-    "veto_file_age": ("Veto (yapay zekâ filtresi) güncel değil — yeni işlemler bekletiliyor",
-                      "Veto (yapay zekâ filtresi) yeniden güncel",
-                      "Yön filtresi güncellenene kadar yeni işlem açılmaz; açık pozisyonlar korunur."),
-    "budget_status": ("Yapay zekâ bütçesi azaldı", "Yapay zekâ bütçesi yeniden yeterli",
-                      "Bütçe biterse yapay zekâ filtresi çalışmaz ve yeni işlemler durur."),
-    "feed_status_age": ("Fiyat akışı durmuş görünüyor", "Fiyat akışı yeniden çalışıyor",
-                        "Güncel fiyat gelmiyor; yeni işlemler bekletilir."),
-    "acik_pozisyon_fiyat_bayat": ("Açık pozisyonun fiyatı gelmiyor", "Açık pozisyonun fiyatı yeniden geliyor",
-                                  "Stop, fiyat gelince işlenir; seans kapalıyken bu uyarı çıkmaz."),
     "market_bar_age": ("Piyasa verisi güncel değil", "Piyasa verisi yeniden güncel",
                        "Eski veriyle işlem açılmaz; yeni işlemler bekletilir."),
-    "rules_coverage": ("Borsa kuralları eksik", "Borsa kuralları yeniden tam",
-                       "Bazı paritelerde kural yok; o pariteler için işlem açılmaz."),
-    "rules_age": ("Borsa kuralları eski", "Borsa kuralları yeniden güncel",
-                  "Kurallar tazelenmeli; acil değil ama uzarsa işlem engellenebilir."),
-    "rules_missing": ("Bazı paritelerin borsa kuralı alınamadı", "Borsa kuralı eksikliği düzeldi",
-                      "Etkilenen pariteler için yeni işlem açılmaz."),
     "naked_position": ("Stop'u olmayan açık pozisyon var!", "Stopsuz pozisyon kalmadı",
                        "Pozisyon korumasız; hemen kontrol et ya da /kapat kullan."),
     "exchange_reachable": ("Borsaya ulaşılamıyor", "Borsa bağlantısı yeniden sağlandı",
                            "Emir gönderilemeyebilir; açık pozisyonları borsadan kontrol et."),
     "exchange_ban": ("Borsa geçici engel koydu", "Borsa engeli kalktı",
                      "Bot engel bitene kadar emir göndermez; engel kendiliğinden kalkar."),
-    "pause_audit": ("Duraklatma kaydı tutarsız", "Duraklatma kaydı yeniden tutarlı",
-                    "Yeni işlemler güvenlik için kapalı tutulur; kayıtlar incelenmeli."),
-    "toplu_sok": ("Toplu şok riski günlük zarar sınırını aşıyor", "Toplu şok riski yeniden sınırın altında",
-                  "Tüm pozisyonlar aynı anda %10 aleyhe giderse kayıp günlük zarar sınırından büyük olur; yeni işlemler engellenmez, "
-                  "açık risk gözden geçirilmeli."),
     "risk_ladder": ("Risk kademesi sorunlu", "Risk kademesi yeniden normal",
                     "Sermaye koruma kuralları devrede; yeni işlemler kısıtlanabilir."),
-    "drift_monitor": ("Bot beklenenden farklı davranıyor", "Bot yeniden beklendiği gibi davranıyor",
-                      "Bot durdurulmadı; ayrıntı günlük raporda. İnceleme gerekir."),
 }
-_DRIFT_YOK = ("Davranış izleyicisi çalışmıyor", "Davranış izleyicisi yeniden çalışıyor",
-              "Günlük karşılaştırma yapılamıyor; işlemler etkilenmez.")
-_HEALTH_TR_CODE: dict[str, tuple[str, str, str]] = {
-    "drift_missing": _DRIFT_YOK,
-    "drift_stale": _DRIFT_YOK,
-    "drift_unreadable": _DRIFT_YOK,
-    "budget_exhausted": ("Yapay zekâ bütçesi tükendi — yeni işlemler durdu", "Yapay zekâ bütçesi yeniden yeterli",
-                         "Bütçe yenilenene kadar yapay zekâ filtresi çalışmaz; yeni işlem açılmaz."),
-    "api_unreachable": ("Motor yanıt vermiyor", "Motor yeniden yanıt veriyor",
-                        "Bot çalışmıyor olabilir; yeni işlem açılmaz, açık pozisyonları kontrol et."),
-}
+_HEALTH_TR_CODE: dict[str, tuple[str, str, str]] = {}
 _BAN_CRIT_SENTENCE = ("Bot engel bitene kadar emir gönderemez. Borsadaki zarar-kes emirleri yerinde durur. "
                       "Gerekirse pozisyonu Binance uygulamasından elle kapatın.")
 _HEALTH_TR_CODE.update({
@@ -1321,15 +955,13 @@ _HEALTH_TR_GENERIC = ("Bir sistem kontrolü sorunlu", "Sistem kontrolü yeniden 
 
 def _health_tr(name: str, code: str, detail: str = "") -> tuple[str, str, str]:
     """(sorun, düzeldi, anlamı) - ham kontrol adı/kodu kullanıcıya sızdırılmaz.
-    `detail` yalniz borsa engeli ve acik pozisyon fiyat uyarilarinin anlam cumlesini ayirmak icin okunur."""
+    `detail` yalniz borsa engeli uyarisinin anlam cumlesini ayirmak icin okunur."""
     base, _, _suffix = name.partition(":")
     sorun, duzeldi, anlam = _HEALTH_TR_CODE.get(code) or _HEALTH_TR.get(base) or _HEALTH_TR_GENERIC
     if base == "exchange_ban" and code in ("exchange_ban_open_positions", "exchange_ban"):
         m = _BAN_DETAIL.search(detail or "")
         if m:
             anlam = f"Borsa: {m.group(1)}, kalan yaklaşık {m.group(2)} dk. {anlam}"
-    if base == "acik_pozisyon_fiyat_bayat" and "için fiyat gelmiyor" in (detail or ""):
-        anlam = detail
     return sorun, duzeldi, anlam
 
 

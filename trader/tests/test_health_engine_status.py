@@ -58,14 +58,14 @@ def probe(var, bot="learner", now=NOW):
 
 
 def ledger_ok():
-    return H.LedgerProbe(NOW - timedelta(minutes=5), 0, (), (), True, True, 0)
+    return H.LedgerProbe(NOW - timedelta(minutes=5), 0, (), True, True, 0)
 
 
 def evaluate(api, ledger=None, containers=None, tf=3600, **kw):
     bots = ("learner", "twin")
     snap = H.HealthSnapshot(
         now=NOW, timeframe_s=tf, api=api, ledger=ledger or {b: ledger_ok() for b in bots},
-        disk_free_bytes=50 * H.GIB, mem_available_bytes=900 * H.MIB, swap_total_bytes=0, swap_used_bytes=0,
+        disk_free_bytes=50 * H.GIB, 
         containers=containers if containers is not None else {
             f"trader-{b}": H.ContainerProbe("running", 4, NOW - timedelta(hours=5), None) for b in bots},
         prev_restart_counts={"trader-learner": 4, "trader-twin": 4},
@@ -98,7 +98,6 @@ def test_stale_status_ping_false_but_loop_age_graded(tmp_path):
     p, _ = probe(tmp_path)
     assert p.ping_ok is False and p.last_process_at == NOW - timedelta(seconds=400)
     rep = evaluate(api_from(tmp_path))
-    assert by(rep, "api_reachable:learner").code == "api_unreachable"
     assert by(rep, "bot_loop_age:learner").status is Status.CRIT
     c = R.engine_container(R.status_path(str(tmp_path), "learner"), "learner", NOW, H.empty_state(), "trader-learner")
     assert c.state == "not_running"
@@ -218,7 +217,7 @@ def test_unledgered_open_trade_from_status_ids(tmp_path):
     put(tmp_path, "learner", status_doc())
     put(tmp_path, "twin", status_doc("twin"))
     api = api_from(tmp_path)
-    led = {"learner": H.LedgerProbe(NOW, 0, tuple(api["learner"].open_trade_ids), (), True, True, 0),
+    led = {"learner": H.LedgerProbe(NOW, 0, tuple(api["learner"].open_trade_ids), True, True, 0),
            "twin": ledger_ok()}
     assert by(evaluate(api, led), "ledger_gate:learner").code == "unledgered_trades"
 
@@ -237,17 +236,16 @@ def test_twin_status_missing_is_unhealthy(tmp_path):
     assert api["twin"] == H.ApiProbe(ping_ok=False)
     rep = evaluate(api, containers={"trader-learner": H.ContainerProbe("running", 4, NOW - timedelta(hours=5), None),
                                     "trader-twin": H.ContainerProbe()})
-    assert by(rep, "api_reachable:twin").status is Status.CRIT
     assert by(rep, "bot_loop_age:twin").status is Status.UNKNOWN
     assert by(rep, "candle_age:twin").status is Status.UNKNOWN
     assert by(rep, "container_restarts:trader-twin").status is Status.UNKNOWN
-    assert by(rep, "api_reachable:learner").status is Status.OK
-    assert rep.overall is Status.CRIT and not rep.healthy
+    assert by(rep, "bot_loop_age:learner").status is Status.OK
+    assert rep.overall is Status.UNKNOWN and not rep.healthy
 
 
 def test_twin_probe_missing_entirely_is_missing_check():
     rep = evaluate({"learner": H.ApiProbe(True, NOW, NOW - timedelta(minutes=30), (), True)})
-    assert by(rep, "api_reachable:twin").code == "missing_check" and not rep.healthy
+    assert by(rep, "bot_loop_age:twin").code == "missing_check" and not rep.healthy
 
 
 # --------------------------------------------------------------------------- toplayici (collect)

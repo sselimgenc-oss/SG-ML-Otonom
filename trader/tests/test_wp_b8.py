@@ -205,7 +205,7 @@ def _probe(tmp_path, doc):
 
 def _snap(api, **kw):
     return H.HealthSnapshot(now=NOW, timeframe_s=3600, api={"learner": api}, ledger={}, disk_free_bytes=50 * H.GIB,
-                            mem_available_bytes=900 * H.MIB, swap_total_bytes=0, swap_used_bytes=0,
+                            
                             last_backup_at=NOW - timedelta(hours=1), **kw)
 
 
@@ -313,70 +313,6 @@ def _pause_files(tmp_path, holds, ops):
 def _pcheck(probe, prev=()):
     api = H.ApiProbe(True, NOW, NOW, (), True, "ok", False, 0, (), "paper")
     return _ev(api, pause={"learner": probe}, prev_pause_holds={"learner": tuple(prev)})["pause_audit:learner"]
-
-
-def test_pause_hold_with_matching_add_is_ok(tmp_path):
-    p = _pause_files(tmp_path, ["user_cmd"], [("add", "user_cmd")])
-    assert p.holds == ("user_cmd",) and _pcheck(p).status is Status.OK
-    p = _pause_files(tmp_path, ["user_cmd"], [("add", "user_cmd"), ("remove", "user_cmd"), ("add", "user_cmd")])
-    assert _pcheck(p).status is Status.OK
-
-
-def test_pause_hold_without_add_audit_row_is_crit(tmp_path):
-    p = _pause_files(tmp_path, ["exchange_ban"], [("add", "user_cmd")])
-    r = _pcheck(p)
-    assert r.status is Status.CRIT and r.code == "pause_hold_unaudited" and "exchange_ban" in r.detail
-    p = _pause_files(tmp_path, ["user_cmd"], [("add", "user_cmd"), ("remove", "user_cmd")])
-    assert _pcheck(p).code == "pause_hold_unaudited"            # son islem remove: kayit tutarsiz
-    assert "pause_hold_unaudited" in H.IMMEDIATE_CODES
-
-
-def test_pause_hold_lost_without_remove_row(tmp_path):
-    p = _pause_files(tmp_path, [], [("add", "drawdown_review")])
-    r = _pcheck(p, prev=["drawdown_review"])
-    assert r.status is Status.CRIT and r.code == "pause_hold_lost"
-    p = _pause_files(tmp_path, [], [("add", "drawdown_review"), ("remove", "drawdown_review")])
-    assert _pcheck(p, prev=["drawdown_review"]).status is Status.OK      # mesru kaldirma
-    assert _pcheck(p, prev=[]).status is Status.OK
-
-
-def test_pause_corrupt_file_is_unaudited_hold(tmp_path):
-    base = tmp_path / "PAUSE"
-    (tmp_path / "PAUSE.learner").write_text("{bozuk")
-    p = R.probe_pause(str(base), str(tmp_path / "yok.jsonl"), "learner")
-    assert p.holds == ("unreadable",) and p.audit_ok
-    assert _pcheck(p).code == "pause_hold_unaudited"
-
-
-def test_pause_no_hold_no_audit_is_ok(tmp_path):
-    p = R.probe_pause(str(tmp_path / "PAUSE"), str(tmp_path / "yok.jsonl"), "learner")
-    assert p.holds == () and _pcheck(p).status is Status.OK
-
-
-def test_pause_unreadable_probe_unknown():
-    assert _pcheck(H.PauseProbe(holds=None)).status is Status.UNKNOWN
-    assert _pcheck(H.PauseProbe(holds=(), audit_ok=False)).status is Status.UNKNOWN
-
-
-def test_pause_base_and_state_roundtrip(tmp_path):
-    assert R.pause_base({"PAUSE_FILE": "/z/PAUSE"}) == "/z/PAUSE"
-    assert R.pause_base({}).endswith("/shared/PAUSE")
-    var = tmp_path / "var"
-    env = {"ENGINE_VAR_DIR": str(var), "BACKUP_DIR": str(tmp_path / "b"), "HEALTH_BOTS": "learner",
-           "PAUSE_FILE": str(tmp_path / "shared" / "PAUSE"), "HEALTH_SHADOW_VAR_DIR": str(tmp_path / "var-testnet")}
-    (tmp_path / "var-testnet" / "learner").mkdir(parents=True)
-    (tmp_path / "var-testnet" / "learner" / "status.json").write_text(json.dumps(_doc(exchange={
-        "reachable": True, "last_sync": z(NOW), "naked": [{"trade_id": 1, "pair": "ETH/USDT", "seconds": 12}]})))
-    (tmp_path / "shared").mkdir()
-    (tmp_path / "shared" / "PAUSE.learner").write_text(json.dumps(
-        {"schema": "pause/1", "bot": "learner", "holds": [{"reason": "user_cmd", "by": "t", "at": None, "note": ""}]}))
-    snap = R.collect(env, {"pause_holds": {"learner": ["late_fill"]}}, NOW)
-    assert snap.pause["learner"].holds == ("user_cmd",) and snap.prev_pause_holds == {"learner": ("late_fill",)}
-    assert snap.api["learner@testnet"].naked == ((1, "ETH/USDT", 12.0),)
-    rep = H.evaluate(snap, R.make_cfg(env))
-    names = {r.name: r for r in rep.results}
-    assert names["naked_position:learner@testnet"].code == "naked_position"
-    assert names["pause_audit:learner"].code == "pause_hold_unaudited"
 
 
 # ============================================================ urllib3 gunlugu

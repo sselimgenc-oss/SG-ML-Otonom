@@ -29,7 +29,7 @@ def _api(**kw):
 
 
 def _ledger(**kw):
-    base = dict(last_write_at=NOW - timedelta(minutes=30), spool_lines=0, unledgered_ids=(), orphan_ids=(),
+    base = dict(last_write_at=NOW - timedelta(minutes=30), spool_lines=0, unledgered_ids=(), 
                 schema_ok=True, has_active_params=True, spool_corrupt_lines=0)
     base.update(kw)
     return H.LedgerProbe(**base)
@@ -43,8 +43,8 @@ def _container(**kw):
 
 def _snap(api=None, ledger=None, container=None, **over):
     base = dict(now=NOW, timeframe_s=T, api={BOT: api or _api()}, ledger={BOT: ledger or _ledger()},
-                disk_free_bytes=20 * GIB, disk_total_bytes=100 * GIB, mem_available_bytes=900 * MIB,
-                swap_total_bytes=2048 * MIB, swap_used_bytes=int(0.1 * 2048 * MIB),
+                disk_free_bytes=20 * GIB, disk_total_bytes=100 * GIB, 
+                
                 containers={f"trader-{BOT}": container or _container()}, prev_restart_counts={f"trader-{BOT}": 4},
                 last_backup_at=NOW - timedelta(hours=3))
     base.update(over)
@@ -59,12 +59,11 @@ def _market(**kw):
     return H.MarketProbe(**base)
 
 
-_SCFG = dataclasses.replace(H.DEFAULT_CFG, veto_max_age_s=5400, veto_strict=True, budget_check_enabled=True, multiple_threshold=50)
+_SCFG = dataclasses.replace(H.DEFAULT_CFG, multiple_threshold=50)
 _CFG = dataclasses.replace(H.DEFAULT_CFG, multiple_threshold=50)
 
 # (kod, gercek kosul, zararsiz benzer kosul, cfg)
 CASES = {
-    "api_unreachable": (dict(api=_api(ping_ok=False)), dict(api=_api(ping_ok=True)), _CFG),
     "stale_loop": (dict(api=_api(last_process_at=NOW - timedelta(minutes=20))),
                    dict(api=_api(last_process_at=NOW - timedelta(seconds=90))), _CFG),       # 90 sn: yalniz esik alti
     "stale_candle": (dict(api=_api(last_candle_open=NOW - timedelta(seconds=11000))),
@@ -78,26 +77,13 @@ CASES = {
     "spool_corrupt": (dict(ledger=_ledger(spool_corrupt_lines=3)), dict(ledger=_ledger(spool_corrupt_lines=0)), _CFG),
     "engine_gate_closed": (dict(api=_api(gate_code="ledger_down")), dict(api=_api(gate_code="ok")), _CFG),
     "disk_low": (dict(disk_free_bytes=int(0.5 * GIB)), dict(disk_free_bytes=int(5 * GIB)), _CFG),   # 5 GiB: uyari bandi bile degil
-    "memory_low": (dict(mem_available_bytes=50 * MIB), dict(mem_available_bytes=600 * MIB), _CFG),
-    "swap_high": (dict(swap_used_bytes=int(0.95 * 2048 * MIB)), dict(swap_used_bytes=int(0.2 * 2048 * MIB)), _CFG),
     "oom_killed": (dict(container=_container(oom_killed=True)), dict(container=_container(oom_killed=False)), _CFG),
     "container_not_running": (dict(container=_container(state="exited")), dict(container=_container(state="running")), _CFG),
     "restart_loop": (dict(container=_container(restart_count=9)), dict(container=_container(restart_count=4)), _CFG),
     "backup_stale": (dict(last_backup_at=NOW - timedelta(hours=60)), dict(last_backup_at=NOW - timedelta(hours=20)), _CFG),
-    "veto_stale": (dict(veto_file_mtime=NOW - timedelta(hours=3), budget_state="ok"), dict(veto_file_mtime=NOW - timedelta(minutes=10), budget_state="ok"), _SCFG),
-    "veto_missing": (dict(veto_file_mtime=None, budget_state="ok"), dict(veto_file_mtime=NOW - timedelta(minutes=10), budget_state="ok"), _SCFG),
-    "budget_exhausted": (dict(budget_state="exhausted", veto_file_mtime=NOW), dict(budget_state="ok", veto_file_mtime=NOW), _SCFG),
-    "feed_status_stale": (dict(market=_market(feed_status_at=NOW - timedelta(minutes=30))),
-                          dict(market=_market(feed_status_at=NOW - timedelta(seconds=100))), _CFG),
-    "feed_status_missing": (dict(market=_market(feed_status_state="missing", feed_status_at=None)), dict(market=_market()), _CFG),
     "market_bars_stale": (dict(market=_market(newest_bar_at={"BTC/USDT": NOW - timedelta(minutes=30)})),
                           dict(market=_market(newest_bar_at={"BTC/USDT": NOW - timedelta(seconds=200)})), _CFG),
     "market_db_missing": (dict(market=_market(db_state="missing")), dict(market=_market()), _CFG),
-    "rules_incomplete": (dict(market=_market(rules_count=0)), dict(market=_market(rules_count=1)), _CFG),
-    "pause_hold_unaudited": (dict(pause={BOT: H.PauseProbe(holds=("manual",), last_ops={"manual": "remove"})},
-                                  prev_pause_holds={BOT: ("manual",)}),
-                             dict(pause={BOT: H.PauseProbe(holds=("manual",), last_ops={"manual": "add"})},
-                                  prev_pause_holds={BOT: ("manual",)}), _CFG),
 }
 
 
@@ -138,7 +124,7 @@ def test_canli_para_kodlari_ilk_turda_gider_ve_kagit_modda_uretilmez():
 
 
 def test_tek_basarisiz_olcum_sonra_duzelme_hic_mesaj_uretmez():
-    real, benign, cfg = CASES["api_unreachable"]
+    real, benign, cfg = CASES["stale_loop"]
     state = {}
     for i, s in enumerate((_snap(**real), _snap(**benign), _snap(**real), _snap(**benign))):
         now = NOW + timedelta(minutes=5 * i)
@@ -158,27 +144,27 @@ def _alerts(*pairs):
 
 def test_sessizlik_penceresinde_yalniz_olumcul_gider():
     until = NOW + timedelta(minutes=10)
-    al = _alerts((Status.CRIT, "api_unreachable"), (Status.CRIT, "veto_stale"), (Status.WARN, "rules_stale"),
-                 (Status.OK, "api_unreachable"))
-    send, held = H.quiet_split(al, _rep_with("api_unreachable", "veto_stale"), NOW, until)
-    assert [(a.code, a.level) for a in send] == [("api_unreachable", Status.CRIT)]
-    assert {(a.code, a.level) for a in held} == {("veto_stale", Status.CRIT), ("rules_stale", Status.WARN),
-                                                  ("api_unreachable", Status.OK)}
+    al = _alerts((Status.CRIT, "stale_loop"), (Status.CRIT, "stale_candle"), (Status.WARN, "backup_stale"),
+                 (Status.OK, "stale_loop"))
+    send, held = H.quiet_split(al, _rep_with("stale_loop", "stale_candle"), NOW, until)
+    assert [(a.code, a.level) for a in send] == [("stale_loop", Status.CRIT)]
+    assert {(a.code, a.level) for a in held} == {("stale_candle", Status.CRIT), ("backup_stale", Status.WARN),
+                                                  ("stale_loop", Status.OK)}
     # pencere bitti ya da yok: hepsi gider
-    assert H.quiet_split(al, _rep_with("veto_stale"), NOW, NOW - timedelta(seconds=1)) == (al, [])
-    assert H.quiet_split(al, _rep_with("veto_stale"), NOW, None) == (al, [])
+    assert H.quiet_split(al, _rep_with("stale_candle"), NOW, NOW - timedelta(seconds=1)) == (al, [])
+    assert H.quiet_split(al, _rep_with("stale_candle"), NOW, None) == (al, [])
 
 
 def test_sessizlikte_multiple_yalniz_olumcul_varken_gider():
     m = _alerts((Status.CRIT, "multiple"))
     until = NOW + timedelta(minutes=5)
-    assert H.quiet_split(m, _rep_with("veto_stale", "disk_low"), NOW, until)[0] == []
-    assert H.quiet_split(m, _rep_with("veto_stale", "oom_killed"), NOW, until)[0] == m
+    assert H.quiet_split(m, _rep_with("stale_candle", "disk_low"), NOW, until)[0] == []
+    assert H.quiet_split(m, _rep_with("stale_candle", "oom_killed"), NOW, until)[0] == m
 
 
 def test_fatal_kodlari_gercek_kontrol_kodlari():
     import re
     src = open(H.__file__, encoding="utf-8").read()
     for code in H.FATAL_CODES:
-        assert re.search(rf'Status\.CRIT, "{code}"|add\(Status\.CRIT, "{code}"', src), code
+        assert re.search(rf'Status\.CRIT, "{code}"|add\(Status\.CRIT, "{code}"|_graded\([^\n]*"{code}"', src), code
     assert H.QUIET_MINUTES == 15 and H.RED_CONFIRM_RUNS == 2

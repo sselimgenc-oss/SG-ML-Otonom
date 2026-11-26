@@ -325,22 +325,6 @@ def test_atomic_write_replaces_and_leaves_no_tmp(tmp_path):
 
 
 # ---------------------------------------------------------------------------------------------- saglik + haftalik ozet
-def test_health_warns_tutarlilik_sapma_only_when_flag_true(tmp_path):
-    HR = _load("health_run")
-    d = tmp_path / "durum"
-    d.mkdir()
-    assert HR.tutarlilik_alerts({}, NOW, durum_dir=str(d)) == []                     # dosya yok
-    (d / "tutarlilik_v1.json").write_text("{bozuk", encoding="utf-8")
-    assert HR.tutarlilik_alerts({}, NOW, durum_dir=str(d)) == []
-    (d / "tutarlilik_v1.json").write_text(json.dumps({"uyari": False, "uyari_nedenleri": []}), encoding="utf-8")
-    assert HR.tutarlilik_alerts({}, NOW, durum_dir=str(d)) == []
-    (d / "tutarlilik_v1.json").write_text(json.dumps({"uyari": True, "uyari_nedenleri": ["T1: aciklanamayan=2"],
-                                                      "donem": {"bas": "2026-11-16T00:00:00Z", "bit": "2026-11-23T00:00:00Z"}}), encoding="utf-8")
-    al = HR.tutarlilik_alerts({}, NOW, durum_dir=str(d))
-    assert len(al) == 1 and al[0].code == "tutarlilik_sapma" and al[0].level == HR.H.Status.WARN and "aciklanamayan=2" in al[0].body
-    assert HR.tutarlilik_alerts({"TRADER_DATA_ROOT": str(tmp_path)}, NOW) == []     # veri kokunden: var/durum yok
-
-
 def test_weekly_summary_line_cases(tmp_path):
     W = _load("weekly_summary_run")
     p = tmp_path / "t.json"

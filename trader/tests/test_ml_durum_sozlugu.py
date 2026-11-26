@@ -50,8 +50,3 @@ def test_orphan_with_live_position_is_left_alone(lp, clock):
     assert Engine._reconcile_orphan_decisions(_eng(lp, {d1})) == 0
     assert lp.find_orphan_decisions(older_than_s=3600) == [d1]
 
-
-def test_health_and_telegram_text_plain_turkish():
-    from trader_core import tg_sade
-    assert "işlemleri etkilemez" in tg_sade.__dict__.get("SAGLIK_KODLARI", {}).get("orphan_decisions", ("",))[0] \
-        or "işlemleri etkilemez" in Path(tg_sade.__file__).read_text(encoding="utf-8")

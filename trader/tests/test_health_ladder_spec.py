@@ -89,10 +89,6 @@ class TestTable:
         r = res(block(near=True, equity=210.0))
         assert (r.status, r.code) == (Status.WARN, "ladder_near")
 
-    def test_step_down_warn(self):
-        r = res(block(last_down_at=ago(hours=23)))
-        assert (r.status, r.code) == (Status.WARN, "ladder_step_down")
-
     def test_step_down_older_than_24h_ok(self):
         r = res(block(last_down_at=ago(hours=25)))
         assert r.status == Status.OK
@@ -100,10 +96,6 @@ class TestTable:
     def test_step_down_ignored_when_not_ok_state_uses_state(self):
         r = res(block(state="review", last_down_at=ago(hours=1), stopped_at=ago(hours=1)))
         assert r.code == "drawdown_review"
-
-    def test_hold_stale_warn(self):
-        r = res(block(pause_holds=[{"reason": "drawdown_review", "at": ago(minutes=11)}]))
-        assert (r.status, r.code) == (Status.WARN, "ladder_hold_stale")
 
     def test_hold_fresh_ok(self):
         r = res(block(pause_holds=[{"reason": "drawdown_review", "at": ago(minutes=9)}]))
@@ -117,10 +109,6 @@ class TestTable:
         r = res(block(state="review", stopped_at=ago(hours=1),
                       pause_holds=[{"reason": "drawdown_review", "at": ago(hours=3)}]))
         assert r.code == "drawdown_review" and r.status == Status.CRIT
-
-    def test_would_warn_paper(self):
-        r = res(block(would={"kind": "review_stop", "at": ago(hours=2)}), mode="paper")
-        assert (r.status, r.code) == (Status.WARN, "ladder_would")
 
     def test_would_older_than_24h_ok(self):
         r = res(block(would={"kind": "review_stop", "at": ago(hours=25)}), mode="paper")

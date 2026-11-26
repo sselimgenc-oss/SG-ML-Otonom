@@ -218,8 +218,8 @@ def _tv(health):
 
 
 def test_saglik_uyarisi_adiyla_gorunur_ve_isik_ne_yapmali():
-    t = _tv(_h("WARN", ("candle_age:learner", "candle_stale", "WARN"), ("swap", "swap_high", "WARN")))["saglik"]
-    assert t["renk"] == "sari" and t["uyarilar"] == ["Piyasa verisi güncel değil", "Sunucu yavaşlıyor (takas belleği yüksek)"]
+    t = _tv(_h("WARN", ("candle_age:learner", "candle_stale", "WARN"), ("backup_age", "backup_stale", "WARN")))["saglik"]
+    assert t["renk"] == "sari" and t["uyarilar"] == ["Piyasa verisi güncel değil", "Yedek alınmıyor ya da çok eski"]
     assert "kod" not in " ".join(t["uyarilar"]) and "_" not in " ".join(t["uyarilar"])
     isik = PP._problem(t, "live", {"renk": "yesil"}, None)
     assert isik["renk"] == "sari" and "Piyasa verisi güncel değil" in isik["metin"]
@@ -228,8 +228,8 @@ def test_saglik_uyarisi_adiyla_gorunur_ve_isik_ne_yapmali():
 
 
 def test_saglik_kritik_kirmizi_senden_eylemi_ve_warmup_eki():
-    t = _tv(_h("CRIT", ("disk_free", "disk_low", "CRIT"), ("api_reachable:learner", "api_unreachable_warmup", "WARN")))["saglik"]
-    assert t["renk"] == "kirmizi" and "Disk neredeyse dolu" in t["uyarilar"][0] and "Bot yanıt vermiyor" in t["uyarilar"]
+    t = _tv(_h("CRIT", ("disk_free", "disk_low", "CRIT"), ("bot_loop_age:learner", "stale_loop_warmup", "WARN")))["saglik"]
+    assert t["renk"] == "kirmizi" and "Disk neredeyse dolu" in t["uyarilar"][0] and "Bot döngüsü durmuş görünüyor" in t["uyarilar"]
     assert PP._problem(t, "live", {"renk": "yesil"}, None)["renk"] == "kirmizi"
     y = PP.ne_yapmali("live", {"renk": "yesil"}, 0, [], t)
     assert y.startswith("Sağlık uyarısı: Disk neredeyse dolu") and "yer açılması" in y
@@ -240,12 +240,12 @@ def test_saglik_bilinmeyen_kod_ve_adsiz_warn_kod_sizmaz():
     t = _tv(_h("WARN", ("yeni_kontrol_x", "yeni_kod_y", "WARN")))["saglik"]
     assert t["uyarilar"] == ["Bir sistem kontrolü uyarı veriyor (kod gösterilmez)"]
     assert _tv(_h("WARN"))["saglik"]["renk"] == "sari"                                     # kayit yok ama genel durum WARN: yine sari
-    assert _tv(_h("OK"))["saglik"]["renk"] == "yesil" and _tv(_h("OK", ("swap", "ok", "OK")))["saglik"]["uyarilar"] == []
+    assert _tv(_h("OK"))["saglik"]["renk"] == "yesil" and _tv(_h("OK", ("backup_age", "ok", "OK")))["saglik"]["uyarilar"] == []
     assert PP.ne_yapmali("live", {"renk": "yesil"}, 0, [], _tv(_h("OK"))["saglik"]).startswith("Bir şey yapmanız gerekmiyor; bot")
 
 
 def test_testnet_capital_missing_does_not_redden_paper():
-    h = _h("CRIT", ("risk_ladder:learner@testnet", "capital_missing", "CRIT"), ("swap", "ok", "OK"))
+    h = _h("CRIT", ("risk_ladder:learner@testnet", "capital_missing", "CRIT"), ("backup_age", "ok", "OK"))
     sg = _tv(h)["saglik"]
     assert sg["renk"] == "yesil" and sg["durum"] == "Sağlam" and sg["uyarilar"] == [] and sg["senden"] == []
     assert sg["diger_botlar"] == ["Testnet botu: sermaye kaydı girilmemiş (gerçek paraya geçişte yapılacak)"]

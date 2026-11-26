@@ -70,37 +70,23 @@ def make_world(tmp, *, bar_age=30, feed_age=20, rules=PAIRS, rules_age=3600, rm=
 def snap(var, prev=None):
     m = probe_market(db_path=str(var / "market.sqlite"), feed_status_path=str(var / "feed-status.json"), pairs=PAIRS,
                      engine_status_paths={b: str(var / b / "status.json") for b in ("learner", "twin")})
-    return H.HealthSnapshot(now=NOW, market=m, prev_rules_missing=prev or {})
+    return H.HealthSnapshot(now=NOW, market=m)
 
 
 def results(var, prev=None):
     rep = H.evaluate(snap(var, prev), H.HealthConfig(require_bots=("learner", "twin")))   # DD-12: varsayilan yalniz learner; genel coklu bot denetimi
     return {r.name: r for r in rep.results if r.name in (
-        "feed_status_age", "market_bar_age", "rules_coverage", "rules_age", "rules_missing:learner",
-        "rules_missing:twin")}
+        "market_bar_age",)}
 
 
 def test_happy_path_no_alarm(tmp_path):
     r = results(make_world(tmp_path), prev={"learner": 0, "twin": 0})
-    assert len(r) == 6 and all(x.status is Status.OK for x in r.values()), r
+    assert len(r) == 1 and all(x.status is Status.OK for x in r.values()), r
 
 
 def test_disabled_when_market_none():
     rep = H.evaluate(H.HealthSnapshot(now=NOW))
-    assert not any(x.name in ("feed_status_age", "market_bar_age", "rules_coverage") for x in rep.results)
-
-
-def test_feed_status_stale_crit(tmp_path):
-    assert results(make_world(tmp_path, feed_age=181))["feed_status_age"].status is Status.CRIT
-
-
-def test_feed_status_boundary_ok(tmp_path):
-    assert results(make_world(tmp_path, feed_age=180))["feed_status_age"].status is Status.OK
-
-
-def test_feed_status_missing_crit(tmp_path):
-    x = results(make_world(tmp_path, feed=False))["feed_status_age"]
-    assert x.status is Status.CRIT and x.code == "feed_status_missing"
+    assert not any(x.name == "market_bar_age" for x in rep.results)
 
 
 def test_bar_stale_crit(tmp_path):
@@ -118,35 +104,9 @@ def test_bar_missing_for_one_pair_crit(tmp_path):
     assert x.status is Status.CRIT and "ETH/USDT" in x.detail
 
 
-def test_rules_count_below_pairs_crit(tmp_path):
-    x = results(make_world(tmp_path, rules=PAIRS[:1]))["rules_coverage"]
-    assert x.status is Status.CRIT and x.code == "rules_incomplete"
-
-
-def test_rules_age_warn_not_crit(tmp_path):
-    var = make_world(tmp_path, rules_age=24 * 3600 + 60)
-    x = results(var)["rules_age"]
-    assert x.status is Status.WARN and x.code == "rules_stale"
-    assert H.evaluate(snap(var)).overall is not Status.OK   # WARN ya da (baska kontrol) daha kotu
-
-
-def test_rules_missing_increase_crit_then_ok(tmp_path):
-    var = make_world(tmp_path, rm=3)
-    assert results(var, prev={"learner": 2, "twin": 3})["rules_missing:learner"].status is Status.CRIT
-    assert results(var, prev={"learner": 3, "twin": 3})["rules_missing:learner"].status is Status.OK
-    assert results(var, prev={"learner": 5})["rules_missing:learner"].status is Status.OK   # restart: azaldi
-    assert results(var, prev={})["rules_missing:learner"].status is Status.OK               # ilk tur: taban
-
-
-def test_rules_missing_counter_unreadable_unknown(tmp_path):
-    var = make_world(tmp_path)
-    (var / "twin" / "status.json").write_text("{bozuk")
-    assert results(var)["rules_missing:twin"].status is Status.UNKNOWN
-
-
 def test_market_db_missing_crit_clear_message(tmp_path):
     r = results(make_world(tmp_path, db=False))
-    for n in ("market_bar_age", "rules_coverage", "rules_age"):
+    for n in ("market_bar_age",):
         assert r[n].status is Status.CRIT and r[n].code == "market_db_missing" and "market.sqlite" in r[n].detail
 
 
@@ -158,29 +118,8 @@ def test_reader_is_read_only(tmp_path):
     assert not list(var.glob("market.sqlite-*"))
 
 
-def test_rules_missing_increase_alerts_immediately():
-    bad = H.CheckResult("rules_missing:learner", Status.CRIT, "rules_missing_increase", "x")
-    rep = H.HealthReport(NOW, (bad,), Status.CRIT, False)
-    a0, st0 = H.plan_alerts(rep, H.empty_state(), NOW)
-    assert a0 == []                                 # kirmizi cift dogrulama: ilk tur sari
-    alerts, _ = H.plan_alerts(rep, st0, NOW + timedelta(minutes=5))
-    assert [a.code for a in alerts] == ["rules_missing_increase"]
-
-
-def test_runner_collect_and_state_delta(tmp_path):
-    var = make_world(tmp_path, rm=1)
-    env = {"ENGINE_VAR_DIR": str(var), "BACKUP_DIR": str(tmp_path), "MARKET_DB": str(var / "market.sqlite"),
-           "MARKET_PAIRS": ",".join(PAIRS), "HEALTH_BOTS": "learner,twin"}
-    st = H.empty_state()
-    st["rules_missing"] = {"learner": 0, "twin": 1}
-    s = R.collect(env, st, NOW)
-    assert s.market.rules_missing == {"learner": 1, "twin": 1} and s.prev_rules_missing == {"learner": 0, "twin": 1}
-    assert R.collect({**env, "MARKET_DB": ""}, st, NOW).market is None
-
-
 def test_loop_lag_already_covered_by_bot_loop_age():
-    assert H.DEFAULT_CFG.loop_crit_s == 300 and H.DEFAULT_CFG.feed_status_crit_s == 180
-    assert H.DEFAULT_CFG.market_bar_crit_s == 300 and H.DEFAULT_CFG.rules_warn_s == 86400
+    assert H.DEFAULT_CFG.loop_crit_s == 300 and H.DEFAULT_CFG.market_bar_crit_s == 300
 
 
 # ---- 44 enstruman: yapilandirilmis (10) U feed-status listesi; seans kapali cift CRIT uretmez

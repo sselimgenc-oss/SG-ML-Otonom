@@ -1,4 +1,4 @@
-"""Fiyat gelmeyen acik pozisyon: paper stop davranisi (bosluk), saglik uyarisi, mutabakat 'fiyat bekleniyor', ozet tekrari."""
+"""Fiyat gelmeyen acik pozisyon: paper stop davranisi (bosluk), mutabakat 'fiyat bekleniyor', ozet tekrari."""
 from __future__ import annotations
 
 import importlib.util
@@ -9,7 +9,6 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from panel_support import NOW, ROOT
-from trader_core import health as H
 from trader_core import mutabakat as M
 from trader_core import panel_pano as PN
 from trader_core import tg_sade as TS
@@ -82,63 +81,6 @@ def test_bar_gelmeyen_adimlar_stop_emrini_silmez_ve_bosluk_sayilir():
     assert any(o for o in b._new_orders() if o.role == "stop")
     _step(b, {P: _bar(5, 99.5, 99.6, 99.4, 99.5)})          # stop dokunulmadi
     assert len(b.positions()) == 1 and any(o for o in b._new_orders() if o.role == "stop")
-
-
-# ------------------------------------------------------------------------------------------------ saglik
-def _snap(now, open_pairs, newest):
-    return H.HealthSnapshot(
-        now=now, timeframe_s=3600,
-        api={"learner": H.ApiProbe(ping_ok=True, last_process_at=now, last_candle_open=now, open_pairs=open_pairs)},
-        market=H.MarketProbe(feed_status_state="ok", feed_status_at=now, db_state="ok", pairs=tuple(newest), newest_bar_at=newest))
-
-
-SAAT = datetime(2026, 11, 18, 16, 0, tzinfo=UTC)          # Car 11:00 New York: hisse seansi acik
-
-
-def test_kripto_fiyat_bayat_uyarir_taze_uyarmaz():
-    now = SAAT
-    bayat = H._c_open_price(_snap(now, (("SOL/USDT", "kripto"),), {"SOL/USDT": now - timedelta(minutes=11)}), "learner", H.DEFAULT_CFG)
-    assert bayat.status is H.Status.WARN and bayat.detail == "SOL için fiyat gelmiyor; açık pozisyonun stopu fiyat gelince işler"
-    taze = H._c_open_price(_snap(now, (("SOL/USDT", "kripto"),), {"SOL/USDT": now - timedelta(minutes=2)}), "learner", H.DEFAULT_CFG)
-    assert taze.status is H.Status.OK
-    yok = H._c_open_price(_snap(now, (("SOL/USDT", "kripto"),), {}), "learner", H.DEFAULT_CFG)
-    assert yok.status is H.Status.WARN                      # hic mum yok = bayat
-
-
-@pytest.mark.parametrize("an,sinif,beklenen", [
-    (datetime(2026, 11, 21, 16, 0, tzinfo=UTC), "hisse", H.Status.OK),      # Cumartesi: kapali, uyari yok
-    (datetime(2026, 11, 18, 22, 0, tzinfo=UTC), "hisse", H.Status.OK),      # Car 17:00 NY: seans disi
-    (datetime(2026, 11, 18, 14, 35, tzinfo=UTC), "hisse", H.Status.OK),     # acilisin 5. dakikasi: sahte uyari yok
-    (datetime(2026, 11, 18, 16, 0, tzinfo=UTC), "hisse", H.Status.WARN),    # seans acik, 3 saattir mum yok
-    (datetime(2026, 11, 21, 12, 0, tzinfo=UTC), "emtia", H.Status.OK),      # emtia hafta sonu
-    (datetime(2026, 11, 18, 16, 0, tzinfo=UTC), "emtia", H.Status.WARN),
-])
-def test_seans_kapaliyken_uyari_yok(an, sinif, beklenen):
-    r = H._c_open_price(_snap(an, (("TSLA/USDT", sinif),), {"TSLA/USDT": an - timedelta(hours=3)}), "learner", H.DEFAULT_CFG)
-    assert r.status is beklenen
-
-
-def test_evaluate_kontrolu_yalniz_sinif_biliniyorsa_uretir():
-    now = SAAT
-    s = _snap(now, None, {"SOL/USDT": now})
-    assert not any(r.name.startswith("acik_pozisyon_fiyat_bayat") for r in H.evaluate(s).results)
-    s = _snap(now, (("SOL/USDT", "kripto"),), {"SOL/USDT": now - timedelta(minutes=30)})
-    rep = H.evaluate(s)
-    assert any(r.name == "acik_pozisyon_fiyat_bayat:learner" and r.status is H.Status.WARN for r in rep.results)
-
-
-def test_telegram_metni_sade_ve_coin_adli():
-    now = SAAT
-    r = H._c_open_price(_snap(now, (("SOL/USDT", "kripto"),), {"SOL/USDT": now - timedelta(minutes=30)}), "learner", H.DEFAULT_CFG)
-    r = H.CheckResult("acik_pozisyon_fiyat_bayat:learner", r.status, r.code, r.detail, r.value, r.threshold)
-    rep = H.HealthReport(now, (r,), H.Status.WARN, True)
-    a1, st = H.plan_alerts(rep, None, now)
-    a2, st = H.plan_alerts(rep, st, now + timedelta(minutes=5))
-    al = [a for a in a1 + a2 if a.fingerprint.startswith("acik_pozisyon_fiyat_bayat")]
-    assert len(al) == 1
-    tur, metin, _ = TS.saglik_mesaji(al[0])
-    assert tur == "alarm" and "SOL için fiyat gelmiyor; açık pozisyonun stopu fiyat gelince işler" in metin
-    assert "_" not in metin and not TS.kontrol(metin)
 
 
 # ------------------------------------------------------------------------------------------------ mutabakat

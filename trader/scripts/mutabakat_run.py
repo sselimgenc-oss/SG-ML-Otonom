@@ -108,7 +108,10 @@ def isaret_fonksiyonu(tg_dir: Path, rows: list[dict]):
     dakika = {i: dk for dk, ids in gruplar.items() for i in ids}
 
     def var(key: str) -> bool:
-        return (sent / hashlib.sha256(key.encode("utf-8")).hexdigest()[:16]).exists()
+        try:
+            return (sent / hashlib.sha256(key.encode("utf-8")).hexdigest()[:16]).exists()
+        except OSError:                      # yetkisiz (yabanci sahipli) isaret: yok say, mutabakat dusmesin
+            return False
 
     def f(i: int, tur: str) -> bool:
         if tur == "kapandi":

@@ -63,7 +63,7 @@ def test_empty_heartbeat_url_is_allowed_and_warns(caplog):
 def test_run_once_with_empty_heartbeat_does_not_return_hb_failed(tmp_path):
     env = {"ENGINE_VAR_DIR": str(tmp_path), "BACKUP_DIR": str(tmp_path), "HEARTBEAT_URL": "", "STATE_DIR": str(tmp_path),
            "NOTIFIER": "log", "HEALTH_BOTS": "learner"}
-    snap = _healthy_snap(60)
+    snap = _healthy_snap()
     rc = R.run_once(env, now=NOW, notifier=H.NullNotifier(), snapshot_fn=lambda e, s, n: snap)
     assert rc == R.EXIT_OK
 
@@ -74,12 +74,6 @@ def test_health_bots_default_and_override():
     assert R.bots_from_env({"HEALTH_BOTS": "learner"}) == ("learner",) == B.bots_from_env({"HEALTH_BOTS": "learner"})
     assert R.bots_from_env({"HEALTH_BOTS": " learner , twin ,learner"}) == ("learner", "twin")
     assert R.bots_from_env({"HEALTH_BOTS": " , "}) == ("learner",)
-
-
-def test_make_cfg_uses_health_bots_and_no_veto_check():
-    """DD-12 WP-06a: saglik kontrolunde veto belgesi yasi denetimi yok (VETO_MAX_AGE_S artik okunmaz)."""
-    cfg = R.make_cfg({"HEALTH_BOTS": "learner", "VETO_MAX_AGE_S": "600"})
-    assert cfg.require_bots == ("learner",) and cfg.veto_max_age_s is None and not cfg.veto_strict
 
 
 def test_collect_only_probes_listed_bots(tmp_path):
@@ -103,25 +97,18 @@ def test_veto_probe_removed_from_health_runner():
     assert not hasattr(R, "veto_file_from_env") and not hasattr(R, "probe_veto_mtime")
 
 
-def _healthy_snap(veto_age_s=None):
+def _healthy_snap():
     api = {"learner": H.ApiProbe(True, NOW, NOW - timedelta(minutes=30), (), True, "ok", False, 0, ())}
-    led = {"learner": H.LedgerProbe(NOW - timedelta(minutes=5), 0, (), (), True, True, 0)}
+    led = {"learner": H.LedgerProbe(NOW - timedelta(minutes=5), 0, (), True, True, 0)}
     cont = {"trader-learner": H.ContainerProbe("running", 0, NOW - timedelta(days=1), None)}
     return H.HealthSnapshot(now=NOW, timeframe_s=3600, api=api, ledger=led, disk_free_bytes=50 * 1024 ** 3,
-                            mem_available_bytes=2 * 1024 ** 3, swap_total_bytes=0, swap_used_bytes=0, containers=cont,
-                            last_backup_at=NOW - timedelta(hours=1), installed_at=NOW - timedelta(days=5),
-                            veto_file_mtime=None if veto_age_s is None else NOW - timedelta(seconds=veto_age_s))
+                            containers=cont,
+                            last_backup_at=NOW - timedelta(hours=1), installed_at=NOW - timedelta(days=5))
 
 
-def _veto_status(veto_age_s, cfg):
-    return {r.name: r for r in H.evaluate(_healthy_snap(veto_age_s), cfg).results}["veto_file_age"]
-
-
-def test_veto_check_skipped_in_paper_health():
-    """DD-12 WP-06a: kagit saglik kontrolu veto belgesini denetlemez; belge yok/eski olsa da saglikli kalir."""
-    cfg = R.make_cfg({"HEALTH_BOTS": "learner"})
-    for age in (None, 600, 99999):
-        r = _veto_status(age, cfg)
-        assert r.status is H.Status.SKIPPED
-    assert H.evaluate(_healthy_snap(None), cfg).healthy
-    assert H.evaluate(_healthy_snap(99999), cfg).healthy
+def test_healthy_paper_snapshot_is_healthy_with_essential_checks_only():
+    rep = H.evaluate(_healthy_snap(), R.make_cfg({"HEALTH_BOTS": "learner"}))
+    assert rep.healthy and not rep.failing()
+    assert {r.name.partition(":")[0] for r in rep.results} == {
+        "bot_loop_age", "candle_age", "ledger_write_age", "ledger_gate", "spool_corrupt", "disk_free", "container_restarts",
+        "backup_age"}

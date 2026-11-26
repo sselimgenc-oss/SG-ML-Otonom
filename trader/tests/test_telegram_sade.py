@@ -158,7 +158,7 @@ def test_ek_uyari_parmak_izi_zaman_damgali_olsa_da_6_saat_kurali(rig):
 # ------------------------------------------------------------------ Bot durdu
 def test_bot_durdu_6_saat_kuralindan_muaf_ve_pozisyon_bilgisi_verir(rig):
     (rig.tmp / "status.json").write_text(json.dumps({"open_positions": [{"pair": "SOL/USDT", "stop": 139.1}]}))
-    a = alert("api_unreachable", H.Status.CRIT, fp="api_reachable:learner|api_unreachable")
+    a = alert("stale_loop", H.Status.CRIT, fp="bot_loop_age:learner|stale_loop")
     rig.n.send(a)
     rig.clk.adv(minutes=20)
     rig.n.send(a)
@@ -168,8 +168,8 @@ def test_bot_durdu_6_saat_kuralindan_muaf_ve_pozisyon_bilgisi_verir(rig):
     t = rig.fake.texts[0]
     assert t.startswith("[ML] 🔴 Bot durdu") and "Açık pozisyon: 1" in t and "stoplar izlenmiyor" in t and "yerinde" not in t
     ok_form(t)
-    rig.n.send(alert("api_unreachable", H.Status.OK, fp="api_reachable:learner|api_unreachable"))
-    rig.n.send(alert("api_unreachable", H.Status.OK, fp="api_reachable:learner|api_unreachable"))
+    rig.n.send(alert("stale_loop", H.Status.OK, fp="bot_loop_age:learner|stale_loop"))
+    rig.n.send(alert("stale_loop", H.Status.OK, fp="bot_loop_age:learner|stale_loop"))
     assert rig.fake.texts[3] == "[ML] ✅ Düzeldi: bot yeniden çalışıyor." and len(rig.fake.texts) == 4
 
 
