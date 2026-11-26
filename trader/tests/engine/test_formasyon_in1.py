@@ -472,7 +472,9 @@ def test_hiz_5000_mum_42_formasyon():
             arms.find_arm(s).compute(inp)
         en_iyi = min(en_iyi, time.process_time() - t0)
     print("42 formasyon, 5000 mum:", round(en_iyi * 1000, 1), "ms")
-    assert en_iyi < 0.05, en_iyi
+    from hiz_olcek import olcek
+    k = olcek()
+    assert en_iyi < 0.05 * k, (en_iyi, k)
 
 
 # ------------------------------------------------------------------------------------------------ kagit = canli

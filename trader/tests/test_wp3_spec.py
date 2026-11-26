@@ -2029,7 +2029,8 @@ def test_P2_mtm_on_minute_speed():
         rec.on_minute(ts, bars, pos, 1000.0)
         if time.process_time() - t > 30:
             break
-    assert time.process_time() - t <= 2.0 + 2.0         # allowance: 10 MinuteBar constructions per iteration (~2 s)
+    from hiz_olcek import olcek
+    assert time.process_time() - t <= (2.0 + 2.0) * olcek()         # allowance: 10 MinuteBar constructions per iteration (~2 s)
 
 
 def test_P3_migration_speed(tmp_path):
