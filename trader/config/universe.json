@@ -1,12 +1,10 @@
 {
   "schema": "universe/1",
-  "n_crypto": 20,
-  "n_stocks": 20,
+  "n_crypto": 5,
+  "n_stocks": 7,
   "exclude_bases": ["TON", "USDT", "USDC", "FDUSD", "TUSD", "DAI", "USDE", "USDP", "BUSD", "PYUSD", "USD1", "USDS", "EURI",
                     "WBTC", "WETH", "STETH", "WSTETH", "WBETH", "BETH", "CBBTC", "CBETH", "RETH", "BNSOL", "JITOSOL", "MSOL"],
-  "commodities": ["XAU/USDT", "XAG/USDT", "BZ/USDT", "COPPER/USDT"],
-  "stocks_ordered": ["NVDA/USDT", "MSFT/USDT", "AAPL/USDT", "GOOGL/USDT", "AMZN/USDT", "META/USDT", "AVGO/USDT", "TSLA/USDT",
-                     "BRKB/USDT", "JPM/USDT", "LLY/USDT", "WMT/USDT", "V/USDT", "ORCL/USDT", "XOM/USDT", "NFLX/USDT",
-                     "PLTR/USDT", "COST/USDT", "AMD/USDT", "HD/USDT"],
-  "_notes": "stocks_ordered: ilk 20 sira ile piyasa degeri; yedek hisseler mentor tarafindan bu listenin sonuna eklenir (henuz yok)."
+  "commodities": ["XAU/USDT", "BZ/USDT"],
+  "stocks_ordered": ["AAPL/USDT", "MSFT/USDT", "NVDA/USDT", "GOOGL/USDT", "AMZN/USDT", "META/USDT", "TSLA/USDT"],
+  "_notes": "SABIT 14 cift (5 kripto + 7 hisse + 2 emtia; sahip karari). Otomatik evren guncellemesi YOK; liste yalniz sahibi tarafindan degistirilir."
 }

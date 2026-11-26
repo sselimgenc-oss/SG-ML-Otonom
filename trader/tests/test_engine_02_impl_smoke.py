@@ -101,7 +101,7 @@ def test_clock():
 
 def test_config():
     cfg = config.load_engine_config(ROOT / "config/engine.base.json", ROOT / "config/engine.learner.json")
-    assert len(cfg.pairs) == 10 and cfg.ledger_path == "var/learner/ledger.sqlite"
+    assert len(cfg.pairs) == 5 and cfg.ledger_path == "var/learner/ledger.sqlite"
     assert not hasattr(cfg, "start_delay_s") and cfg.state_path == "var/learner/state.sqlite"
     assert not (ROOT / "config/engine.twin.json").exists()      # DD-12: ikiz kaldirildi
     with pytest.raises(errors.ConfigError):

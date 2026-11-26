@@ -51,8 +51,8 @@ def test_parite_canliya_ozgu_anahtarlar_canlida_kalir():
 def test_canli_ml_stratejisi_ve_43_cift_yuklenir():
     live, paper = load_cli_config(CONFIG, "learner", "live"), load_cli_config(CONFIG, "learner", "paper")
     assert live.mode == "live" and live.strategy == "price_action_lab_ml"
-    assert len(live.pairs) == 43 and "TON/USDT" not in live.pairs and list(live.pairs) == list(paper.pairs)
-    assert len(live.optional_pairs) == 24 and set(live.optional_pairs) <= set(live.pairs)   # eski hisse verisi acilisi bloklamaz
+    assert len(live.pairs) == 14 and "TON/USDT" not in live.pairs and list(live.pairs) == list(paper.pairs)
+    assert len(live.optional_pairs) == 9 and set(live.optional_pairs) <= set(live.pairs)   # eski hisse verisi acilisi bloklamaz
     assert live.contract_types == ("PERPETUAL", "TRADIFI_PERPETUAL")
     assert live.max_positions == 36 and live.flat_bar_guard is True   # 24.11 kullanici karari: max_positions 24 -> 36 (kagit = canli)
     assert live.arms == paper.arms

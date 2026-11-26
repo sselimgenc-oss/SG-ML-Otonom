@@ -147,10 +147,10 @@ def test_rehearsal_empty_server_feed_rules_gate_status_health(tmp_path, capsys):
     cfgd, clock, _, _e = _bring_up(tmp_path)
     db = tmp_path / "var" / "market.sqlite"
     c = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
-    assert c.execute("select count(*) from rules").fetchone()[0] == 10          # runbook: sqlite3 var/market.sqlite 'select count(*) from rules'
+    assert c.execute("select count(*) from rules").fetchone()[0] == len(PAIRS10)          # runbook: sqlite3 var/market.sqlite 'select count(*) from rules'
     for kind in ("last", "mark"):
         n = c.execute("select count(distinct pair) from bars where kind=? and tf='1m'", (kind,)).fetchone()[0]
-        assert n == 10, kind
+        assert n == len(PAIRS10), kind
     c.close()
     for bot in ("learner",):
         st = json.loads((tmp_path / "var" / bot / "status.json").read_text())
@@ -189,10 +189,10 @@ def test_drill_feed_killed_midrun_engine_data_stale_and_health_crit(tmp_path, ca
     sess.dead_at_ms = to_ms(clock.now())
     clock.advance(11 * 60)                                            # 11 dk gecer, kimse mum yazmaz
     missing, stale = eng.check_inputs()                               # motor dakikada bir bunu calistirir (_periodic_input_check)
-    assert not missing and len(stale) == 10
+    assert not missing and len(stale) == len(PAIRS10)
     eng.status.write(eng, force=True)
     st = json.loads((tmp_path / "var" / "learner" / "status.json").read_text())
-    assert st["counters"]["data_stale"] == 10                         # status.json: gorunur sayac
+    assert st["counters"]["data_stale"] == len(PAIRS10)                         # status.json: gorunur sayac
     # ---- health 5 dk'lik turu: piyasa mumu bayat -> CRIT; dis nabiz 'ok' DEGIL 'fail'
     hr = _health_mod("health_run_r2")
     sender, notifier = _Sender(), H.NullNotifier()
@@ -243,13 +243,13 @@ def _seed_market(tmp_path, *, rules_for, stale=False):
 
 def test_drill_one_pair_missing_rules_engine_gate_exit_7(tmp_path):
     write_config(tmp_path, startup_wait_s=0.0, relative=True)
-    _seed_market(tmp_path, rules_for=PAIRS10[:-1])                   # AVAX kurali yok
+    _seed_market(tmp_path, rules_for=PAIRS10[:-1])                   # son cift (TRX) kurali yok
     r = _run_cli(tmp_path, "init-ledger", "--bot", "learner", "--config-dir", "config")
     assert r.returncode == 0, r.stderr[-500:]                        # ExecStartPre
     r = _run_cli(tmp_path, "run", "--bot", "learner", "--config-dir", "config")
     assert r.returncode == EXIT_STARTUP_GATE == 7, r.stderr[-800:]
     crit = [ln for ln in r.stderr.splitlines() if "CRITICAL" in ln]
-    assert len(crit) == 1 and "AVAX/USDT" in crit[0] and "kural eksik" in crit[0]     # journalctl'de tek, adli CRITICAL satir
+    assert len(crit) == 1 and PAIRS10[-1] in crit[0] and "kural eksik" in crit[0]     # journalctl'de tek, adli CRITICAL satir
     st = json.loads((tmp_path / "var" / "learner" / "status.json").read_text()) if (tmp_path / "var/learner/status.json").exists() else None
     if st is not None:
         assert st["counters"]["rules_missing"] == 1

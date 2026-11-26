@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from ml1_gorunum_destek import ml1_defter
+from ml1_gorunum_destek import ml1_defter, ogrenme_defteri
 from panel_support import NOW
 from trader_core import ml1_gorunum as MG
 from trader_core import panel_pano as PP
@@ -107,3 +107,21 @@ def test_health_mesaji_ml1_paket_yok_ve_eski_ml_kodlari_silindi():
 def test_yazim_duzeltmeleri():
     from trader_core import health as H
     assert "/hepsini_kapat" in H._HEALTH_TR["naked_position"][2] and "/kapat " not in H._HEALTH_TR["naked_position"][2]
+
+
+def test_ogrenme_asamasi_gunluk_haftalik_ve_ml1_komutu_cokmez(tmp_path):
+    """26.11: paket yokken (puansiz) ML1 satirlari 'ogrenme asamasinda' der; /ml1 esik yerine asama yazar; sayilar panodaki ile ayni."""
+    ogrenme_defteri(str(tmp_path / "l.sqlite"))
+    cd = tmp_path / "config"
+    cd.mkdir()
+    (cd / "engine.base.json").write_text(json.dumps({"wallet_start": 1000.0}))
+    (cd / "engine.paper.json").write_text(json.dumps({"ml1": {"aktif": True}}))
+    (tmp_path / "status.json").write_text(json.dumps({"mode": "paper", "equity": 915.5, "day_start_equity": 920.0, "entries_open": True,
+                                                      "unrealized_pnl_usd": 0.0, "open_positions": [], "loop_at": NOW.strftime("%Y-%m-%dT%H:%M:%SZ")}))
+    cfg = T.TelegramConfig("1:t", 5, str(tmp_path / "tg"), "", str(tmp_path / "status.json"), ledger_path=str(tmp_path / "l.sqlite"), config_dir=str(cd))
+    gun = T.build_report(cfg, NOW, DAY, {})
+    assert "ML1 öğrenme aşamasında (bugün): 4 aday süzülmeden geçti, 3'ünü işleme çevirdi" in gun
+    hf = T.haftalik_metni(cfg, NOW)
+    assert "ML1 öğrenme aşamasında: 4 aday süzülmeden geçti" in hf
+    ml = T.ml1_metni(cfg, NOW)
+    assert "eşik öğrenme aşaması" in ml and "okunamadı" not in ml

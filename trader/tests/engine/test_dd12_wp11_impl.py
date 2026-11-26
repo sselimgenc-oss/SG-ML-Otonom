@@ -36,6 +36,12 @@ PAPER_ARMS = PAPER_ARMS + tuple(f"{s}@{tf}" for fam in ("GF1-", "IN1-") for s in
                                 for tf in _kutuphane_arms.find_arm(s).TIMEFRAMES)
 PAPER_ARMS = PAPER_ARMS + tuple(f"PA2-{k}@{tf}" for k, tfs in (("EMIRBLOK", None), ("BOLGE", None), ("FVG", None), ("ONCEKI", ("15m", "1h", "4h")), ("TCIZGI", None), ("SEVIYE", None), ("UCVURUS", None), ("TUKENIS", ("15m", "1h"))) for tf in (tfs or ("15m", "1h", "4h", "1d")))   # 24.11 kullanici karari: formasyon kutuphanesi (PA2 29 kol)
 
+# 26.11 sahip karari: 15m GIRIS kollari ve 16 kurulum config'ten kaldirildi (modul/kurulum tanimlari yerinde kalir): 162 kol, 55 kurulum
+KALDIRILAN_KURULUM = {"S1-HACIM", "R1-ALT", "R1-ERKEN", "R1-HA", "TF1-FITIL", "TF1-HACIM", "H2-YARI", "B1-MUM", "F1-IKINCI", "PA2-UCVURUS",
+                      "PA2-SEVIYE", "PA2-TUKENIS", "MF1-MARUBOZU", "MF1-TERSCEKIC", "MF1-UCASKER", "MF1-YILDIZ"}
+PAPER_ARMS = tuple(a for a in PAPER_ARMS if not a.endswith("@15m") and a.split("@")[0] not in KALDIRILAN_KURULUM)
+assert len(PAPER_ARMS) == 162
+
 
 # --------------------------------------------------------------------------- arms paketi
 def test_arms_discovery_and_lookup():

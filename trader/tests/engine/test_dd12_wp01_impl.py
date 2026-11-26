@@ -33,14 +33,14 @@ def _load(tmp_path, raw):
 
 def test_paper_config_shape():
     c = load_cli_config(CFG, "learner", "paper")
-    assert c.mode == "paper" and c.bot == "learner" and len(c.pairs) == 43   # 23.11 kullanici karari: TON cikarildi (SETTLING)
+    assert c.mode == "paper" and c.bot == "learner" and len(c.pairs) == 14   # 23.11 kullanici karari: TON cikarildi (SETTLING)
     assert set(json.loads((CFG / "engine.base.json").read_text())["pairs"]) <= set(c.pairs)
-    assert len(c.optional_pairs) == 24 and set(c.optional_pairs) <= set(c.pairs)
-    assert c.max_positions == 36 and c.shadow_blocks == ("regime", "r1_disabled", "same_bar_reentry", "tf_15m")   # 24.11 kullanici karari: max_positions 36
+    assert len(c.optional_pairs) == 9 and set(c.optional_pairs) <= set(c.pairs)
+    assert c.max_positions == 36 and c.shadow_blocks == ("regime", "r1_disabled", "same_bar_reentry")   # 24.11 kullanici karari: max_positions 36
     raw_paper = json.loads((CFG / "engine.paper.json").read_text())
     assert not {"ml_mode", "ml_pairs", "ml_features", "ml_model_path", "ml_experimental"} & set(raw_paper)   # 24.11: ML filtreleri silindi
     assert list(c.clusters) == ["kripto_buyuk", "kripto_diger", "hisse", "hisse_teknoloji", "metal", "enerji_sanayi"]   # kume tavani yok (25.11 sadelestirme 3/4)
-    assert [len(s.pairs) for s in c.clusters.values()] == [5, 14, 20, 12, 2, 2]   # 23.11 kullanici karari: TON cikarildi (SETTLING)
+    assert [len(s.pairs) for s in c.clusters.values()] == [4, 1, 7, 7, 1, 1]   # 26.11 sahip karari: evren 14 cift sabit
     assert c.flat_bar_guard is True and "TRADIFI_PERPETUAL" in c.contract_types
     assert set(c.cost_overrides) == set(c.optional_pairs)   # 23.11 kullanici karari: TON cikarildi (SETTLING)
     r = c.risk_config

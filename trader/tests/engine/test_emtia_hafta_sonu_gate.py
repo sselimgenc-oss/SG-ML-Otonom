@@ -89,7 +89,7 @@ def test_cumartesi_emtia_reddedilir_ve_defter_yazar(env):
     assert got.veto_reason == "gate:seans_disi_hafta_sonu" and got.final_action == "skipped"
 
 
-@pytest.mark.parametrize("pair", [XAU, "XAG/USDT", "BZ/USDT", "COPPER/USDT"])
+@pytest.mark.parametrize("pair", [XAU, "BZ/USDT"])      # 26.11 sahip karari: evrende yalniz XAU ve BZ
 def test_tum_emtia_ciftleri(env, pair):
     assert _go(env, pair, SAT).code == KOD["hafta"]
 

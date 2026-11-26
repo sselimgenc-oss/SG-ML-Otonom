@@ -1538,7 +1538,11 @@ def _ml1_satirlari(oz: dict | None, aktif: Any, *, hafta: bool = False) -> list[
         return []
     e = oz["eleme"]["7g" if hafta else "bugun"]
     z7 = oz["zd_ozet_7g"]
-    if not e["puanlanan"]:
+    og = (oz.get("ogrenme") or {}).get("7g" if hafta else "bugun") or {}
+    if not e["puanlanan"] and og.get("aday"):
+        ilk = (f"ML1 öğrenme aşamasında{'' if hafta else ' (bugün)'}: {TS.sayi(og['aday'], 0)} aday süzülmeden geçti, "
+               f"{og['islem']}{TS.iyelik_belirtme(og['islem'])} işleme çevirdi")
+    elif not e["puanlanan"]:
         ilk = "ML1: puanlanacak aday çıkmadı." if hafta else "ML1 bugün: puanlanacak aday çıkmadı."
     elif hafta:
         ilk = (f"ML1: {TS.sayi(e['puanlanan'], 0)} aday puanladı, {TS.sayi(e['islem'], 0)}{TS.iyelik_belirtme(e['islem'])} "
@@ -1561,7 +1565,8 @@ def ml1_metni(cfg: TelegramConfig, now: datetime) -> str:
     if oz is None:
         raise SectionError("defter_yok")
     e = oz["eleme"]
-    esik = TS.sayi(oz["esik"], 2) if oz["esik"] is not None else "okunamadı"
+    ogr = (oz.get("ogrenme") or {}).get("7g") or {}
+    esik = TS.sayi(oz["esik"], 2) if oz["esik"] is not None else ("öğrenme aşaması" if ogr.get("aday") else "okunamadı")
     k, d = MG.ozet_satirlari(oz)
     return TS.etiketle("\n".join([
         f"ML1{'' if aktif is True else ' (kapalı)'} · eşik {esik}",

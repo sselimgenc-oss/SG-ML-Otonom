@@ -42,20 +42,22 @@ KRIPTO20 = ["BTC", "ETH", "BNB", "SOL", "XRP", "DOGE", "ADA", "TRX", "LINK", "AV
             "TON", "1000SHIB", "DOT", "XMR"]
 ENV_PAIRS = {"testnet": [f"{b}/USDT" for b in KRIPTO20], "live": [f"{b}/USDT" for b in KRIPTO20 if b != "TON"]}   # TON canlida yok
 ENV_PAIRS_LINE = {k: ('  "pairs": [' + ", ".join(f'"{x}"' for x in v) + '],\n').encode() for k, v in ENV_PAIRS.items()}
-BUYUK = {"BTC", "ETH", "XRP", "BNB", "SOL"}
-TEKNOLOJI = {"NVDA", "MSFT", "AAPL", "GOOGL", "AMZN", "META", "AVGO", "TSLA", "ORCL", "NFLX", "PLTR", "AMD"}
-METAL = {"XAU", "XAG"}
-ENERJI = {"BZ", "COPPER"}
+BUYUK = {"BTC", "ETH", "XRP", "SOL"}                 # 26.11 sahip karari: evren 14 cift sabit
+BASE5 = ["BTC", "ETH", "SOL", "XRP", "TRX"]            # engine.base.json pairs (5 kripto)
+HISSE7 = {"AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "META", "TSLA"}
+TEKNOLOJI = set(HISSE7)
+METAL = {"XAU"}
+ENERJI = {"BZ"}
 STOCKS20 = {"NVDA", "MSFT", "AAPL", "GOOGL", "AMZN", "META", "AVGO", "TSLA", "BRKB", "JPM", "LLY", "WMT", "V", "ORCL",
             "XOM", "NFLX", "PLTR", "COST", "AMD", "HD"}
 COMMODITY4 = METAL | ENERJI
 CAPS = {"kripto_buyuk": 6, "kripto_diger": 9, "hisse": 8, "hisse_teknoloji": 5, "metal": 3, "enerji_sanayi": 3}   # 20 Kasim: kagit tavanlari gevsetildi
 
 PINNED_SHA = {
-    "engine.base.json": "26f5664f630f44bf594eb58e4efa881b2e71890ecb6d11ec80ad9fe2b3b8b361",   # 25.11 kullanici karari: denetim kalan maddeler (start_delay_s kalkti); 24.11 kullanici karari: veto ve C1 artiklari silindi (veto_mode/veto_config kalkti);   # WP-06a: yalniz veto_config yolu; 24.11 kullanici karari: ML filtreleri silindi (ml_mode/ml_model_path kalkti)
+    "engine.base.json": "c177f2a9410d0f22a8b7f160122d9e72d40749384495687e98c8f21d94aaafdf",   # 25.11 kullanici karari: denetim kalan maddeler (start_delay_s kalkti); 24.11 kullanici karari: veto ve C1 artiklari silindi (veto_mode/veto_config kalkti);   # WP-06a: yalniz veto_config yolu; 24.11 kullanici karari: ML filtreleri silindi (ml_mode/ml_model_path kalkti)
     "engine.learner.json": "30ca2842c40cacafbf6cdd90c9e6f1f54fc62b9a9ec913476d1399ac5352cb12",
     "engine.testnet.json": "eff9eb61dcd9018bf86c195a02f7f25f08960473e705cbd114e104c26a956c9c",   # 24.11 kullanici karari: veto ve C1 artiklari silindi
-    "engine.live.json": "1dcdc78cae2e1961383db7f02871c6f5ade8978d8df092b8af77468c2db0cb03",   # 25.11 sadelestirme 3/4: korelasyon/kayip_freni/toplam_buyukluk_kat/uzun_yon ve kume max_positions kaldirildi; 24.11 kullanici karari: formasyon kutuphanesi birlesik (MF1 48 + GF1 52 + IN1 66 + PA2 29 + PA varyantlari 56 kol; max_positions 36)
+    "engine.live.json": "345a05ce3ca13baf7c1c0e2c8cbdef72b3f4be4017f981a1916d42ae1617eed7",   # 25.11 sadelestirme 3/4: korelasyon/kayip_freni/toplam_buyukluk_kat/uzun_yon ve kume max_positions kaldirildi; 24.11 kullanici karari: formasyon kutuphanesi birlesik (MF1 48 + GF1 52 + IN1 66 + PA2 29 + PA varyantlari 56 kol; max_positions 36)
     #   # 24.11 kullanici karari: veto ve C1 artiklari silindi (veto_mode, arm_max_positions L1 kalkti);   # 24.11 kullanici karari: DL1 dort zaman dilimi acik; onceki 24.11 ML filtreleri silindi
 }
 # 23.11 kullanici karari: canli = kagit. engine.live.json'a eklenen kagit sistem anahtarlari (+ pairs yerine kagit evreni).
@@ -163,6 +165,12 @@ def test_dt1_katmansiz_yukleme_onceki_engineconfig_ile_esit(baseline, envname):
         if k in VETO_KEYS_REMOVED:                         # 24.11 kullanici karari: veto ve C1 artiklari silindi; anahtarlar EngineConfig'ten kalkti
             assert k not in cur["cfg"], k
             continue
+        if k == "shadow_blocks":                            # 26.11 sahip karari: tf_15m golge blogu kaldirildi (15m giris kolu yok)
+            assert [x for x in v if x != "tf_15m"] == list(cur["cfg"][k])
+            continue
+        if k == "pairs" and envname is None:                # 26.11 sahip karari: taban evren 5 kripto
+            assert list(cur["cfg"][k]) == [f"{b}/USDT" for b in BASE5]
+            continue
         if k == "pairs" and envname in ENV_PAIRS:           # 22.11: tek beklenen fark: kendi pairs listesi (kripto)
             assert len(v) == 10 and cur["cfg"][k] == ENV_PAIRS[envname]
             continue
@@ -182,8 +190,8 @@ def test_dt1_katmansiz_yukleme_onceki_engineconfig_ile_esit(baseline, envname):
 
 def test_dt1_katmansiz_yukleme_hala_10_cift_ve_paper_degil_katman():
     cfg = load_cli_config(CONFIG, "learner", None)
-    assert len(cfg.pairs) == 10 and cfg.bot == "learner" and cfg.mode == "paper"
-    assert cfg.shadow_blocks == ("regime", "r1_disabled", "same_bar_reentry", "tf_15m")
+    assert len(cfg.pairs) == 5 and cfg.bot == "learner" and cfg.mode == "paper"          # 26.11 sahip karari: taban 5 kripto
+    assert cfg.shadow_blocks == ("regime", "r1_disabled", "same_bar_reentry")
 
 
 @pytest.mark.parametrize("name", sorted(PINNED_SHA))
@@ -195,7 +203,10 @@ def test_dt1_dt13_config_dosyalari_degismedi(name):
     if name == "engine.base.json":      # DD-12 WP-06a: config/veto.json -> config/veto.live.json (testnet/canli veto yapilandirmasi); baska fark yok
         head = head.replace(b'  "veto_mode": "required",\n', b"", 1).replace(b'"veto_config": "config/veto.json", "kill_file"', b'"kill_file"', 1)   # 24.11 kullanici karari: veto ve C1 artiklari silindi
         head = head.replace(b'  "ml_mode": "off",\n  "ml_model_path": null,\n', b"", 1)      # 24.11 kullanici karari: ML filtreleri silindi
-        head = head.replace(b'  "start_delay_s": 0.0,\n', b"", 1)      # 25.11 kullanici karari: denetim kalan maddeler (olu start_delay_s kalkti)
+        head = head.replace(b'  "start_delay_s": 0.0,\n', b"", 1)
+        head = head.replace(b'"pairs": ["BTC/USDT","ETH/USDT","BNB/USDT","SOL/USDT","XRP/USDT","DOGE/USDT","ADA/USDT","TRX/USDT","LINK/USDT","AVAX/USDT"]',
+                            b'"pairs": ["BTC/USDT","ETH/USDT","SOL/USDT","XRP/USDT","TRX/USDT"]', 1)      # 26.11 sahip karari: taban evren 5 kripto
+        head = head.replace(b', "tf_15m"]', b']', 1)                                                      # 26.11 sahip karari: 15m giris kolu yok      # 25.11 kullanici karari: denetim kalan maddeler (olu start_delay_s kalkti)
     if name in ("engine.testnet.json", "engine.live.json"):   # 22.11: kendi "pairs" satiri (kill_file'dan once); baska fark yok
         env = name.split(".")[1]
         head = head.replace(b'  "kill_file"', ENV_PAIRS_LINE[env] + b'  "kill_file"', 1)
@@ -246,22 +257,20 @@ def test_dt1_eski_katman_dosyalari_silindi():
 def test_dt2_paper_44_cift_taban_10_ust_kumesi():
     cfg = _paper()
     assert cfg.mode == "paper" and cfg.bot == "learner"
-    assert len(cfg.pairs) == 43 and len(set(cfg.pairs)) == 43   # 23.11 kullanici karari: TON cikarildi (SETTLING)
+    assert len(cfg.pairs) == 14 and len(set(cfg.pairs)) == 14   # 26.11 sahip karari: evren 14 cift SABIT
     bases = [_base(p) for p in cfg.pairs]
-    base10 = load_cli_config(CONFIG, "learner", None).pairs
-    assert set(base10) <= set(cfg.pairs)
-    assert set(BASE10) <= set(bases)
-    assert STOCKS20 <= set(bases) and COMMODITY4 <= set(bases)
-    assert len(set(bases) - STOCKS20 - COMMODITY4) == 19          # 19 kripto   # 23.11 kullanici karari: TON cikarildi (SETTLING)
+    base5 = load_cli_config(CONFIG, "learner", None).pairs
+    assert set(base5) <= set(cfg.pairs)
+    assert set(BASE5) <= set(bases)
+    assert HISSE7 <= set(bases) and COMMODITY4 <= set(bases)
+    assert len(set(bases) - HISSE7 - COMMODITY4) == 5             # 5 kripto
 
 
 def test_dt2_paper_golgeli_24_pozisyon():
     cfg = _paper()
-    assert cfg.shadow_blocks == ("regime", "r1_disabled", "same_bar_reentry", "tf_15m")      # 19.11 (kagitta her sey acik): golge karar satirlari acik (karar yolunu etkilemez)
+    assert cfg.shadow_blocks == ("regime", "r1_disabled", "same_bar_reentry")      # 26.11: tf_15m kaldirildi; 19.11 (kagitta her sey acik): golge karar satirlari acik (karar yolunu etkilemez)
     ob = cfg.exit_modes["default"]["breakeven"]["offset_bps"]
-    assert cfg.exit_modes == {"default": {"breakeven": {"trigger_r": 1.0, "offset_bps": ob}, "partial": {"trigger_r": 1.5, "frac": 0.5}},
-                              "H2-YARI": {"breakeven": {"trigger_r": 1.0, "offset_bps": ob},
-                                          "partial": {"trigger_r": 2.0, "frac": 0.5}}}   # 24.11 kullanici karari: PA varyantlari (H2-YARI kismi 2 R)      # 19.11: cikis kipleri kagitta ACIK (spec varsayilanlari)
+    assert cfg.exit_modes == {"default": {"breakeven": {"trigger_r": 1.0, "offset_bps": ob}, "partial": {"trigger_r": 1.5, "frac": 0.5}}}   # 26.11: H2-YARI kaldirildi; 19.11: cikis kipleri kagitta ACIK (spec varsayilanlari)
     assert cfg.max_positions == 36   # 24.11 kullanici karari: max_positions 24 -> 36 (kagit = canli)
     assert cfg.target_trade_risk == 0.01                           # islem basi %1
 
@@ -279,8 +288,8 @@ def test_dt2_ml_anahtarlari_silindi(tmp_path):
 def test_dt2_paper_optional_pairs_hisse_emtia_24():
     cfg = _paper()
     # 19 Kasim: TON vadelisi Binance'te not_trading; zorunlu olunca besleme acilmiyordu => istege bagli
-    assert len(cfg.optional_pairs) == 24   # 23.11 kullanici karari: TON cikarildi (SETTLING)
-    assert {_base(p) for p in cfg.optional_pairs} == STOCKS20 | COMMODITY4
+    assert len(cfg.optional_pairs) == 9   # 26.11 sahip karari: 7 hisse + XAU + BZ
+    assert {_base(p) for p in cfg.optional_pairs} == HISSE7 | COMMODITY4
     assert set(cfg.optional_pairs) <= set(cfg.pairs)
 
 
@@ -293,9 +302,9 @@ def test_dt2_paper_kumeler_tavansiz_siniflama():
     assert cl["kripto_buyuk"][0] == BUYUK
     assert cl["hisse_teknoloji"][0] == TEKNOLOJI
     assert cl["metal"][0] == METAL and cl["enerji_sanayi"][0] == ENERJI
-    assert cl["hisse"][0] == STOCKS20 and len(cl["hisse"][0]) == 20
-    assert len(cl["kripto_diger"][0]) == 14 and not (cl["kripto_diger"][0] & BUYUK)   # 23.11 kullanici karari: TON cikarildi (SETTLING)
-    assert not (cl["kripto_diger"][0] & (STOCKS20 | COMMODITY4))
+    assert cl["hisse"][0] == HISSE7 and len(cl["hisse"][0]) == 7
+    assert cl["kripto_diger"][0] == {"TRX"} and not (cl["kripto_diger"][0] & BUYUK)   # 26.11 sahip karari
+    assert not (cl["kripto_diger"][0] & (HISSE7 | COMMODITY4))
     assert TEKNOLOJI <= cl["hisse"][0]                              # cok uyelik: teknoloji ayni zamanda hisse
     pair_bases = {_base(p) for p in cfg.pairs}
     for name, (members, _) in cl.items():
@@ -322,20 +331,20 @@ def test_dt2_paper_yeni_anahtar_ham_json_listesi():
               "flat_bar_guard", "contract_types", "cost_overrides"):
         assert k in raw, k
     assert not ML_KEYS_REMOVED & set(raw)
-    assert raw["shadow_blocks"] == ["regime", "r1_disabled", "same_bar_reentry", "tf_15m"] and raw["max_positions"] == 36   # 24.11 kullanici karari: max_positions 24 -> 36 (kagit = canli)
+    assert raw["shadow_blocks"] == ["regime", "r1_disabled", "same_bar_reentry"] and raw["max_positions"] == 36   # 24.11 kullanici karari: max_positions 24 -> 36 (kagit = canli)
 
 
 # --------------------------------------------------------------------------- D-T2 (yalniz --env paper)
 def test_dt2_paper_katmani_yalniz_env_paper_ile_uygulanir():
     plain = load_cli_config(CONFIG, "learner", None)
     paper = load_cli_config(CONFIG, "learner", "paper")
-    assert len(plain.pairs) == 10 and len(paper.pairs) == 43   # 23.11 kullanici karari: TON cikarildi (SETTLING)
+    assert len(plain.pairs) == 5 and len(paper.pairs) == 14   # 26.11 sahip karari: evren 14 cift sabit; taban 5 kripto
     assert plain.shadow_blocks != () and paper.shadow_blocks == plain.shadow_blocks      # 19.11: kagitta golge satirlar acik
     assert plain.exit_modes == {} and paper.exit_modes != {}
     for env in ("testnet", "live"):
         c = load_cli_config(CONFIG, "learner", env)
         if env == "live":       # 23.11 kullanici karari: canli = kagit (paper'in 43 cifti, ML aktif, kumeler/tavanlar)
-            assert c.mode == "live" and list(c.pairs) == list(paper.pairs) and len(c.pairs) == 43
+            assert c.mode == "live" and list(c.pairs) == list(paper.pairs) and len(c.pairs) == 14
             assert c.max_positions == paper.max_positions
             continue
         assert c.mode == env and list(c.pairs) == ENV_PAIRS[env]
@@ -347,9 +356,9 @@ def test_dt2_cli_env_paper_kabul_ve_yukler():
     a = ap.parse_args(["run", "--bot", "learner", "--env", "paper", "--config-dir", str(CONFIG)])
     assert a.env == "paper"
     cfg = cli._load_cfg(a)
-    assert cfg.mode == "paper" and len(cfg.pairs) == 43   # 23.11 kullanici karari: TON cikarildi (SETTLING)
+    assert cfg.mode == "paper" and len(cfg.pairs) == 14   # 26.11 sahip karari
     b = ap.parse_args(["run", "--bot", "learner", "--config-dir", str(CONFIG)])
-    assert b.env is None and len(cli._load_cfg(b).pairs) == 10
+    assert b.env is None and len(cli._load_cfg(b).pairs) == 5
 
 
 def test_dt2_env_paper_diger_alt_komutlarda_da_kabul():
@@ -385,7 +394,7 @@ def _inject_cluster_pair(raw: dict, pair: str):
 
 def test_dt2_paper_kopyasi_kontrol_yuklenir(tmp_path):
     cfg = _load_overlay(_write(tmp_path, "ok.json", _paper_raw()))
-    assert len(cfg.pairs) == 43   # 23.11 kullanici karari: TON cikarildi (SETTLING)
+    assert len(cfg.pairs) == 14   # 26.11 sahip karari
 
 
 @pytest.mark.parametrize("which", ["cluster", "optional_pairs"])
@@ -496,7 +505,7 @@ def test_dt13_katmansiz_risk_config_degismedi(baseline):
 def test_dt13_paper_layer_diger_ortamlari_kirletmez():
     """paper'dan sonra yuklenen testnet/live/katmansiz risk ve cift sayilari ayni (modul-duzeyi durum sizmaz)."""
     _paper()
-    assert len(load_cli_config(CONFIG, "learner", None).pairs) == 10
+    assert len(load_cli_config(CONFIG, "learner", None).pairs) == 5
     assert load_cli_config(CONFIG, "learner", "testnet").risk_config.max_open_risk == 0.06
     assert load_cli_config(CONFIG, "learner", "live").risk_config.max_open_risk == 0.12   # 23.11 kullanici karari: canli = kagit
     assert LOCKED_CFG.max_open_risk == 0.06

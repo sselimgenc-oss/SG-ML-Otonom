@@ -228,7 +228,7 @@ def test_dt29_shipped_paper_table_is_2_3_4_times_base():
     base = (cfg.cost.slip_entry_bps, cfg.cost.slip_exit_bps, cfg.cost.slip_stop_bps)
     assert base == BASE_SLIP
     opt = [p for p in cfg.pairs if p in cfg.optional_pairs]
-    assert len(opt) == 24 and set(cfg.cost_overrides) == set(opt), "kripto icin override yok (tabanda aynen)"  # 23.11 kullanici karari: TON cikarildi (SETTLING)
+    assert len(opt) == 9 and set(cfg.cost_overrides) == set(opt), "kripto icin override yok (tabanda aynen)"  # 23.11 kullanici karari: TON cikarildi (SETTLING)
     for p in opt:
         if p == "TON/USDT":
             continue
@@ -471,7 +471,7 @@ def test_dt12_state_and_ledger_survive_pairs_expansion(tmp_path):
 # ================================================================================================ kagit yapilandirmasi: golge satirlar (D-T8)
 def test_dt8_paper_config_has_shadow_rows_open(mk):
     cfg = load_cli_config(CONFIG, "learner", "paper")
-    assert tuple(cfg.shadow_blocks) == ("regime", "r1_disabled", "same_bar_reentry", "tf_15m")      # golge satirlar acik
+    assert tuple(cfg.shadow_blocks) == ("regime", "r1_disabled", "same_bar_reentry")      # golge satirlar acik
     e = mk([BTC, ETH], D_OPEN - H)
     e.enter(BTC, D_OPEN)
     e.step(D_OPEN + M1)

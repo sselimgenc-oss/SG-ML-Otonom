@@ -46,6 +46,8 @@ TEK = ["NVDA", "MSFT", "AAPL", "GOOGL", "AMZN", "META", "AVGO", "TSLA", "ORCL", 
 NONTEK = ["BRKB", "JPM", "LLY", "WMT", "V", "COST", "XOM", "HD"]
 METAL = ["XAU", "XAG"]
 ENERJI = ["BZ", "COPPER"]
+# 26.11 sahip karari: evren 14 cift (yukaridaki listeler yalniz DOLDURUCU cift adlaridir; kume/seans testleri evrendeki adlarla)
+METAL_EVREN, ENERJI_EVREN = ["XAU"], ["BZ"]
 
 
 def P(base):
@@ -256,7 +258,7 @@ def test_stock_weekday_night_closed_not_weekend():
 
 
 def test_metal_friday_2100_weekend_sunday_2259_weekend_2300_open():
-    for base in METAL:
+    for base in METAL_EVREN:
         assert _tag(base, utc(2026, 12, 4, 20, 59)) == "open"
         assert _tag(base, utc(2026, 12, 4, 21, 0)) == "weekend"
         assert _tag(base, utc(2026, 12, 5, 12, 0)) == "weekend"
@@ -266,7 +268,7 @@ def test_metal_friday_2100_weekend_sunday_2259_weekend_2300_open():
 
 
 def test_energy_commodities_follow_metal_hours():
-    for base in ENERJI:
+    for base in ENERJI_EVREN:
         assert _tag(base, utc(2026, 12, 4, 21, 0)) == "weekend"
         assert _tag(base, utc(2026, 12, 6, 23, 0)) == "open"
 
@@ -323,9 +325,9 @@ def _clusters_of(cfg, base):
 def test_cluster_membership_multi():
     cfg = load_cli_config(CONFIG, "learner", "paper")
     assert _clusters_of(cfg, "NVDA") == {"hisse", "hisse_teknoloji"}
-    assert _clusters_of(cfg, "JPM") == {"hisse"}
+    assert _clusters_of(cfg, "TSLA") == {"hisse", "hisse_teknoloji"}      # 26.11: 7 hissenin hepsi teknoloji kumesinde
     assert _clusters_of(cfg, "BTC") == {"kripto_buyuk"}
-    assert _clusters_of(cfg, "DOGE") == {"kripto_diger"}
+    assert _clusters_of(cfg, "TRX") == {"kripto_diger"}
     assert _clusters_of(cfg, "XAU") == {"metal"}
     assert _clusters_of(cfg, "BZ") == {"enerji_sanayi"}
 
@@ -343,7 +345,7 @@ def test_cluster_cap_yok_tech5_dolu_6ncy_girer(mk):
 def test_nontech_stock_enters_when_tech3_full(mk):
     e = mk()
     e.fill(TEK[:5])
-    out = e.decide("JPM")
+    out = e.decide("TSLA")
     assert out.action == "enter", (out.code, out.event and out.event.skip_reason)
 
 
@@ -444,14 +446,14 @@ def test_session_tag_filled_on_entered_event_and_closed_session_not_blocked(mk):
 def test_weekend_stock_entry_not_blocked_and_tagged(mk):
     D = utc(2026, 12, 5, 15, 0)
     e = mk(D)
-    out = e.decide("JPM")
+    out = e.decide("AAPL")
     assert out.action == "enter" and out.event.session_tag == "weekend"
 
 
 def test_open_session_tag(mk):
     D = ny(2026, 12, 7, 9, 30) + H
     e = mk(D)
-    out = e.decide("JPM")
+    out = e.decide("AAPL")
     assert out.action == "enter" and out.event.session_tag == "open"
 
 
@@ -470,7 +472,7 @@ def test_metal_weekend_entry_allowed(mk):
 def test_session_tag_on_skipped_rows_too(mk):
     D = utc(2026, 12, 5, 15, 0)
     e = mk(D)
-    out = e.decide("AMD", volume=0.0)
+    out = e.decide("TSLA", volume=0.0)
     assert out.action == "skip" and out.event.skip_reason == "flat_bar" and out.event.session_tag == "weekend"
 
 
@@ -513,7 +515,7 @@ def test_lesson_closed_session_rejects_with_session_closed(mk):
     D = utc(2026, 12, 5, 15, 0)         # hisse weekend
     e = mk(D)
     _set_session_off(e.gate, {"stock": ["weekend"], "hisse": ["weekend"]})
-    out = e.decide("JPM")
+    out = e.decide("AAPL")
     assert out.action == "skip" and out.event.skip_reason == "session_closed"
     assert out.event.veto_status == "not_evaluated" and out.event.session_tag == "weekend"
 
@@ -522,7 +524,7 @@ def test_lesson_closed_other_session_not_rejected(mk):
     D = utc(2026, 12, 5, 15, 0)         # hisse weekend; ders yalniz 'closed' kapatmis
     e = mk(D)
     _set_session_off(e.gate, {"stock": ["closed"], "hisse": ["closed"]})
-    assert e.decide("JPM").action == "enter"
+    assert e.decide("AAPL").action == "enter"
 
 
 def test_lesson_closed_other_asset_class_not_rejected(mk):
@@ -536,7 +538,7 @@ def test_lesson_closed_other_asset_class_not_rejected(mk):
 def test_no_lesson_means_session_closed_never_used(mk):
     for D in (utc(2026, 12, 5, 15, 0), ny(2026, 12, 7, 9, 29), utc(2026, 12, 6, 23, 0)):
         e = mk(D)
-        for b in ("JPM", "XAU", "BTC"):
+        for b in ("AAPL", "XAU", "BTC"):
             o = e.decide(b)
             assert o.action == "enter", (D, b, o.code)
 
@@ -546,7 +548,7 @@ def test_session_closed_dolu_kumede_de_session_closed_yazar(mk):
     e = mk(D)
     e.fill(TEK[:5])
     _set_session_off(e.gate, {"stock": ["weekend"], "hisse": ["weekend"]})
-    out = e.decide("AMD")
+    out = e.decide("TSLA")
     assert out.event.skip_reason == "session_closed"          # sira: tatil bari -> ders-kapali seans
 
 

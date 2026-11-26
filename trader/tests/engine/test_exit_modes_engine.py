@@ -254,7 +254,7 @@ def test_paper_config_modes_are_open_and_paper_equals_backtest(tmp_path):
     from pathlib import Path
     cfgdir = Path(__file__).resolve().parents[2] / "config"
     raw = json.loads((cfgdir / "engine.paper.json").read_text())["exit_modes"]
-    assert raw == {"default": {"breakeven": True, "partial": True}, "H2-YARI": {"breakeven": True, "partial": {"trigger_r": 2.0, "frac": 0.5}}}   # 24.11 kullanici karari: PA varyantlari (H2-YARI kismi 2 R)
+    assert raw == {"default": {"breakeven": True, "partial": True}}   # 26.11 sahip karari: H2-YARI kurulumu kaldirildi (anahtari da)
     for other in ("engine.base.json", "engine.testnet.json", "engine.learner.json"):
         assert "exit_modes" not in json.loads((cfgdir / other).read_text())
     # 23.11 kullanici karari: canli = kagit (canli yapilandirma exit_modes'i tasir ve canli motor da uygular)

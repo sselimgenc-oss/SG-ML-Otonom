@@ -146,7 +146,7 @@ def _store(tmp_path):
 # ----------------------------------------------------------------------------- D-T4: feed
 def test_dt4_env_paper_loads_44_pairs_and_tradifi_rules(tmp_path):
     d, base, paper = _cfg(tmp_path)
-    assert len(paper["pairs"]) == 43 and paper["optional_pairs"]   # 23.11 kullanici karari: TON cikarildi (SETTLING)
+    assert len(paper["pairs"]) == 14 and paper["optional_pairs"]   # 23.11 kullanici karari: TON cikarildi (SETTLING)
     sess = _Session(0, _symbols(base, paper))
     rc, _ = _run(d, sess, "--env", "paper")
     assert rc == 0
@@ -197,7 +197,7 @@ def test_dt4_without_env_is_head_behaviour(tmp_path):
     assert rc == 0
     st = _store(tmp_path)
     assert all(st.get_rules(p) is not None for p in base["pairs"])
-    assert len(base["pairs"]) == 10
+    assert len(base["pairs"]) == 5
     # yalniz taban 10 cift istenir: baska sembol icin kline istegi yok
     assert sess.paths.count("/fapi/v1/exchangeInfo") >= 1
 

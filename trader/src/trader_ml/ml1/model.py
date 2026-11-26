@@ -22,7 +22,7 @@ from . import data as D
 from . import groups as G
 
 SCHEMA = "ml1/1"
-TFS = tuple(D.TFS)
+TFS = tuple(D.MODEL_TFS)                      # giris zaman dilimleri (1h/4h/1d); data.TFS 15m cikis simulatoru icin kalir
 CONF_COLS = ("conf_same_tf", "conf_all_tf", "conf_groups", "conf_opp")
 REG_COLS = ("reg_atr_ratio", "reg_atr_pct", "reg_atr4h_pct", "reg_rh_dist_atr", "reg_rl_dist_atr", "reg_rh_touches",
             "reg_rl_touches", "reg_trend_align")

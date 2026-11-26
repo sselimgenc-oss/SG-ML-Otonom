@@ -1,7 +1,8 @@
 """DD-12 WP-16 uygulayici testleri: aylik kagit evreni (D-T28). Ag yok; yalniz gecici dizinler.
 
-Kapsam: stabil/sarili dislama, emtia sabit, acik pozisyonlu cift korunur, atomik yazma, kuru kosu yazmaz,
-kaplama yalniz paper'da, gecersiz kaplama reddedilir.
+Kapsam: stabil/sarili dislama, emtia sabit, acik pozisyonlu cift korunur, kuru kosu yazmaz.
+SAHIP KARARI (evren 14 cift SABIT): `--apply` reddedilir, var/universe/paper_pairs.json motor yapilandirmasini DEGISTIREMEZ.
+Kuru kosu raporu (bilgi amacli) eski 20 kripto + 20 hisse varsayimiyla test edilir: fixture kendi universe.json'ini yazar.
 """
 from __future__ import annotations
 
@@ -16,7 +17,7 @@ from pathlib import Path
 import pytest
 
 from trader_core import universe as U
-from trader_engine.config import ConfigError, apply_universe_overlay, load_cli_config
+from trader_engine.config import load_cli_config
 
 ROOT = Path(__file__).resolve().parents[2]
 NOW = datetime(2026, 12, 1, 0, 30, tzinfo=timezone.utc)
@@ -39,6 +40,9 @@ def env(tmp_path):
     """Gecici config (gercek config kopyasi) + var (market.sqlite, state.sqlite) dizinleri."""
     cfg = tmp_path / "config"
     shutil.copytree(ROOT / "config", cfg)
+    u = json.loads((cfg / "universe.json").read_text(encoding="utf-8"))      # kuru kosu raporu testleri: eski genis evren varsayimi
+    u.update(n_crypto=20, n_stocks=20, commodities=COMM, stocks_ordered=STOCKS)
+    (cfg / "universe.json").write_text(json.dumps(u), encoding="utf-8")
     var = tmp_path / "var"
     var.mkdir()
     return cfg, var
@@ -172,36 +176,17 @@ def test_no_network_calls(env, tmp_path, monkeypatch):
                    now=NOW) == 0
 
 
-def test_atomic_write_keeps_old_file_on_failure(env, tmp_path, monkeypatch):
-    cfg, var = env
-    _market(var, _all_trading())
-    target = var / "universe" / "paper_pairs.json"
-    target.parent.mkdir(parents=True)
-    target.write_text("ESKI", encoding="utf-8")
-    import trader_engine.fileio as F
-
-    def fail(src, dst):
-        raise OSError("disk dolu (test)")
-    monkeypatch.setattr(F.os, "replace", fail)
-    with pytest.raises(OSError):
-        UR.main(["--apply", "--config-dir", str(cfg), "--var-dir", str(var), "--marketcap", str(_marketcap(tmp_path, []))],
-                now=NOW)
-    assert target.read_text(encoding="utf-8") == "ESKI"
-    assert not [p for p in target.parent.iterdir() if p.name.startswith(".")]
-
-
-def test_apply_writes_valid_overlay_atomically(env, tmp_path):
+def test_apply_refused_and_writes_nothing(env, tmp_path, capsys):
     cfg, var = env
     _market(var, _all_trading())
     rc = UR.main(["--apply", "--config-dir", str(cfg), "--var-dir", str(var), "--marketcap", str(_marketcap(tmp_path, []))],
                  now=NOW)
-    assert rc == 0
-    obj = json.loads((var / "universe" / "paper_pairs.json").read_text(encoding="utf-8"))
-    assert U.validate_overlay(obj)["pairs"] == obj["pairs"]
-    assert len(obj["pairs"]) == 43 and obj["source"] == "marketcap"   # 23.11 kullanici karari: TON cikarildi (SETTLING)
+    assert rc == 1
+    assert "reddedildi" in capsys.readouterr().err
+    assert not (var / "universe").exists()
 
 
-# --- kaplama (config.py) ----------------------------------------------------------------------------------------------
+# --- kaplama dosyasi motor yapilandirmasini degistiremez --------------------------------------------------------------
 
 def _write_overlay(var: Path, pairs, optional, schema=U.SCHEMA):
     (var / "universe").mkdir(parents=True, exist_ok=True)
@@ -209,47 +194,22 @@ def _write_overlay(var: Path, pairs, optional, schema=U.SCHEMA):
         json.dumps({"schema": schema, "pairs": pairs, "optional_pairs": optional}), encoding="utf-8")
 
 
-def test_overlay_applies_in_paper(env):
+def test_overlay_file_cannot_change_pairs(env):
     cfg, var = env
-    pairs = [p if p != "HD/USDT" else "ARM/USDT" for p in json.loads((cfg / "engine.paper.json").read_text())["pairs"]]
-    opt = [p if p != "HD/USDT" else "ARM/USDT" for p in json.loads((cfg / "engine.paper.json").read_text())["optional_pairs"]]
-    _write_overlay(var, pairs, opt)
+    base = load_cli_config(cfg, "learner", "paper")
+    _write_overlay(var, ["BTC/USDT", "ARM/USDT"], ["ARM/USDT"])
     c = load_cli_config(cfg, "learner", "paper")
-    assert "ARM/USDT" in c.pairs and "HD/USDT" not in c.pairs
-    assert "ARM/USDT" in c.optional_pairs
-    assert all("HD/USDT" not in members.pairs for members in c.clusters.values())
+    assert c.pairs == base.pairs and c.optional_pairs == base.optional_pairs and "ARM/USDT" not in c.pairs
+    assert c.clusters == base.clusters and c.cost_overrides == base.cost_overrides
+    (var / "universe" / "paper_pairs.json").write_text("{bozuk json", encoding="utf-8")      # bozuk dosya bile okunmaz
+    assert load_cli_config(cfg, "learner", "paper").pairs == base.pairs
 
 
-def test_overlay_ignored_for_testnet_and_backtest(env):
-    cfg, var = env
-    _write_overlay(var, ["BTC/USDT"], [])        # gecersiz olsa da okunmamali (yalniz paper)
-    raw = {"mode": "testnet", "pairs": ["ETH/USDT"]}
-    assert apply_universe_overlay(raw, var / "universe" / "paper_pairs.json") == raw
-    raw_bt = {"mode": "backtest", "pairs": ["ETH/USDT"]}
-    assert apply_universe_overlay(raw_bt, var / "universe" / "paper_pairs.json") == raw_bt
-
-
-def test_missing_overlay_keeps_engine_paper_json(env):
-    cfg, var = env
-    a = load_cli_config(cfg, "learner", "paper")
-    b = load_cli_config(ROOT / "config", "learner", "paper")
-    assert a.pairs == b.pairs and a.optional_pairs == b.optional_pairs
-
-
-@pytest.mark.parametrize("bad", [
-    "{not json",
-    json.dumps({"schema": "x/1", "pairs": ["BTC/USDT"], "optional_pairs": []}),
-    json.dumps({"schema": U.SCHEMA, "pairs": ["BTC/USDT", "BTC/USDT"], "optional_pairs": []}),
-    json.dumps({"schema": U.SCHEMA, "pairs": ["BTC/USDT"], "optional_pairs": ["ETH/USDT"]}),
-    json.dumps({"schema": U.SCHEMA, "pairs": ["btc-usdt"], "optional_pairs": []}),
-    json.dumps({"schema": U.SCHEMA, "pairs": [], "optional_pairs": []}),
-])
-def test_invalid_overlay_rejected(env, bad):
-    cfg, var = env
-    (var / "universe").mkdir(parents=True)
-    (var / "universe" / "paper_pairs.json").write_text(bad, encoding="utf-8")
-    with pytest.raises(ConfigError):
-        load_cli_config(cfg, "learner", "paper")
+def test_load_cli_config_has_no_universe_parameter():
+    import inspect
+    from trader_engine import config as C
+    assert not hasattr(C, "apply_universe_overlay") and not hasattr(C, "UNIVERSE_FILE")
+    assert "universe_path" not in inspect.signature(C.load_engine_config).parameters
 
 
 def test_validate_overlay_direct():

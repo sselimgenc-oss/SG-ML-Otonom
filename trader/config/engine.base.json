@@ -1,7 +1,7 @@
 {
   "schema": "engine/1",
   "mode": "paper",
-  "pairs": ["BTC/USDT","ETH/USDT","BNB/USDT","SOL/USDT","XRP/USDT","DOGE/USDT","ADA/USDT","TRX/USDT","LINK/USDT","AVAX/USDT"],
+  "pairs": ["BTC/USDT","ETH/USDT","SOL/USDT","XRP/USDT","TRX/USDT"],
   "wallet_start": 1000.0,
   "target_trade_risk": 0.005,
   "cost": {"fill_model": "native", "taker_fee": 0.0005, "slip_entry_bps": 2.0, "slip_exit_bps": 2.0,
@@ -11,7 +11,7 @@
   "record_filtered_candidates": true,
   "stale_factor": 1.0,
   "loop_sleep_s": 5.0, "bar_wait_s": 120.0, "minute_wait_s": 20.0, "reconcile_open_s": 15.0, "reconcile_flat_s": 60.0,
-  "shadow_blocks": ["regime", "r1_disabled", "same_bar_reentry", "tf_15m"],
+  "shadow_blocks": ["regime", "r1_disabled", "same_bar_reentry"],
   "var_dir": "var", "market_db": "var/market.sqlite", "history_dir": "var/history",
   "kill_file": "shared/KILL"
 }

@@ -417,16 +417,20 @@ def test_kagit_canli_ayni_ve_mf1_48_kimlik():
     for k in ("arms",):
         assert p[k] == l[k], k
     lib = [a for a in p["arms"] if a.startswith("MF1-")]
-    beklenen = [f"{s}@{tf}" for s in sorted(a for a in arms.list_arms() if a.startswith("MF1-")) for tf in TFS]
-    assert sorted(lib) == sorted(beklenen) and len(lib) == 48 and len(set(p["arms"])) == len(p["arms"])
+    from evren_destek import config_kollari
+    beklenen = config_kollari(f"{s}@{tf}" for s in sorted(a for a in arms.list_arms() if a.startswith("MF1-")) for tf in TFS)
+    assert sorted(lib) == sorted(beklenen) and len(lib) == 24 and len(set(p["arms"])) == len(p["arms"])   # 26.11: 8 formasyon x (1h,4h,1d)
     for ad in ("engine.paper.json", "engine.live.json"):
         cfg = C.load_cli_config(ROOT / "config", "learner", ad.split(".")[1])
         assert all(a in cfg.arms for a in beklenen)
 
 
 def test_telegram_adlari_tireli_kod():
+    from evren_destek import KALDIRILAN_KURULUM
     from trader_core import tg_sade
     for k in KODLAR:
+        if f"MF1-{k}" in KALDIRILAN_KURULUM:                 # 26.11: kurulum kaldirildi, etiketi de yok
+            continue
         ad = tg_sade.kurulum_adi(f"MF1-{k}@1h")
         assert ad.startswith("Mum: ") and ad != f"MF1-{k}", k
     assert tg_sade.kurulum_adi("MF1-YUTAN") == "Mum: yutan"

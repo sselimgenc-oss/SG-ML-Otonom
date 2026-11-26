@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Aylik kagit evreni guncellemesi (DD-12 WP-16; D-T28). Ag cagrisi YOK.
 
-Varsayilan KURU KOSU (yazmaz). `--apply` ile `var/universe/paper_pairs.json` atomik yazilir (fileio.atomic_write_text).
+SAHIP KARARI: evren 14 cift SABIT (config/engine.{paper,live}.json); hicbir sey bunu otomatik degistiremez. Bu betik yalniz
+KURU KOSU raporu verir (bilgi amacli); `--apply` REDDEDILIR (cikis 1) ve hicbir dosya yazilmaz.
 Kripto siralamasi: `--marketcap FILE` (JSON: {"items": [{"base"|"pair", "market_cap"}]}) verilirse o; verilmezse yedek:
 market DB'deki `bars` tablosunda son 720 saatlik (1h) kapanis*hacim toplami (Binance quote-volume yaklasimi). Yedekte
 evren yalniz market DB'de bar bulunan ciftlerle sinirlidir (yeni listelemeler gorunmez; rapora yazilir).
@@ -22,7 +23,6 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from trader_core import universe as U  # noqa: E402
 from trader_engine.errors import ConfigError  # noqa: E402
-from trader_engine.fileio import atomic_write_text  # noqa: E402
 
 VOLUME_BARS = 720   # 1h bar: 30 gun
 
@@ -119,8 +119,13 @@ def main(argv=None, *, now: datetime | None = None) -> int:
     ap.add_argument("--config-dir", type=Path, default=ROOT / "config")
     ap.add_argument("--var-dir", type=Path, default=ROOT / "var")
     ap.add_argument("--marketcap", type=Path, default=None, help="piyasa degeri JSON (yoksa hacim yedegi)")
-    ap.add_argument("--apply", action="store_true", help="var/universe/paper_pairs.json yaz (varsayilan: yazmaz)")
+    ap.add_argument("--apply", action="store_true", help="REDDEDILIR: evren 14 cift sabittir, kaplama yazilmaz")
     a = ap.parse_args(argv)
+    if a.apply:
+        print("HATA: --apply reddedildi. Evren 14 cift SABIT (sahip karari); aylik evren kaplamasi kaldirildi, "
+              "var/universe/paper_pairs.json yazilmaz. Liste yalniz sahibi tarafindan config/engine.{paper,live}.json'da degistirilir.",
+              file=sys.stderr)
+        return 1
     now = now or datetime.now(timezone.utc)
     try:
         doc, report = build(a.config_dir, a.var_dir, a.marketcap, now)
@@ -128,14 +133,8 @@ def main(argv=None, *, now: datetime | None = None) -> int:
         print(f"HATA: {e}", file=sys.stderr)
         return 2
     print(json.dumps(report, ensure_ascii=False, indent=2))
-    if not a.apply:
-        print("KURU KOSU: hicbir sey yazilmadi (yazmak icin --apply).")
-        return 0
-    target = a.var_dir / "universe" / "paper_pairs.json"
-    atomic_write_text(target, U.dumps(doc))
-    print(f"yazildi: {target}")
+    print("KURU KOSU: hicbir sey yazilmadi (evren sabit; bu rapor yalniz bilgidir).")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

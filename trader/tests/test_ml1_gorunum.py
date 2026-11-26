@@ -6,7 +6,7 @@ import math
 
 import pytest
 
-from ml1_gorunum_destek import BUGUN, ESKI, NOW, kayit, ml1_defter
+from ml1_gorunum_destek import BUGUN, ESKI, NOW, kayit, ml1_defter, ogrenme_defteri
 from trader_core import ledger as L
 from trader_core import ml1_gorunum as MG
 from trader_core import tg_sade as TS
@@ -126,3 +126,30 @@ def test_sinav_sabiti_ve_metinleri():
 def test_iyelik_belirtme_eki():
     assert [f"{n}{TS.iyelik_belirtme(n)}" for n in (1, 2, 3, 6, 9, 10, 20, 61, 100)] == [
         "1'ini", "2'sini", "3'ünü", "6'sını", "9'unu", "10'unu", "20'sini", "61'ini", "100'ünü"]
+
+
+# ----------------------------------------------------------------------------- 26.11: ogrenme asamasi (paket yok, puansiz)
+def test_ogrenme_asamasi_islemleri_ml1_sayilir_coker_yok(tmp_path):
+    p = tmp_path / "l.sqlite"
+    ogrenme_defteri(str(p))
+    d, c, a = _oku(str(p))
+    assert all(MG.skor(x) is None for x in d) and sum(MG.ogrenme_mi(x) for x in d) == 4
+    assert all(MG.ml1_mi(x) for x in d if MG.ogrenme_mi(x)) and not MG.ml1_mi(None) and not MG.ml1_mi(next(x for x in d if not MG.ogrenme_mi(x)))
+    o = MG.ml1_ozet(d, c, a, NOW)
+    assert o["eleme"]["bugun"]["puanlanan"] == 0 and o["esik"] is None            # puan yok: suzme istatistigi bos
+    assert o["ogrenme"]["bugun"] == {"aday": 4, "islem": 3} and o["ogrenme"]["7g"] == {"aday": 4, "islem": 3}
+    z = {r["kod"]: r for r in o["zd"]}
+    assert z["4h"]["n"] == 1 and z["1h"]["n"] == 1 and z["1d"]["acik"] == 1       # kapanan ogrenme islemleri ML1 olarak sayilir; acik olan acik
+    assert o["toplam"]["n"] == 2 and o["eski"]["n"] == 1                           # ML1 oncesi puansiz ESKI islem ayri kalir
+    g = MG.gruplar(d, c)
+    assert {r["grup"] for r in g["ml1"]} == {"Tek bacaklı geri çekilme", "Yatay piyasa kenarı"}      # ogrenme islemleri ML1 grup tablosunda
+    assert "Kaldırılan kollar (eski)" not in {r["grup"] for r in g["ml1"]}
+    du = MG.durum(d, NOW, True)
+    assert du["renk"] == "sari" and "Öğrenme aşaması" in du["metin"]
+
+
+def test_suzme_asamasi_durumu_ogrenmeyi_gecer(tmp_path):
+    p = tmp_path / "l.sqlite"
+    ml1_defter(str(p))
+    d, c, a = _oku(str(p))
+    assert MG.durum(d, NOW, True)["renk"] == "yesil"

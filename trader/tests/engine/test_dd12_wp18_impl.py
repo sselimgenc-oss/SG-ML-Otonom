@@ -111,10 +111,10 @@ FROZEN_SHA256 = {
     "src/trader_core/regime.py": "1c68c7624ad39cc9ef883fd5e2953acc1ed26dfb03513b55e1b19413303d7ecf",
     "src/trader_core/indicators.py": "8ebd05613f4845cb0ed930327adae0363eff43699d9091b373f0dc92af8cb84a",   # 24.11 kullanici karari: formasyon kutuphanesi (GF1/IN1 gostergeleri eklendi; mevcut fonksiyonlar ayni)
     "src/trader_engine/holdout.py": "c03925100fe903bf11bb4fcb692cf27255a138220be552bee9b6ffae28fec475",
-    "config/engine.base.json": "26f5664f630f44bf594eb58e4efa881b2e71890ecb6d11ec80ad9fe2b3b8b361",   # 25.11 kullanici karari: denetim kalan maddeler (start_delay_s kalkti); 24.11 kullanici karari: veto ve C1 artiklari silindi;   # 24.11 kullanici karari: ML filtreleri silindi (ml_mode/ml_model_path anahtarlari kalkti)
+    "config/engine.base.json": "c177f2a9410d0f22a8b7f160122d9e72d40749384495687e98c8f21d94aaafdf",   # 25.11 kullanici karari: denetim kalan maddeler (start_delay_s kalkti); 24.11 kullanici karari: veto ve C1 artiklari silindi;   # 24.11 kullanici karari: ML filtreleri silindi (ml_mode/ml_model_path anahtarlari kalkti)
     "config/engine.learner.json": "30ca2842c40cacafbf6cdd90c9e6f1f54fc62b9a9ec913476d1399ac5352cb12",
     "config/engine.testnet.json": "eff9eb61dcd9018bf86c195a02f7f25f08960473e705cbd114e104c26a956c9c",
-    "config/engine.live.json": "1dcdc78cae2e1961383db7f02871c6f5ade8978d8df092b8af77468c2db0cb03",   # 25.11 sadelestirme 3/4: korelasyon/kayip_freni/toplam_buyukluk_kat/uzun_yon ve kume max_positions kaldirildi; 25.11: M1 kolu ve kol/aile basina pozisyon tavani kaldirildi (279 kol); HB1 + DL1 kolu kaldirildi; 24.11 kullanici karari: formasyon kutuphanesi birlesik (MF1 48 + GF1 52 + IN1 66 + PA2 29 + PA varyantlari 56 kol; max_positions 36)
+    "config/engine.live.json": "345a05ce3ca13baf7c1c0e2c8cbdef72b3f4be4017f981a1916d42ae1617eed7",   # 25.11 sadelestirme 3/4: korelasyon/kayip_freni/toplam_buyukluk_kat/uzun_yon ve kume max_positions kaldirildi; 25.11: M1 kolu ve kol/aile basina pozisyon tavani kaldirildi (279 kol); HB1 + DL1 kolu kaldirildi; 24.11 kullanici karari: formasyon kutuphanesi birlesik (MF1 48 + GF1 52 + IN1 66 + PA2 29 + PA varyantlari 56 kol; max_positions 36)
     #   # 24.11 kullanici karari: DL1 dort zaman dilimi acik; onceki 24.11 ML filtreleri silindi; onceki 23.11 asama B + uzun_yon + HB1 (canli = kagit)
     "src/trader_engine/order_manager.py": "7bd0ff0ca3173c7e8baf0ab05dde04a8b1c472d4510c4922d142220d4ae02538",   # 24.11 kullanici kararlari: hedef emir + risk 0.12/DL1 4 + veto/C1 silme (birlesik pin)
     "research/s2_run.py": "66710418f9be36225b757f9d4a1158b1e9093db5f7df131572c639e3958b21a7",
@@ -156,11 +156,11 @@ def test_overlay_document_carries_retired():
     assert doc["retired_pairs"] == ["XAU/USDT"] and U.validate_overlay(doc)["retired_pairs"] == ["XAU/USDT"]
 
 
-def test_config_loader_reads_retired_from_overlay(tmp_path):
-    f = tmp_path / "paper_pairs.json"
-    f.write_text(json.dumps(_paper_overlay(retired=["XAU/USDT"])), encoding="utf-8")
-    cfg = load_engine_config(ROOT / "config/engine.base.json", ROOT / "config/engine.learner.json",
-                             overlay_path=ROOT / "config/engine.paper.json", universe_path=f)
+def test_config_loader_reads_retired_from_config(tmp_path):
+    """`retired_pairs` yalniz yapilandirma katmanindan okunur (otomatik evren kaplamasi yok)."""
+    f = tmp_path / "ek.json"
+    f.write_text(json.dumps({"retired_pairs": ["XAU/USDT"]}), encoding="utf-8")
+    cfg = load_engine_config(ROOT / "config/engine.base.json", ROOT / "config/engine.paper.json", overlay_path=f)
     assert cfg.retired_pairs == ("XAU/USDT",) and "XAU/USDT" in cfg.pairs     # evrende kalir, yeni giris kapali
     plain = load_engine_config(ROOT / "config/engine.base.json", ROOT / "config/engine.learner.json",
                                overlay_path=ROOT / "config/engine.paper.json")
@@ -183,7 +183,7 @@ def test_skip_reason_has_no_new_ledger_value():
 
 
 # ---- (d) kurulum, birimler, sunucu belgesi --------------------------------------------------------------------------
-DD12_TIMERS = ("trader-weekly-summary.timer", "trader-universe.timer",
+DD12_TIMERS = ("trader-weekly-summary.timer",
                "trader-counterfactual@learner.timer", "trader-exit-counterfactual@learner.timer")
 
 
@@ -200,6 +200,14 @@ def test_install_removes_veto_and_twin_units():
     assert not list(DEPLOY.glob("trader-veto.*")) and not list(DEPLOY.glob("*twin*"))
 
 
+def test_universe_timer_retired_not_enabled():
+    """Evren 14 cift sabit: trader-universe.* birimi yok, install.sh durdurur/devre disi birakir, etkinlestirmez."""
+    txt = (DEPLOY / "install.sh").read_text(encoding="utf-8")
+    assert not list(DEPLOY.glob("trader-universe.*"))
+    assert not re.search(r"enable_now\s+trader-universe", txt)
+    assert re.search(r"trader-universe\.timer trader-universe\.service; do", txt)
+
+
 def test_dd12_timer_units_exist_in_deploy():
     txt = (DEPLOY / "install.sh").read_text(encoding="utf-8")
     for t in DD12_TIMERS:
@@ -209,5 +217,5 @@ def test_dd12_timer_units_exist_in_deploy():
 def test_owner_guide_covers_steps():
     guide = (ROOT / "docs/motor/dd12-sunucu-adimlari.md").read_text(encoding="utf-8")
     for needle in ("COMMIT=", "install.sh", "outbox-quarantine", "--dry-run", "--apply", "init-ledger", "strategy_update",
-                   "price_action_lab_ml", "trader-universe", "8787", "--env testnet"):
+                   "price_action_lab_ml", "8787", "--env testnet"):
         assert needle in guide, f"sunucu belgesinde eksik: {needle}"

@@ -485,9 +485,10 @@ def test_kagit_canli_ayni_ve_in1_66_kimlik_toplam_203():
     for k in ("arms",):
         assert p[k] == l[k], k
     lib = [a for a in p["arms"] if a.startswith("IN1-")]
-    beklenen = [f"{s}@{tf}" for s in sorted(a for a in arms.list_arms() if a.startswith("IN1-")) for tf in arms.find_arm(s).TIMEFRAMES]
-    assert sorted(lib) == sorted(beklenen) and len(lib) == 66 and len(set(p["arms"])) == len(p["arms"]) == 279   # birlesik: + PA2 29 + PA varyantlari 56
-    assert "IN1-VWAP@4h" not in lib and "IN1-VWAP@15m" in lib and "IN1-VWAP@1h" in lib
+    from evren_destek import config_kollari
+    beklenen = config_kollari(f"{s}@{tf}" for s in sorted(a for a in arms.list_arms() if a.startswith("IN1-")) for tf in arms.find_arm(s).TIMEFRAMES)
+    assert sorted(lib) == sorted(beklenen) and len(lib) == 49 and len(set(p["arms"])) == len(p["arms"]) == 162   # 26.11: 15m giris kolu yok; IN1 66 -> 49 kol
+    assert "IN1-VWAP@4h" not in lib and "IN1-VWAP@15m" not in lib and "IN1-VWAP@1h" in lib
     for ad in ("engine.paper.json", "engine.live.json"):
         cfg = C.load_cli_config(ROOT / "config", "learner", ad.split(".")[1])
         assert all(a in cfg.arms for a in beklenen)

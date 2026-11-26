@@ -270,7 +270,7 @@ def test_h2_yari_ayni_giris_ve_exit_modes(short):
     beklenen_yon(r, short, stop_g)
     assert np.isnan(r["planned_target"]) and arms.exit_mode("H2-YARI") == "trail"
     cfg = json.loads((ROOT / "config" / "engine.paper.json").read_text(encoding="utf-8"))["exit_modes"]
-    assert cfg["H2-YARI"]["partial"] == {"trigger_r": 2.0, "frac": 0.5} and cfg["default"]["partial"] is True
+    assert "H2-YARI" not in cfg and cfg["default"]["partial"] is True      # 26.11 sahip karari: H2-YARI config'ten kaldirildi (modul yerinde)
 
 
 # ------------------------------------------------------------------------------------------------ R1 varyantlari (gercek R1 yolu)
@@ -508,20 +508,24 @@ def _cfg(ad):
     return json.loads((ROOT / "config" / ad).read_text(encoding="utf-8"))
 
 
-def test_kagit_canli_ayni_ve_56_kol():
+def test_kagit_canli_ayni_ve_15_kol():
     p, l = _cfg("engine.paper.json"), _cfg("engine.live.json")
     for k in ("arms", "exit_modes"):
         assert p[k] == l[k], k
-    beklenen = [f"{s}@{tf}" for s in VARYANTLAR for tf in TFS]
-    assert all(a in p["arms"] for a in beklenen) and len(beklenen) == 56 and len(set(p["arms"])) == len(p["arms"])
+    from evren_destek import config_kollari
+    beklenen = config_kollari(f"{s}@{tf}" for s in VARYANTLAR for tf in TFS)       # 26.11: 9 varyant kaldirildi, 15m yok: 5 x 3
+    assert all(a in p["arms"] for a in beklenen) and len(beklenen) == 15 and len(set(p["arms"])) == len(p["arms"])
     for ad in ("engine.paper.json", "engine.live.json"):
         cfg = C.load_cli_config(ROOT / "config", "learner", ad.split(".")[1])
         assert all(a in cfg.arms for a in beklenen)
-        assert "H2-YARI" in cfg.exit_modes
+        assert "H2-YARI" not in cfg.exit_modes
 
 
 def test_telegram_adlari_varyant():
     from trader_core import tg_sade
+    from evren_destek import KALDIRILAN_KURULUM
     for ad in VARYANTLAR:
+        if ad in KALDIRILAN_KURULUM:                         # 26.11: kurulum kaldirildi, etiketi de yok
+            continue
         assert tg_sade.kurulum_adi(f"{ad}@1h") != ad, ad
-    assert "Trend kırılımı" in tg_sade.kol_adi("TF1-HACIM@1h")
+    assert "Sıkışma kırılımı" in tg_sade.kol_adi("S1-OLCULU@1h")

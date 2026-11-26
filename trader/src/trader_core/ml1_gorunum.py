@@ -19,35 +19,32 @@ TR = timezone(timedelta(hours=3))
 # kurulum -> fikir grubu (trader_ml/ml1/groups.py::_GRUP_KURULUM ile birebir ayni olmali; testle sinanir)
 GRUP_KURULUM: dict[str, tuple[str, ...]] = {
     "PULLBACK_1LEG": ("T1", "T1-GERI3", "T1-SEVIYE", "IN1-MAGERI", "IN1-FIBO"),
-    "PULLBACK_2LEG": ("H2", "H2-MINI", "H2-YARI"),
-    "TREND_BREAKOUT": ("TF1", "TF1-FITIL", "TF1-HACIM", "IN1-HACIM", "MF1-MARUBOZU"),
-    "RANGE_EDGE": ("R1", "R1-ALT", "R1-ERKEN", "R1-HA", "GF1-YATAY"),
-    "LEVEL_RETEST": ("B1", "B1-BOLGE", "B1-MUM", "GF1-RETEST"),
-    "FALSE_BREAK": ("F1", "F1-IKINCI", "GF1-SAHTE", "MF1-ICSAHTE"),
-    "SQUEEZE_BREAK": ("S1", "S1-HACIM", "S1-OLCULU"),
+    "PULLBACK_2LEG": ("H2", "H2-MINI"),
+    "TREND_BREAKOUT": ("TF1", "IN1-HACIM"),
+    "RANGE_EDGE": ("R1", "GF1-YATAY"),
+    "LEVEL_RETEST": ("B1", "B1-BOLGE", "GF1-RETEST"),
+    "FALSE_BREAK": ("F1", "GF1-SAHTE", "MF1-ICSAHTE"),
+    "SQUEEZE_BREAK": ("S1", "S1-OLCULU"),
     "CHART_CONT": ("GF1-UCGEN", "GF1-FLAMA", "GF1-BAYRAK"),
     "CHART_REVERSAL": ("GF1-IKILI", "GF1-UCLU", "GF1-OBO", "GF1-KUPA", "GF1-KAMA"),
     "CHANNEL_TLINE": ("GF1-KANAL", "GF1-TREND", "PA2-TCIZGI"),
-    "CANDLE_PIN": ("MF1-PINBAR", "MF1-TERSCEKIC", "MF1-CIMBIZ"),
+    "CANDLE_PIN": ("MF1-PINBAR", "MF1-CIMBIZ"),
     "CANDLE_ENGULF": ("MF1-YUTAN", "MF1-DELICI", "MF1-DISBAR"),
-    "CANDLE_STAR3": ("MF1-YILDIZ", "MF1-UCASKER"),
     "CANDLE_INSIDE": ("MF1-HARAMI", "MF1-ICCUBUK"),
     "OSC_REVERSAL": ("IN1-RSI", "IN1-RSI2", "IN1-RSIDONUS", "IN1-STOK", "IN1-UYUMSUZ"),
     "MA_CROSS": ("IN1-MAKESISIM", "IN1-HIZLIMA", "IN1-TK", "IN1-MACD"),
     "MA_TREND_FLIP": ("IN1-FIYATMA", "IN1-KUMO"),
     "BAND_VWAP": ("IN1-BOLL", "IN1-BOLLKIR", "IN1-VWAP"),
-    "SD_ZONE": ("PA2-BOLGE", "PA2-EMIRBLOK", "PA2-FVG", "PA2-SEVIYE", "PA2-ONCEKI"),
-    "EXHAUSTION": ("PA2-TUKENIS", "PA2-UCVURUS"),
+    "SD_ZONE": ("PA2-BOLGE", "PA2-EMIRBLOK", "PA2-FVG", "PA2-ONCEKI"),
 }
 GRUP_AD: dict[str, str] = {
     "PULLBACK_1LEG": "Tek bacaklı geri çekilme", "PULLBACK_2LEG": "İki bacaklı geri çekilme", "TREND_BREAKOUT": "Trend kırılımı",
     "RANGE_EDGE": "Yatay piyasa kenarı", "LEVEL_RETEST": "Seviye yeniden testi", "FALSE_BREAK": "Sahte kırılım",
     "SQUEEZE_BREAK": "Sıkışma kırılımı", "CHART_CONT": "Grafik: devam formasyonu", "CHART_REVERSAL": "Grafik: dönüş formasyonu",
     "CHANNEL_TLINE": "Kanal / trend çizgisi", "CANDLE_PIN": "Mum: pin bar ailesi", "CANDLE_ENGULF": "Mum: yutan ailesi",
-    "CANDLE_STAR3": "Mum: yıldız / üç asker", "CANDLE_INSIDE": "Mum: iç çubuk ailesi",
+    "CANDLE_INSIDE": "Mum: iç çubuk ailesi",
     "OSC_REVERSAL": "Gösterge: aşırı satımdan dönüş", "MA_CROSS": "Gösterge: ortalama kesişimi",
     "MA_TREND_FLIP": "Gösterge: trend dönüşü", "BAND_VWAP": "Gösterge: bant / VWAP", "SD_ZONE": "Arz-talep bölgesi",
-    "EXHAUSTION": "Tükeniş",
 }
 _SETUP_GRUP: dict[str, str] = {s: g for g, ss in GRUP_KURULUM.items() for s in ss}
 ESKI_GRUP_AD = "Kaldırılan kollar (eski)"
@@ -63,6 +60,7 @@ KANITLI_ZD = ("4h", "1d")
 LIMIT_NEDENLERI = ("risk_denied", "max_positions", "entry_gate_closed")
 AYNI_OLAY = "ml1_ayni_olay"
 PAKET_YOK = "ml1_paket_yok"
+OGRENME = "ogrenme"                            # features.ml1_neden: ogrenme asamasi (paket yok; aday puansiz gecer; ml1_skor yok)
 
 
 # ----------------------------------------------------------------------------- adlar
@@ -101,6 +99,16 @@ def _feat(d: Any, key: str) -> Any:
 def skor(d: Any) -> float | None:
     """Kararin ML1 puani (sonlu sayi degilse None: puanlanmamis)."""
     return _f(_feat(d, "ml1_skor"))
+
+
+def ogrenme_mi(d: Any) -> bool:
+    """Kayit ogrenme asamasinda (puansiz) ML1 kapisindan gecmis mi (`features.ml1_neden == "ogrenme"`)."""
+    return _feat(d, "ml1_neden") == OGRENME
+
+
+def ml1_mi(d: Any) -> bool:
+    """ML1 kapisindan gecen kayit: puanli (suzme asamasi) YA DA ogrenme asamasi. Islem sayimlari bununla ayrilir (eski kol kaydi degil)."""
+    return d is not None and (skor(d) is not None or ogrenme_mi(d))
 
 
 def _nedenler(d: Any) -> set[str]:
@@ -156,11 +164,11 @@ def ml1_ozet(decisions: Sequence[Any], closed: Sequence[Any], open_: Sequence[An
         if t.exit_ts is None:
             continue
         d = dec.get(t.decision_id)
-        (ml1_islem if d is not None and skor(d) is not None else eski).append(t)
+        (ml1_islem if ml1_mi(d) else eski).append(t)
     acik_tf: dict[str, int] = {}
     for t in open_:
         d = dec.get(t.decision_id)
-        if d is not None and skor(d) is not None:
+        if ml1_mi(d):
             tf = _tf_of(t, d)
             acik_tf[tf] = acik_tf.get(tf, 0) + 1
     zd = []
@@ -177,8 +185,13 @@ def ml1_ozet(decisions: Sequence[Any], closed: Sequence[Any], open_: Sequence[An
         return out
     ozet = ayri(ml1_islem)
     ilk7 = _gun_basi(now, 6)
+
+    def ogrenme(a: datetime) -> dict:
+        """Ogrenme asamasinda (puansiz) kapidan gecen adaylar ve bunlardan acilan islemler."""
+        sel = [d for d in decisions if ogrenme_mi(d) and d.bar_close_ts >= a]
+        return {"aday": len(sel), "islem": sum(1 for d in sel if d.final_action == "entered")}
     tum = _istatistik(ml1_islem)
-    return {"esik": esik,
+    return {"esik": esik, "ogrenme": {"bugun": ogrenme(_gun_basi(now)), "7g": ogrenme(ilk7)},
             "eleme": {"bugun": eleme(_gun_basi(now)), "7g": eleme(_gun_basi(now, 6))},
             "zd": zd, "zd_ozet": ozet, "zd_ozet_7g": ayri([t for t in ml1_islem if t.exit_ts >= ilk7]),
             "toplam": {k: tum[k] for k in ("n", "kazanma", "net_r", "kz")},
@@ -219,7 +232,7 @@ def gruplar(decisions: Sequence[Any], closed: Sequence[Any]) -> dict:
     yalniz `tumu` icinde ve en sonda."""
     dec = {d.id: d for d in decisions}
     kap = [(t, dec.get(t.decision_id)) for t in closed if t.exit_ts is not None]
-    ml1 = [(t, d) for t, d in kap if d is not None and skor(d) is not None]
+    ml1 = [(t, d) for t, d in kap if ml1_mi(d)]
     return {"ml1": _grup_satirlari(ml1, eski_ayri=False), "tumu": _grup_satirlari(kap, eski_ayri=True)}
 
 
@@ -233,6 +246,8 @@ def durum(decisions: Sequence[Any], now: datetime, aktif: Any) -> dict:
         return {"metin": "Sorun: ML1 modeli yüklenemedi; kural adayları atlanıyor", "renk": "kirmizi"}
     if any(skor(d) is not None for d in son24):
         return {"metin": "Açık: adayları ML1 seçiyor", "renk": "yesil"}
+    if any(ogrenme_mi(d) for d in son24):
+        return {"metin": "Öğrenme aşaması: model henüz yok, adaylar süzülmeden alınıyor", "renk": "sari"}
     return {"metin": "Açık: son 24 saatte puanlanacak aday çıkmadı", "renk": "sari"}
 
 

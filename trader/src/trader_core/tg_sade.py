@@ -115,12 +115,12 @@ _TF_TR = {"15m": "15 dakika", "1h": "1 saat", "4h": "4 saat", "1d": "1 gün", "5
 KURULUM_AD = {"T1": "Trend geri çekilmesi", "R1": "Yatay piyasa kenarı", "TF1": "Trend kırılımı", "B1": "Kırılım yeniden testi",
               "H2": "İki bacaklı geri çekilme", "S1": "Sıkışma kırılımı", "F1": "Sahte kırılım dönüşü",
               # 24.11 kullanici karari: formasyon kutuphanesi (MF1 mum formasyonlari)
-              "MF1-YILDIZ": "Mum: sabah yıldızı", "MF1-UCASKER": "Mum: üç asker", "MF1-DELICI": "Mum: delici çizgi",
+              "MF1-DELICI": "Mum: delici çizgi",
               "MF1-ICSAHTE": "Mum: iç çubuk sahte kopuş", "MF1-DISBAR": "Mum: dış bar", "MF1-YUTAN": "Mum: yutan",
-              "MF1-HARAMI": "Mum: harami", "MF1-TERSCEKIC": "Mum: ters çekiç", "MF1-CIMBIZ": "Mum: cımbız dip",
-              "MF1-PINBAR": "Mum: pin bar", "MF1-ICCUBUK": "Mum: iç çubuk", "MF1-MARUBOZU": "Mum: marubozu",
+              "MF1-HARAMI": "Mum: harami", "MF1-CIMBIZ": "Mum: cımbız dip",
+              "MF1-PINBAR": "Mum: pin bar", "MF1-ICCUBUK": "Mum: iç çubuk",
               # 24.11 kullanici karari: PA varyantlari (ana kol kimligi + varyant)
-              "B1-BOLGE": "Kırılım yeniden testi: bölge", "B1-MUM": "Kırılım yeniden testi: pin bar / yutan", "F1-IKINCI": "Sahte kırılım: ikinci süpürme", "H2-MINI": "İki bacaklı geri çekilme: mini çizgi", "H2-YARI": "İki bacaklı geri çekilme: yarım kâr", "R1-ALT": "Yatay kenar: bandın ilk üçte biri", "R1-ERKEN": "Yatay kenar: erken zaman stopu", "R1-HA": "Yatay kenar: Heikin Ashi teyidi", "S1-HACIM": "Sıkışma kırılımı: hacim onayı", "S1-OLCULU": "Sıkışma kırılımı: ölçülü hedef", "T1-GERI3": "Trend geri çekilmesi: 3 düşen tepe", "T1-SEVIYE": "Trend geri çekilmesi: eski direnç", "TF1-FITIL": "Trend kırılımı: üst fitilsiz", "TF1-HACIM": "Trend kırılımı: hacim onayı",
+              "B1-BOLGE": "Kırılım yeniden testi: bölge", "H2-MINI": "İki bacaklı geri çekilme: mini çizgi", "S1-OLCULU": "Sıkışma kırılımı: ölçülü hedef", "T1-GERI3": "Trend geri çekilmesi: 3 düşen tepe", "T1-SEVIYE": "Trend geri çekilmesi: eski direnç",
               # 24.11 kullanici karari: formasyon kutuphanesi (GF1 grafik + IN1 gosterge)
               "GF1-OBO": "Grafik: ters omuz baş omuz",
               "GF1-UCLU": "Grafik: üçlü dip",
@@ -154,8 +154,8 @@ KURULUM_AD = {"T1": "Trend geri çekilmesi", "R1": "Yatay piyasa kenarı", "TF1"
               "IN1-BOLL": "Gösterge: Bollinger alt bant dönüşü",
               # 24.11 kullanici karari: formasyon kutuphanesi (PA2 price action formasyonlari)
               "PA2-EMIRBLOK": "PA: emir bloğu", "PA2-BOLGE": "PA: arz/talep bölgesi", "PA2-FVG": "PA: değer boşluğu",
-              "PA2-ONCEKI": "PA: önceki dönem dibi", "PA2-TCIZGI": "PA: trend çizgisi", "PA2-SEVIYE": "PA: seviyede mum",
-              "PA2-UCVURUS": "PA: üç çizgi vuruşu", "PA2-TUKENIS": "PA: günlük tükeniş"}
+              "PA2-ONCEKI": "PA: önceki dönem dibi", "PA2-TCIZGI": "PA: trend çizgisi",
+              }
 
 
 def kurulum_adi(setup: Any) -> str:

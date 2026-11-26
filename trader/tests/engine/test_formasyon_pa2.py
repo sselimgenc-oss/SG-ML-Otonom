@@ -426,8 +426,9 @@ def test_kagit_canli_ayni_ve_pa2_29_kimlik():
     for k in ("arms",):
         assert p[k] == l[k], k
     lib = [a for a in p["arms"] if a.startswith("PA2-")]
-    beklenen_ids = [f"PA2-{k}@{tf}" for k in KODLAR for tf in TFS[k]]
-    assert sorted(lib) == sorted(beklenen_ids) and len(lib) == 29 and len(set(p["arms"])) == len(p["arms"])
+    from evren_destek import config_kollari
+    beklenen_ids = config_kollari(f"PA2-{k}@{tf}" for k in KODLAR for tf in TFS[k])
+    assert sorted(lib) == sorted(beklenen_ids) and len(lib) == 14 and len(set(p["arms"])) == len(p["arms"])
     for ad in ("engine.paper.json", "engine.live.json"):
         cfg = C.load_cli_config(ROOT / "config", "learner", ad.split(".")[1])
         assert all(a in cfg.arms for a in beklenen_ids)
@@ -435,5 +436,8 @@ def test_kagit_canli_ayni_ve_pa2_29_kimlik():
 
 def test_telegram_adlari():
     from trader_core import tg_sade
+    from evren_destek import KALDIRILAN_KURULUM
     for k in KODLAR:
+        if f"PA2-{k}" in KALDIRILAN_KURULUM:                 # 26.11: kurulum kaldirildi, etiketi de yok
+            continue
         assert tg_sade.kurulum_adi(f"PA2-{k}@1h").startswith("PA: ") and tg_sade.kurulum_adi(f"PA2-{k}@1h") != f"PA2-{k}"

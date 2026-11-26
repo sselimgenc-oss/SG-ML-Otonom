@@ -1539,7 +1539,7 @@ def test_S15_twin_removed_and_base_has_four():
     base, twin = TRADER / "config" / "engine.base.json", TRADER / "config" / "engine.twin.json"
     assert not twin.exists()                      # DD-12: ikiz kaldirildi (kagit yapilandirmasinda shadow_blocks bos: engine.paper.json)
     cfg_b = load_engine_config(base, TRADER / "config" / "engine.learner.json")
-    assert set(cfg_b.shadow_blocks) == {"regime", "r1_disabled", "same_bar_reentry", "tf_15m"}
+    assert set(cfg_b.shadow_blocks) == {"regime", "r1_disabled", "same_bar_reentry"}
 
 
 def test_S16_view_final_action_and_decision_events_check(tmp_path):

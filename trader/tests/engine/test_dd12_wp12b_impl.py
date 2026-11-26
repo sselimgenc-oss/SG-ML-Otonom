@@ -100,7 +100,7 @@ def test_registry_discovers_new_setups():
 
 def test_paper_config_lists_new_arms():
     cfg = json.loads((REPO / "config" / "engine.paper.json").read_text(encoding="utf-8"))
-    want = {f"{s_}@{tf}" for s_ in ("F1", "S1", "H2") for tf in ("15m", "1h", "4h", "1d")}
+    want = {f"{s_}@{tf}" for s_ in ("F1", "S1", "H2") for tf in ("1h", "4h", "1d")}      # 26.11 sahip karari: 15m giris kolu yok
     arms = cfg["arms"]
     assert len(arms) == len(set(arms))
     assert want <= set(arms)

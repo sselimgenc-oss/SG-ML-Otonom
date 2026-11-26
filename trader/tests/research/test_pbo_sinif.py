@@ -60,10 +60,10 @@ def test_pair_classes_from_config(tmp_path):
         S.pair_classes(p)
 
 
-def test_real_config_has_43_pairs_in_three_classes():   # 23.11 kullanici karari: TON cikarildi (SETTLING)
+def test_real_config_has_14_pairs_in_three_classes():   # 26.11 sahip karari: evren 14 cift sabit
     pc = S.pair_classes()
-    assert len(pc) == 43 and {v for v in pc.values()} == set(S.CLASSES)
-    assert sum(v == "kripto" for v in pc.values()) == 19 and sum(v == "emtia" for v in pc.values()) == 4
+    assert len(pc) == 14 and {v for v in pc.values()} == set(S.CLASSES)
+    assert sum(v == "kripto" for v in pc.values()) == 5 and sum(v == "emtia" for v in pc.values()) == 2
 
 
 def test_section_replaced_idempotently(tmp_path):

@@ -210,7 +210,7 @@ def test_script_main_end_to_end_with_fake_client(tmp_path):
     n = sqlite3.connect(db).execute("SELECT COUNT(*) FROM positioning_5m").fetchone()[0]
     assert 8000 < n < 9000          # kilit ACIK (23.11.2026): 30 gunluk geri pencere (~8640 satir) kilitli doneme dusse de tam yazilir
     pairs, mdb = RUN.load_pairs_and_db(ROOT / "config")
-    assert len(pairs) == 10 and mdb.endswith("trader/var/market.sqlite")
+    assert len(pairs) == 5 and mdb.endswith("trader/var/market.sqlite")
 
 
 def test_public_endpoints_only():

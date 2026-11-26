@@ -1,6 +1,6 @@
 """ML1 egitim/hizmet paritesi GERCEK gecmiste (CI degil; veri CI'da yok).
 
-Kagit motoru (HistoricalSource, tum kural kollari 15m/1h/4h/1d, ML1 acik, tohum paket) gecmisin son N gununde kosulur; canli hesaplanan
+Kagit motoru (HistoricalSource, tum kural kollari 15m/1h/4h/1d, ML1 acik, ogrenilmis paket: --package) gecmisin son N gununde kosulur; canli hesaplanan
 ozellik/puanlar ayni adaylar icin cevrimdisi hatla (scan + build_features(TUM gecmis mumlari) + score) karsilastirilir.
 Kullanim: cd trader && PYTHONPATH=src python3 research/ml1/serve_parity_real.py --hist <dizin> --pairs BTC/USDT,SOL/USDT,XAU/USDT --days 7 [--cold]
 Cikti: ozellik grubu basina (pa_/reg_/vol_/conf_/turetilen) en buyuk mutlak fark, puan farki, aday kumesi esitligi, 0.58 karar cevirmeleri."""
@@ -59,6 +59,7 @@ def offline(hist: Path, pkg: dict, pairs, arms, after) -> pd.DataFrame:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--hist", required=True)
+    ap.add_argument("--package", required=True, help="parite icin kullanilacak ML1 paketi (depoda tohum paket YOK; ornek: var/learner/models/ml1/ml1_package.json)")
     ap.add_argument("--pairs", default="BTC/USDT,SOL/USDT,XAU/USDT")
     ap.add_argument("--days", type=float, default=7)
     ap.add_argument("--cold", action="store_true", help="tamponu tohumlama (soguk baslangic)")
@@ -67,7 +68,7 @@ def main() -> int:
     hist = Path(a.hist)
     pairs = a.pairs.split(",")
     Engine._startup_gate = lambda self: None
-    seed = json.loads(T.SEED_PKG.read_text(encoding="utf-8"))
+    seed = json.loads(Path(a.package).read_text(encoding="utf-8"))
     thr = float(seed["threshold"])
     arms = tuple(G.rule_arm_ids())
     last = max(pd.read_feather(hist / (p.replace("/", "_") + "_USDT-15m-futures.feather"))["date"].max() for p in pairs)
@@ -82,7 +83,7 @@ def main() -> int:
     kw = dict(pairs=tuple(pairs), optional_pairs=tuple(p for p in pairs if p in cfg0.optional_pairs), clusters=clusters,
               cost_overrides={p: cfg0.cost_overrides[p] for p in pairs if p in cfg0.cost_overrides}, arms=arms, var_dir=str(tmp / "var"),
               kill_file=str(tmp / "KILL"), pause_file=str(tmp / "PAUSE"), market_db=str(tmp / "m.sqlite"), history_dir=str(tmp / "h"),
-              ml1={"aktif": True, "paket_yolu": str(tmp / "yok.json"), "tohum_yolu": str(T.SEED_PKG)})
+              ml1={"aktif": True, "paket_yolu": str(a.package)})
     # canli yapilandirmanin gercek kapi/risk ayarlari korunur (T.make_cfg degil): yalniz evren daraltilir
     from trader_engine import engine as E
     from trader_engine.clock import SimClock

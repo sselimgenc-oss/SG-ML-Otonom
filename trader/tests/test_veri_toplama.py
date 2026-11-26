@@ -167,10 +167,10 @@ def test_piyasa_ban_durumunda_istek_yok(tmp_path, monkeypatch):
     assert (tmp_path / "var" / "veri" / "piyasa" / "oi" / "BTCUSDT.jsonl").exists()
 
 
-def test_gercek_yapilandirmada_19_kripto_cifti():
+def test_gercek_yapilandirmada_5_kripto_cifti():
     m = _betik("piyasa_veri_run")
     pairs, _ = m.kripto_ciftleri(ROOT / "config")
-    assert len(pairs) == 19 and "BTC/USDT" in pairs and "NVDA/USDT" not in pairs
+    assert len(pairs) == 5 and "BTC/USDT" in pairs and "NVDA/USDT" not in pairs
 
 
 # ---------------------------------------------------------------- koruma: karar girdisi degil

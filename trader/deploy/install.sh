@@ -496,10 +496,12 @@ fi
 # 24.11 kullanici karari: AI veto ve C1 artiklari tamamen silindi. 25.11: haber sinyali (HB1) isi de kaldirildi (trader-haber-sinyal.*);
 # 25.11 sahip karari: ders sistemi (trader-lesson.*) ve gece islem notu (trader-notes.*) kaldirildi, ogrenme ML1'e tasindi. Eski kurulumdaki birimler/dosyalar burada temizlenir
 # (her adim varlik kontrollu ve idempotent; defter/state dosyalarina DOKUNULMAZ, shared/veto/ okunmaz ve silinmez).
+# Sahip karari: evren 14 cift SABIT; aylik evren kaplamasi (trader-universe.*) kaldirildi: durdurulur, devre disi birakilir, silinir.
 for u in trader-veto.timer trader-veto.service trader-ct-kadro.timer trader-ct-kadro.service trader-c1-goc.service \
          trader-haber-sinyal.timer trader-haber-sinyal.service \
          trader-lesson.timer trader-lesson.service trader-notes.timer trader-notes.service \
-         trader-ml-retrain.timer trader-ml-retrain.service; do
+         trader-ml-retrain.timer trader-ml-retrain.service \
+         trader-universe.timer trader-universe.service; do
   if [ -e "${UNIT_DIR}/$u" ] || systemctl is-enabled --quiet "$u" 2>/dev/null || systemctl is-active --quiet "$u" 2>/dev/null; then
     systemctl disable --now "$u" >/dev/null 2>&1 || true
   fi
@@ -584,10 +586,7 @@ if has_value /etc/trader-telegram.env TELEGRAM_BOT_TOKEN && has_value /etc/trade
   sed -i 's#^NOTIFIER=log$#NOTIFIER=auto#' /etc/trader-health.env
 else MISSING+=("/etc/trader-telegram.env -> TELEGRAM_BOT_TOKEN ve TELEGRAM_CHAT_ID (Telegram)"); fi
 # 25.11: ders servisi, gece islem notu ve M1 gece egitimi kaldirildi (yukaridaki emekli birim dongusu eski kopyalari temizler); haftalik ozet (anahtar yoksa no-op; butce payi haftalik_ozet) ayri zamanlayicidir
-# DD-12 WP-16: unit ReadWritePaths (namespace) icin dizin ilk kurulumda olussun; birim ilk calismadan once vardir
-safe_tree_path "$TRADER_DIR/var/universe"
-install -d -m 0750 -o "$TRADER_USER" -g "$TRADER_USER" "$TRADER_DIR/var/universe"
-enable_now trader-universe.timer   # DD-12 WP-16: aylik kagit evreni (1. gun 00:30 UTC; var/universe/paper_pairs.json, ag yok)
+# Evren 14 cift SABIT (sahip karari): aylik evren kaplamasi (trader-universe.*) YOK; birimler yukarida durdurulur/devre disi birakilir, enable_now YOK
 # Etiket/kural mekanizmasi 21 Kasim 2026'da KALDIRILDI ve geri gelmedi. Yeniden eklenen YALNIZ VERI TOPLAMA (23 Kasim 2026 karari; docs/veri-toplama-spec.md):
 # karar girdisi degildir; golge/ust lig hatti icin ham veri biriktirir. Eski birimler (var/durum/haber_v1.json yazani) yerini yenisine birakir.
 safe_tree_path "$TRADER_DIR/var/veri" "$TRADER_DIR/var/veri/haber" "$TRADER_DIR/var/veri/piyasa"
@@ -684,11 +683,11 @@ else MISSING+=("/etc/trader-testnet.env  -> BINANCE_API_KEY ve BINANCE_API_SECRE
 # DD-12 WP-18: kâgit kapanis denetimi (yalniz UYARI; kurulumu durdurmaz). DD-12 zamanlayicilari etkin olmali; veto, C1 ve ikiz
 # birimleri kalmamali (kaldirma yukarida yapildi; eski bir kopya kaldiysa burada gorunur).
 say "DD-12 zamanlayici denetimi"
-for t in trader-weekly-summary.timer trader-universe.timer \
+for t in trader-weekly-summary.timer \
          trader-counterfactual@learner.timer trader-exit-counterfactual@learner.timer trader-tutarlilik.timer trader-mutabakat.timer trader-tur1-olcum.timer trader-tur1-haftalik.timer trader-weekly-collect.timer trader-yorumcu.timer trader-durum-yayin.timer trader-haber.timer trader-piyasa-veri.timer trader-bakim.timer trader-strateji-veri.timer; do
   if systemctl is-enabled --quiet "$t" 2>/dev/null; then echo "  etkin: $t"; else echo "UYARI: $t etkin degil (systemctl enable --now $t)"; fi
 done
-for u in trader-veto.service trader-veto.timer trader-c1-goc.service trader-haber-sinyal.timer trader-haber-sinyal.service trader-lesson.timer trader-lesson.service trader-notes.timer trader-notes.service trader-ml-retrain.timer trader-ml-retrain.service trader-engine@twin.service trader-engine-retry@twin.timer; do
+for u in trader-veto.service trader-veto.timer trader-c1-goc.service trader-haber-sinyal.timer trader-haber-sinyal.service trader-lesson.timer trader-lesson.service trader-notes.timer trader-notes.service trader-ml-retrain.timer trader-ml-retrain.service trader-universe.timer trader-universe.service trader-engine@twin.service trader-engine-retry@twin.timer; do
   if [ -e "${UNIT_DIR}/$u" ]; then echo "UYARI: eski birim duruyor: $u (install.sh'i yeniden calistirin veya elle kaldirin)"; fi
 done
 say "OZET"

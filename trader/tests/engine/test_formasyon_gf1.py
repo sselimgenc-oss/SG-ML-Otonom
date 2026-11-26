@@ -303,8 +303,9 @@ def test_kagit_canli_ayni_ve_gf1_52_kimlik():
     for k in ("arms",):
         assert p[k] == l[k], k
     lib = [a for a in p["arms"] if a.startswith("GF1-")]
-    beklenen = [f"{s}@{tf}" for s in sorted(a for a in arms.list_arms() if a.startswith("GF1-")) for tf in TFS]
-    assert sorted(lib) == sorted(beklenen) and len(lib) == 52 and len(set(p["arms"])) == len(p["arms"])
+    from evren_destek import config_kollari
+    beklenen = config_kollari(f"{s}@{tf}" for s in sorted(a for a in arms.list_arms() if a.startswith("GF1-")) for tf in TFS)
+    assert sorted(lib) == sorted(beklenen) and len(lib) == 39 and len(set(p["arms"])) == len(p["arms"])
     for ad in ("engine.paper.json", "engine.live.json"):
         cfg = C.load_cli_config(ROOT / "config", "learner", ad.split(".")[1])
         assert all(a in cfg.arms for a in beklenen)

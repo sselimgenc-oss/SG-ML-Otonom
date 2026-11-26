@@ -48,7 +48,7 @@ def test_engine_config_loads_and_twin_is_rejected_and_pairs_agree_everywhere():
     from trader_engine.errors import ConfigError
     learner = _cfg("learner")
     assert learner.bot == "learner" and learner.mode == "paper"
-    assert len(learner.pairs) == 10
+    assert len(learner.pairs) == 5
     assert not (ROOT / "config/engine.twin.json").exists()
     with pytest.raises(ConfigError):                                                         # DD-12: ikiz reddedilir
         from trader_engine.config import load_cli_config

@@ -44,8 +44,8 @@ def pkg0(tmp_path_factory):
     return d / "ml1_package.json", T.write_package(d / "ml1_package.json", threshold=0.0)
 
 
-def _ml1_cfg(pkg_path: Path, seed: Path | None = None) -> dict:
-    return {"aktif": True, "paket_yolu": str(pkg_path), "tohum_yolu": str(seed or (pkg_path.parent / "yok_tohum.json"))}
+def _ml1_cfg(pkg_path: Path) -> dict:
+    return {"aktif": True, "paket_yolu": str(pkg_path)}             # tohum paket YOK (sifirdan ogrenme)
 
 
 class _Capture:
@@ -225,69 +225,75 @@ def _observe(g: MG.Ml1Gate, tf, pair, i, hist, **kw):
 I0 = 3000          # 1s mum indeksi (gecmis yeterince uzun)
 
 
-def test_package_missing_and_corrupt_skip_with_paket_yok(hist, tmp_path, caplog):
-    g = MG.Ml1Gate({"paket_yolu": str(tmp_path / "yok.json"), "tohum_yolu": str(tmp_path / "yok2.json")})
+def test_no_package_is_learning_phase_passes_every_eligible_candidate(hist, tmp_path, caplog):
+    """Ogrenilmis paket yokken kapi HER uygun adayi gecirir (code None), puansiz: ml1_neden='ogrenme', ml1_skor yok; sira degismez."""
+    g = MG.Ml1Gate({"paket_yolu": str(tmp_path / "yok.json")})
     Dd, c = _observe(g, "1h", "BTC/USDT", I0, hist)
+    _, c2 = _observe(g, "1h", "BTC/USDT", I0, hist, setup="R1")
     with caplog.at_level(logging.INFO, logger="engine.ml1"):
-        out = g.prepare("BTC/USDT", Dd, (c,))
-        assert out == (c,)
-        v = g.verdict(c.last)
-        assert v.code == MG.PAKET_YOK and v.ledger_reason == "ml_no_model" and v.score is None
-        # saatte bir CRIT: ayni saat icinde sessiz, 1 saat sonra yine (ardisik 15 dk adimlari)
-        for m in (15, 45, 59, 60, 75, 125):
-            g._crit(Dd + timedelta(minutes=m), "ML1: gecerli paket yok; sentetik")
-    crit = [r for r in caplog.records if r.levelno == logging.CRITICAL and "paket yok" in r.getMessage()]
-    assert len(crit) == 1 + 2, [r.getMessage() for r in caplog.records]    # prepare (t=0) + 60 ve 125. dk (15/45/59/75 sessiz)
-    assert g.counters["ml1_paket_yok"] == 1
-    # bozuk dosyalar: cop json, yanlis sha, sema, esik yok
+        out = g.prepare("BTC/USDT", Dd, (c, c2))
+    assert out == (c, c2)
+    for cc in (c, c2):
+        v = g.verdict(cc.last)
+        assert v.code is None and v.ledger_reason is None and v.score is None
+        assert v.features["ml1_neden"] == MG.OGRENME == "ogrenme" and "ml1_skor" not in v.features and "ml1_esik" not in v.features
+        assert v.features["ml1_grup"] == G.group(cc.last.setup)
+    assert g.counters["ml1_ogrenme"] == 2 and g.counters["ml1_paket_yok"] == 0 and g.counters["ml1_gecti"] == 2
+    assert not [r for r in caplog.records if r.levelno >= logging.ERROR]        # paket yok = hata degil
+
+
+def test_corrupt_package_files_also_mean_learning_phase_not_seed(hist, tmp_path):
     for k, mut in enumerate((lambda p: "{not json", lambda p: json.dumps({**p, "sha256": "0" * 64}), lambda p: json.dumps({**p, "schema": "x/9"}),
                              lambda p: json.dumps({**p, "threshold": None, "sha256": M.package_hash({**p, "threshold": None})}))):
-        good = json.loads(T.SEED_PKG.read_text())
+        good = T.write_package(tmp_path / "iyi.json", threshold=0.5)
         path = tmp_path / f"bozuk{k}.json"
         path.write_text(mut(good), encoding="utf-8")
-        g2 = MG.Ml1Gate({"paket_yolu": str(path), "tohum_yolu": str(tmp_path / "yok.json")})
+        g2 = MG.Ml1Gate({"paket_yolu": str(path)})
         Dd, c = _observe(g2, "1h", "BTC/USDT", I0, hist)
         g2.prepare("BTC/USDT", Dd, (c,))
-        assert g2.verdict(c.last).code == MG.PAKET_YOK, k
+        v = g2.verdict(c.last)
+        assert v.code is None and v.features["ml1_neden"] == "ogrenme", k
+    assert not hasattr(MG, "TOHUM_PAKET")                                  # depodaki tohum paket kavrami kalmadi
 
 
-def test_runtime_package_wins_seed_fallback_and_mtime_reload(hist, tmp_path):
-    rt, seed = tmp_path / "rt" / "ml1_package.json", tmp_path / "seed" / "ml1_package.json"
-    p_seed = T.write_package(seed, threshold=0.0)
-    g = MG.Ml1Gate({"paket_yolu": str(rt), "tohum_yolu": str(seed)})
+def test_runtime_package_mtime_reload_and_back_to_learning_when_removed(hist, tmp_path):
+    rt = tmp_path / "rt" / "ml1_package.json"
+    g = MG.Ml1Gate({"paket_yolu": str(rt)})
     Dd, c = _observe(g, "1h", "BTC/USDT", I0, hist)
     g.prepare("BTC/USDT", Dd, (c,))
-    assert g.verdict(c.last).features["ml1_sha"] == p_seed["sha256"][:12] and g.verdict(c.last).code is None      # runtime yok -> tohum
-    # runtime paket gelir: bir sonraki adimda (mtime/boyut degisti) o kullanilir
+    assert g.verdict(c.last).features["ml1_neden"] == "ogrenme" and g.verdict(c.last).code is None          # paket yok -> ogrenme
+    # paket gelir: bir sonraki adimda (mtime/boyut degisti) o kullanilir
     p_rt = T.write_package(rt, threshold=1.5)
-    assert p_rt["sha256"] != p_seed["sha256"]
     g.end_step()
     Dd2, c2 = _observe(g, "1h", "BTC/USDT", I0 + 1, hist)
     g.prepare("BTC/USDT", Dd2, (c2,))
     v = g.verdict(c2.last)
     assert v.features["ml1_sha"] == p_rt["sha256"][:12] and v.code == MG.ESIK_ALTI and v.features["ml1_esik"] == 1.5
-    # ayni adim icinde dosya degisse bile paket adim basina bir kez denetlenir (cheap stat)
+    assert "ml1_neden" not in v.features and v.score is not None
     T.write_package(rt, threshold=0.0)
     g.end_step()
     Dd3, c3 = _observe(g, "1h", "BTC/USDT", I0 + 2, hist)
     g.prepare("BTC/USDT", Dd3, (c3,))
     assert g.verdict(c3.last).code is None and g.verdict(c3.last).features["ml1_esik"] == 0.0
-    # runtime bozulursa tohuma doner; ikisi de bozulursa paket yok
+    # runtime bozulursa ya da silinirse: ogrenme asamasi (tohuma DONULMEZ)
     rt.write_text("bozuk", encoding="utf-8")
     g.end_step()
     Dd4, c4 = _observe(g, "1h", "BTC/USDT", I0 + 3, hist)
     g.prepare("BTC/USDT", Dd4, (c4,))
-    assert g.verdict(c4.last).features["ml1_sha"] == p_seed["sha256"][:12]
-    seed.write_text("bozuk", encoding="utf-8")
+    assert g.verdict(c4.last).features["ml1_neden"] == "ogrenme" and g.verdict(c4.last).code is None
+    rt.unlink()
     g.end_step()
     Dd5, c5 = _observe(g, "1h", "BTC/USDT", I0 + 4, hist)
     g.prepare("BTC/USDT", Dd5, (c5,))
-    assert g.verdict(c5.last).code == MG.PAKET_YOK
+    assert g.verdict(c5.last).features["ml1_neden"] == "ogrenme"
 
 
-def test_one_position_per_event_window(hist, tmp_path):
+@pytest.mark.parametrize("paketli", [True, False])
+def test_one_position_per_event_window(hist, tmp_path, paketli):
+    """Bir olay = bir giris: hem suzme asamasinda hem OGRENME asamasinda (paket yok) ayni."""
     pk = tmp_path / "p.json"
-    T.write_package(pk, threshold=0.0)
+    if paketli:
+        T.write_package(pk, threshold=0.0)
     g = MG.Ml1Gate(_ml1_cfg(pk))
     res = []
     for k in range(6):                                              # 1s mumlari ardisik: bar_ts = I0 + k
@@ -313,7 +319,7 @@ def test_one_position_per_event_window(hist, tmp_path):
 
 def test_highest_score_first_and_non_rule_arms_untouched(hist, tmp_path):
     pk = tmp_path / "p.json"
-    T.write_package(pk, threshold=0.0)
+    T.write_package(pk, threshold=0.0, seed=1, scale=0.3)             # rastgele agirlik: adaylarin puanlari birbirinden farkli
     g = MG.Ml1Gate(_ml1_cfg(pk))
     Dd, ca = _observe(g, "1h", "BTC/USDT", I0, hist, setup="T1", sda=0.6)
     _, cb = _observe(g, "1h", "BTC/USDT", I0, hist, setup="MF1-YUTAN", sda=4.0)
@@ -368,11 +374,13 @@ def test_warm_from_ledger_builds_buffer_and_event_window(tmp_path):
         led.record_decision(ev("BTC/USDT", "T1", "1h", "long", now - timedelta(hours=2), "entered", None, {"ml1_skor": 0.7}))
         led.record_decision(ev("BTC/USDT", "MF1-YUTAN", "1h", "long", now - timedelta(hours=1), "skipped", "ml_filter", {"ml1_skor": 0.4}))
         led.record_decision(ev("BTC/USDT", "T1", "1h", "short", now - timedelta(hours=1), "skipped", "stop_width", {}))      # aday degil
+        led.record_decision(ev("ETH/USDT", "T1", "1h", "long", now - timedelta(hours=3), "entered", None, {"ml1_neden": "ogrenme"}))   # ogrenme asamasi girisi
         g = MG.Ml1Gate({})
-        assert g.warm(led, now) == 2
+        assert g.warm(led, now) == 3
         assert set(g._buf["BTC/USDT"]) == {("T1@1h", pd.Timestamp(now - timedelta(hours=2)), "long"),
                                            ("MF1-YUTAN@1h", pd.Timestamp(now - timedelta(hours=1)), "long")}
-        assert g._son_giris == {("BTC/USDT", "long", "1h"): now - timedelta(hours=2)}
+        assert g._son_giris == {("BTC/USDT", "long", "1h"): now - timedelta(hours=2),
+                                ("ETH/USDT", "long", "1h"): now - timedelta(hours=3)}      # ogrenme asamasi girisi de olay penceresini kurar
     finally:
         led.close()
     assert MG.Ml1Gate({}).warm(object(), now) == 0                      # defter okunamazsa bos baslar, firlatmaz
@@ -385,15 +393,21 @@ def test_config_switch_and_paper_only():
     from trader_engine.config import ConfigError, apply_overrides, load_cli_config
     from trader_engine.engine import _ml1_aktif
     cfg = load_cli_config(T.ROOT / "config", "learner", "paper")
-    assert dict(cfg.ml1) == {"aktif": True, "ogrenme": {"aktif": True, "kuru": False}} and _ml1_aktif(cfg)
+    assert dict(cfg.ml1) == {"aktif": True, "ogrenme": {"aktif": True, "kuru": False, "min_islem": 200, "min_islem_tf": 0, "esik": 0.50}} and _ml1_aktif(cfg)
     assert not _ml1_aktif(apply_overrides(cfg, ml1={"aktif": False}))
     assert not _ml1_aktif(apply_overrides(cfg, ml1={}))
     assert not _ml1_aktif(dataclasses.replace(cfg, ml1={}))
     for mode in ("live", "testnet", "backtest"):                           # canli/testnet/backtest'te asla
         assert not _ml1_aktif(SimpleNamespace(mode=mode, ml1={"aktif": True}))
-    for bad in ({"aktif": 1}, {"aktif": True, "x": 1}, {"paket_yolu": "a"}, "evet", {"aktif": True, "paket_yolu": ""}):
+    for bad in ({"aktif": 1}, {"aktif": True, "x": 1}, {"paket_yolu": "a"}, "evet", {"aktif": True, "paket_yolu": ""},
+                {"aktif": True, "tohum_yolu": "a.json"},                                     # tohum paket kavrami kalmadi
+                {"aktif": True, "ogrenme": {"min_islem": 0}}, {"aktif": True, "ogrenme": {"min_islem": 1.5}},
+                {"aktif": True, "ogrenme": {"min_islem_tf": -1}}, {"aktif": True, "ogrenme": {"esik": 1.0}},
+                {"aktif": True, "ogrenme": {"esik": 0}}, {"aktif": True, "ogrenme": {"n0": 5000.0}}):
         with pytest.raises(ConfigError):
             apply_overrides(cfg, ml1=bad)
+    ok = apply_overrides(cfg, ml1={"aktif": True, "ogrenme": {"aktif": True, "min_islem": 50, "min_islem_tf": 10, "esik": 0.55}})
+    assert ok.ml1["ogrenme"]["min_islem"] == 50 and ok.ml1["ogrenme"]["min_islem_tf"] == 10
     live = load_cli_config(T.ROOT / "config", "learner", "live")
     assert dict(live.ml1) == {} and not _ml1_aktif(live)
 
@@ -412,9 +426,9 @@ def test_aktif_false_leaves_engine_untouched(tmp_path_factory, hist):
         eng.state.close()
 
 
-def test_engine_keeps_running_without_package_and_reloads_new_one(tmp_path_factory, hist):
-    """Motor-duzeyi senaryo: paket yok -> adaylar ml_no_model/gate:ml1_paket_yok ile atlanir, motor kararlari surer; dosya gelince (mtime) puanlanir;
-    bozulunca yine atlanir."""
+def test_engine_keeps_running_in_learning_phase_and_reloads_new_package(tmp_path_factory, hist):
+    """Motor-duzeyi senaryo: paket yok -> OGRENME asamasi: adaylar puansiz gecer ve islem acilir (ml1_neden=ogrenme); dosya gelince (mtime)
+    puanlanir/suzulur; bozulunca yine ogrenme asamasi (adaylar atlanmaz)."""
     tmp = tmp_path_factory.mktemp("ml1_swap")
     pk = tmp / "pk" / "ml1_package.json"
     start = T.START + timedelta(days=1)
@@ -422,11 +436,13 @@ def test_engine_keeps_running_without_package_and_reloads_new_one(tmp_path_facto
     seg = [start, start + timedelta(hours=12), start + timedelta(hours=24), start + timedelta(hours=36)]
     eng.run_range(seg[0], seg[1])
     c1 = eng.counters()
-    assert c1["decisions"] >= 40 and c1.get("ml1_paket_yok", 0) >= 1 and c1.get("callback_errors", 0) == 0
+    assert c1["decisions"] >= 40 and c1.get("ml1_ogrenme", 0) >= 1 and c1.get("callback_errors", 0) == 0
+    assert c1.get("ml1_paket_yok", 0) == 0
     d1 = T.decisions(eng)
-    assert d1 and all(r["skip_reason"] == "ml_no_model" and r["veto_reason"] == "gate:ml1_paket_yok" for r in d1 if r["final_action"] == "skipped"
-                      and str(r["veto_reason"] or "").startswith("gate:ml1")), d1[:2]
-    assert not [r for r in d1 if r["final_action"] == "entered"]            # paket yokken ML1 adayi girmez
+    assert not [r for r in d1 if str(r["veto_reason"] or "").startswith("gate:ml1")]       # hicbir aday ML1 nedeniyle elenmez
+    ogr = [r for r in d1 if r["features"].get("ml1_neden") == "ogrenme"]
+    assert ogr and all("ml1_skor" not in r["features"] for r in ogr)
+    assert [r for r in ogr if r["final_action"] == "entered"]                               # ogrenme asamasinda islemler gercekten acilir
     n1 = len(d1)
     T.write_package(pk, threshold=0.0)                                      # paket gelir
     eng.run_range(seg[1], seg[2])
@@ -438,12 +454,12 @@ def test_engine_keeps_running_without_package_and_reloads_new_one(tmp_path_facto
     d3 = T.decisions(eng)[n2:]
     esik = [r for r in d3 if r["veto_reason"] == "gate:ml1_esik_alti"]
     assert esik and all(r["skip_reason"] == "ml_filter" and r["final_action"] == "skipped" and r["features"]["ml1_esik"] == 1.5 for r in esik)
-    assert eng.counters().get("ml1_esik_alti", 0) == len(esik) or eng.counters().get("ml1_esik_alti", 0) >= len(esik)
-    pk.write_text("{bozuk", encoding="utf-8")                               # bozulur: motor yine calisir
+    pk.write_text("{bozuk", encoding="utf-8")                               # bozulur: motor yine calisir, ogrenme asamasina doner
     n3 = len(T.decisions(eng))
     c = eng.counters()["decisions"]
     eng.run_range(seg[3], seg[3] + timedelta(hours=6))
     assert eng.counters()["decisions"] > c and eng.counters().get("callback_errors", 0) == 0
-    assert any(r["veto_reason"] == "gate:ml1_paket_yok" for r in T.decisions(eng)[n3:]) or eng.counters()["ml1_paket_yok"] > c1["ml1_paket_yok"]
+    d4 = T.decisions(eng)[n3:]
+    assert any(r["features"].get("ml1_neden") == "ogrenme" for r in d4) and not any(r["veto_reason"] == "gate:ml1_paket_yok" for r in d4)
     eng.ledger.close()
     eng.state.close()

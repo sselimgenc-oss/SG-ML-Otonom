@@ -1,6 +1,9 @@
 """ML1 kagit giris kapisi (25.11 sahip karari; yalniz mode="paper", config `ml1.aktif`).
 
-Kural kollarinin adaylarindan hangisinin islem olacagina ML1 modeli karar verir. Ozellikler cevrimdisi hatla AYNI islevlerle hesaplanir
+Kural kollarinin adaylarindan hangisinin islem olacagina ML1 modeli karar verir. SIFIRDAN BASLAR (sahip karari): tohum paket YOK.
+OGRENME ASAMASI: ogrenilmis paket yokken kapi uygun HER adayi gecirir (Verdict.code None; `ml1_neden="ogrenme"`, `ml1_skor` yok);
+yalniz AYNI_OLAY (bir olay = bir giris) ve motorun mevcut risk/kume/azami-pozisyon kapilari uygulanir. Ogrenici (`ml1_ogren`) yalniz GERCEKTEN
+acilip kapanan islemlerden ogrenir; ilk paket `ogrenme.min_islem` kapanan islemden sonra yayinlanir, sonra kapi esik ile suzer. Ozellikler cevrimdisi hatla AYNI islevlerle hesaplanir
 (`trader_ml.ml1.features.confluence` ve `bar_features`; yeniden yazim YOK): konfluans, motorun adim adim biriktirdigi aday tamponundan;
 mum ozellikleri, kolun o adimda zaten yukledigi mum pencerelerinden (yalniz aday satirlari icin; her mumda degil).
 
@@ -9,7 +12,7 @@ Akis (karar adimi D):
                    tarama ile ayni anlam) cift tamponuna yazilir; (trig, h4) pencereleri adim sonuna kadar tutulur.
   2) `prepare`   : cift icin giris degerlendirmesi baslarken sinyal adaylari puanlanir, puana gore (yuksek once) siralanir, karar
                    (`Verdict`) hazirlanir. Esik alti -> "ml1_esik_alti"; ayni olay penceresinde onayli giris var -> "ml1_ayni_olay";
-                   gecerli paket yok -> "ml1_paket_yok". Defter skip_reason'u CHECK kisiti nedeniyle mevcut `ml_filter` / `ml_no_model`
+                   ogrenme asamasi -> gecer ("ogrenme"); yalniz bir hata olursa "ml1_paket_yok" (fail-closed). Defter skip_reason'u CHECK kisiti nedeniyle mevcut `ml_filter` / `ml_no_model`
                    degerlerine eslenir; ML1 nedeni `veto_reason` ("gate:ml1_...") ve features'ta durur.
   3) `note_entry`: giris yapilan (cift, yon, tf) icin olay penceresi baslatilir (olay = features.events anahtari pair|side|tf, k mum).
 Hicbir yontem yukari firlatmaz: hata = bu adimda ML1 adaylari atlanir (fail-closed, "ml1_paket_yok") ve sayac/CRIT log; motor durmaz.
@@ -34,17 +37,18 @@ from trader_ml.ml1 import features as F
 from trader_ml.ml1 import groups as G
 from trader_ml.ml1 import model as M
 from trader_ml.ml1.model import design_matrix as _design_matrix      # test `M` yerine SimpleNamespace koyabilir: ayri takma ad
+from trader_ml.ml1.model import feature_names as _feature_names
 
 log = logging.getLogger("engine.ml1")
 
 ESIK_ALTI, AYNI_OLAY, PAKET_YOK = "ml1_esik_alti", "ml1_ayni_olay", "ml1_paket_yok"
+OGRENME = "ogrenme"                                            # ml1_neden degeri: ogrenme asamasi (paket yok; aday puansiz gecer)
 LEDGER_NEDENI = {ESIK_ALTI: "ml_filter", AYNI_OLAY: "ml_filter", PAKET_YOK: "ml_no_model"}   # defter skip_reason CHECK kisiti (sema degismez)
 K_BARS = F.K_BARS
 TAMPON_OMRU = timedelta(days=K_BARS + 1)                      # en uzun konfluans penceresi: k x 1g; +1 gun pay
 CRIT_ARALIGI = timedelta(hours=1)
 _FILTRELENMIS = ("stop_width", "rr_below_min")                # defterde aday olmayan (sinyal=False) satirlar
 _ROOT = Path(__file__).resolve().parents[2]
-TOHUM_PAKET = _ROOT / "models" / "ml1" / "ml1_package.json"   # depodaki tohum (salt okunur)
 KOS_PAKET_ALT = Path("ml1") / "ml1_package.json"
 
 
@@ -55,7 +59,7 @@ def kos_paket_yolu() -> Path:
 
 @dataclass(frozen=True)
 class Verdict:
-    code: str | None                 # None = esigi gecti; aksi halde ml1_esik_alti | ml1_ayni_olay | ml1_paket_yok
+    code: str | None                 # None = esigi gecti (ya da ogrenme asamasi: puansiz gecis); aksi halde ml1_esik_alti | ml1_ayni_olay | ml1_paket_yok
     score: float | None
     features: Mapping[str, Any]      # deftere yazilacak ml1_* alanlari (yalniz sonlu sayi/metin)
 
@@ -67,8 +71,7 @@ class Verdict:
 class Ml1Gate:
     def __init__(self, cfg: Mapping[str, Any] | None = None) -> None:
         cfg = cfg or {}
-        self._paths: tuple[Path, ...] = (Path(cfg["paket_yolu"]) if cfg.get("paket_yolu") else kos_paket_yolu(),
-                                         Path(cfg["tohum_yolu"]) if cfg.get("tohum_yolu") else TOHUM_PAKET)
+        self._paths: tuple[Path, ...] = (Path(cfg["paket_yolu"]) if cfg.get("paket_yolu") else kos_paket_yolu(),)   # tek yol: tohum paket YOK
         self.counters: Counter = Counter()
         self._pkg: dict | None = None
         self._sig: tuple | None = None            # son bakilan dosyalarin (yol, mtime_ns, boyut) imzasi
@@ -80,11 +83,12 @@ class Ml1Gate:
         self._verd: dict[tuple[str, str], Verdict] = {}
         self._verd_d: datetime | None = None
         self._son_giris: dict[tuple[str, str, str], datetime] = {}   # (cift, yon, tf) -> onayli son giris karar zamani
-        self.ogren = None                                     # Ml1Ogrenici (yalniz kagit + ogrenme.aktif); puanlanan adaylari dosyaya ekler
+        self.ogren = None                                     # Ml1Ogrenici (yalniz kagit + ogrenme.aktif); YALNIZ alinan adayin ozellik vektorunu saklar
+        self._x: dict[tuple[str, str, str], tuple[Any, dict]] = {}   # (cift, arm_id, yon) -> (ozellik vektoru x, aday ozeti); yalniz adim boyunca
 
     # ------------------------------------------------------------------ paket
     def _paket(self, D: datetime) -> dict | None:
-        """Adim basina bir kez: runtime paketi, yoksa/gecersizse tohum. mtime/boyut degisince yeniden yuklenir; gecerli paket yoksa None."""
+        """Adim basina bir kez: runtime paketi. mtime/boyut degisince yeniden yuklenir; gecerli paket yoksa None (= ogrenme asamasi)."""
         if self._chk_d == D:
             return self._pkg
         self._chk_d = D
@@ -111,9 +115,9 @@ class Ml1Gate:
                 pkg = got
                 log.info("ML1 paketi yuklendi: %s sha=%s esik=%s", p, str(got["sha256"])[:12], got["threshold"])
                 break
-            log.error("ML1 paketi gecersiz (%s): %s", p, why)
+            log.error("ML1 paketi gecersiz (%s): %s (ogrenici geri donus denetimi duzeltir)", p, why)
         if pkg is None:
-            log.error("ML1: gecerli paket yok (%s)", ", ".join(str(p) for p in self._paths))
+            log.info("ML1: ogrenilmis paket yok (%s): ogrenme asamasi (adaylar suzulmeden gecer)", ", ".join(str(p) for p in self._paths))
         self._pkg = pkg
         return pkg
 
@@ -147,6 +151,7 @@ class Ml1Gate:
         self._bars_d = None
         self._verd.clear()
         self._verd_d = None
+        self._x.clear()
 
     def _prune(self, pair: str, D: datetime) -> None:
         b = self._buf.get(pair)
@@ -173,7 +178,7 @@ class Ml1Gate:
                     "setup": r.setup, "group": grp, "side": r.side, "entry_ref": float("nan"), "stop": float("nan"),
                     "target": float("nan"), "stop_dist_atr": float("nan")}
                 n += 1
-                if r.final_action == "entered" and "ml1_skor" in (r.features or {}):
+                if r.final_action == "entered" and ("ml1_skor" in (r.features or {}) or "ml1_neden" in (r.features or {})):
                     k = (r.pair, r.side, r.trigger_tf)
                     if k not in self._son_giris or self._son_giris[k] < ts.to_pydatetime():
                         self._son_giris[k] = ts.to_pydatetime()
@@ -208,15 +213,27 @@ class Ml1Gate:
         return self._verd.get((row.pair, row.arm_id))
 
     def note_entry(self, pair: str, side: str, tf: str, D: datetime, arm_id: str | None = None) -> None:
+        """Olay penceresi: giris yapilan (cift, yon, tf). Ogrenme kaydi BURADA DEGIL (`note_taken`): islem kimligi girisden sonra bilinir."""
         try:
             self._son_giris[(pair, side, tf)] = D
         except Exception:  # noqa: BLE001
             pass
-        if self.ogren is not None and arm_id:
-            try:
-                self.ogren.isaretle_alindi(pair, arm_id, side, D)
-            except Exception:  # noqa: BLE001 - ogrenme kaydi karari etkilemez
-                self.counters["ml1_ogren_log_hata"] += 1
+
+    def note_taken(self, pair: str, arm_id: str, side: str, D: datetime, decision_id: int, trade_id: int) -> None:
+        """Gercekten acilan islem (motor `_enter`, pozisyon kaydi yazildiktan sonra): adayin ozellik vektoru ogreniciye, GERCEK islem
+        kimligiyle (trade_id + decision_id) baglanarak verilir. Alinmayan aday ASLA saklanmaz. Hata karari etkilemez."""
+        if self.ogren is None:
+            return
+        try:
+            got = self._x.get((pair, arm_id, side))
+            if got is None:
+                self.counters["ml1_ogren_x_yok"] += 1
+                return
+            x, ozet = got
+            self.ogren.islem_alindi({**ozet, "decision_ts": pd.Timestamp(D).isoformat(), "decision_id": int(decision_id),
+                                     "trade_id": int(trade_id), "x": x})
+        except Exception:  # noqa: BLE001 - ogrenme kaydi karari etkilemez
+            self.counters["ml1_ogren_log_hata"] += 1
 
     def paket_durumu(self) -> tuple[bool, str | None]:
         """(kapinin yukledigi dosya imzasi etkin dosyayla guncel mi, kapinin etkin paket sha'si ya da None). Ogrenici geri donus denetimi icin."""
@@ -261,13 +278,7 @@ class Ml1Gate:
         self.counters[v.code or "ml1_gecti"] += 1
 
     def _prepare(self, pair: str, D: datetime, cands: tuple, uygun: list[int]) -> tuple:
-        pkg = self._paket(D)
-        if pkg is None:
-            self.counters["ml1_paket_yok_adim"] += 1
-            self._crit(D, "ML1: gecerli paket yok; kural kolu adaylari atlaniyor (ml1_paket_yok)")
-            for i in uygun:
-                self._koy(cands[i].last, Verdict(PAKET_YOK, None, {"ml1_neden": "paket_yok"}))
-            return cands
+        pkg = self._paket(D)                                  # None = ogrenme asamasi (hata degil)
         self._prune(pair, D)
         b = self._buf.get(pair, {})
         buf = pd.DataFrame(list(b.values())).reset_index(drop=True)
@@ -284,58 +295,61 @@ class Ml1Gate:
         cur = buf.iloc[sel]
         bf = F.bar_features(cur, self._lookup)
         full = pd.concat([cur, conf.loc[cur.index], bf], axis=1)
-        pr = M.score(pkg, full)
-        if not np.all(np.isfinite(pr)):
-            raise ValueError("ML1 puani sonlu degil")
-        thr = float(pkg["threshold"])
-        sha = str(pkg["sha256"])[:12]
+        if pkg is not None:
+            pr = M.score(pkg, full)
+            if not np.all(np.isfinite(pr)):
+                raise ValueError("ML1 puani sonlu degil")
+            thr = float(pkg["threshold"])
+            sha = str(pkg["sha256"])[:12]
+        else:
+            pr, thr, sha = None, None, None
+        if self.ogren is not None:
+            self._x_hazirla(full, cur, rows, cands)           # ogrenme: yalniz ALINAN adayin x'i ogreniciye gider (note_taken)
         out = []
-        out_kayit = []
         for n, i in enumerate(rows):
             r = cands[i].last
             tf = r.tf
-            p = float(pr[n])
+            p = None if pr is None else float(pr[n])
             code = None
-            if p < thr:
+            if p is not None and p < thr:
                 code = ESIK_ALTI
             else:
                 e = self._son_giris.get((pair, r.side, tf))
                 if e is not None and timedelta(0) <= D - e <= K_BARS * AT.arm_tf_delta(tf):
                     code = AYNI_OLAY
             cr = conf.loc[cur.index[n]]
-            feats = {"ml1_skor": p, "ml1_esik": thr, "ml1_sha": sha, "ml1_grup": str(cur.iloc[n]["group"]),
+            feats = {"ml1_grup": str(cur.iloc[n]["group"]),
                      "ml1_conf_same_tf": int(cr["conf_same_tf"]), "ml1_conf_all_tf": int(cr["conf_all_tf"]),
                      "ml1_conf_groups": int(cr["conf_groups"]), "ml1_conf_opp": int(cr["conf_opp"])}
+            if p is None:
+                feats["ml1_neden"] = OGRENME                  # puan yok (ml1_skor anahtari YOK); panel/Telegram bu kayitlari ML1 ogrenme islemi sayar
+                self.counters["ml1_ogrenme"] += 1
+            else:
+                feats.update({"ml1_skor": p, "ml1_esik": thr, "ml1_sha": sha})
             self._koy(r, Verdict(code, p, feats))
-            out.append((-p, n, i))
-            out_kayit.append((p, code))
-        if self.ogren is not None:
-            self._ogren_kaydet(pkg, full, cur, out_kayit)
-        # puana gore (yuksek once; esitlikte mevcut sira) yalniz uygun adaylarin yuvalarinda yeniden diz
+            out.append((-(p if p is not None else 0.0), n, i))
+        # puana gore (yuksek once; esitlikte mevcut sira) yalniz uygun adaylarin yuvalarinda yeniden diz; ogrenme asamasinda sira DEGISMEZ
         yeni = list(cands)
         for (_, _, src), slot in zip(sorted(out), rows):
             yeni[slot] = cands[src]
         return tuple(yeni)
 
-    def _ogren_kaydet(self, pkg: dict, full: pd.DataFrame, cur: pd.DataFrame, sk: list) -> None:
-        """Puanlanan her adayi ham ozellik vektoruyle (x) ogrenme dosyasina ekler. Hata = sayac; karar etkilenmez."""
+    def _x_hazirla(self, full: pd.DataFrame, cur: pd.DataFrame, rows: list[int], cands: tuple) -> None:
+        """Bu adimin uygun adaylarinin ham ozellik vektoru (bellekte, adim boyunca). Dosyaya YAZILMAZ; hata = sayac."""
         try:
-            X = _design_matrix(full, list(pkg["feature_names"]))
-            sha = str(pkg["sha256"])[:12]
-            recs = []
-            for n, (p, code) in enumerate(sk):
+            X = _design_matrix(full, _feature_names())
+            for n, i in enumerate(rows):
                 c = cur.iloc[n]
-                ts = pd.Timestamp(c["decision_ts"])
+                r = cands[i].last
                 tgt = c["target"]
-                recs.append({"k": f"{c['pair']}|{c['arm_id']}|{c['side']}|{ts.isoformat()}", "decision_ts": ts.isoformat(), "pair": c["pair"],
-                             "tf": c["tf"], "setup": c["setup"], "arm_id": c["arm_id"], "group": c["group"], "side": c["side"],
-                             "entry_ref": float(c["entry_ref"]), "stop": float(c["stop"]),
-                             "target": None if not np.isfinite(tgt) else float(tgt), "stop_dist_atr": float(c["stop_dist_atr"]),
-                             "x": [None if not np.isfinite(v) else float(v) for v in X[n]], "skor": p, "sha": sha, "kod": code})
-            self.ogren.kaydet(recs)
+                self._x[(r.pair, r.arm_id, r.side)] = (
+                    [None if not np.isfinite(v) else float(v) for v in X[n]],
+                    {"pair": c["pair"], "tf": c["tf"], "setup": c["setup"], "arm_id": c["arm_id"], "group": c["group"], "side": c["side"],
+                     "entry_ref": float(c["entry_ref"]), "stop": float(c["stop"]),
+                     "target": None if not np.isfinite(tgt) else float(tgt), "stop_dist_atr": float(c["stop_dist_atr"])})
         except Exception as e:  # noqa: BLE001
             self.counters["ml1_ogren_log_hata"] += 1
-            log.error("ML1 ogrenme aday kaydi hatasi: %r", e)
+            log.error("ML1 ogrenme ozellik vektoru hatasi: %r", e)
 
     def _lookup(self, pair: str, tf: str):
         return self._bars.get((pair, tf))

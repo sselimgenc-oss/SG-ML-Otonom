@@ -32,6 +32,8 @@ Kaynak: `data.binance.vision` USDⓈ-M arşiv dizini (18 Kasım; yalnız dizin/d
 
 **Sunucuda doğrulanacak (WP-00; bu ortamdan Binance API 451 döndü):** 44 sembol `exchangeInfo`'da `TRADING` mi, hisse/emtia `contractType` (beklenen `TRADIFI_PERPETUAL`), filtreler, kapalı seansta ve hafta sonu 1 dk mum geliyor mu, **seans dışı ve hafta sonu gerçek alış-satış farkı ve hacim** (kayma varsayımı §4.3 bununla düzeltilir). `TRADING` olmayan sembol çıkarılır, kullanıcıya bildirilir.
 
+**KALDIRILDI (sahip kararı: evren 14 çift SABİT, otomatik güncelleme yok; `trader-universe.*` birimleri install.sh ile durdurulur/silinir, `--apply` reddedilir, kaplama uygulanmaz). Aşağıdaki açıklama tarihsel kayıttır.**
+
 **Aylık enstrüman güncelleme işi (kâğıt; WP-16):** her ayın 1'i 00:30 UTC `trader-universe.timer`.
 - Kripto: kural aynıdır (stabil/sarılı hariç, Binance vadelide `TRADING` olan, en yüksek piyasa değerli 20). Kaynak: piyasa değeri listesi (dış kaynak, ana makine adı WP-16'da yazılır; ağ izni gerekirse `update_environment` ile istenir, kullanıcıya bildirilir); kaynak erişilemezse Binance 30 günlük USDT hacmi sıralaması yedeği kullanılır ve rapora yazılır.
 - Hisse: yapılandırmadaki sıralı yedek listeden (`config/universe.json`, ilk 20 + 10 yedek, mentor yazar) `TRADING` olmayan/çıkarılan sembolün yerine sıradaki girer. Emtia 4 sabit; `TRADING` değilse yalnız o çift beklemeye alınır.

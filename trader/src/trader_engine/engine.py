@@ -195,8 +195,9 @@ class Engine:
         if self.ml1 is not None and cfg.mode == "paper" and og.get("aktif"):
             try:
                 from .ml1_ogren import Ml1Ogrenici
-                self.ogren = Ml1Ogrenici(cfg.path("ml1_ogren"), self.ml1._paths[0], self.ml1._paths[1], view=view, now_fn=clock.now,
-                                         ledger=ledger, kapi=self.ml1, n0=og.get("n0", 5000.0), yari_omur_gun=og.get("yari_omur_gun", 30.0),
+                self.ogren = Ml1Ogrenici(cfg.path("ml1_ogren"), self.ml1._paths[0], now_fn=clock.now, ledger=ledger, kapi=self.ml1,
+                                         min_islem=int(og.get("min_islem", 200)), min_islem_tf=int(og.get("min_islem_tf", 0)),
+                                         esik=float(og.get("esik", 0.50)), yari_omur_gun=og.get("yari_omur_gun", 30.0),
                                          kuru=bool(og.get("kuru", False)))
                 self.ml1.ogren = self.ogren
             except Exception as e:  # noqa: BLE001 - ogrenme kurulamazsa motor ogrenmesiz calisir
@@ -2246,6 +2247,8 @@ class Engine:
             self.state.mark_decided(pair, D, "entered")
             self.state.kv_set(f"eq:{tid}", equity)
         self._entry_events[tid] = out.event
+        if self.ml1 is not None:
+            self.ml1.note_taken(pair, row.arm_id, row.side, D, did, tid)     # ML1 ogrenme: yalniz GERCEKTEN alinan islem (trade_id + decision_id ile bagli)
         intent = Intent(kind="entry", bot=self.cfg.bot, pair=pair, side=row.side, signal_bar_close_ts=row.bar_close_ts,
                         setup=row.setup, qty=size.qty, leverage=out.leverage, planned_entry=row.planned_entry,
                         stop_price=row.planned_stop, target_price=row.planned_target, reason="entry", decision_id=did)

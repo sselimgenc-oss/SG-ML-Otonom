@@ -27,9 +27,8 @@ PAPER = load_cli_config(ROOT / "config", "learner", "paper")
 PAIRS = ["BTC/USDT", "ETH/USDT", "SOL/USDT"]
 H_START, H_END = datetime(2026, 4, 5, tzinfo=UTC), datetime(2026, 11, 11, tzinfo=UTC)
 START, END = datetime(2026, 11, 5, tzinfo=UTC), datetime(2026, 11, 9, 6, tzinfo=UTC)
-ARMS = tuple(f"{s}@{tf}" for s in ("T1", "R1", "TF1", "B1", "H2", "S1", "F1", "T1-GERI3", "R1-ERKEN", "MF1-YUTAN", "MF1-PINBAR", "MF1-HARAMI",
+ARMS = tuple(f"{s}@{tf}" for s in ("T1", "R1", "TF1", "B1", "H2", "S1", "F1", "T1-GERI3", "S1-OLCULU", "MF1-YUTAN", "MF1-PINBAR", "MF1-HARAMI",
                                    "GF1-KANAL", "IN1-RSI", "IN1-MACD", "IN1-FIBO", "PA2-FVG", "PA2-BOLGE") for tf in ("1h", "4h"))
-SEED_PKG = ROOT / "models" / "ml1" / "ml1_package.json"
 
 
 def write_history(hist: Path, pairs=PAIRS, start=H_START, end=H_END) -> None:
@@ -67,11 +66,14 @@ def pmap() -> dict:
     return {k: getattr(S.DEFAULT_SIGNAL_PARAMS, k) for k in L.PARAM_KEYS}
 
 
-def write_package(path: Path, *, threshold: float | None = 0.0, base: Path = SEED_PKG) -> dict:
-    """Tohum paketten tureyen GECERLI (yeniden imzali) paket; esik verilir (0 = her adayi gecir)."""
-    pkg = json.loads(base.read_text(encoding="utf-8"))
-    pkg["threshold"] = threshold
-    pkg["sha256"] = M.package_hash(pkg)
+def write_package(path: Path, *, threshold: float | None = 0.0, seed: int = 0, scale: float = 0.0) -> dict:
+    """Sentetik GECERLI imzali paket (tohum paket YOK): kod ozellik adlari, birim standardizasyon, `scale` x rastgele agirlik (0 = hepsi 0,5 puan);
+    esik verilir (0 = her adayi gecir)."""
+    names = M.feature_names()
+    k = len(names)
+    rng = np.random.default_rng(seed)
+    st = {"fill": np.zeros(k), "mean": np.zeros(k), "std": np.ones(k)}
+    pkg = M.build_package(names, st, rng.normal(size=k) * scale, 0.0, threshold, 1.0, train_start=None, train_end=None, n_train=0)
     M.save_package(pkg, path)
     return pkg
 

@@ -587,7 +587,7 @@ def test_config_shadow_and_mtm_keys():
     from pathlib import Path
     root = Path(__file__).resolve().parents[1]
     base = C.load_engine_config(root / "config" / "engine.base.json", root / "config" / "engine.learner.json")
-    assert base.shadow_blocks == ("regime", "r1_disabled", "same_bar_reentry", "tf_15m") and base.mtm_marks is True
+    assert base.shadow_blocks == ("regime", "r1_disabled", "same_bar_reentry") and base.mtm_marks is True
     assert not (root / "config" / "engine.twin.json").exists()      # DD-12: ikiz kaldirildi
     raw_ = json.loads((root / "config" / "engine.base.json").read_text())
     for bad in (["nope"], "regime", ["regime", "regime"]):

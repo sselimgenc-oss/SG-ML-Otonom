@@ -118,7 +118,7 @@ class EngineConfig:
     etiket_kurallari: Mapping[str, Any] = dataclasses.field(default_factory=dict)    # 20 Kasim: etiket kurallari (yalniz paper; bos = kapali; docs/etiket-kurallari-spec.md)
     # --- 23.11 kullanici karari: asama B esikleri (yalniz paper/live giris kapisi; bos/None = kapali) ---
     exit_modes: Mapping[str, Mapping] = dataclasses.field(default_factory=dict)      # cikis kipleri (basa-bas / kismi kar); anahtar default|KURULUM|arm_id; bos = kapali (docs/cikis-kipleri-spec.md)
-    ml1: Mapping[str, Any] = dataclasses.field(default_factory=dict)                 # 25.11 ML1 (yalniz paper): {"aktif": bool, "paket_yolu"?, "tohum_yolu"?}; bos/aktif=false = kapali (onceki davranis)
+    ml1: Mapping[str, Any] = dataclasses.field(default_factory=dict)                 # 25.11 ML1 (yalniz paper): {"aktif": bool, "paket_yolu"?, "ogrenme"?}; bos/aktif=false = kapali (onceki davranis)
 
     @functools.cached_property
     def risk_config(self) -> RiskConfig:
@@ -157,8 +157,8 @@ _OPTIONAL_KEYS = {"strategy", "target_trade_risk", "startup_wait_s", "pause_file
                   "optional_pairs", "retired_pairs", "max_positions", "risk", "clusters", "flat_bar_guard", "contract_types",
                   "cost_overrides", "arms", "exit_modes", "etiket_kurallari",
                   "ml1"}
-_ML1_KEYS = {"aktif": bool, "paket_yolu": str, "tohum_yolu": str, "ogrenme": dict}
-_OGRENME_KEYS = {"aktif": bool, "kuru": bool, "n0": (int, float), "yari_omur_gun": (int, float)}
+_ML1_KEYS = {"aktif": bool, "paket_yolu": str, "ogrenme": dict}                     # tohum paket YOK (sifirdan ogrenme)
+_OGRENME_KEYS = {"aktif": bool, "kuru": bool, "yari_omur_gun": (int, float), "min_islem": int, "min_islem_tf": int, "esik": (int, float)}
 _PAPER_ONLY_KEYS = ("optional_pairs", "max_positions", "risk", "clusters", "flat_bar_guard", "contract_types",
                     "cost_overrides", "arms")
 # 25.11 sadelestirme: ML1 kapisi secer; boyut/giris frenleri 3 katmana indi (islem basi risk, gunluk zarar siniri, hesap geneli acik
@@ -317,7 +317,7 @@ def _build_clusters(v: Any, pairs: tuple[str, ...]) -> dict[str, ClusterSpec]:
 
 
 def _build_ml1(v: Any) -> dict[str, Any]:
-    """25.11 ML1 blogu: {"aktif": bool, "paket_yolu"?: str, "tohum_yolu"?: str}; bos/None = kapali. Bilinmeyen anahtar/tur = ConfigError."""
+    """25.11 ML1 blogu: {"aktif": bool, "paket_yolu"?: str, "ogrenme"?: {aktif, kuru, yari_omur_gun, min_islem >= 1, min_islem_tf >= 0, esik (0,1)}}; bos/None = kapali. Bilinmeyen anahtar/tur = ConfigError."""
     if v in (None, {}):
         return {}
     if not isinstance(v, Mapping) or not set(v) <= set(_ML1_KEYS) or "aktif" not in v:
@@ -327,8 +327,11 @@ def _build_ml1(v: Any) -> dict[str, Any]:
             if not isinstance(x, Mapping) or not set(x) <= set(_OGRENME_KEYS):
                 raise ConfigError(f"ml1.ogrenme {sorted(_OGRENME_KEYS)} anahtarlarindan olusmali: {x!r}")
             for kk, xx in x.items():
-                if isinstance(xx, bool) != (kk in ("aktif", "kuru")) or not isinstance(xx, _OGRENME_KEYS[kk]) or (kk in ("n0", "yari_omur_gun") and xx <= 0):
+                if isinstance(xx, bool) != (kk in ("aktif", "kuru")) or not isinstance(xx, _OGRENME_KEYS[kk]):
                     raise ConfigError(f"ml1.ogrenme.{kk} gecersiz: {xx!r}")
+                if (kk == "yari_omur_gun" and xx <= 0) or (kk == "min_islem" and xx < 1) or (kk == "min_islem_tf" and xx < 0) \
+                        or (kk == "esik" and not 0.0 < xx < 1.0):
+                    raise ConfigError(f"ml1.ogrenme.{kk} aralik disi: {xx!r}")
             continue
         if not isinstance(x, _ML1_KEYS[k]) or (k != "aktif" and not x.strip()):
             raise ConfigError(f"ml1.{k} turu gecersiz: {x!r}")
@@ -636,47 +639,12 @@ def absolutize_kill_file(cfg: EngineConfig, base_path: Any) -> EngineConfig:
     return absolutize_paths(cfg, base_path)
 
 
-UNIVERSE_FILE = Path("var") / "universe" / "paper_pairs.json"   # DD-12 WP-16: aylik evren kaplamasi (yalniz paper)
-
-
-def apply_universe_overlay(raw: Mapping[str, Any], universe_path: Any) -> dict[str, Any]:
-    """DD-12 WP-16 (D-T28): `universe_path` varsa VE mode == 'paper' ise pairs/optional_pairs yerine kaplama dosyasini koyar.
-    testnet/live/backtest bu dosyayi HIC okumaz. Dosya bozuk/gecersizse ConfigError (sessiz geri donus yok). Kaplama
-    cikarilan ciftleri kume uyelerinden ve cost_overrides'tan temizler."""
-    if universe_path is None or raw.get("mode") != "paper":
-        return dict(raw)
-    p = Path(universe_path)
-    if not p.is_file():
-        return dict(raw)
-    from trader_core.universe import validate_overlay
-    try:
-        ov = validate_overlay(json.loads(p.read_text(encoding="utf-8")))
-    except (OSError, ValueError) as e:
-        raise ConfigError(f"evren kaplamasi gecersiz ({p}): {e}") from e
-    out = dict(raw)
-    pairs = tuple(ov["pairs"])
-    out["pairs"] = list(pairs)
-    out["optional_pairs"] = list(ov["optional_pairs"])
-    out["retired_pairs"] = list(ov["retired_pairs"])     # DD-12 WP-18: yeni giris kapali (acik pozisyon yonetilir)
-    if isinstance(raw.get("clusters"), Mapping):
-        cl = {}
-        for name, spec in raw["clusters"].items():
-            members = [x for x in spec.get("pairs", []) if x in pairs]
-            if members:
-                cl[name] = {**spec, "pairs": members}
-        out["clusters"] = cl
-    if isinstance(raw.get("cost_overrides"), Mapping):
-        out["cost_overrides"] = {k: v for k, v in raw["cost_overrides"].items() if k in pairs}
-    return out
-
-
 def load_engine_config(base_path: Any, bot_path: Any = None, *,
-                       env: Mapping[str, str] | None = None, overlay_path: Any = None,
-                       universe_path: Any = None) -> EngineConfig:
+                       env: Mapping[str, str] | None = None, overlay_path: Any = None) -> EngineConfig:
     """base (+ bot) (+ overlay) JSON birlestirir ve dogrular. LIVE_CONFIRM (11 §3.1) burada YALNIZ `env=` acikca
     verildiyse denetlenir; kosu yolu (cli run / build_engine) check_live_confirm'i kendisi cagirir
     (kill/pause/init-ledger/reconcile/backtest live yapilandirmada LIVE_CONFIRM istemez).
-    `universe_path` (WP-16): yalniz mode='paper' iken uygulanan evren kaplamasi."""
+    Evren (pairs/optional_pairs) YALNIZ bu JSON dosyalarindan gelir: otomatik evren kaplamasi YOKTUR (sahip karari: 14 cift sabit)."""
     merged = _read(base_path)
     if bot_path is not None:
         merged = deep_merge(merged, _read(bot_path))
@@ -689,7 +657,6 @@ def load_engine_config(base_path: Any, bot_path: Any = None, *,
         for cname, cspec in merged["clusters"].items():
             if isinstance(cspec, dict) and cspec.pop("max_positions", None) is not None:
                 logging.getLogger("engine.config").warning("kaldirilan yapilandirma anahtari yok sayildi: clusters.%s.max_positions", cname)
-    merged = apply_universe_overlay(merged, universe_path)
     cfg = _validate(merged)
     if env is not None:
         check_live_confirm(cfg, env)
@@ -718,7 +685,5 @@ def load_cli_config(config_dir: Any, bot: str = "learner", env: str | None = Non
     `smoke_live --live-overlay`) verilirse `engine.<env>.json` yerine o katman kullanilir."""
     d = Path(config_dir)
     overlay = overlay_path if overlay_path is not None else (d / f"engine.{env}.json" if env else None)
-    universe = d.parent / UNIVERSE_FILE if (d.name == "config") else d / UNIVERSE_FILE
-    cfg = load_engine_config(d / "engine.base.json", d / f"engine.{bot}.json", overlay_path=overlay,
-                             universe_path=universe)
+    cfg = load_engine_config(d / "engine.base.json", d / f"engine.{bot}.json", overlay_path=overlay)
     return absolutize_paths(cfg, d / "engine.base.json")

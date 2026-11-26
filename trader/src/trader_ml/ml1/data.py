@@ -14,7 +14,8 @@ from trader_engine.errors import DataError
 from trader_engine.marketdata.sources import HistoricalSource
 
 SONSUZ = datetime(2200, 1, 1, tzinfo=timezone.utc)
-TFS = ("15m", "1h", "4h", "1d")
+TFS = ("15m", "1h", "4h", "1d")             # veri/cikis simulatoru/tarama: 15m KALIR (karar ve cikis yonetimi kadansi)
+MODEL_TFS = ("1h", "4h", "1d")             # model ozelligi (tf_* one-hot) ve giris zaman dilimleri: 15m giris kolu yok (sahip karari)
 _KAYNAK: dict[str, HistoricalSource] = {}
 
 

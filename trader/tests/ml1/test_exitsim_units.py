@@ -235,8 +235,8 @@ def test_exit_modes_resolution_from_config():
     cfg = X.load_sim_config()
     m = XM.resolve(cfg.cfg_modes, "T1", "1h")
     assert m.breakeven and m.partial and m.pt_trigger_r == XM.PT_TRIGGER_R
-    y = XM.resolve(cfg.cfg_modes, "H2-YARI", "1h")
-    assert y.pt_trigger_r == 2.0
+    y = XM.resolve(cfg.cfg_modes, "H2-YARI", "1h")          # 26.11: H2-YARI config'ten kaldirildi -> varsayilan kip
+    assert y.pt_trigger_r == XM.PT_TRIGGER_R
 
 
 def test_funding_window_and_sign():
