@@ -25,8 +25,6 @@
 2026-11-24 03:40 UTC      2720  setup_filter/B1@1h.json
 2026-11-24 03:40 UTC      2756  setup_filter/TF1@1h.json
 2026-11-24 03:40 UTC      2767  setup_filter/T1@1h.json
-2026-11-24 03:40 UTC      3015  pa_proposer/M1@1h.prev.json
-2026-11-24 03:40 UTC      3031  pa_proposer/M1@4h.prev.json
 2026-11-24 03:40 UTC      3078  setup_filter/TF1@15m.json
 2026-11-24 03:40 UTC      3126  setup_filter/T1@15m.json
 2026-11-24 03:40 UTC      3132  setup_filter/H2@15m.json
@@ -37,9 +35,11 @@
 2026-11-24 03:40 UTC      3652  setup_filter/M1@15m.json
 2026-11-24 03:40 UTC      3723  setup_filter/S1@15m.json
 2026-11-24 03:40 UTC      3857  setup_filter/F1@15m.json
-2026-11-24 03:41 UTC      3013  pa_proposer/M1@15m.prev.json
-2026-11-24 03:41 UTC      3030  pa_proposer/M1@1d.prev.json
-2026-11-25 00:40 UTC      3015  pa_proposer/M1@1h.json
-2026-11-25 00:40 UTC      3031  pa_proposer/M1@4h.json
-2026-11-25 00:41 UTC      3013  pa_proposer/M1@15m.json
-2026-11-25 00:41 UTC      3030  pa_proposer/M1@1d.json
+2026-11-25 00:40 UTC      3015  pa_proposer/M1@1h.prev.json
+2026-11-25 00:40 UTC      3031  pa_proposer/M1@4h.prev.json
+2026-11-25 00:41 UTC      3013  pa_proposer/M1@15m.prev.json
+2026-11-25 00:41 UTC      3030  pa_proposer/M1@1d.prev.json
+2026-11-26 00:40 UTC      3015  pa_proposer/M1@1h.json
+2026-11-26 00:41 UTC      3013  pa_proposer/M1@15m.json
+2026-11-26 00:41 UTC      3030  pa_proposer/M1@1d.json
+2026-11-26 00:41 UTC      3031  pa_proposer/M1@4h.json
