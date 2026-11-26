@@ -19,7 +19,7 @@ import pandas as pd
 from trader_core import signals as S
 
 from .. import arm_guard as AG
-from ..bars import (ARM_TFS, MIN_CONTIG_ARM, STARTUP_BARS_ARM, WINDOW_ARM, arm_tf_delta)
+from ..bars import (ARM_TFS, GIRIS_TFS, MIN_CONTIG_ARM, STARTUP_BARS_ARM, WINDOW_ARM, arm_tf_delta)
 from .arms import ArmError, ArmInput, find_arm, make_arm_id, mask_to_setups, parse_arm_id
 from .base import ExitPolicy, StrategyContext, StrategyError, StrategyInfo
 from .price_action_v1 import _REENTRY_BLOCK, _param_specs
@@ -68,6 +68,8 @@ class PriceActionLab:
                 mod = find_arm(setup)
             except ArmError as e:
                 raise StrategyError("unknown_arm", str(e)) from e
+            if tf not in GIRIS_TFS:
+                raise StrategyError("unknown_arm", f"@{tf} arms rejected: 15m giris kolu yok (sahip karari): {aid}")
             if tf not in mod.TIMEFRAMES:
                 raise StrategyError("unknown_arm", f"{setup} {tf} zaman diliminde desteklenmiyor ({mod.TIMEFRAMES})")
             if make_arm_id(setup, tf) in ids:

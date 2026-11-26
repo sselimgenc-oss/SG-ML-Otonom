@@ -15,7 +15,7 @@ from . import ArmInput
 from . import _pa as P
 
 SETUP = "F1"
-TIMEFRAMES = ("15m", "1h", "4h", "1d")
+TIMEFRAMES = ("1h", "4h", "1d")
 CORE = False
 EXIT_MODE = "target"
 PRIORITY = 70

@@ -14,7 +14,7 @@ from . import ArmInput
 from . import _pa as P
 
 SETUP = "TF1"
-TIMEFRAMES = ("15m", "1h", "4h", "1d")
+TIMEFRAMES = ("1h", "4h", "1d")
 CORE = False
 EXIT_MODE = "trail"
 PRIORITY = 30

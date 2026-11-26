@@ -1,5 +1,5 @@
 """PA2: price action kutuphanesi (24.11 kullanici karari; tasarim: fikirler/gorev/2026-11-24-45480527826/gorev_sonuc.md,
-'Yeni PA2 formasyonlari'). 8 formasyon, her biri ayri kurulum (`PA2-BOLGE` ...); 29 kol (6 formasyon x 4 ZD, ONCEKI 3 ZD, TUKENIS 2 ZD).
+'Yeni PA2 formasyonlari'). 5 formasyon, her biri ayri kurulum (`PA2-BOLGE` ...); 5 formasyon x ZD kolu (ONCEKI 3 ZD).
 Dedektorler long uzayinda (short = fiyat aynasi), YALNIZ `t` ve oncesini okur; giris = kapanis `c[t]`; tampon yok (stop seviyenin
 kendisi); "yedek 2R": hedef girise 1R'den yakin ya da yanlis taraftaysa 2R. Pivot: sol 10, sag 2, kesin esitsizlik, indeks <= t-2.
 Gunluk/haftalik donemler mum ACILIS zamanindan (UTC; hafta Pazartesi 00:00). Gunluk ATR(14): onceki 14 tam gunun ortalama gercek
@@ -13,7 +13,7 @@ from . import ArmInput
 from ._kutuphane import Formasyon, hesapla
 
 SETUP = "PA2"
-TIMEFRAMES = ("15m", "1h", "4h", "1d")
+TIMEFRAMES = ("1h", "4h", "1d")
 CORE = False
 EXIT_MODE = "target"
 PRIORITY = 250                       # GF1 200 < PA2 250 < MF1 300 (mevcut kollar hep onde)
@@ -22,7 +22,6 @@ FEATURES = {"body_ratio": "body_ratio", "wick_ratio": "wick_ratio", "rr": "rr", 
 
 _GUN = 86400
 _HAFTA_OFS = 4 * _GUN                # 1970-01-01 Persembe; ilk Pazartesi gun 4
-_ZD_SN = {"15m": 900, "1h": 3600}
 
 
 def _sonuc(stop, etiket, *, hedef=None, seviye=None, olcu=None, yas=0):
@@ -181,48 +180,6 @@ def _adim(g):
     return int(np.diff(g.sec[max(0, g.t - 5):g.t + 1]).min())
 
 
-# ------------------------------------------------------------------------------------------------ TUKENIS
-def _tuk_kosul(g, m, s0, dATR):
-    """`m` mumunda gunun (s0..m) tukenis kosulu (tetik dahil)."""
-    h, l, c = g.h, g.l, g.c
-    if m <= s0 or not c[m] > h[m - 1]:
-        return False
-    gh, gl = h[s0:m + 1], l[s0:m + 1]
-    iH, iL = int(np.argmax(gh)), int(np.argmin(gl))
-    return bool(gh[iH] - gl[iL] >= 2.0 * dATR and iH < iL and iL >= m - 3 - s0)
-
-
-def tukenis(g):
-    ad = _adim(g)
-    sec, t, h, l, c, o = g.sec, g.t, g.h, g.l, g.c, g.o
-    if ad not in (900, 3600):
-        return None
-    ids = (sec[:t + 1]) // _GUN
-    cur = ids[t]
-    s0 = int(np.searchsorted(ids, cur, "left"))
-    a0 = int(np.searchsorted(ids, cur - 15, "left"))
-    if s0 - a0 != 15 * (_GUN // ad) or sec[a0] != (cur - 15) * _GUN:           # 15 tam gun gerekir
-        return None
-    sid = ids[a0:s0]
-    bas = np.flatnonzero(np.diff(sid, prepend=sid[0] - 1))
-    if len(bas) != 15 or (np.diff(np.append(bas, len(sid))) != _GUN // ad).any():
-        return None
-    gH = np.maximum.reduceat(h[a0:s0], bas)
-    gL = np.minimum.reduceat(l[a0:s0], bas)
-    gC = c[a0:s0][np.append(bas[1:], len(sid)) - 1]
-    tr = np.maximum(gH[1:] - gL[1:], np.maximum(np.abs(gH[1:] - gC[:-1]), np.abs(gL[1:] - gC[:-1])))
-    dATR = float(tr.mean())
-    if not (dATR > 0 and np.isfinite(dATR)):
-        return None
-    if not _tuk_kosul(g, t, s0, dATR):
-        return None
-    if any(_tuk_kosul(g, m, s0, dATR) for m in range(s0 + 1, t)):                 # gun icinde ilk boyle mum
-        return None
-    gl = float(l[s0:t + 1].min())
-    e = float(c[t])
-    return _sonuc(gl, "tukenis", hedef=e + 0.5 * dATR, seviye=float(h[s0:t + 1].max()), olcu=dATR, yas=t - int(np.argmin(l[s0:t + 1])) - s0)
-
-
 # ------------------------------------------------------------------------------------------------ TCIZGI
 def tcizgi(g):
     o, h, l, c, atr, t = g.o, g.h, g.l, g.c, g.atr, g.t
@@ -245,63 +202,13 @@ def tcizgi(g):
     return _sonuc(e - risk, "tcizgi", hedef=e + 2.5 * risk, seviye=float(cz[-1]), olcu=float(l[d2] - l[d1]), yas=t - d2)
 
 
-# ------------------------------------------------------------------------------------------------ SEVIYE
-def _mum_ok(g, m):
-    """MF1-PINBAR govde/golge kosullari ya da MF1-YUTAN dort mum kosulu (dip10/dip5 yok)."""
-    o, h, l, c = g.o, g.h, g.l, g.c
-    ar = h[m] - l[m]
-    if ar <= 0:
-        return False
-    gov = abs(c[m] - o[m])
-    alt, ust = min(o[m], c[m]) - l[m], h[m] - max(o[m], c[m])
-    if alt >= 2 * gov and ust < 0.1 * ar and c[m] >= l[m] + 0.5 * ar:
-        return True
-    return bool(c[m - 1] < o[m - 1] and c[m] > o[m] and o[m] <= c[m - 1] and c[m] >= o[m - 1])
-
-
-def seviye(g):
-    o, h, l, c, atr, t = g.o, g.h, g.l, g.c, g.atr, g.t
-    p = _pivot_dip(g)
-    if len(p) < 2:
-        return None
-    d2, d1 = p
-    a = atr[t]
-    if not (abs(l[d1] - l[d2]) <= 0.5 * a and d2 - d1 >= 5 and t >= d2 + 3):
-        return None
-    S = float(min(l[d1], l[d2]))
-    if (c[d2:t] < S).any() or not c[t] > S:
-        return None
-
-    def ok(m):
-        return S - 0.5 * atr[m] <= l[m] <= S + 0.3 * atr[m] and c[m] > S and _mum_ok(g, m)
-    if not ok(t) or any(ok(m) for m in range(d2 + 1, t)):
-        return None
-    e = float(c[t])
-    st = float(min(l[t], l[t - 1]))
-    return _sonuc(st, "seviye", hedef=_yedek(e, st, float(h[d1:t].max())), seviye=S, olcu=float(a), yas=t - d2)
-
-
-# ------------------------------------------------------------------------------------------------ UCVURUS
-def ucvurus(g):
-    o, h, l, c, t = g.o, g.h, g.l, g.c, g.t
-    for i in (t - 3, t - 2, t - 1):
-        if not (c[i] < o[i] and (c[i] - l[i]) <= 0.25 * (h[i] - l[i])):
-            return None
-    if not (l[t - 2] < l[t - 3] and l[t - 1] < l[t - 2] and o[t] <= c[t - 1] and c[t] > h[t - 3]):
-        return None
-    return _sonuc(l[t], "ucvurus", olcu=c[t] - l[t])
-
-
 _TF = TIMEFRAMES
 FORMASYONLAR = {
     "EMIRBLOK": Formasyon("EMIRBLOK", "PA: emir bloğu", 1, _TF, 48, emirblok),
     "BOLGE": Formasyon("BOLGE", "PA: arz/talep bölgesi", 2, _TF, 48, bolge),
     "FVG": Formasyon("FVG", "PA: değer boşluğu", 3, _TF, 48, fvg),
-    "ONCEKI": Formasyon("ONCEKI", "PA: önceki dönem dibi", 4, ("15m", "1h", "4h"), 48, onceki),
+    "ONCEKI": Formasyon("ONCEKI", "PA: önceki dönem dibi", 4, ("1h", "4h"), 48, onceki),
     "TCIZGI": Formasyon("TCIZGI", "PA: trend çizgisi", 5, _TF, 48, tcizgi),
-    "SEVIYE": Formasyon("SEVIYE", "PA: seviyede mum", 6, _TF, 48, seviye),
-    "UCVURUS": Formasyon("UCVURUS", "PA: üç çizgi vuruşu", 7, _TF, 5, ucvurus),
-    "TUKENIS": Formasyon("TUKENIS", "PA: günlük tükeniş", 8, ("15m", "1h"), {"15m": 48, "1h": 12}, tukenis),
 }
 
 

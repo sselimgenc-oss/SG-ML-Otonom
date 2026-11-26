@@ -35,7 +35,7 @@ from trader_core import ledger as L
 from trader_core import signals as S
 from trader_engine import bars as B
 from trader_engine.errors import ConfigError
-from trader_engine.strategies.base import StrategyContext
+from trader_engine.strategies.base import StrategyContext, StrategyError
 from trader_engine.strategies.registry import get_strategy, list_strategies
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -133,8 +133,10 @@ def test_lab_registered_and_paper_allowed():
     assert {"T1", "R1"} <= set(st.info.setups)
     # gercek tasarim: motor karar adimi 15 dk (strateji `decision_tf`), param/defter tf'i 1s; kurulum tf'leri lab.tfs()
     assert getattr(st, "decision_tf", None) == "15m"
-    st.set_arms([f"{s_}@{tf}" for s_ in ("T1", "R1") for tf in ALL_TFS])   # dort zaman diliminin hepsi kurulabilir
-    assert set(ALL_TFS) <= set(st.tfs())
+    st.set_arms([f"{s_}@{tf}" for s_ in ("T1", "R1") for tf in ("1h", "4h", "1d")])   # 26.11 sahip karari: giris kolu 1h/4h/1d
+    assert {"1h", "4h", "1d"} <= set(st.tfs())
+    with pytest.raises(StrategyError, match="15m"):
+        st.set_arms(["T1@15m"])                                              # 15m giris kolu reddedilir
 
 
 def test_lab_label_and_unchanged_registry_names():

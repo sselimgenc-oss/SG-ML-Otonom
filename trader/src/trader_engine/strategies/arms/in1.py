@@ -1,6 +1,6 @@
 """IN1: gosterge setuplari kutuphanesi (24.11 kullanici karari; tasarim: fikirler/gorev/2026-11-24-45474500845/gorev_sonuc.md).
 
-17 formasyon, her biri ayri kurulum (`IN1-RSI` ...) ve 4 zaman diliminde ayri kol (VWAP yalniz 15m ve 1h). Dedektorler long uzayinda
+17 formasyon, her biri ayri kurulum (`IN1-RSI` ...) ve 3 zaman diliminde (1h/4h/1d) ayri kol (VWAP yalniz 1h). Dedektorler long uzayinda
 (short = fiyat aynasi; gostergeler aynalanmis seriden hesaplanir) YALNIZ `t` ve oncesini okur. Kural cikislari (`EXIT_RULE`) her
 kapanan mumda son kapanmis mumu okur; sagliyorsa piyasa emriyle cikilir. Stopsuz setuplara 2 ATR stop konur (kullanici karari).
 Ichimoku bulutu `t`de cizilen deger: t-26 ve oncesinin verisinden. Hacim ortalamasi ve "onceki N mum" pencereleri `t`yi icermez.
@@ -16,7 +16,7 @@ from . import _kutuphane as K
 from ._kutuphane import Formasyon, hesapla, ortak
 
 SETUP = "IN1"
-TIMEFRAMES = ("15m", "1h", "4h", "1d")
+TIMEFRAMES = ("1h", "4h", "1d")
 CORE = False
 EXIT_MODE = "target"
 PRIORITY = 400                       # kutuphane tabanlari: GF1 200, MF1 300, IN1 400 (mevcut kollar hep onde: en buyuk 95)
@@ -326,7 +326,7 @@ def _c_vwap(g, t):
 
 
 _TF = TIMEFRAMES
-_TF_KISA = ("15m", "1h")
+_TF_KISA = ("1h",)
 FORMASYONLAR = {
     "UYUMSUZ": Formasyon("UYUMSUZ", "Gosterge: RSI uyumsuzlugu", 1, _TF, 48, uyumsuz),
     "MAKESISIM": Formasyon("MAKESISIM", "Gosterge: SMA50/200 kesisimi", 2, _TF, 48, makesisim, _kural(_c_mak)),

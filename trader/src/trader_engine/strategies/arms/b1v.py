@@ -1,7 +1,5 @@
 """B1 varyantlari (24.11 kullanici karari: PA varyantlari). Ana kol B1 (kirilim + yeniden test; `b1.py`) AYNEN kalir.
 
-MUM: ana kolun `t` retest sinyaline ek sart: t mumu pin bar (alt golge >= 2 x govde, ust golge < 0,1 x aralik, kapanis aralik
-ortasinin ustunde) ya da yutan mum (onceki dusus mumunu govdeyle yutan yukselis). Stop/hedef (2R) ana kolun.
 BOLGE: seviye yerine bolge: B1'in kirilim bari ve seviyesi L ayni; bolge = [L - 1 ATR[i0], L]. Retest (i0 < t <= i0+10): (i0, t]'de
 kapanis bolge dibinin (L - 1 ATR) altinda degil, ters kirilim yok, l <= L + 0,25 ATR dokunma var, t'de c > o ve c > bolge dibi.
 Kirilim basina ILK gecerli retest tek sinyal. Stop = min(l(i0, t]) (tampon yok); hedef 2R (kutuphane yedegi). Rejim B1 ile ayni.
@@ -12,7 +10,7 @@ import numpy as np
 
 from . import b1 as B1
 from ._kutuphane import Formasyon, hesapla
-from ._varyant import TUM_ZD, ana_sonuc, pin_geometri, prep, sonuc, yutan_geometri
+from ._varyant import TUM_ZD, prep, sonuc
 
 SETUP = "B1"
 TIMEFRAMES = TUM_ZD
@@ -20,10 +18,6 @@ CORE = False
 EXIT_MODE = "target"
 PRIORITY = 40
 BOLGE_ATR = 1.0
-
-
-def mum(g):
-    return ana_sonuc(g, B1, "mum") if (pin_geometri(g) or yutan_geometri(g)) else None
 
 
 def _kirilimlar(g):
@@ -68,7 +62,6 @@ def bolge(g):
 
 
 FORMASYONLAR = {
-    "MUM": Formasyon("MUM", "B1 varyant: retestte pin bar / yutan mum", 1, TUM_ZD, 48, mum),
     "BOLGE": Formasyon("BOLGE", "B1 varyant: kirilan bolgeye geri donus", 2, TUM_ZD, 48, bolge),
 }
 

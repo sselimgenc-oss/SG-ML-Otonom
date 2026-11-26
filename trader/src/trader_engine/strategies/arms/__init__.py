@@ -5,7 +5,7 @@ dosyalari kesfedilir (`pkgutil`), gelen ad bu kesfedilmis sozlukte aranir.
 
 Kurulum dosyasi sozlesmesi (modul seviyesi):
   SETUP: str                   kurulum kodu (`T1`, `R1` ...; buyuk harf/rakam, 2-8)
-  TIMEFRAMES: tuple[str, ...]  desteklenen zaman dilimleri (alt kume: 15m, 1h, 4h, 1d)
+  TIMEFRAMES: tuple[str, ...]  desteklenen zaman dilimleri (alt kume: 1h, 4h, 1d; 15m GIRIS kolu yok, sahip karari)
   CORE: bool                   True: sinyali `signals.compute_signals` ortak tablosundan satir secerek verir (T1/R1); lab bu
                                kurulumlarin tablosunu zaman dilimi basina TEK hesapla toplu uretir
   compute(inp: ArmInput) -> DataFrame   SIGNAL_COLUMNS sutunlu, `inp.trig.index` indeksli tablo; kurulumun olmayan satirlarinda signal=False
@@ -38,7 +38,7 @@ EXIT_MODES = ("trail", "target")
 CARRIERS = ("ema_value", "body_ratio", "wick_ratio", "edge_dist_atr", "rr", "pullback_ema")
 _RESERVED_FEATURE_KEYS = ("atr_tf", "stop_dist_atr", "atr_4h", "rh_touches", "rl_touches")
 MAX_FEATURES = 6
-_ARM_ID_RE = re.compile(r"([A-Z][A-Z0-9]{1,7}(?:-[A-Z0-9]{2,10})?)@(15m|1h|4h|1d)")
+_ARM_ID_RE = re.compile(r"([A-Z][A-Z0-9]{1,7}(?:-[A-Z0-9]{2,10})?)@(15m|1h|4h|1d)")  # 15m: eski defter kimlikleri ayrisir; giris kolu olarak lab/config reddeder (bars.GIRIS_TFS)
 _OFF_PREFIX = "lab:arm_off|"
 
 
@@ -80,7 +80,7 @@ def make_arm_id(setup: str, tf: str) -> str:
 def parse_arm_id(arm_id: str) -> tuple[str, str]:
     m = _ARM_ID_RE.fullmatch(arm_id) if isinstance(arm_id, str) else None
     if m is None:
-        raise ArmError(f"gecersiz arm_id: {arm_id!r} (bicim <KURULUM>@<15m|1h|4h|1d>)")
+        raise ArmError(f"gecersiz arm_id: {arm_id!r} (bicim <KURULUM>@<1h|4h|1d>; 15m giris kolu yok)")
     return m.group(1), m.group(2)
 
 
@@ -159,12 +159,9 @@ def priority_of(setup: str | None) -> int:
 
 
 def time_stop_of(setup: str | None, tf: str | None = None) -> int:
-    """Kurulumun zaman stopu (mum); `TIME_STOP` yoksa 48 (mevcut kollarin degeri). `TIME_STOP` sozluk ise ({"15m": 48, "1h": 12})
-    `tf` anahtari, yoksa 48 (24.11 PA2-TUKENIS)."""
+    """Kurulumun zaman stopu (mum); `TIME_STOP` yoksa 48 (mevcut kollarin degeri). `tf` kullanilmaz (cagri uyumu icin kalir)."""
     mod = discover().get(setup) if isinstance(setup, str) else None
     v = getattr(mod, "TIME_STOP", None)
-    if isinstance(v, dict):
-        v = v.get(tf)
     return 48 if v is None else int(v)
 
 

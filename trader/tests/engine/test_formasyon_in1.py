@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[2]
 KODLAR = ("UYUMSUZ", "MAKESISIM", "KUMO", "TK", "FIBO", "HACIM", "RSI", "RSIDONUS", "RSI2", "STOK", "MACD", "MAGERI", "BOLLKIR", "VWAP",
           "FIYATMA", "HIZLIMA", "BOLL")
 KURALLI = ("MAKESISIM", "KUMO", "TK", "RSI", "RSIDONUS", "RSI2", "STOK", "MACD", "BOLLKIR", "VWAP", "FIYATMA", "HIZLIMA", "BOLL")
-TFS = ("15m", "1h", "4h", "1d")
+TFS = ("1h", "4h", "1d")
 KAL = 250.0
 
 
@@ -256,8 +256,8 @@ def test_isinma_dolmadan_aday_yok_hata_yok():
         assert not t["signal"].any()
 
 
-def test_vwap_yalniz_15m_ve_1h():
-    assert in1.FORMASYONLAR["VWAP"].tfs == ("15m", "1h") and arms.find_arm("IN1-VWAP").TIMEFRAMES == ("15m", "1h")
+def test_vwap_yalniz_1h():
+    assert in1.FORMASYONLAR["VWAP"].tfs == ("1h",) and arms.find_arm("IN1-VWAP").TIMEFRAMES == ("1h",)      # 26.11: 15m giris kolu yok
     assert all(in1.FORMASYONLAR[k].tfs == TFS for k in KODLAR if k != "VWAP")
 
 
@@ -451,14 +451,14 @@ def test_kesif_17_formasyon_sanal_kurulum():
     assert len(arms.list_arms()) == 10 + 12 + 13 + 17 + 0 or len(arms.list_arms()) >= 52
 
 
-def test_hiz_5000_mum_42_formasyon():
-    """MF1 + GF1 + IN1 (42 formasyon) 5000 mumluk bir cift x ZD icin toplam < 50 ms (ortak onbellek, gosterge tek hesap)."""
+def test_hiz_5000_mum_38_formasyon():
+    """MF1 + GF1 + IN1 (38 formasyon) 5000 mumluk bir cift x ZD icin toplam < 50 ms (ortak onbellek, gosterge tek hesap)."""
     K.IND_PENCERE = 1200
     o, h, l, c, v = rw(5000, 5, 0.012, hacim=True)
     df = pd.DataFrame({"open": o, "high": h, "low": l, "close": c, "volume": v},
                       index=pd.date_range("2026-01-01", periods=5000, freq="1h", tz="UTC"))
     ad = [f"MF1-{k}" for k in mf1.FORMASYONLAR] + [f"GF1-{k}" for k in gf1.FORMASYONLAR] + [f"IN1-{k}" for k in in1.FORMASYONLAR]
-    assert len(ad) == 42
+    assert len(ad) == 38
     import bos_cekirdek as M1MOD
     core = M1MOD.empty_output(df.index)                    # motorda ortak tablo lab'da bir kez hesaplanir (burada da tek kopya)
     mk = lambda d, p: arms.ArmInput(pair=p, tf="1h", D=d.index[-1].to_pydatetime(), trig=d, h4=None, params=None, core_fn=lambda: core)  # noqa: E731

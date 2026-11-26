@@ -11,15 +11,15 @@ Yol (plan bolum 1):
 Aday satir alanlari (CAND_COLUMNS):
   bar_ts          karar mumunun ACILIS zamani (UTC); decision_ts = bar_ts + tf = karar (kapanis) ani; giris bir SONRAKI mumun acilisi
   pair, tf, arm_id (`SETUP@tf`), setup, family, group, side (long|short)
-  entry_ref       planlanan giris = karar mumu kapanisi (gercek simulasyon girisi sonraki acilis; exitsim hesaplar)
+  entry_ref       planlanan giris = karar mumu kapanisi (gercek giris sonraki acilis)
   stop, target    gercek fiyat; target NaN = hedefsiz (iz suren stop kipi)
   atr, rr, stop_dist_atr
-  exit_mode       "trail" | "target" (arm.EXIT_MODE); time_stop (arm TF mumu, `time_stop_of`; exitsim satir alani adi); rule_exit (kural cikisi var mi:
+  exit_mode       "trail" | "target" (arm.EXIT_MODE); time_stop (arm TF mumu, `time_stop_of`); rule_exit (kural cikisi var mi:
                   `exit_rule_of(setup)`); trail_atr (SignalParams.trail_atr)
   regime          karar anindaki 4s rejimi (core tablosu)
   ema_value, body_ratio, wick_ratio, edge_dist_atr, pullback_ema   kolun tasiyici ozellikleri
   label           kolun `reasons` etiketi
-Cikis alanlari (exit_ts, exit_reason, ...) burada YOK; table.py bos (null) ekler, exitsim doldurur."""
+Cikis alanlari (exit_ts, exit_reason, ...) burada YOK; table.py bos (null) ekler (cikis simulatoru yok; sutunlar sema uyumu icin)."""
 from __future__ import annotations
 
 import contextlib
@@ -256,7 +256,7 @@ def scan_pair_tf(pair: str, tf: str, trig: pd.DataFrame, h4: pd.DataFrame, arm_i
 
 
 def core_table(trig: pd.DataFrame, h4: pd.DataFrame, params: S.SignalParams | None = None) -> pd.DataFrame:
-    """Ortak core tablosu (4s rejimi hizali; exitsim `prepare_tf` girdisi)."""
+    """Ortak core tablosu (4s rejimi hizali)."""
     params = params or S.DEFAULT_SIGNAL_PARAMS
     core, _, _ = AT.core_signals(trig, AT.regime_series(h4, params.regime_params()), params)
     return core
@@ -264,7 +264,7 @@ def core_table(trig: pd.DataFrame, h4: pd.DataFrame, params: S.SignalParams | No
 
 def rule_exit_close_ms(trig: pd.DataFrame, tf: str, setup: str, side: str) -> np.ndarray:
     """Kural cikisi (EXIT_RULE; IN1 `cikis.fn`) kosulunun dogru oldugu tf-KAPANIS zamanlari (epoch ms, sirali). Kural t'de yalniz
-    t'ye kadar mumlari okur (canli: `_kural` son kapanmis mum, yon = acik pozisyonun yonu). exitsim `rule_exit_ts` girdisi."""
+    t'ye kadar mumlari okur (canli: `_kural` son kapanmis mum, yon = acik pozisyonun yonu)."""
     fn = getattr(A.exit_rule_of(setup), "fn", None)
     if fn is None:
         return np.zeros(0, dtype=np.int64)

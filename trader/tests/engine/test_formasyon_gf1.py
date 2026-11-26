@@ -19,7 +19,7 @@ from trader_engine.strategies.arms import gf1
 
 ROOT = Path(__file__).resolve().parents[2]
 KODLAR = ("OBO", "UCLU", "KUPA", "IKILI", "KAMA", "UCGEN", "BAYRAK", "FLAMA", "RETEST", "SAHTE", "TREND", "KANAL", "YATAY")
-TFS = ("15m", "1h", "4h", "1d")
+TFS = ("1h", "4h", "1d")
 
 # ------------------------------------------------------------------------------------------------ sentetik seriler
 O = {

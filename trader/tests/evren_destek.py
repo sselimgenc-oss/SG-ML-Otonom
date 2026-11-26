@@ -1,5 +1,5 @@
 """26.11 sahip karari testleri icin ortak sabitler: evren 14 cift, giris zaman dilimleri 1h/4h/1d, 16 kurulum kaldirildi.
-Kurulum MODULLERI yerinde kalir (discover() hepsini bulur); yalniz config `arms` listesinden ve ML1 gruplarindan cikarildilar."""
+Kaldirilan kurulumlar koddan da silindi (Paket 3: discover() 55 kurulum); sabit 'kayitta da yok' negatif testleri icindir."""
 from __future__ import annotations
 
 EVREN = tuple(f"{b}/USDT" for b in ("AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "META", "TSLA", "BTC", "ETH", "SOL", "XRP", "TRX", "XAU", "BZ"))
@@ -10,5 +10,5 @@ KOL_SAYISI, KURULUM_SAYISI, GRUP_SAYISI = 162, 55, 18      # 18 grup: CANDLE_STA
 
 
 def config_kollari(arm_ids):
-    """Modullerden turetilen kol kimliklerinden config'te OLMASI gerekenler: 15m giris kolu ve kaldirilan 16 kurulum disarda."""
+    """Modullerden turetilen kol kimliklerinden config'te OLMASI gerekenler (15m giris kolu ve kaldirilan 16 kurulum zaten kayitta yok)."""
     return [a for a in arm_ids if a.partition("@")[2] != "15m" and a.partition("@")[0] not in KALDIRILAN_KURULUM]

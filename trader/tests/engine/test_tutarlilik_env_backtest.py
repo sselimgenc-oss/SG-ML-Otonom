@@ -30,7 +30,7 @@ EQ = BT.EQ_FIELDS
 
 
 S_START, S_END = datetime(2026, 4, 5, tzinfo=UTC), datetime(2026, 11, 6, 14, tzinfo=UTC)      # sentetik magaza kapsami
-ARMS = ["T1@1h", "T1@4h", "S1@1h", "R1@1h", "F1@15m", "H2@1h"]
+ARMS = ["T1@1h", "T1@4h", "S1@1h", "R1@1h", "F1@4h", "H2@1h"]
 
 
 def _write_store(db: Path) -> None:

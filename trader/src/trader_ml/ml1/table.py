@@ -4,7 +4,7 @@ Dizin:  <kok>/candidates/pair=<BTC_USDT>/tf=<1h>/month=<YYYY-MM>.parquet   (ay =
         <kok>/manifest.json = {"version", "arms_hash", "exit_hash", "pairs": {"BTC/USDT|1h": {"last_scanned_ts", "n_rows"}}}
 `last_scanned_ts` = taranan son mumun decision_ts'i (kapanisi); artimli tarama yalniz decision_ts > last_scanned_ts satirlarini ekler
 (onceki `WARMUP_BARS` mumdan isinma ile). `arms_hash` degisirse (kol kaynaklari / parametreler) TUM tablo silinip yeniden kurulur.
-Cikis alanlari (EXIT_COLUMNS) tarama aninda bostur (null); cikis simulatoru sonradan doldurur (`update_exits`).
+Cikis alanlari (EXIT_COLUMNS) tarama aninda bostur (null); cikis simulatoru yoktur (26.11 sahip karari); sutunlar sema uyumu icin kalir (`update_exits` yalniz arac).
 `only_pending_exit`: exit_ts ve exit_reason bos satirlar (veri sonunda acik kalan satirlar yazilmaz, sonraki turda yeniden simule edilir).
 `exit_hash` degisirse yalniz cikis alanlari bosaltilir (adaylar kalir)."""
 from __future__ import annotations
@@ -21,7 +21,7 @@ from . import scan as SC
 VERSION = 1
 EXIT_CORE = ["exit_ts", "exit_reason", "exit_price", "r_net", "censored"]
 EXIT_EXTRA = ["entry_ts", "entry_px", "status", "gross_R", "fee_R", "funding_R", "mfe_R", "mae_R", "bars_held", "be_moved", "partial_frac"]
-EXIT_COLUMNS = EXIT_CORE + EXIT_EXTRA                      # hepsi tarama aninda null; exitsim sonradan doldurur
+EXIT_COLUMNS = EXIT_CORE + EXIT_EXTRA                      # hepsi null yazilir (sema uyumu)
 KEY = ["pair", "tf", "arm_id", "bar_ts"]                       # bir aday satirinin kimligi
 
 

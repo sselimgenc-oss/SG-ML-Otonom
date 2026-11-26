@@ -33,7 +33,7 @@ def test_engine_and_core_never_import_ml_libs():
 
 # 25.11 ML1 kagit kapisi: motorun trader_ml'e TEK izinli kopru (yalniz trader_ml.ml1 ozellik/model islevleri; egitim kodu cevrimdisidir)
 ML1_KOPRU = "trader_engine/ml1_gate.py"
-ML1_KOPRULER = (ML1_KOPRU, "trader_engine/ml1_ogren.py")    # ogrenici de yalniz trader_ml.ml1.* (model/features/exitsim/scan) kullanir
+ML1_KOPRULER = (ML1_KOPRU, "trader_engine/ml1_ogren.py")    # ogrenici de yalniz trader_ml.ml1.* (model/features/groups) kullanir
 
 
 def _ml1_only(py: Path) -> bool:
@@ -51,12 +51,14 @@ def test_engine_and_core_do_not_import_trader_ml():
         assert _ml1_only(SRC / k)                                      # kopruler yalniz trader_ml.ml1.* ice aktarir
 
 
-def test_model_evaluator_is_numpy_only():
-    """Motor tarafi degerlendirici ve paket okuyucu trader_ml'e bagimli olmaz; yalniz stdlib + numpy."""
-    imps = _imports(SRC / "trader_core" / "ml_eval.py")
-    assert imps <= {"__future__", "numpy"}, imps
+def test_ml_package_is_minimal_stdlib_only():
+    """26.11 sahip karari (olu kod): ml_eval.py ve PackageSet/tohum zinciri kaldirildi; ml_package yalniz canon/sha256_text, stdlib."""
+    assert not (SRC / "trader_core" / "ml_eval.py").exists()
     pkg = _imports(SRC / "trader_core" / "ml_package.py")
-    assert pkg <= {"__future__", "hashlib", "json", "re", "dataclasses", "datetime", "pathlib", "numpy"}, pkg
+    assert pkg <= {"__future__", "hashlib", "json"}, pkg
+    import trader_core.ml_package as mp
+    for ad in ("PackageSet", "view_from_package", "load_package"):
+        assert not hasattr(mp, ad), ad
 
 
 def test_engine_imports_only_core_for_ml():

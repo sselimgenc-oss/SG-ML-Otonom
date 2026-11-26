@@ -1,5 +1,5 @@
-"""24.11 kullanici karari: formasyon kutuphanesi, adim 1 (altyapi + MF1 12 mum formasyonu).
-Sentetik ornek (long + short aynasi + bozulan kosul), setuplar_v3 esdegerligi (PINBAR/YUTAN/YILDIZ), ileriye bakis,
+"""24.11 kullanici karari: formasyon kutuphanesi, adim 1 (altyapi + MF1 mum formasyonlari; 26.11 Paket 3: 8 formasyon).
+Sentetik ornek (long + short aynasi + bozulan kosul), setuplar_v3 esdegerligi (PINBAR/YUTAN), ileriye bakis,
 kimlik/kesif, tavanlar, on deger, cikis (zaman stopu / kural cikisi), kagit = canli."""
 from __future__ import annotations
 
@@ -25,9 +25,8 @@ import bos_cekirdek as M1MOD
 from trader_engine.strategies.arms import mf1
 
 ROOT = Path(__file__).resolve().parents[2]
-KODLAR = ("YILDIZ", "UCASKER", "DELICI", "ICSAHTE", "DISBAR", "YUTAN", "HARAMI", "TERSCEKIC", "CIMBIZ", "PINBAR", "ICCUBUK",
-          "MARUBOZU")
-TFS = ("15m", "1h", "4h", "1d")
+KODLAR = ("DELICI", "ICSAHTE", "DISBAR", "YUTAN", "HARAMI", "CIMBIZ", "PINBAR", "ICCUBUK")
+TFS = ("1h", "4h", "1d")
 KAL = 320.0                      # short aynasi: gercek fiyat = KAL - long fiyati (pozitif kalsin)
 
 # ------------------------------------------------------------------------------------------------ sentetik seri
@@ -35,14 +34,9 @@ KAL = 320.0                      # short aynasi: gercek fiyat = KAL - long fiyat
 ORNEK = {
     "PINBAR": ([(160.5, 160.9, 157.0, 160.8)], 157.0, None),
     "YUTAN": ([(161.0, 161.2, 159.3, 159.5), (159.4, 161.7, 159.2, 161.5)], 159.2, None),
-    "YILDIZ": ([(160.5, 160.6, 157.3, 157.5), (157.4, 157.8, 157.0, 157.5), (157.6, 159.6, 157.5, 159.5)],
-               159.5 - 0.03 * 159.5, 159.5 + 0.09 * 159.5),
     "DELICI": ([(161.0, 161.2, 158.3, 158.5), (158.3, 160.4, 158.0, 160.3)], 158.0, None),
     "HARAMI": ([(162.0, 162.2, 158.3, 158.5), (159.0, 160.2, 158.9, 160.0)], 158.3, None),
-    "TERSCEKIC": ([(160.4, 164.0, 160.3, 160.6), (160.7, 164.6, 160.6, 164.5)], 160.3, None),
-    "UCASKER": ([(159.0, 161.1, 158.9, 161.0), (160.0, 163.1, 159.9, 163.0), (162.0, 165.1, 161.9, 165.0)], 158.9, None),
     "CIMBIZ": ([(161.0, 161.2, 158.0, 159.6), (159.0, 160.7, 158.05, 160.5)], 158.0, None),
-    "MARUBOZU": ([(161.0, 165.2, 160.9, 165.0)], 160.9, None),
     "ICSAHTE": ([(161.5, 163.0, 160.0, 162.0), (161.5, 162.5, 160.5, 161.8), (160.2, 161.9, 159.5, 161.7)], 159.5, None),
     "DISBAR": ([(161.0, 161.3, 160.2, 160.5), (160.4, 162.5, 159.8, 162.0)], 159.8, None),
     "ICCUBUK": ([(160.0, 163.0, 159.0, 161.0), (160.5, 162.0, 160.0, 161.0), (161.0, 163.7, 160.8, 163.5)], 159.0, None),
@@ -87,9 +81,7 @@ def test_sentetik_long_short_ve_bozulan_kosul(kod):
     assert bul(kod, seri(kod), "short") is None                    # long serisinde short yok
     rs = bul(kod, seri(kod, short=True), "short")
     assert rs is not None, kod
-    if kod == "YILDIZ":                                            # yuzde stop |fiyat| ile: aynadaki fiyat uzerinden
-        assert -rs["stop"] == pytest.approx((KAL - 159.5) * 1.03, abs=1e-9)
-    else:
+    if True:
         assert -rs["stop"] == pytest.approx(-(KAL - stop), abs=1e-9) or rs["stop"] == pytest.approx(-(KAL - stop), abs=1e-9)
     assert bul(kod, seri(kod, short=True), "long") is None
     assert bul(kod, seri(kod, bozuk=True), "long") is None         # kosul bozulunca tetiklemez
@@ -124,19 +116,13 @@ def test_motor_yolu_tablo_satiri(kod):
     assert not bool(bos["signal"].iloc[-1]) and bos["setup"].iloc[-1] is None
 
 
-def test_yildiz_gercek_stop_hedef_yuzde_ve_zaman_stopu():
-    df = seri("YILDIZ")
-    row = arms.find_arm("MF1-YILDIZ").compute(_core_inp(df, pair="YS/USDT")).iloc[-1]
-    c = 159.5
-    assert float(row["planned_stop"]) == pytest.approx(c * 0.97) and float(row["planned_target"]) == pytest.approx(c * 1.09)
-    assert arms.time_stop_of("MF1-YILDIZ") == 20 and arms.time_stop_of("MF1-YUTAN") == 48 and arms.time_stop_of("T1") == 48
+def test_zaman_stopu_varsayilani_48():
+    assert arms.time_stop_of("MF1-YUTAN") == 48 and arms.time_stop_of("T1") == 48
+    assert all(arms.time_stop_of(f"MF1-{k}") == 48 for k in KODLAR)
 
 
 def test_stop_dar_ise_elenir():
     """stop mesafesi girisin %0,6'sindan kucukse stop_width (aday kaydedilir, sinyal degil)."""
-    df = seri("MARUBOZU")
-    df.iloc[-1] = [161.0, 161.2, 160.9999, 161.1999, 1.0]      # dar govde ama marubozu: aralik < 1.5 ATR -> aday yok
-    assert arms.find_arm("MF1-MARUBOZU").compute(_core_inp(df, pair="SW/USDT")).iloc[-1]["setup"] is None
     # PINBAR dar stop: alt golge 0.4 (>= 2 govde), giris 160.8 stop 160.4 -> %0,25
     p = seri("PINBAR")
     p.iloc[-1] = [160.7, 160.82, 160.4, 160.8, 1.0]
@@ -188,25 +174,12 @@ def _ref():
         sys.path.remove(d)
 
 
-def _enjekte_yildiz(o, h, l, c, rng):
-    """Rastgele yuruyuse yildiz kaliplari gom (v3 ile karsilastirmada yildiz sinyali bulunsun)."""
-    for t in range(60, len(c) - 5, 400):
-        b = c[t - 1]
-        o[t - 2], c[t - 2] = b * 1.0, b * 0.97
-        h[t - 2], l[t - 2] = b * 1.0005, b * 0.9695
-        o[t - 1], c[t - 1] = b * 0.9701, b * 0.9702
-        h[t - 1], l[t - 1] = b * 0.9712, b * 0.9692
-        o[t], c[t] = b * 0.9715, b * 0.9885
-        h[t], l[t] = b * 0.9895, b * 0.9710
-
-
-@pytest.mark.parametrize("kod,v3kod", [("PINBAR", "MUM_PINBAR"), ("YUTAN", "MUM_YUTAN"), ("YILDIZ", "MUM_YILDIZ")])
+@pytest.mark.parametrize("kod,v3kod", [("PINBAR", "MUM_PINBAR"), ("YUTAN", "MUM_YUTAN")])
 def test_setuplar_v3_esdegerligi(kod, v3kod):
     """Rastgele yuruyuste her t icin kutuphane sonucu `gercek_sinyaller` ile ayni (t, yon, stop, hedef)."""
     v3 = _ref()
     n = 6000
     o, h, l, c = rw(n, 7, 0.015)
-    _enjekte_yildiz(o, h, l, c, None)
     a = atr_of(o, h, l, c)
     v = np.ones(n)
     Fd = {}
@@ -270,7 +243,7 @@ def test_ileriye_bakis_ve_pencere_bagimsizligi():
     assert toplam > 50
 
 
-def test_hiz_5000_mum_12_formasyon():
+def test_hiz_5000_mum_8_formasyon():
     o, h, l, c = rw(5000, 5)
     idx = pd.date_range("2026-01-01", periods=5000, freq="1h", tz="UTC")
     df = pd.DataFrame({"open": o, "high": h, "low": l, "close": c, "volume": 1.0}, index=idx)
@@ -285,7 +258,7 @@ def test_hiz_5000_mum_12_formasyon():
         for kod in KODLAR:
             arms.find_arm(f"MF1-{kod}").compute(inp2)
         en_iyi = min(en_iyi, time.perf_counter() - t0)
-    assert en_iyi < 0.1, en_iyi       # ATR (5000 mum) bir kez + 12 dedektor; ortak onbellek kopya yapmaz
+    assert en_iyi < 0.1, en_iyi       # ATR (5000 mum) bir kez + 8 dedektor; ortak onbellek kopya yapmaz
 
 
 def test_aday_yoksa_ortak_bos_tablo():
@@ -297,7 +270,7 @@ def test_aday_yoksa_ortak_bos_tablo():
 
 
 # ------------------------------------------------------------------------------------------------ kesif ve kimlik
-def test_kesif_12_formasyon_sanal_kurulum():
+def test_kesif_8_formasyon_sanal_kurulum():
     ls = arms.list_arms()
     assert "MF1" not in ls
     mf = [s for s in ls if s.startswith("MF1-")]
@@ -311,7 +284,7 @@ def test_kesif_12_formasyon_sanal_kurulum():
         assert arms.exit_rule_of(f"MF1-{k}") is None
     assert arms.family_of("MF1-YUTAN") == "MF1" and arms.family_of("T1") == "T1"
     assert arms.parse_arm_id("MF1-YUTAN@1h") == ("MF1-YUTAN", "1h")
-    assert sorted(mf1.FORMASYONLAR[k].sira for k in KODLAR) == list(range(1, 13))
+    assert sorted(mf1.FORMASYONLAR[k].sira for k in KODLAR) == [3, 4, 5, 6, 7, 9, 10, 11]   # Paket 3: sira degerleri DEGISMEZ (oncelik ayni; bosluklu)
     # mevcut kollar kutuphaneden once (en buyuk mevcut 95 < 300)
     assert max(arms.priority_of(s) for s in ls if "-" not in s) < 200
 
@@ -363,9 +336,6 @@ def _ctx(n, rule=False, high=101.0):
 
 
 def test_cikis_zaman_stopu_hedef_ve_kural():
-    assert evaluate_exit(_pos("MF1-YILDIZ", 109.0), _ctx(19)).kind == "none"
-    d = evaluate_exit(_pos("MF1-YILDIZ", 109.0), _ctx(20))
-    assert (d.kind, d.reason) == ("exit", "time_stop")                                   # YILDIZ 20. mumda
     assert evaluate_exit(_pos("MF1-YUTAN", 109.0), _ctx(20)).kind == "none"              # digerleri 48
     assert evaluate_exit(_pos("MF1-YUTAN", 109.0), _ctx(48)).reason == "time_stop"
     assert evaluate_exit(_pos("R1", 109.0), _ctx(47)).kind == "none" and evaluate_exit(_pos("R1", 109.0), _ctx(48)).reason == "time_stop"
@@ -429,8 +399,7 @@ def test_telegram_adlari_tireli_kod():
     from evren_destek import KALDIRILAN_KURULUM
     from trader_core import tg_sade
     for k in KODLAR:
-        if f"MF1-{k}" in KALDIRILAN_KURULUM:                 # 26.11: kurulum kaldirildi, etiketi de yok
-            continue
+        assert f"MF1-{k}" not in KALDIRILAN_KURULUM
         ad = tg_sade.kurulum_adi(f"MF1-{k}@1h")
         assert ad.startswith("Mum: ") and ad != f"MF1-{k}", k
     assert tg_sade.kurulum_adi("MF1-YUTAN") == "Mum: yutan"

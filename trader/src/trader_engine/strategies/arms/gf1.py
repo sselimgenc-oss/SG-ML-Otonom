@@ -13,7 +13,7 @@ from . import ArmInput
 from ._kutuphane import Formasyon, hesapla
 
 SETUP = "GF1"
-TIMEFRAMES = ("15m", "1h", "4h", "1d")
+TIMEFRAMES = ("1h", "4h", "1d")
 CORE = False
 EXIT_MODE = "target"
 PRIORITY = 200                       # kutuphane tabanlari: GF1 200, MF1 300, IN1 400 (mevcut kollar hep onde: en buyuk 95)

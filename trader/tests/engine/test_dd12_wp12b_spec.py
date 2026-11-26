@@ -274,7 +274,7 @@ FEATURES_WANT = {"F1": F1_FEATURES, "S1": S1_FEATURES, "H2": H2_FEATURES}
 def test_contract_module_attributes(setup):
     mod = _mod(setup)
     assert mod.SETUP == setup
-    assert tuple(mod.TIMEFRAMES) == ALL_TFS
+    assert tuple(mod.TIMEFRAMES) == ("1h", "4h", "1d")                      # 26.11 sahip karari: 15m giris kolu yok
     assert mod.CORE is False                              # kendi hesabi; ortak tablo satiri secmez
     assert callable(mod.compute)
     assert isinstance(mod.PRIORITY, int) and not isinstance(mod.PRIORITY, bool)

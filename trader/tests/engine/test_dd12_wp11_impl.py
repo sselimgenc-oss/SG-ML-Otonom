@@ -27,19 +27,16 @@ from trader_engine.strategy_runner import MultiArmSignalSource
 
 ROOT = Path(__file__).resolve().parents[2]
 UTC = timezone.utc
-VARYANT_KODLARI = tuple(sorted(("B1-BOLGE", "B1-MUM", "F1-IKINCI", "H2-MINI", "H2-YARI", "R1-ALT", "R1-ERKEN", "R1-HA", "S1-HACIM", "S1-OLCULU", "T1-GERI3", "T1-SEVIYE", "TF1-FITIL", "TF1-HACIM")))   # 24.11 kullanici karari: PA varyantlari
+VARYANT_KODLARI = tuple(sorted(("B1-BOLGE", "H2-MINI", "S1-OLCULU", "T1-GERI3", "T1-SEVIYE")))   # 24.11 kullanici karari: PA varyantlari
 PAPER = load_cli_config(ROOT / "config", "learner", "paper")
-ALL_ARMS = tuple(f"{s_}@{tf}" for s_ in ("T1", "R1", "TF1", "B1", "H2", "S1", "F1") for tf in ("15m", "1h", "4h", "1d"))   # WP-12a: TF1/B1; WP-12b: H2/S1/F1
-PAPER_ARMS = ALL_ARMS + tuple(f"MF1-{k}@{tf}" for k in ("YILDIZ", "UCASKER", "DELICI", "ICSAHTE", "DISBAR", "YUTAN", "HARAMI", "TERSCEKIC", "CIMBIZ", "PINBAR", "ICCUBUK", "MARUBOZU") for tf in ("15m", "1h", "4h", "1d")) + tuple(f"{s_}@{tf}" for s_ in VARYANT_KODLARI for tf in ("15m", "1h", "4h", "1d"))   # 24.11 kullanici karari: PA varyantlari (14 x 4 = 56 kol); formasyon kutuphanesi (MF1 48 kol); 24.11: DL1 dort zaman dilimi; 23.11: HB1 haber kolu; 25.11: M1 kolu kaldirildi
+ALL_ARMS = tuple(f"{s_}@{tf}" for s_ in ("T1", "R1", "TF1", "B1", "H2", "S1", "F1") for tf in ("1h", "4h", "1d"))   # WP-12a: TF1/B1; WP-12b: H2/S1/F1; 26.11: 15m giris kolu yok
+PAPER_ARMS = ALL_ARMS + tuple(f"MF1-{k}@{tf}" for k in ("DELICI", "ICSAHTE", "DISBAR", "YUTAN", "HARAMI", "CIMBIZ", "PINBAR", "ICCUBUK") for tf in ("1h", "4h", "1d")) + tuple(f"{s_}@{tf}" for s_ in VARYANT_KODLARI for tf in ("1h", "4h", "1d"))   # 24.11 kullanici karari: PA varyantlari (14 x 4 = 56 kol); formasyon kutuphanesi (MF1 48 kol); 24.11: DL1 dort zaman dilimi; 23.11: HB1 haber kolu; 25.11: M1 kolu kaldirildi
 from trader_engine.strategies import arms as _kutuphane_arms   # 24.11 kullanici karari: formasyon kutuphanesi (GF1 52 + IN1 66 kol; sirali kod, ZD sirasi)
 PAPER_ARMS = PAPER_ARMS + tuple(f"{s}@{tf}" for fam in ("GF1-", "IN1-") for s in sorted(a for a in _kutuphane_arms.list_arms() if a.startswith(fam))
                                 for tf in _kutuphane_arms.find_arm(s).TIMEFRAMES)
-PAPER_ARMS = PAPER_ARMS + tuple(f"PA2-{k}@{tf}" for k, tfs in (("EMIRBLOK", None), ("BOLGE", None), ("FVG", None), ("ONCEKI", ("15m", "1h", "4h")), ("TCIZGI", None), ("SEVIYE", None), ("UCVURUS", None), ("TUKENIS", ("15m", "1h"))) for tf in (tfs or ("15m", "1h", "4h", "1d")))   # 24.11 kullanici karari: formasyon kutuphanesi (PA2 29 kol)
+PAPER_ARMS = PAPER_ARMS + tuple(f"PA2-{k}@{tf}" for k, tfs in (("EMIRBLOK", None), ("BOLGE", None), ("FVG", None), ("ONCEKI", ("1h", "4h")), ("TCIZGI", None)) for tf in (tfs or ("1h", "4h", "1d")))   # 24.11 kullanici karari: formasyon kutuphanesi (PA2 29 kol)
 
-# 26.11 sahip karari: 15m GIRIS kollari ve 16 kurulum config'ten kaldirildi (modul/kurulum tanimlari yerinde kalir): 162 kol, 55 kurulum
-KALDIRILAN_KURULUM = {"S1-HACIM", "R1-ALT", "R1-ERKEN", "R1-HA", "TF1-FITIL", "TF1-HACIM", "H2-YARI", "B1-MUM", "F1-IKINCI", "PA2-UCVURUS",
-                      "PA2-SEVIYE", "PA2-TUKENIS", "MF1-MARUBOZU", "MF1-TERSCEKIC", "MF1-UCASKER", "MF1-YILDIZ"}
-PAPER_ARMS = tuple(a for a in PAPER_ARMS if not a.endswith("@15m") and a.split("@")[0] not in KALDIRILAN_KURULUM)
+# 26.11 sahip karari + Paket 3: 15m GIRIS kollari ve 16 kurulum config'ten VE koddan kaldirildi: 162 kol, 55 kurulum
 assert len(PAPER_ARMS) == 162
 
 
@@ -47,7 +44,7 @@ assert len(PAPER_ARMS) == 162
 def test_arms_discovery_and_lookup():
     assert {"R1", "T1"} <= set(ARMS.list_arms())   # WP-12a: TF1/B1 de var
     t1, r1 = ARMS.find_arm("T1"), ARMS.find_arm("R1")
-    assert t1.SETUP == "T1" and set(t1.TIMEFRAMES) == {"15m", "1h", "4h", "1d"} and t1.CORE and r1.CORE
+    assert t1.SETUP == "T1" and set(t1.TIMEFRAMES) == {"1h", "4h", "1d"} and t1.CORE and r1.CORE
     with pytest.raises(ARMS.ArmError):
         ARMS.find_arm("ZZ9")
     with pytest.raises(ARMS.ArmError):
@@ -95,7 +92,7 @@ def test_registry_and_defaults():
     assert s.info.paper_allowed and s.decision_tf == "15m"
     assert s.arm_ids == ("T1@1h", "R1@1h")                       # D-T18 varsayilani
     s2 = get_strategy(NAME, mode="paper", arms=ALL_ARMS)
-    assert s2.tfs() == ("15m", "1h", "4h", "1d")
+    assert s2.tfs() == ("1h", "4h", "1d")
     with pytest.raises(StrategyError):
         get_strategy("price_action_v1", arms=("T1@1h",))
 
@@ -225,13 +222,13 @@ def test_priority_larger_tf_wins_and_losers_are_extras(hist):
     D = datetime(2026, 11, 7, 0, 0, tzinfo=UTC)                       # 15m + 1h + 4h + 1d ayni anda kapanir
     fr = src.frame("BTC/USDT", D, _pmap(), 1)
     assert fr.status == "ok" and fr.last.signal and fr.last.arm_id == "T1@1d" and fr.last.tf == "1d"
-    assert [e.last.arm_id for e in fr.extras] == ["T1@4h", "T1@1h", "T1@15m"] and all(e.last.signal for e in fr.extras)
+    assert [e.last.arm_id for e in fr.extras] == ["T1@4h", "T1@1h"] and all(e.last.signal for e in fr.extras)
     assert fr.last.bar_close_ts == D and fr.last.bar_open_ts == D - timedelta(days=1)
     D2 = D + timedelta(hours=4)                                       # 15m + 1h + 4h
     fr2 = src.frame("BTC/USDT", D2, _pmap(), 1)
-    assert fr2.last.arm_id == "T1@4h" and [e.last.arm_id for e in fr2.extras] == ["T1@1h", "T1@15m"]
-    fr3 = src.frame("BTC/USDT", D + timedelta(minutes=15), _pmap(), 1)      # yalniz 15m kapanir (D-T16)
-    assert fr3.last.arm_id == "T1@15m" and fr3.extras == ()
+    assert fr2.last.arm_id == "T1@4h" and [e.last.arm_id for e in fr2.extras] == ["T1@1h"]
+    fr3 = src.frame("BTC/USDT", D + timedelta(minutes=15), _pmap(), 1)      # yalniz 15m kapanir: 15m giris kolu yok -> bos kare
+    assert fr3.status == "ok" and fr3.last is None and fr3.extras == ()
     # kurulum tf'si olmayan adimlar bos kare: 1s kurulumu olmayan lab saat basinda 'no_arm_closed'
     lab2 = PriceActionLab(("T1@4h",))
     fr4 = MultiArmSignalSource(_view(hist), lab2, strict=True).frame("BTC/USDT", D + timedelta(hours=1), _pmap(), 1)

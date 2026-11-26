@@ -39,7 +39,7 @@ class Formasyon:
     ad: str
     sira: int
     tfs: tuple[str, ...]
-    zaman_stopu: "int | dict | None"   # mum sayisi; ya da {"15m": 48, "1h": 12} (ZD basina; PA2-TUKENIS). kip='trail' ise None: zaman stopu UYGULANMAZ
+    zaman_stopu: "int | None"          # mum sayisi. kip='trail' ise None: zaman stopu UYGULANMAZ
     #                                    (yalniz rejim cikisi + iz suren stop; sahip karari #13). `time_stop_of` None icin 48 doner ama trail kipi onu OKUMAZ.
     bul: Callable                  # bul(g: Gorunum) -> None | dict(stop, hedef, seviye, olcu, yas, etiket)
     cikis: Callable | None = None  # cikis(inp: ArmInput) -> bool | None (kural cikisi)
@@ -236,6 +236,6 @@ def sanal_kurulumlar(mod) -> dict[str, SimpleNamespace]:
         feats = {k: v for k, v in KUTUPHANE_FEATURES.items() if not (f.kip == "trail" and k == "rr")}
         out[setup] = SimpleNamespace(
             SETUP=setup, TIMEFRAMES=tuple(f.tfs), CORE=False, EXIT_MODE=f.kip, FEATURES=feats,
-            PRIORITY=int(mod.PRIORITY) + int(f.sira), TIME_STOP=(dict(f.zaman_stopu) if isinstance(f.zaman_stopu, dict) else None if f.zaman_stopu is None else int(f.zaman_stopu)), EXIT_RULE=f.cikis,
+            PRIORITY=int(mod.PRIORITY) + int(f.sira), TIME_STOP=None if f.zaman_stopu is None else int(f.zaman_stopu), EXIT_RULE=f.cikis,
             compute=partial(hesapla, mod.SETUP, mod.FORMASYONLAR, kod), FORMASYON=f, AILE=mod.SETUP)
     return out

@@ -205,7 +205,7 @@ B1_FEATURES = {"level": "ema_value", "brk_dist_atr": "edge_dist_atr", "retest_de
 def test_contract_module_attributes(setup):
     mod = _tf1() if setup == "TF1" else _b1()
     assert mod.SETUP == setup
-    assert tuple(mod.TIMEFRAMES) == ALL_TFS
+    assert tuple(mod.TIMEFRAMES) == ("1h", "4h", "1d")                      # 26.11 sahip karari: 15m giris kolu yok
     assert mod.CORE is False                              # kendi hesabi; ortak tablo satiri secmez
     assert callable(mod.compute)
     assert mod.EXIT_MODE in ("trail", "target")

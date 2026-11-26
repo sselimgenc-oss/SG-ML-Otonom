@@ -123,6 +123,8 @@ def funding_times(start: datetime, end: datetime) -> list[datetime]:
 # ---------------------------------------------------------------------------------------------------------------------
 # cift x zaman dilimi basina son pencere (bellek siniri). 1d: 4s'ten toplanir ve 4s penceresinden BAGIMSIZ okunur (strategy_runner._bars_1d):
 # 600 gun => EMA(50) tohum farki (1-2/51)^600 ~ 4e-11 (canli pencere == tum gecmis, 1e-9). ~3600 x 4s satir/cift (~150 KB), gunde bir okunur.
+# 26.11 sahip karari: GIRIS kolu yalniz 1h/4h/1d; 15m karar adimi ve cikis verisi (ARM_TFS, WINDOW_ARM) olarak kalir
+GIRIS_TFS = ("1h", "4h", "1d")
 WINDOW_ARM = {"15m": 5000, "1h": 1500, "4h": 1500, "1d": 600}
 STARTUP_BARS_ARM = {"15m": 4800, "1h": 1200, "4h": 300, "1d": 50}  # 1d: 300 x 4s / 6
 MIN_CONTIG_ARM = {"trigger": 20, "4h": 150}

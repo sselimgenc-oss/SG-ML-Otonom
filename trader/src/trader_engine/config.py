@@ -19,6 +19,7 @@ from trader_core import exit_modes as _xm
 from trader_core.config_loader import deep_merge
 from trader_core.risk import LOCKED_CFG, PAPER_KEYS, RiskConfig, live_config, paper_config, tightened
 
+from .bars import GIRIS_TFS
 from .errors import ConfigError
 from .types import canon_pair
 
@@ -290,7 +291,9 @@ def _build_arms(v: Any) -> tuple[str, ...]:
         raise ConfigError(f"arms liste ya da sozluk olmali: {v!r}")
     for a in v:
         if not isinstance(a, str) or not _ARM_ID_RE.fullmatch(a):
-            raise ConfigError(f"arms gecersiz arm_id {a!r} (bicim <KURULUM>@<15m|1h|4h|1d>)")
+            raise ConfigError(f"arms gecersiz arm_id {a!r} (bicim <KURULUM>@<1h|4h|1d>)")
+        if a.rsplit("@", 1)[1] not in GIRIS_TFS:
+            raise ConfigError(f"arms: 15m giris kolu yok (sahip karari): {a!r}")
     if len(set(v)) != len(v):
         raise ConfigError("arms yinelenen oge iceriyor")
     return tuple(v)

@@ -6,7 +6,7 @@ from __future__ import annotations
 from . import ArmInput, mask_to_setups
 
 SETUP = "T1"
-TIMEFRAMES = ("15m", "1h", "4h", "1d")
+TIMEFRAMES = ("1h", "4h", "1d")
 CORE = True
 EXIT_MODE = "trail"
 PRIORITY = 10

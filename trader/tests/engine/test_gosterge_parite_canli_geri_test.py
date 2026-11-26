@@ -30,7 +30,7 @@ from trader_engine.strategy_runner import MultiArmSignalSource, SignalRow, Windo
 UTC = timezone.utc
 START = datetime(2026, 1, 5, tzinfo=UTC)          # Pazartesi
 FAMILIES = ("T1", "R1", "TF1", "B1", "H2", "S1", "F1")
-TFS = ("15m", "1h", "4h", "1d")
+TFS = ("1h", "4h", "1d")                                   # 26.11 sahip karari: 15m giris kolu yok (15m yalniz karar/cikis verisi)
 ARMS = [f"{s}@{t}" for s in FAMILIES for t in TFS]
 WARM = {"15m": 4800, "1h": 1200, "4h": 300, "1d": 50}      # tetik tf barinda: 4s isinma (300 x 4s) en siki kosul
 TOL = 1e-9
@@ -225,7 +225,7 @@ def _to_signal_row(pair, open_ts, D, rec):
     return _to_row(pair, open_ts.to_pydatetime(), D, rec, 1)
 
 
-@pytest.mark.parametrize("tf", ("15m", "1h", "4h"))
+@pytest.mark.parametrize("tf", ("1h", "4h"))
 @pytest.mark.parametrize("pair", CRYPTO + SESSION_FLAT)
 def test_kurulumlar_canli_pencere_eq_tum_gecmis_uzun(uzun, pair, tf):
     """7 kurulum ailesi (T1,R1,TF1,B1,H2,S1,F1): canli pencere kesiti == tum gecmis tablosu (1e-9). 15m/1s/4s pencereleri asilir.
@@ -252,7 +252,7 @@ def test_aday_kapsami_her_ailede_en_az_bir_aday(uzun):
     """Testin anlamli olmasi: sentetik veri her kurulum ailesinden aday uretir (T1,R1,TF1,B1,H2,S1,F1 tum gecmis tablolarinda)."""
     seen = set()
     for pair in CRYPTO:
-        for tf in ("1h", "15m"):
+        for tf in ("1h", "4h"):
             _trig, tabs = _full_tables(uzun["hist"], PriceActionLab(ARMS), pair, tf, uzun["end"])
             seen |= {k for k, t in tabs.items() if k != "core" and bool(t["signal"].any())}
             if "core" in tabs:

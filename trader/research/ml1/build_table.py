@@ -6,7 +6,6 @@
   --pairs   virgullu liste ya da `all` (config/engine.paper.json `pairs`); verisi olmayan cift atlanir
   --since   yalniz ILK kurulumda alt sinir (decision_ts >= since); sonraki calistirmalar manifest'ten devam eder
   --force   secili cift x tf'yi silip bastan tara
-  --no-exit cikis simulasyonunu atla (trader_ml.ml1.exitsim varsa varsayilan: bos cikis satirlari simule edilir)
 Kol kaynaklari/parametreler degisirse (arms_hash) tum tablo otomatik yeniden kurulur."""
 from __future__ import annotations
 
@@ -35,7 +34,6 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--hist-dir", default=str(ROOT / "var" / "history"))
     ap.add_argument("--out", default=str(ROOT / "var" / "ml1"))
     ap.add_argument("--force", action="store_true")
-    ap.add_argument("--no-exit", action="store_true")
     a = ap.parse_args(argv)
     tfs = [x for x in a.tf.split(",") if x]
     bad = [t for t in tfs if t not in D.TFS]
@@ -48,7 +46,7 @@ def main(argv: list[str] | None = None) -> int:
     since = pd.Timestamp(a.since, tz="UTC") if a.since else None
     until = pd.Timestamp(a.until, tz="UTC").to_pydatetime() if a.until else None
     t0 = time.time()
-    res = B.build(CandidateTable(a.out), a.hist_dir, pairs, tfs, since=since, until=until, force=a.force, simulate=not a.no_exit)
+    res = B.build(CandidateTable(a.out), a.hist_dir, pairs, tfs, since=since, until=until, force=a.force)
     print(f"bitti: {sum(r['new'] for r in res)} yeni aday, {len(res)} cift x tf, {time.time() - t0:.0f} sn")
     return 0
 

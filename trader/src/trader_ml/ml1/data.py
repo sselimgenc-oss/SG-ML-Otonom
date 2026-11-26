@@ -14,7 +14,7 @@ from trader_engine.errors import DataError
 from trader_engine.marketdata.sources import HistoricalSource
 
 SONSUZ = datetime(2200, 1, 1, tzinfo=timezone.utc)
-TFS = ("15m", "1h", "4h", "1d")             # veri/cikis simulatoru/tarama: 15m KALIR (karar ve cikis yonetimi kadansi)
+TFS = ("15m", "1h", "4h", "1d")             # veri/tarama: 15m KALIR (karar ve cikis yonetimi kadansi)
 MODEL_TFS = ("1h", "4h", "1d")             # model ozelligi (tf_* one-hot) ve giris zaman dilimleri: 15m giris kolu yok (sahip karari)
 _KAYNAK: dict[str, HistoricalSource] = {}
 
@@ -51,18 +51,3 @@ def load_pair_tf(hist_dir: str | Path, pair: str, tf: str, until: datetime | Non
     if trig is None or len(trig) == 0:
         return None
     return trig, h4
-
-
-def load_15m(hist_dir: str | Path, pair: str, until: datetime | None = None) -> pd.DataFrame | None:
-    """Cikis simulatoru icin 15m izgara (yoksa None)."""
-    return _bars(kaynak(hist_dir), pair, "15m", until or SONSUZ)
-
-
-def load_funding(hist_dir: str | Path, pair: str) -> pd.DataFrame | None:
-    """Funding noktalari: indeks = zaman (UTC), sutun `funding_rate` (mark yok; exitsim 15 dk acilisini kullanir). Dosya yoksa None."""
-    from trader_engine.marketdata.sources import canon_pair
-    try:
-        ms, rate = kaynak(hist_dir)._funding_arrays(canon_pair(pair))
-    except DataError:
-        return None
-    return pd.DataFrame({"funding_rate": rate}, index=pd.to_datetime(ms, unit="ms", utc=True))

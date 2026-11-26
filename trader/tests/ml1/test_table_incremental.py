@@ -1,7 +1,7 @@
 """Tablo deposu: artimli ekleme == tam yeniden kurulum; arms_hash degisince yeniden kurulum; bos cikis alanlari; cikis kancasi."""
 from __future__ import annotations
 
-from types import SimpleNamespace
+import importlib.util
 
 import pandas as pd
 import pytest
@@ -31,7 +31,7 @@ def hist(tmp_path):
 
 def _build(root, hist, until, **kw):
     tbl = T.CandidateTable(root)
-    B.build(tbl, hist, [PAIR], [TF], until=pd.Timestamp(until).to_pydatetime(), simulate=False, log=lambda *_: None,
+    B.build(tbl, hist, [PAIR], [TF], until=pd.Timestamp(until).to_pydatetime(), log=lambda *_: None,
             **{**KW, **kw})
     return tbl
 
@@ -82,28 +82,12 @@ def test_cikis_alanlari_bos_ve_guncellenebilir(tmp_path, hist, monkeypatch):
     assert set(T.EXIT_COLUMNS) <= set(df.columns)
     assert df["exit_ts"].isna().all() and df["r_net"].isna().all() and df["exit_reason"].isna().all()
     assert len(tbl.read(only_pending_exit=True)) == len(df)
-    # cikis kancasi: sahte exitsim.simulate_rows ilk 20 satiri doldurur
-    def sahte(rows, bars_15m, bars_tf=None, funding=None, **kw):
-        assert len(rows) == len(df) and all(("rule_exit_ts" in r) == bool(r["rule_exit"]) for r in rows)
-        out = pd.DataFrame(rows).head(20).copy()
-        out["exit_ts"] = out["decision_ts"] + pd.Timedelta("8h")
-        out["exit_reason"] = "stop"
-        out["exit_px"] = out["entry_ref"]
-        out["net_R"] = -1.0
-        out["censored"] = 0
-        out["status"] = "ok"
-        return out.reindex(range(len(rows)))
-    monkeypatch.setattr(B, "exit_module", lambda: SimpleNamespace(simulate_rows=sahte, to_frame=lambda r: r))
-    monkeypatch.setattr(D, "load_15m", lambda *a, **k: pd.DataFrame())
-    assert B.simulate_pending(tbl, hist, PAIR, TF) == 20
-    d2 = tbl.read()
-    assert d2["exit_ts"].notna().sum() == 20 and (d2["r_net"].dropna() == -1.0).all()
-    assert len(tbl.read(only_pending_exit=True)) == len(df) - 20
-    # aday alanlari degismedi
-    assert T.stable_equal(d2, df)
-    # cikis kaynak hash'i degisince cikis alanlari bosalir, adaylar kalir
-    assert tbl.ensure_exit_hash("x1") is True
-    assert tbl.read()["exit_ts"].isna().all() and len(tbl.read()) == len(df)
+    # 26.11 sahip karari: cikis simulatoru kaldirildi; cikis sutunlari sema uyumu icin kalir ve her zaman null yazilir
+    assert importlib.util.find_spec("trader_ml.ml1.exitsim") is None and importlib.util.find_spec("trader_ml.ml1.costs") is None
+    assert not hasattr(B, "simulate_pending") and not hasattr(B, "exit_module") and not hasattr(B, "exit_hash")
+    assert not hasattr(D, "load_15m")
+    assert len(tbl.read(only_pending_exit=True)) == len(df)
+    assert df[list(T.EXIT_COLUMNS)].isna().all().all()
 
 
 def test_ay_bolumleri_ve_okuma_suzgeci(tmp_path, hist):

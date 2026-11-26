@@ -20,9 +20,9 @@ def test_tum_kural_kollari_kapsanir():
 
 
 def test_config_disi_kural_kolu_yok_ve_discover_ile_ayni_kume():
-    """26.11: 16 kurulum config'ten ve gruplardan cikarildi; modulleri yerinde kalir => discover() = gruplar + kaldirilanlar."""
+    """26.11: 16 kurulum config'ten, gruplardan VE koddan (discover) cikarildi => discover() = gruplar."""
     kurulumlar = {s for s in A.discover() if G.family(s) not in G.DISLANAN_AILELER}
-    assert kurulumlar == set(G.GRUPLAR) | set(KALDIRILAN_KURULUM) and not (set(G.GRUPLAR) & set(KALDIRILAN_KURULUM))
+    assert kurulumlar == set(G.GRUPLAR) and not (kurulumlar & set(KALDIRILAN_KURULUM))
     assert {G.split_arm_id(a)[0] for a in G.rule_arm_ids()} == set(G.GRUPLAR)
 
 

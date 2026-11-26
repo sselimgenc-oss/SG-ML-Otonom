@@ -1,4 +1,4 @@
-"""24.11 kullanici karari: formasyon kutuphanesi, adim 3 (PA2 price action ailesi, 8 formasyon, 29 kol).
+"""24.11 kullanici karari: formasyon kutuphanesi, adim 3 (PA2 price action ailesi; 26.11 Paket 3: 5 formasyon, 14 kol).
 Sentetik ornek (long + short aynasi + bozulan kosul), motor yolu tablo satiri, ileriye bakis (rastgele yuruyus + sonradan degisen mumlar),
 kimlik/kesif/zaman stopu, tavanlar, kagit = canli."""
 from __future__ import annotations
@@ -19,10 +19,9 @@ import bos_cekirdek as M1MOD
 from trader_engine.strategies.arms import pa2
 
 ROOT = Path(__file__).resolve().parents[2]
-KODLAR = ("EMIRBLOK", "BOLGE", "FVG", "ONCEKI", "TCIZGI", "SEVIYE", "UCVURUS", "TUKENIS")
-TFS = {"EMIRBLOK": ("15m", "1h", "4h", "1d"), "BOLGE": ("15m", "1h", "4h", "1d"), "FVG": ("15m", "1h", "4h", "1d"),
-       "ONCEKI": ("15m", "1h", "4h"), "TCIZGI": ("15m", "1h", "4h", "1d"), "SEVIYE": ("15m", "1h", "4h", "1d"),
-       "UCVURUS": ("15m", "1h", "4h", "1d"), "TUKENIS": ("15m", "1h")}
+KODLAR = ("EMIRBLOK", "BOLGE", "FVG", "ONCEKI", "TCIZGI")
+TFS = {"EMIRBLOK": ("1h", "4h", "1d"), "BOLGE": ("1h", "4h", "1d"), "FVG": ("1h", "4h", "1d"),
+       "ONCEKI": ("1h", "4h"), "TCIZGI": ("1h", "4h", "1d")}
 KAL = 180.0                      # short aynasi: gercek fiyat = KAL - long fiyati
 BAS = "2026-01-05"               # Pazartesi 00:00 UTC
 
@@ -73,10 +72,6 @@ def s_fvg():
                       (105.5, 106.5, 104.0, 105.0), (102.0, 104.2, 101.5, 102.9)]
 
 
-def s_ucvurus():
-    return duz(40) + [(100.5, 100.6, 98.9, 99.0), (99.2, 99.3, 97.5, 97.6), (97.8, 97.9, 96.2, 96.3), (96.2, 101.0, 95.9, 100.8)]
-
-
 def s_onceki(freq="1h"):
     n = {"1h": 24, "4h": 42}[freq]                       # onceki donem: 1s -> gun (24), 4s -> hafta (42)
     once = [(105, 110 if i == 3 else 108, 100 if i == 10 else 102, 105) for i in range(n)]
@@ -90,21 +85,7 @@ def s_tcizgi():
     return yol(anch, 150, dips=(40, 62), dus=(63,)) + [(108.8, 109.6, 107.8, 109.5)]
 
 
-def s_seviye():
-    anch = [(0, 150), (40, 100), (50, 110), (60, 100.1), (66, 104), (71, 100.6)]
-    return yol(anch, 150, dips=(40, 60)) + [(100.0, 100.25, 99.3, 100.2)]
-
-
-def s_tukenis():
-    gun = [(100 + 0.3 * np.sin(i), 101.2, 98.9, 100 + 0.4 * np.sin(i + 1)) for i in range(24)]
-    bugun = [(100, 103, 99.8, 102), (102, 106, 101.5, 105.5), (105.5, 105.8, 102, 103), (103, 103.5, 101, 101.5),
-             (101.5, 102, 100.5, 100.8), (100.8, 101, 99.9, 100.0), (100.0, 100.4, 99.2, 99.5), (99.5, 99.6, 98.7, 98.9),
-             (98.9, 101.2, 98.8, 101.0)]
-    return gun * 15 + bugun
-
-
-SERI = {"BOLGE": s_bolge, "EMIRBLOK": s_emirblok, "FVG": s_fvg, "UCVURUS": s_ucvurus, "TCIZGI": s_tcizgi, "SEVIYE": s_seviye,
-        "TUKENIS": s_tukenis}
+SERI = {"BOLGE": s_bolge, "EMIRBLOK": s_emirblok, "FVG": s_fvg, "TCIZGI": s_tcizgi}
 
 
 def seri(kod, *, short=False, bozuk=False, freq="1h"):
@@ -125,13 +106,6 @@ def bul(kod, df, side="long"):
     return pa2.FORMASYONLAR[kod].bul(ham.gorunum(side))
 
 
-def _gun_atr(df):
-    g = df.resample("1D").agg({"open": "first", "high": "max", "low": "min", "close": "last"})
-    pc = g["close"].shift(1)
-    tr = pd.concat([g["high"] - g["low"], (g["high"] - pc).abs(), (g["low"] - pc).abs()], axis=1).max(axis=1)
-    return float(tr.iloc[-16:-1].mean())          # bugunden onceki 15 gunun son 14 gercek araligi
-
-
 def beklenen(kod, df):
     """(stop, hedef) long uzayinda; hedef hesaplari df'ten bagimsiz yoldan."""
     c = float(df["close"].iloc[-1])
@@ -147,12 +121,6 @@ def beklenen(kod, df):
     if kod == "TCIZGI":
         a = pa2_atr(df)
         return c - a, c + 2.5 * a
-    if kod == "SEVIYE":
-        return 99.3, float(df["high"].iloc[:-1].iloc[40:].max())
-    if kod == "UCVURUS":
-        return 95.9, None
-    if kod == "TUKENIS":
-        return 98.7, c + 0.5 * _gun_atr(df)
     raise KeyError(kod)
 
 
@@ -207,24 +175,6 @@ def test_onceki_ozel_kosullar():
     assert bul("ONCEKI", d) is None                                    # t = s kirmizi (kapanis L ustunde ama mum kirmizi)
 
 
-def test_tukenis_ozel_kosullar():
-    df = seri("TUKENIS")
-    assert bul("TUKENIS", df.iloc[24:]) is None                       # 14 tam gun yok
-    d = df.copy()
-    d.iloc[-1] = [98.9, 99.0, 98.8, 98.95, 1.0]                        # c <= h[t-1]
-    assert bul("TUKENIS", d) is None
-    d = df.iloc[:-1].copy()                                            # dip son 4 mumdan eski: iki sakin mum eklenir
-    sakin = pd.DataFrame([(101.0, 101.5, 100.6, 101.2, 1.0)] * 4 + [(101.2, 102.0, 101.1, 101.9, 1.0)], columns=d.columns,
-                         index=pd.date_range(d.index[-1] + pd.Timedelta(hours=1), periods=5, freq="1h"))
-    assert bul("TUKENIS", pd.concat([d, sakin])) is None
-    # gun araligi 2 dATR altinda: tepeyi dusur
-    e = df.copy()
-    e.iloc[-9:, e.columns.get_loc("high")] = np.minimum(e["high"].iloc[-9:], 101.5)
-    e.iloc[-9:, e.columns.get_loc("close")] = np.minimum(e["close"].iloc[-9:], 101.5)
-    assert bul("TUKENIS", e) is None
-    assert bul("TUKENIS", df.iloc[:-1]) is None
-
-
 def test_bolge_tek_hak_ve_taban():
     df = seri("BOLGE")
     d = df.copy()
@@ -238,7 +188,7 @@ def test_bolge_tek_hak_ve_taban():
     assert bul("BOLGE", d) is None
 
 
-def test_tcizgi_seviye_ucvurus_ozel_kosullar():
+def test_tcizgi_ozel_kosullar():
     df = seri("TCIZGI")
     d = df.copy()
     d.iloc[50] = [d["open"].iloc[50], d["high"].iloc[50], 90.0, 95.0, 1.0]     # cizgi alti kapanis (D1..t arasi)
@@ -246,20 +196,6 @@ def test_tcizgi_seviye_ucvurus_ozel_kosullar():
     d = df.copy()
     d.iloc[-1] = [108.8, 109.6, 108.5, 109.5, 1.0]                              # cizgiye 0,25 ATR'den uzak
     assert bul("TCIZGI", d) is None
-    s = seri("SEVIYE")
-    d = s.copy()
-    d.iloc[65] = [104.0, 104.3, 98.0, 99.0, 1.0]                                # D2'den beri S altinda kapanis
-    assert bul("SEVIYE", d) is None
-    d = s.copy()
-    d.iloc[-1] = [100.0, 100.8, 98.0, 100.2, 1.0]                               # ust golge 0,1 aralik ustu / alt golge kisa degil
-    assert bul("SEVIYE", d) is None
-    u = seri("UCVURUS")
-    d = u.copy()
-    d.iloc[-2] = [97.8, 98.5, 96.2, 98.3, 1.0]                                  # kapanis dipte degil
-    assert bul("UCVURUS", d) is None
-    d = u.copy()
-    d.iloc[-1] = [96.2, 100.0, 95.9, 99.9, 1.0]                                 # c <= h[t-3]
-    assert bul("UCVURUS", d) is None
 
 
 # ------------------------------------------------------------------------------------------------ motor yolu
@@ -291,10 +227,10 @@ def test_motor_yolu_tablo_satiri(kod):
 
 
 def test_stop_dar_ise_elenir_ve_rr():
-    """stop < %0,6 -> stop_width (aday var, sinyal yok). TUKENIS hedefi 0,5 dATR: R:R < 1 olabilir, yine de aday."""
-    df = seri("UCVURUS")
-    df.iloc[-1] = [96.2, 101.0, 100.7, 100.8, 1.0]          # stop = 100.7 ~ giris: dar
-    row = arms.find_arm("PA2-UCVURUS").compute(_core_inp(df, pair="SW/USDT")).iloc[-1]
+    """stop < %0,6 -> stop_width (aday var, sinyal yok)."""
+    df = seri("FVG")
+    df.iloc[-1] = [104.0, 105.1, 104.95, 105.0, 1.0]        # stop ~ giris: dar
+    row = arms.find_arm("PA2-FVG").compute(_core_inp(df, pair="SW/USDT")).iloc[-1]
     assert row["setup"] is None or row["skip_reason"] == "stop_width"
 
 
@@ -362,15 +298,7 @@ def test_ileriye_bakis_sentetik_gelecek_degisir(kod):
     assert tara(kod, uzun, n - 1, n - 1) == tara(kod, df, n - 1, n - 1) and (n - 1, 1) in tara(kod, df, n - 1, n - 1)
 
 
-def test_pencere_bagimsizligi_gunluk_atr():
-    """TUKENIS gunluk ATR'si pencere uzunlugundan bagimsiz (15 tam gun yeter; daha eski mumlar degisse de ayni)."""
-    df = df_of(s_tukenis())
-    uzun = pd.concat([df_of(duz(24 * 10, 130.0), start="2025-12-20"), df])
-    a, b = bul("TUKENIS", df), bul("TUKENIS", uzun)
-    assert a["stop"] == pytest.approx(b["stop"]) and a["hedef"] == pytest.approx(b["hedef"])
-
-
-def test_hiz_5000_mum_8_formasyon():
+def test_hiz_5000_mum_5_formasyon():
     df = rw_df(5000, 5)
     inp = _core_inp(df, pair="HIZ/USDT")
     for kod in KODLAR:
@@ -386,7 +314,7 @@ def test_hiz_5000_mum_8_formasyon():
 
 
 # ------------------------------------------------------------------------------------------------ kesif ve kimlik
-def test_kesif_8_formasyon_29_kol():
+def test_kesif_5_formasyon_14_kol():
     ls = arms.list_arms()
     assert "PA2" not in ls
     assert sorted(s for s in ls if s.startswith("PA2-")) == sorted(f"PA2-{k}" for k in KODLAR)
@@ -398,17 +326,17 @@ def test_kesif_8_formasyon_29_kol():
         assert arms.priority_of(f"PA2-{k}") == 250 + pa2.FORMASYONLAR[k].sira
         assert arms.exit_rule_of(f"PA2-{k}") is None
         toplam += len(m.TIMEFRAMES)
-    assert toplam == 29
-    assert sorted(pa2.FORMASYONLAR[k].sira for k in KODLAR) == list(range(1, 9))
+    assert toplam == 14
+    assert sorted(pa2.FORMASYONLAR[k].sira for k in KODLAR) == [1, 2, 3, 4, 5]
+    assert not ({"PA2-SEVIYE", "PA2-UCVURUS", "PA2-TUKENIS"} & set(ls))
     assert arms.family_of("PA2-BOLGE") == "PA2" and arms.parse_arm_id("PA2-EMIRBLOK@1h") == ("PA2-EMIRBLOK", "1h")
-    assert 200 < arms.priority_of("PA2-EMIRBLOK") < 300 < arms.priority_of("MF1-YILDIZ")
+    assert 200 < arms.priority_of("PA2-EMIRBLOK") < 300 < arms.priority_of("MF1-DELICI")
     assert max(arms.priority_of(s) for s in ls if "-" not in s) < 250   # birlesik: yalniz ana kollar (kutuphane ve varyant kimlikleri haric)
 
 
 def test_zaman_stopu_zd_basina():
-    assert arms.time_stop_of("PA2-UCVURUS") == 5 and arms.time_stop_of("PA2-BOLGE") == 48
-    assert arms.time_stop_of("PA2-TUKENIS", "15m") == 48 and arms.time_stop_of("PA2-TUKENIS", "1h") == 12
-    assert arms.time_stop_of("T1", "1h") == 48 and arms.time_stop_of("MF1-YILDIZ", "1h") == 20
+    assert arms.time_stop_of("PA2-BOLGE") == 48 and arms.time_stop_of("PA2-FVG", "1h") == 48
+    assert arms.time_stop_of("T1", "1h") == 48
 
 
 def test_ders_parametresi_okumaz():
@@ -421,7 +349,7 @@ def _cfg(ad):
     return json.loads((ROOT / "config" / ad).read_text(encoding="utf-8"))
 
 
-def test_kagit_canli_ayni_ve_pa2_29_kimlik():
+def test_kagit_canli_ayni_ve_pa2_14_kimlik():
     p, l = _cfg("engine.paper.json"), _cfg("engine.live.json")
     for k in ("arms",):
         assert p[k] == l[k], k
@@ -438,6 +366,5 @@ def test_telegram_adlari():
     from trader_core import tg_sade
     from evren_destek import KALDIRILAN_KURULUM
     for k in KODLAR:
-        if f"PA2-{k}" in KALDIRILAN_KURULUM:                 # 26.11: kurulum kaldirildi, etiketi de yok
-            continue
+        assert f"PA2-{k}" not in KALDIRILAN_KURULUM
         assert tg_sade.kurulum_adi(f"PA2-{k}@1h").startswith("PA: ") and tg_sade.kurulum_adi(f"PA2-{k}@1h") != f"PA2-{k}"
