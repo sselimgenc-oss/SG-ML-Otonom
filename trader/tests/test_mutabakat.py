@@ -440,10 +440,10 @@ def test_islem_kontrolu_ozet_text_examples_max_three():
            "satirlar": [{"yon": "long"}] * 4 + [{"yon": "short"}] * 3,
            "kontroller": [{"ad": "Kasa = başlangıç + Σ net K/Z", "sonuc": "geçti", "ayrinti": ""}]}
     t = TS.islem_kontrolu_ozet(doc)
-    assert "7 işlem (açık 2 / kapanan 5 · long 4 / short 3) · uyuşmazlık 4 · kasa tutuyor ✅" in t
+    assert "7 işlem (açık 2 / kapanan 5 · long 4 / short 3) · uyuşmazlık 4 · kasa tutuyor" in t and "✅" not in t and "#" not in t
     assert t.count("\n- ") == 3 and "#4" not in t
     doc["kontroller"][0]["sonuc"] = "kaldı"
-    assert "kasa tutmuyor ❌" in TS.islem_kontrolu_ozet(doc)
+    assert "kasa tutmuyor" in TS.islem_kontrolu_ozet(doc) and "❌" not in TS.islem_kontrolu_ozet(doc)
 
 
 def test_kurulum_ozeti_surum_release_dosyasindan_commit(env, tmp_path):

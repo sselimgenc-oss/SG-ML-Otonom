@@ -81,7 +81,7 @@ def test_durdur_two_steps_all_bots(rig):
     d = rig
     assert "0427" in say(d, "/durdur", 1)
     assert not any(p.active() for p in d.r.pauses.values())
-    assert "Yeni giriş durduruldu" in say(d, "0427", 2) and "/hepsini_kapat" in d.r.fake.texts()[-1]
+    assert "Yeni işlem açma durduruldu" in say(d, "0427", 2) and "/hepsini_kapat" in d.r.fake.texts()[-1]
     for p in d.r.pauses.values():
         (h,) = p.holds()
         assert h.reason == "user_cmd" and h.by == "telegram:111"
@@ -119,14 +119,14 @@ def test_devam_one_layer_per_call(rig):
     for p in d.r.pauses.values():
         p.add("user_cmd", "telegram:111")
     t = say(d, "/devam", 1)
-    assert "KILL kaldirilacak" in t and "duraklatma" in t
+    assert "Acil durdurma kaldırılacak" in t and "duraklatma" in t
     assert "learner: user_cmd — girişler hâlâ kapalı" in say(d, "0427", 2)
     assert not d.killswitch.active() and d.r.pauses["learner"].active()
     assert "duraklatma" in say(d, "/devam", 3)
     t = say(d, "0427", 4)
     assert "learner: girişler açık" in t and "twin: girişler açık" in t
     assert not any(p.active() for p in d.r.pauses.values())
-    assert "etkin degil" in say(d, "/devam", 5)
+    assert "etkin değil" in say(d, "/devam", 5)
 
 
 def test_devam_origin_rule_and_drawdown_review(rig):
@@ -149,7 +149,7 @@ def test_devam_kill_layer_still_refuses_exiting_and_live_rules(rig):
     d.r.pauses["learner"].add("user_cmd", "telegram:111")
     d.killswitch.set("telegram:111", "user_cmd")
     status(d, kill_state="exiting")
-    assert "kapanis" in say(d, "/devam", 1)
+    assert "Kapanış" in say(d, "/devam", 1)
     assert d.r.pauses["learner"].active()
 
 
@@ -160,11 +160,11 @@ def test_status_line_and_legacy_durdur(rig, tmp_path):
     say(d, "0427", 2)
     say(d, "/durum", 3)
     t = d.r.fake.texts()[-1]
-    assert "⏸️ ana bot: yeni işlemler duraklatıldı — senin /durdur komutun (Telegram'dan, 30.12 13:00)" in t
+    assert "ana bot: yeni işlemler duraklatıldı — senin /durdur komutun (Telegram'dan, 30.12 13:00)" in t
     d2 = T.TelegramDaemon(d.cfg, d.client, now_fn=d.r.clk, killswitch=d.killswitch)
     d2.r = d.r
     d2.process_updates([msg(d2, "/durdur", 9)])
-    assert "desteklenmiyor" in d.r.fake.texts()[-1]
+    assert "Desteklenmiyor" in d.r.fake.texts()[-1]
 
 
 # ---------------------------------------------------------------- F1 build_pauses == motor yollari
@@ -191,11 +191,11 @@ def test_build_pauses_match_engine_paths_learner_only(tmp_path, monkeypatch):
 
 def test_production_entrypause_durdur_devam_end_to_end(rig):
     status(rig)
-    assert "Yeni giriş durduruldu" in (say(rig, "/durdur", 1) and say(rig, "0427", 2))
+    assert "Yeni işlem açma durduruldu" in (say(rig, "/durdur", 1) and say(rig, "0427", 2))
     for b, p in rig.r.pauses.items():
         assert p.active() and p.holds()[0].reason == "user_cmd" and p.holds()[0].by.startswith("telegram:")
     say(rig, "/devam", 3)
-    assert "kaldirildi" in say(rig, "0427", 4)
+    assert "kaldırıldı" in say(rig, "0427", 4)
     assert not any(p.active() for p in rig.r.pauses.values())
     rows = [json.loads(x) for p in rig.r.pauses.values() for x in Path(p.audit_path).read_text().splitlines()]
     assert sorted(r["op"] for r in rows) == ["add", "add", "remove", "remove"]
@@ -231,7 +231,7 @@ def test_devam_pause_removal_failure_per_bot_not_silent(rig):
 def test_report_has_per_bot_pause_line(rig, tmp_path):
     rig.pauses["learner"].add("drawdown_review", "engine:rk1")
     secs = T.default_sections(rig.cfg, T0, "2026-12-30", rig.pauses)
-    assert "⏸️ ana bot: yeni işlemler duraklatıldı — risk kademesi incelemesi bekliyor (motor tarafından, 30.12 13:00)" in secs["Duraklatma"]()
+    assert "ana bot: yeni işlemler duraklatıldı — risk kademesi incelemesi bekliyor (motor tarafından, 30.12 13:00)" in secs["Duraklatma"]()
     status(rig, loop_at=T0.strftime("%Y-%m-%dT%H:%M:%SZ"), entries_open=True)
     out = T.build_report(rig.cfg, T0, "2026-12-30", {"Duraklatma": secs["Duraklatma"]})
     assert "Yeni işlemler duraklatıldı." in out
@@ -247,7 +247,7 @@ def test_pending_pause_devam_refused_when_kill_set_before_confirm(rig):
     say(rig, "/devam", 1)
     rig.killswitch.set(by="cli", reason="manual")
     t = say(rig, "0427", 2)
-    assert "KILL etkin" in t
+    assert "Acil durdurma etkin" in t
     assert all(p.active() for p in rig.pauses.values()) and rig.killswitch.active()
 
 

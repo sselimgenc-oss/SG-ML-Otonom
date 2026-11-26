@@ -146,7 +146,7 @@ def test_oz_kontrol_20_dk_sorun_varsa_tek_mesaj_yoksa_sessiz(w):
     w.health_red("backup_stale", name="backup_age")                        # olumcul degil -> geri alma yok, oz-kontrol uyarir
     assert w.tick(19) == "saglikli" and w.messages == []
     assert w.tick(20) == "oz_kontrol_sorun"
-    assert len(w.messages) == 1 and "20 dk sonra" in w.messages[0] and "Yedek" in w.messages[0]
+    assert len(w.messages) == 1 and w.messages[0].startswith("[ML] ⚠️ Güncellemeden 20 dk sonraki kontrolde sorun var:") and "Yedek" in w.messages[0] and "\nSenden: geri almak için" in w.messages[0]
     w.tick(22)
     w.tick(40)
     assert len(w.messages) == 1                                              # bir kez

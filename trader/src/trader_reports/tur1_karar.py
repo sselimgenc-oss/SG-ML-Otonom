@@ -36,7 +36,7 @@ def _etiket(kimlik: str, ad: str, deger: str, gecti: bool) -> str:
         return f"işlem {n}/{hedef}" if n and hedef else "işlem sayısı"
     if kimlik == "net":
         net = _say(deger, r"net = ([+-]?[\d.]+) R")
-        return ("masraf sonrası net kâr pozitif" if gecti else "masraf sonrası net kâr yok") + (f" ({net} R)" if net else "")
+        return ("masraf sonrası net kâr pozitif" if gecti else "masraf sonrası net kâr yok") + (f" ({net.replace('-', '−')} R)" if net else "")
     if kimlik == "rejim":
         k = _say(deger, r"^(\d+) rejim pozitif")
         return ("yeterli rejimde pozitif" if gecti else "yeterli rejimde pozitif değil") + (f" ({k} rejim)" if k else "")
@@ -53,7 +53,7 @@ def _etiket(kimlik: str, ad: str, deger: str, gecti: bool) -> str:
 
 
 def karar(d: dict) -> dict | None:
-    """{'hazir': bool, 'eksik': [kimlik...] (sirali), 'satir': str}; rapor canli_sartlari icermiyorsa None."""
+    """{'hazir': bool, 'eksik': [kimlik...] (sirali), 'satir': str (2 satir, `[ML] ` oneksiz), 'tamam': [...]}; rapor canli_sartlari icermiyorsa None."""
     maddeler = ((d or {}).get("canli_sartlari") or {}).get("maddeler")
     if not isinstance(maddeler, list):
         return None
@@ -71,12 +71,10 @@ def karar(d: dict) -> dict | None:
             eks_k.append(k)
     hazir = not eksik and bool(tamam)
     if hazir:
-        satir = "Canlıya hazır: EVET — tüm şartlar geçti: " + ", ".join(tamam)
-    else:
-        satir = "Canlıya hazır: HAYIR — eksik: " + (", ".join(eksik) or "veri yok")
-        if tamam:
-            satir += "; tamam: " + ", ".join(tamam)
-    return {"hazir": hazir, "eksik": sorted(eks_k), "satir": satir}
+        satir = "✅ Canlıya hazır mı? EVET\nTüm şartlar geçti."
+    else:                                                    # "tamam" listesi mesajda yok (rapor dosyasında ve `tamam` anahtarında kalır)
+        satir = "Canlıya hazır mı? HAYIR\nEksik: " + (", ".join(eksik) or "veri yok")
+    return {"hazir": hazir, "eksik": sorted(eks_k), "satir": satir, "tamam": tamam}
 
 
 def degisti(onceki: dict | None, k: dict) -> bool:

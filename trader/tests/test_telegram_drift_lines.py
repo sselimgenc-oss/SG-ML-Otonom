@@ -1,4 +1,4 @@
-"""Gunluk Telegram raporuna sapma izleyicisi satirlari (docs/kagit-degerlendirme-plani.md 4.6)."""
+"""Sapma izleyicisi (drift.json) artik gunluk Telegram ozetinde yok (26.11 sadelesme); dosya yazimi baska yerde sinanir."""
 from __future__ import annotations
 
 import json
@@ -24,6 +24,7 @@ class Cfg:
         self.ledger_path = str(base / "ledger.sqlite")
         self.health_state = ""
         self.var_dir = str(base)
+        self.config_dir = ""
 
 
 def put(d: Path, age_h=1, lines=("📐 Bot beklendiği gibi davranıyor",), schema="drift/1"):
@@ -32,42 +33,22 @@ def put(d: Path, age_h=1, lines=("📐 Bot beklendiği gibi davranıyor",), sche
                                               "report_lines": list(lines)}), encoding="utf-8")
 
 
-def test_lines_learner_only_even_if_twin_dir_exists(tmp_path):
-    put(tmp_path / "learner", lines=["📐 A", "📐 B"])
-    put(tmp_path / "twin", lines=["📐 C"])               # DD-12: eski ikiz dizini yok sayilir
-    out = T.rapor_davranis(Cfg(tmp_path / "learner"), NOW)
-    assert out.splitlines() == ["📐 A", "📐 B"]
-
-
-def test_missing_stale_or_bad_file_gives_single_line(tmp_path):
-    (tmp_path / "learner").mkdir()
-    cfg = Cfg(tmp_path / "learner")
-    assert T.rapor_davranis(cfg, NOW) == "📐 Davranış değerlendirmesi henüz yok"
-    put(tmp_path / "learner", age_h=36.1)
-    assert T.rapor_davranis(cfg, NOW) == "📐 Davranış değerlendirmesi henüz yok"
-    put(tmp_path / "learner", age_h=36)
-    assert T.rapor_davranis(cfg, NOW).startswith("📐 Bot")
-    (tmp_path / "learner" / "drift.json").write_text("{bozuk")
-    assert T.rapor_davranis(cfg, NOW) == "📐 Davranış değerlendirmesi henüz yok"
-    put(tmp_path / "learner", schema="x/1")
-    assert T.rapor_davranis(cfg, NOW) == "📐 Davranış değerlendirmesi henüz yok"
-    assert T.rapor_davranis(Cfg(tmp_path / "yok"), NOW) == "📐 Davranış değerlendirmesi henüz yok"
-
-
-def test_twin_absent_adds_nothing(tmp_path):
-    put(tmp_path / "learner", lines=["📐 A"])
-    assert T.rapor_davranis(Cfg(tmp_path / "learner"), NOW) == "📐 A"
-
-
-def test_default_sections_and_build_report_include_it(tmp_path):
+def test_davranis_satirlari_telegramdan_kalkti(tmp_path):
+    """26.11 sadelesme: sapma izleyicisi satirlari (drift.json) gunluk ozette/komutlarda yok; dosya yazilmaya devam eder, Telegram okumaz."""
+    for ad in ("rapor_davranis", "_davranis_satirlari", "DAVRANIS_YOK", "DAVRANIS_MAX_YAS_S"):
+        assert not hasattr(T, ad), ad
     put(tmp_path / "learner", lines=["📐 Bot beklendiği gibi davranıyor (sıklık, maliyet, fonlama normal)"])
     cfg = Cfg(tmp_path / "learner")
     secs = T.default_sections(cfg, NOW, "2026-12-20")
-    assert "Davranış" in secs
-    assert "📐 Bot beklendiği gibi davranıyor" in secs["Davranış"]()      # bolum durur (/rapor komutlari); gunluk ozette yok
-    text = T.build_report(cfg, NOW, "2026-12-20", {"Davranış": secs["Davranış"]})
+    assert "Davranış" not in secs and secs == {}
+
+
+def test_gunluk_ozet_drift_dosyasi_olsa_da_sapma_satiri_yok(tmp_path):
+    put(tmp_path / "learner", lines=["📐 Bot beklendiği gibi davranıyor"])
+    cfg = Cfg(tmp_path / "learner")
+    text = T.build_report(cfg, NOW, "2026-12-20", {"Davranış": lambda: "📐 x"})            # bolum verilse bile okunmaz
     assert "Günlük özet" in text and "📐" not in text
     # bolum patlasa bile rapor uretilir
     def boom():
         raise RuntimeError("x")
-    assert "Günlük özet" in T.build_report(cfg, NOW, "2026-12-20", {"Davranış": boom})
+    assert "Günlük özet" in T.build_report(cfg, NOW, "2026-12-20", {"Duraklatma": boom})

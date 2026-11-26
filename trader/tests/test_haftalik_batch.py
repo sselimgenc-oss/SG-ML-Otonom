@@ -23,6 +23,7 @@ import weekly_summary_run as W  # noqa: E402
 
 TUR1 = importlib.util.module_from_spec(importlib.util.spec_from_file_location("tur1_haftalik_yorum_run", ROOT / "scripts" / "tur1_haftalik_yorum_run.py"))
 TUR1.__spec__.loader.exec_module(TUR1)
+TUR1.HAFTALIK_YORUM_TELEGRAM = True        # 26.11: varsayilan KAPALI; gonderim/toplama yollari burada acik sinanir (kapali yol: test_tur1_karar)
 
 NOW = datetime(2026, 11, 29, 6, 0, tzinfo=UTC)          # pazar, 2026-W48
 USAGE = {"input_tokens": 3000, "output_tokens": 400}

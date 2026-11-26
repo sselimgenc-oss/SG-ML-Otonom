@@ -225,7 +225,7 @@ except Exception:
   fi
 
   gecmis_ekle "$mevcut" "$yeni" basarisiz
-  tg_send "[ML] ⚠️ Güncelleme kurulamadı; bot eski sürümle çalışıyor."
+  tg_send "[ML] ⚠️ Güncelleme kurulamadı; bot eski sürümle çalışmaya devam ediyor."
   log "BASARISIZ (kurulum cikis=$rc, surum=${simdi:0:7})"
   return 1
 }

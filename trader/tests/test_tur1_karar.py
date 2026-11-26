@@ -16,10 +16,13 @@ ROOT = Path(__file__).resolve().parent.parent
 NOW = datetime(2026, 11, 29, 5, 10, tzinfo=timezone.utc)      # pazar
 
 
-def _betik(ad):
+def _betik(ad, acik=True):
+    """Betigi yukler. `acik`: 26.11'de varsayilan KAPALI olan haftalik YZ yorumu gonderim yolunu (batch+Telegram) sinamak icin acar."""
     s = importlib.util.spec_from_file_location(ad, ROOT / "scripts" / f"{ad}.py")
     m = importlib.util.module_from_spec(s)
     s.loader.exec_module(m)
+    if acik and hasattr(m, "HAFTALIK_YORUM_TELEGRAM"):
+        m.HAFTALIK_YORUM_TELEGRAM = True
     return m
 
 
@@ -43,13 +46,15 @@ def test_karar_hayir_eksikleri_ve_gecenleri_listeler():
     k = K.karar(rapor(n=55, rastgele=False, dusus=True))
     assert k["hazir"] is False and k["eksik"] == ["dusus", "islem", "rastgele"]
     s = k["satir"]
-    assert s.startswith("Canlıya hazır: HAYIR — eksik: işlem 55/300, rastgele girişten iyi değil (yüzdelik 40,0), en kötü düşüş sınırı aşıldı (%31,2)")
-    assert "tamam: masraf sonrası net kâr pozitif" in s and "BİLGİ" not in s and "\n" not in s
+    assert s == ("Canlıya hazır mı? HAYIR\nEksik: işlem 55/300, rastgele girişten iyi değil (yüzdelik 40,0), "
+                 "en kötü düşüş sınırı aşıldı (%31,2)")
+    assert "tamam" not in s and "BİLGİ" not in s and len(s.splitlines()) == 2             # "tamam" listesi mesajda yok ...
+    assert any("masraf sonrası net kâr pozitif" in x for x in k["tamam"])                  # ... ama sonucta kalir
 
 
 def test_karar_evet_ve_veri_yok():
     k = K.karar(rapor(n=400, rastgele=True))
-    assert k["hazir"] is True and k["eksik"] == [] and k["satir"].startswith("Canlıya hazır: EVET")
+    assert k["hazir"] is True and k["eksik"] == [] and k["satir"] == "✅ Canlıya hazır mı? EVET\nTüm şartlar geçti."
     assert K.karar({}) is None and K.karar({"canli_sartlari": {}}) is None
 
 
@@ -75,7 +80,7 @@ def test_karar_bildir_ilk_calisma_gonderir_ayni_karar_gondermez(tmp_path):
     assert len(dosyalar) == 1
     it = json.loads(dosyalar[0].read_text(encoding="utf-8"))
     assert set(it) == {"text", "severity", "dedup_key", "expires_at", "reply_markup", "created_at"}
-    assert it["severity"] == "INFO" and it["text"].startswith("Canlıya hazır: HAYIR") and it["dedup_key"].startswith("tur1-karar:2026-11-29:")
+    assert it["severity"] == "INFO" and it["text"].startswith("[ML] Canlıya hazır mı? HAYIR\nEksik: ") and it["dedup_key"].startswith("tur1-karar:2026-11-29:")
     # ertesi gun, sayi degisti: gonderilmez
     from datetime import timedelta
     assert m.karar_bildir(tmp_path, env, rapor(n=70, pct=44.0), NOW + timedelta(days=1)) is False
@@ -159,6 +164,15 @@ class SahteBatch:
 
     def cancel(self, batch_id):
         pass
+
+
+def test_haftalik_yz_yorumu_varsayilan_kapali_atlandi_yazar_butce_harcanmaz(tmp_path, capsys):
+    m = _betik("tur1_haftalik_yorum_run", acik=False)
+    assert m.HAFTALIK_YORUM_TELEGRAM is False
+    env, b, c = hazirla(tmp_path), Butce(), SahteBatch()
+    assert m.main(["--once"], client=c, budget=b, now_fn=lambda: NOW, env=env) == 0
+    assert json.loads(capsys.readouterr().out)["status"] == "atlandi"
+    assert c.gonderilen == [] and b.olay == [] and _outbox(tmp_path) == []             # batch yok, butce yok, mesaj yok
 
 
 def test_haftalik_ok_yolu_mesaj_yazar_ve_ayni_hafta_tekrar_etmez(tmp_path):

@@ -108,7 +108,7 @@ def test_learning_view_scorecard_m1_sessions_open(world):
     t1, m1, f1 = arms["T1@1h"], arms["M1@1h"], arms["F1@1h"]
     assert (t1["candidates"], t1["taken"], t1["mean_r_taken"]) == (2, 1, 1.0)   # 24.11 kullanici karari: alinsaydi tekillestirme (48 mum) -> 2 ve 4 tek aday
     assert t1["mean_r_taken_cf"] == pytest.approx((1.0 - 1.0) / 2)     # alinan + alinmayan; 24.11: tekillestirme 4. karari dusurur
-    assert (m1["candidates"], m1["taken"], m1["mean_r_taken"], m1["state"]) == (2, 2, -0.5, "closed")
+    assert (m1["candidates"], m1["taken"], m1["mean_r_taken"], m1["state"]) == (2, 2, -0.5, "open")    # 26.11: arms_off.json okunmaz -> durum hep "open"
     assert (f1["candidates"], f1["state"]) == (0, "open")                     # yapilandirilmis, adayi yok
     assert "lesson" not in lv                                                  # 25.11: ders sistemi kaldirildi
     assert "ml" not in lv                                                      # 24.11: ML filtre sayilari (elenen/gecen/etki) silindi
@@ -135,21 +135,19 @@ def _cfg(world):
                             budget_config=world.budget)
 
 
-def test_daily_sections_show_learning_and_scorecard(world):
+def test_daily_report_has_no_learning_scorecard_sections(world):
+    """26.11: ogrenme/karne/harcama/haftalik-dosya bolumleri Telegram'dan kalkti; `learning_view` (panel disi tuketiciler) durur."""
     cfg = _cfg(world)
-    ogr = T.rapor_ogrenme(cfg, NOW)
-    assert "Ders:" not in ogr and "elenen" not in ogr and "M1:" not in ogr
-    assert "Haftalık özet (2026-W47)" in ogr
-    karne = T.rapor_kurulum_karnesi(cfg, NOW)
-    assert "T1@1h: aday 2 · alınan 1" in karne and "M1@1h: aday 2 · alınan 2" in karne and "KAPALI" in karne
-    assert "F1@1h" not in karne                                                 # adayi olmayan kurulum satiri yok
-    out = T.build_report(cfg, NOW, "2026-11-19", {"Öğrenme": lambda: ogr, "Kurulum karnesi": lambda: karne})
-    assert "📚" not in out and "🧪" not in out and len(out.splitlines()) <= 12     # gunluk ozet kisa; bolumler komutlarda
-    for banned in ("ikiz", "twin", "veto"):
-        assert banned not in (ogr + karne).lower()
+    for ad in ("rapor_ogrenme", "rapor_kurulum_karnesi", "_karne_satirlari", "kurulumlar_metni", "_haftalik_ozet_metni"):
+        assert not hasattr(T, ad), ad
+    assert T.default_sections(cfg, NOW, "2026-11-19") == {}
+    out = T.build_report(cfg, NOW, "2026-11-19", {"Öğrenme": lambda: "x", "Kurulum karnesi": lambda: "y"})
+    assert "📚" not in out and "🧪" not in out and len(out.splitlines()) <= 10 and "karne" not in out.lower() and "T1@1h" not in out
+    for banned in ("ikiz", "twin", "veto", "ders"):
+        assert banned not in out.lower()
 
 
-def test_kurulumlar_command_replies_through_dispatch(world):
+def test_ml1_ve_kurulumlar_komutlari_ayni_yaniti_verir_ders_komutu_kaldirildi(world):
     cfg = _cfg(world)
     sent: list[str] = []
 
@@ -158,12 +156,16 @@ def test_kurulumlar_command_replies_through_dispatch(world):
             sent.append(text)
             return {"ok": True}
 
-    d = T.TelegramDaemon(cfg, Client(), now_fn=lambda: NOW, sleep=lambda s: None)
-    assert "/kurulumlar" in T.HELP and "/ders" not in T.HELP
-    assert d._dispatch_text("/kurulumlar", "x") == "ok"
-    assert sent[-1].startswith("🧪 Kurulum karnesi") and "T1@1h: aday 2" in sent[-1]
-    assert d._dispatch_text("/ders", "x") == "removed" and "kaldirildi" in sent[-1]    # eski komut: tek satir yanit
-    assert "/rapor" in T.HELP
+    from ml1_gorunum_destek import ml1_defter
+    ml1_defter(str(world.tmp / "ml1.sqlite"))
+    cfg.ledger_path = str(world.tmp / "ml1.sqlite")
+    d = T.TelegramDaemon(cfg, Client(), now_fn=lambda: datetime(2026, 11, 16, 18, 0, tzinfo=UTC), sleep=lambda s: None)
+    assert "/ml1" in T.yardim_metni(False) and "/ders" not in T.yardim_metni(False) and "/rapor" in T.yardim_metni(False)
+    assert d._dispatch_text("/ml1", "x") == "ok"
+    ilk = sent[-1]
+    assert ilk.startswith("[ML] ML1") and "eşik 0,60" in ilk and len(ilk.splitlines()) <= 6
+    assert d._dispatch_text("/kurulumlar", "x") == "ok" and sent[-1] == ilk
+    assert d._dispatch_text("/ders", "x") == "removed" and "kaldırıldı" in sent[-1]    # eski komut: tek satir yanit
 
 
 def test_commands_report_unreadable_data_in_one_line(tmp_path):
@@ -177,11 +179,11 @@ def test_commands_report_unreadable_data_in_one_line(tmp_path):
 
     d = T.TelegramDaemon(cfg, Client(), now_fn=lambda: NOW, sleep=lambda s: None)
     assert d._dispatch_text("/kurulumlar", "x") == "unreadable"
-    assert sent == ["okunamadı: defter_yok"]                                     # komutta kod; günlük raporda yok
+    assert sent == ["[ML] Okunamadı: defter_yok"]                                # komutta kod; günlük raporda yok
 
 
-def test_veto_labels_remain_for_historical_reasons_only():
-    assert T.ATLAMA_TR["veto_missing"] == "veto hazır değildi"                  # eski defter satirlari icin ceviri
+def test_atlama_nedeni_cevirileri_telegramdan_kalkti():
+    assert not hasattr(T, "ATLAMA_TR")                                           # Telegram'da atlama nedeni listesi yok (26.11)
 
 
 # ---- pano: uc nokta, sekme, statik dosyalar ----------------------------------------------------------------------
@@ -189,12 +191,11 @@ def test_panel_endpoint_and_tab(world, tmp_path):
     cfg = PDATA.PanelConfig({"ledger_path": world.ledger, "budget_config": world.budget,
                              "status_path": str(tmp_path / "status.json")}, tmp_path)
     data = PDATA.PanelData(cfg, clock=lambda: NOW)
-    v = data.learning()
-    assert v["ok"] is True and v["scorecard"] and "lesson" not in v
-    assert "/api/learning" in SRV.build_api(data)
+    assert not hasattr(data, "learning") and "/api/learning" not in SRV.build_api(data)       # 26.11: uc nokta kalkti (learning_view Telegram/haftalik ozet icin durur)
+    assert PD.learning_view(world.ledger, world.budget, NOW)["scorecard"]
     html = (STATIC / "index.html").read_text(encoding="utf-8")
-    # 20.11 yeni pano (6 sekme): ML ogrenme sekmesinde, saglik teknik sekmesinde; veri /api/pano'dan
-    assert 'id="sek-ogrenme"' in html and 'id="sek-teknik"' in html
+    # 26.11 pano (6 sekme): ML1 sekmesi, saglik teknik sekmesinde; veri /api/pano'dan
+    assert 'id="sek-ml1"' in html and 'id="sek-teknik"' in html
     js = (STATIC / "panel.js").read_text(encoding="utf-8")
-    assert "['ogrenme', 'ÖĞRENME']" in js and "/api/pano" in js
+    assert "['ml1', 'ML1']" in js and "/api/pano" in js
     assert ".innerHTML" not in js and "insertAdjacentHTML" not in js           # yalniz textContent ile basilir

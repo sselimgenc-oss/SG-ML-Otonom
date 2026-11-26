@@ -262,7 +262,7 @@ def test_kurulum_hatasi_basarisiz_mesaji_ve_tekrar_denememe(world):
     rows = world.history()
     assert rows[-1][1:] == [old, new, "basarisiz"]
     msgs = world.telegram()
-    assert msgs == ["[ML] ⚠️ Güncelleme kurulamadı; bot eski sürümle çalışıyor."]
+    assert msgs == ["[ML] ⚠️ Güncelleme kurulamadı; bot eski sürümle çalışmaya devam ediyor."]
     assert TOKEN not in msgs[0] and "SECRETKEYVALUE" not in msgs[0]
     # ayni commit bir daha denenmez
     r2 = world.run(**env)
@@ -511,7 +511,8 @@ def test_geri_al_otomatik_onceki_surumu_kurar_isaretler_durdurmaz(world):
     h = world.history()
     assert h[-2][1:] == [old, new, "basarisiz"] and h[-1][1:] == [new, old, "geri_alindi"]
     tg = world.telegram()
-    assert len(tg) == 1 and "otomatik olarak önceki sürüme döndürüldü" in tg[0] and "motor servisi çalışmıyor" in tg[0]
+    assert len(tg) == 1 and tg[0].startswith("[ML] ⚠️ Güncellemeden sonra sorun görüldü; bot önceki sürüme döndürüldü.\nNeden: motor servisi çalışmıyor.")
+    assert tg[0].endswith("Sorunlu sürüm yeniden kurulmayacak.")
     # bozuk commit bir daha denenmez; yesil commit hala o ise oto_guncelle islem yapmaz
     n = len(world.install_calls())
     r = world.run()
@@ -537,7 +538,7 @@ def test_geri_al_otomatik_basarisiz_kurulumda_tek_hata_mesaji(world):
     assert r.returncode == 1
     assert world.history()[-1][1:] == [new, old, "geri_alma_basarisiz"]
     assert all(row[3] != "basarisiz" for row in world.history())          # surum degismedi: bozuk isaretlenmez
-    assert world.telegram() == ["[ML] ⚠️ Geri alma yapılamadı; bot mevcut sürümle çalışıyor."]
+    assert world.telegram() == ["[ML] 🔴 Geri alma yapılamadı; bot mevcut sürümle çalışıyor.\nSenden: bana haber ver."]
     assert not (world.state / "DURDUR").exists()
 
 

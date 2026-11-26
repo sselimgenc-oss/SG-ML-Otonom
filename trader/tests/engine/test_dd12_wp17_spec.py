@@ -86,7 +86,7 @@ def _telegram_cfg(e: Env, status_path: Path | None = None) -> T.TelegramConfig:
 
 def _report(cfg: T.TelegramConfig) -> str:
     # gercek uretim yolu: report_run varsayilan bolumlerle cagirir (sections=None en kisa ozet; eski testler buna bagli)
-    # Gunluk ozet artik <=12 satir; model/seans/LLM bolumleri kaldirilmadi, /kurulumlar /rapor komutlariyla ve panelde (ders sistemi 25.11'de kaldirildi).
+    # Gunluk ozet <=10 satir (26.11: ML1 satirlari var; model/seans/LLM/karne bolumleri Telegram'dan kalkti, panelde ML1 ve TEKNIK sekmeleri).
     # Bolumler tek tek uretilir (okunamayan bolum bos kalir).
     secs = T.default_sections(cfg, NOW, DAY)
     out = [T.build_report(cfg, NOW, DAY, sections=secs)]
@@ -98,12 +98,13 @@ def _report(cfg: T.TelegramConfig) -> str:
     return "\n".join(out)
 
 
-# ---------------------------------------------------------------- pano: Öğrenme sekmesi (statik kaynak)
-def test_pano_ogrenme_sekmesi_tanimli():
+# ---------------------------------------------------------------- pano: ML1 sekmesi (statik kaynak)
+def test_pano_ml1_sekmesi_tanimli_ogrenme_sekmesi_yok():
     text = "\n".join(
         (ROOT / "src/trader_panel/static" / n).read_text(encoding="utf-8")
         for n in ("index.html", "panel.js") if (ROOT / "src/trader_panel/static" / n).exists())
-    assert re.search(r"[ÖO]ğrenme|ogrenme|Öğrenme", text, re.IGNORECASE), "Öğrenme sekmesi pano kaynaginda yok"
+    assert "['ml1', 'ML1']" in text and 'id="sek-ml1"' in text
+    assert not re.search(r"[ÖO]ğrenme|ogrenme|Öğrenme", text, re.IGNORECASE), "eski Öğrenme sekmesi kalmamali (26.11: ML1)"
 
 
 def test_pano_bir_kurulum_karnesi_ve_cagri_kesfi_calisir_ve_eksik_uc_yok(tmp_path):
@@ -127,7 +128,8 @@ def test_kurulum_karnesi_arm_scorecard_fonksiyonu_import_edilebilir():
     assert isinstance(sc, dict)
 
 
-def test_kapali_kurulum_arms_off_dan_okunur_ve_pano_gosterir(tmp_path):
+def test_kapali_kurulum_arms_off_dosyasi_yazilir_ama_pano_gostermez(tmp_path):
+    """26.11: gece sayaci `arms_off.json` yazmaya devam eder (kol_yasam okuyucusu durur) ama pano/ML1 sekmesi onu OKUMAZ ve gostermez."""
     e = Env(tmp_path)
     _write_arms_off(e.root, {ARM_OFF_ID: {"state": "closed", "since": "2026-11-16T10:00:00Z"}})
     state = LS.read_arms_state(e.root / "var/learner/arms_off.json")
@@ -135,12 +137,11 @@ def test_kapali_kurulum_arms_off_dan_okunur_ve_pano_gosterir(tmp_path):
     r = Running(e, cache_s=0)
     try:
         text = _api_text(r) + _page_text(r)
-        assert ARM_OFF_ID in _api_text(r), "kapali kurulum panel verisinde yok"
-        assert re.search(r"kapal|closed|kapalı", _api_text(r), re.IGNORECASE)
+        assert ARM_OFF_ID not in text, "eski kol kapanisi pano verisinde gorunmemeli"
+        assert not re.search(r"Ders kapatt|Açık kol", text)
     finally:
         r.stop()
         e.close()
-    assert text
 
 
 def test_arms_off_yok_iken_taze_sunucu_acik_varsayar_ve_cokmez(tmp_path):
@@ -168,19 +169,20 @@ def test_pano_ders_alani_yok(tmp_path):
         e.close()
 
 
-def test_pano_seans_ve_varlik_sinifi_kirilimi_var(tmp_path):
+def test_pano_ml1_zaman_dilimi_ve_fikir_grubu_kirilimi_var_seans_kirilimi_yok(tmp_path):
     e = Env(tmp_path)
     r = Running(e, cache_s=0)
     try:
-        api = _api_text(r)
-        assert re.search(r'"(session|seans)[^"]*"', api, re.IGNORECASE), "seans kirilimi yok"
-        assert re.search(r'"(asset_class|varlik|varlık|asset)[^"]*"', api, re.IGNORECASE), "varlik sinifi kirilimi yok"
+        st, _, body = r.req("/api/pano?bot=learner")
+        assert st == 200 and body["ok"] and body["ml1"] is not None
+        assert [z["kod"] for z in body["ml1"]["zd"]] == ["15m", "1h", "4h", "1d"] and set(body["ml1"]["gruplar"]) == {"ml1", "tumu"}
+        assert not re.search(r'"(session|seans)[^"]*"', _api_text(r), re.IGNORECASE), "seans kirilimi pano verisinde yok (26.11)"
     finally:
         r.stop()
         e.close()
 
 
-def test_pano_haftalik_ozet_eksikken_cokmez_ve_dosya_varsa_gorunur(tmp_path):
+def test_pano_haftalik_ozet_eksikken_de_varken_de_cokmez(tmp_path):
     marker = "HAFTALIK-OZET-ISARETI-7731"
     e = Env(tmp_path)
     r = Running(e, cache_s=0)
@@ -196,42 +198,47 @@ def test_pano_haftalik_ozet_eksikken_cokmez_ve_dosya_varsa_gorunur(tmp_path):
         p.write_text(f"# Haftalık özet\n\n{marker}\n", encoding="utf-8")
     r = Running(e, cache_s=0)
     try:
-        assert marker in _api_text(r) + _page_text(r) or marker in _report(_telegram_cfg(e))
+        assert r.req("/api/pano?bot=learner")[0] == 200 and r.req("/")[0] == 200
+        assert marker not in _api_text(r) + _page_text(r)            # 26.11: haftalik dosya panoda gosterilmez (ogrenme sekmesi kalkti)
+        assert "Traceback" not in _report(_telegram_cfg(e))
     finally:
         r.stop()
         e.close()
 
 
 # ---------------------------------------------------------------- pano: LLM harcaması 10 USD
-def test_llm_harcama_satiri_10_usd_ile_karsilastirilir(tmp_path):
+def test_yapay_zeka_yorum_harcamasi_tavanla_birlikte_teknik_sekmede(tmp_path):
     e = Env(tmp_path)
+    r = Running(e, cache_s=0)
     try:
-        rep = _report(_telegram_cfg(e))
-        lines = [ln for ln in rep.splitlines() if re.search(r"LLM|harcama", ln, re.IGNORECASE)]
-        assert any(re.search(r"20(\.0+)?\s*(\$|USD)", ln) for ln in lines), lines   # 23.11: tavan 20 $
+        st, _, body = r.req("/api/pano?bot=learner")
+        assert st == 200 and body["teknik"]["butce"]["tavan"] == pytest.approx(20.0)      # 23.11: tavan 20 $ (TEKNIK > Yapay zekâ yorum harcaması)
+        assert "model" not in body["teknik"]
+        assert not any(re.search(r"LLM|harcama", ln, re.IGNORECASE) for ln in _report(_telegram_cfg(e)).splitlines())   # Telegram'da yok
     finally:
+        r.stop()
         e.close()
 
 
 # ---------------------------------------------------------------- Telegram: günlük rapor ve komutlar
-def test_telegram_komutlari_kurulumlar_var_ders_yok():
-    assert "/kurulumlar" in T.HELP
-    assert "/ders" not in T.HELP and "/onayla" not in T.HELP and "/reddet" not in T.HELP
+def test_telegram_komutlari_ml1_var_ders_yok():
+    h = T.yardim_metni(True)
+    assert "/ml1" in h and "/kurulumlar" not in h
+    assert "/ders" not in h and "/onayla" not in h and "/reddet" not in h
     src = (ROOT / "src/trader_core/telegram.py").read_text(encoding="utf-8")   # calisma agaci (commit oncesi de)
-    assert '"/kurulumlar"' in src or "/kurulumlar" in src
+    assert '"/kurulumlar"' in src                                               # eski ad ayni yaniti verir (dispatch)
 
 
-def test_telegram_gunluk_rapor_ml_seans_ve_llm_bolumleri(tmp_path):
+def test_telegram_gunluk_rapor_ml1_satiri_var_seans_llm_karne_yok(tmp_path):
     e = Env(tmp_path)
     _write_arms_off(e.root, {ARM_OFF_ID: {"state": "closed"}})
     try:
         rep = _report(_telegram_cfg(e))
         assert isinstance(rep, str) and rep
-        assert re.search(r"ML|Model", rep), "ML etkisi yok"            # sahibe Turkce: "Model"
-        assert re.search(r"Seans|hafta sonu|weekend", rep, re.IGNORECASE), "seans kirilimi yok"   # veri yoksa hafta sonu satiri olmaz
-        assert re.search(r"kripto|hisse|emtia", rep, re.IGNORECASE), "varlik sinifi kirilimi yok"
-        assert re.search(r"LLM|harcama", rep, re.IGNORECASE), "LLM harcama satiri yok"
-        assert "L1" not in rep, "L1 iptal edildi (Ek, 18 Kasim)"
+        assert re.search(r"ML1", rep), "ML1 satiri yok"
+        assert not re.search(r"Seans|hafta sonu|weekend|kripto|hisse|emtia|LLM|harcama|karne|KAPALI", rep, re.IGNORECASE), rep
+        assert "L1" not in rep.replace("ML1", ""), "L1 iptal edildi (Ek, 18 Kasim)"
+        assert ARM_OFF_ID not in rep and "ders" not in rep.lower()
     finally:
         e.close()
 
@@ -256,7 +263,7 @@ def test_pano_ve_telegram_ciktilarinda_ikiz_veto_metni_yok(tmp_path):
     finally:
         r.stop()
     try:
-        tg_out = _report(_telegram_cfg(e)) + "\n" + T.HELP
+        tg_out = _report(_telegram_cfg(e)) + "\n" + T.yardim_metni(True)
         assert not FORBIDDEN.search(tg_out), FORBIDDEN.findall(tg_out)[:5]
     finally:
         e.close()

@@ -180,7 +180,7 @@ def test_kill_two_step_bare_code(rig):
     info = d.killswitch.info()
     assert info["by"].startswith("telegram:") and info["reason"] == "user_cmd"
     d.process_updates([msg(d, "0427", 5)])
-    assert "bekleyen onay yok" in last_text(d)
+    assert "Bekleyen onay yok" in last_text(d)
     assert "0427" not in d._pending_p.read_text() if d._pending_p.exists() else True
 
 
@@ -191,7 +191,7 @@ def test_kill_wrong_code_and_ttl(rig):
     d.process_updates([msg(d, "/hepsini_kapat", 3)])
     d.rig.clk.t += timedelta(seconds=121)
     d.process_updates([msg(d, "0427", 4)])
-    assert not d.killswitch.active() and "sure doldu" in last_text(d)
+    assert not d.killswitch.active() and "Süre doldu" in last_text(d)
     d.process_updates([msg(d, "/hepsini_kapat", 5)])
     d.rig.clk.t += timedelta(seconds=119)
     d.process_updates([msg(d, "0427", 6)])
@@ -201,7 +201,7 @@ def test_kill_wrong_code_and_ttl(rig):
 def test_stale_and_duplicate_update(rig):
     d = rig
     d.process_updates([msg(d, "/hepsini_kapat", 1, age=121)])
-    assert "islenmedi" in last_text(d) and not d._pending_p.exists()
+    assert "İşlenmedi" in last_text(d) and not d._pending_p.exists()
     d.process_updates([msg(d, "/yardim", 2), msg(d, "/yardim", 2)])
     assert len([p for p in d.rig.fake.sent() if "durdur" in p["text"]]) == 1
     assert d._get_offset() == 3
@@ -212,7 +212,7 @@ def test_devam_rules(rig):
     d.killswitch.set("telegram:111", "user_cmd")
     set_status(d, kill_state="exiting", mode="paper")
     d.process_updates([msg(d, "/devam", 1)])
-    assert "kapanis" in last_text(d) and not d._pending_p.exists()
+    assert "Kapanış" in last_text(d) and not d._pending_p.exists()
     set_status(d, kill_state="flat", mode="live")
     d.killswitch.set("engine", "daily_loss")
     d.process_updates([msg(d, "/devam", 2)])
@@ -223,9 +223,9 @@ def test_devam_rules(rig):
     d.process_updates([msg(d, "0427", 4)])
     assert not d.killswitch.active()
     d.process_updates([msg(d, "/devam", 5)])
-    assert "etkin degil" in last_text(d)
+    assert "etkin değil" in last_text(d)
     d.process_updates([msg(d, "/durdur", 6)])
-    assert "desteklenmiyor" in last_text(d)
+    assert "Desteklenmiyor" in last_text(d)
 
 
 def test_devam_unreadable_status_fail_closed(rig):
@@ -240,7 +240,7 @@ def test_kaldirilan_ders_komutlari_islem_yapmaz(rig):
     d = rig
     d.process_updates([msg(d, "/onayla lr-2026-11-16-3", 1), msg(d, "/reddet lr-2026-11-16-3", 2), msg(d, "/ders", 3)])
     sent = [p["text"] for p in d.rig.fake.sent()]
-    assert len(sent) == 3 and all("kaldirildi" in x for x in sent)
+    assert len(sent) == 3 and all("kaldırıldı" in x and "/ml1" in x for x in sent)
 
 
 def cb(d, data, uid, mid=77, text="Oneri"):

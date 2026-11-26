@@ -64,13 +64,7 @@ def test_scorecard_kasa_key_and_existing_fields_unchanged():
     assert sc["A"]["candidates"] == 2 and sc["A"]["taken"] == 1 and sc["A"]["state"] == "open"
 
 
-def test_telegram_suffix_and_fallback():
+def test_telegram_karne_satiri_kalkti_sanal_kasa_verisi_durur():
+    """26.11: kurulum karnesi (ve sanal kasa soneki) Telegram'dan kalkti; `arm_scorecard` kasa verisi hesaplanmaya devam eder (yukarida)."""
     from trader_core import telegram as TG
-    kasa = {"taken": {"n": 1, "equity": 1012.4, "return_pct": 1.24, "max_dd_pct": 1.2}, "cf": {}}
-    lv = {"scorecard": [{"arm": "T1@1h", "candidates": 3, "taken": 1, "mean_r_taken": 0.5, "mean_r_taken_cf": 0.2,
-                         "state": "open", "kasa": kasa},
-                        {"arm": "T2@1h", "candidates": 2, "taken": 0, "mean_r_taken": None, "mean_r_taken_cf": 0.1,
-                         "state": "open"}]}
-    s = TG._karne_satirlari(lv)
-    assert s[0].endswith(" · kasa 1012.40 $ (en derin -1.20%)")
-    assert "kasa" not in s[1]
+    assert not hasattr(TG, "_karne_satirlari") and not hasattr(TG, "kurulumlar_metni")

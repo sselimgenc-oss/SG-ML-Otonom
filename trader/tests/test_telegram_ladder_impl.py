@@ -151,7 +151,8 @@ def test_kademe_gate_code_shown_and_uninitialized(rig, tmp_path):
 
 
 def test_help_lists_new_commands(rig):
-    assert "/kademe" in T.HELP and "/kademe_devam" in T.HELP
+    assert "/kademe" in T.yardim_metni(True) and "/kademe_devam" in T.yardim_metni(True)
+    assert "/kademe" not in T.yardim_metni(False)                 # kademe yalniz yapilandirilmissa listelenir
 
 
 # ------------------------------------------------------------------------------------------------ ret kosullari
@@ -262,7 +263,7 @@ def test_approval_writes_row_then_removes_hold(rig):
 
 def test_wrong_code_and_unauthorized_write_nothing(rig):
     rig.say("/kademe_devam")
-    assert "yanlis kod" in rig.say("9999")
+    assert "Yanlış kod" in rig.say("9999")
     assert rows(rig) == ["initial", "review_stop"] and rig.pause.active() and not rig.d._pending_p.exists()
     rig.say("/kademe_devam")
     rig.d.process_updates([rig.msg("0427", chat=999)])                    # yetkisiz sohbet: yok sayilir
@@ -277,7 +278,7 @@ def test_code_ttl_boundaries(rig, wait, accepted):
     t = rig.say("0427")
     assert (rig.log.state().status == "ok") is accepted
     if not accepted:
-        assert "sure doldu" in t and rig.pause.active() and rows(rig) == ["initial", "review_stop"]
+        assert "Süre doldu" in t and rig.pause.active() and rows(rig) == ["initial", "review_stop"]
 
 
 def test_conditions_rechecked_at_code_time(rig):

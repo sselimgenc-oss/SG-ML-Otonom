@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Tur 1 olcum raporunun HAFTALIK YZ yorumu (pazar 06:00 UTC; YETKISI YOK: yalniz Telegram mesaji).
 
+KAPALI: `HAFTALIK_YORUM_TELEGRAM = False` (haftalik ozet Telegram'da sabit gidiyor); betik "atlandi" yazar, batch gonderilmez, butce harcanmaz.
+
 Girdi (SALT OKUNUR): `var/durum/tur1_olcum.md` + son 7 gunun tek satir karari (`var/durum/tur1_karar_son.json`, `gecmis`).
 Cikti: 3-4 maddelik sade Turkce ozet -> Telegram outbox (mevcut `Outbox`). Baska dosya yazmaz (hafta isareti `tur1_haftalik_yorum.json` ve
 batch durumu `tur1_haftalik_batch.json` haric).
@@ -38,6 +40,7 @@ MODEL = "claude-fable-5-2"
 MAX_OUT = 3000                 # fable dusunmeyi her zaman acik tutar; dusunme tokenlari da bu sinirdan yer
 MAX_MD_KARAKTER = 18000
 DOSYA_ISARET = "tur1_haftalik_yorum.json"
+HAFTALIK_YORUM_TELEGRAM = False     # kapali: yerine pazar gunu sabit haftalik ozet gider (telegram.haftalik_metni)
 DOSYA_BATCH = "tur1_haftalik_batch.json"
 SYSTEM = ("Sen bir kagit-islem botunun haftalik olcum raporunu okuyan yardimcisin. Okuyucu teknik olmayan sahibi. Yalnizca verilen "
           "rapora ve gunluk karar satirlarina dayan; sayi uydurma. Sade Turkce yaz, teknik terimi kisaca ac. TAM 3 ya da 4 kisa madde yaz "
@@ -127,6 +130,9 @@ def main(argv=None, *, client=None, budget=None, now_fn=None, env=None, sleep=ti
     env = os.environ if env is None else env
     b = budget or _budget
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    if not HAFTALIK_YORUM_TELEGRAM:
+        print(json.dumps({"status": "atlandi", "reason": "kapali"}))
+        return 0
     now = (now_fn or (lambda: datetime.now(timezone.utc)))()
     root = _resolve_root(env)
     durum = root / "var" / "durum"

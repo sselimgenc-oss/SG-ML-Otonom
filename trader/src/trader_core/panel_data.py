@@ -21,7 +21,6 @@ from typing import Any
 
 from . import budget as B
 from . import ledger as L
-from . import kol_yasam as KY
 from . import health as H
 from .health import DEFAULT_CFG as HEALTH_CFG
 from .arm_time import arm_id_of
@@ -259,9 +258,11 @@ def equity_curve(path: str, bot: str, start_equity: Any, limit: int = 5000, max_
             "points": pts, "daily": cal[-calendar_days:] if calendar_days else cal}
 
 
-def risk_usage(path: str, bot: str, equity: Any, day_start_equity: Any, day: str, mode: Any = "paper") -> dict:
+def risk_usage(path: str, bot: str, equity: Any, day_start_equity: Any, day: str, mode: Any = "paper",
+               max_positions: Any = None) -> dict:
     """Acik risk / limitler: kipin ayar dosyasindaki oranlar x equity (motorla ayni); kullanilan = defterdeki planned_risk.
-    Gunluk zarar = gun basi kasa - simdiki kasa (gerceklesmemis dahil; motor/Telegram ile ayni)."""
+    Gunluk zarar = gun basi kasa - simdiki kasa (gerceklesmemis dahil; motor/Telegram ile ayni).
+    `max_positions` (motor ayarindan; sabit sayi yok) sayiysa 5. satir: acik pozisyon sayisi / tavan (birim 'adet')."""
     closed, opened = ledger_day(path, bot, day)
     try:
         eq, dse = float(equity), float(day_start_equity)
@@ -272,12 +273,14 @@ def risk_usage(path: str, bot: str, equity: Any, day_start_equity: Any, day: str
     short_r = sum(t.planned_risk or 0.0 for t in opened if t.side == "short")
     from . import tg_sade as _TS  # noqa: PLC0415
     c = _TS.risk_ayari(None, mode)
-    rows = [("Toplam açık risk", used_open, c.max_open_risk * eq),
-            ("Long açık risk", long_r, c.max_same_dir_risk * eq),
-            ("Short açık risk", short_r, c.max_same_dir_risk * eq),
-            ("Günlük zarar", max(0.0, dse - eq), daily_loss_rate(mode) * dse)]
-    return {"rows": [{"label": n, "used": u, "limit": lim, "pct": (u / lim * 100.0) if lim > 0 else None}
-                     for n, u, lim in rows]}
+    rows = [("Toplam açık risk", used_open, c.max_open_risk * eq, "$"),
+            ("Long açık risk", long_r, c.max_same_dir_risk * eq, "$"),
+            ("Short açık risk", short_r, c.max_same_dir_risk * eq, "$"),
+            ("Günlük zarar", max(0.0, dse - eq), daily_loss_rate(mode) * dse, "$")]
+    if isinstance(max_positions, int) and not isinstance(max_positions, bool) and max_positions > 0:
+        rows.append(("Açık pozisyon sayısı", len(opened), max_positions, "adet"))
+    return {"rows": [{"label": n, "used": u, "limit": lim, "pct": (u / lim * 100.0) if lim > 0 else None, "birim": b}
+                     for n, u, lim, b in rows]}
 
 
 # ---------------------------------------------------------------------------------------------
@@ -451,7 +454,7 @@ def _ledger_learning(ledger_path: str, now: datetime, paper_config=None) -> dict
         cf_rows = CF.arm_rows(cf_path, LEARNER_BOT) if cf_path.exists() else []
     except CF.CounterfactualError as e:
         raise SectionError(e.code) from None
-    closed = {a for a, s in KY.read_arms_state(base / "arms_off.json").items() if s.get("state") == "closed"}
+    closed: set[str] = set()                    # ders kaydi (arms_off.json) artik okunmaz: kol durumu hep "open"
     cands = CF.arm_candidates(decisions=decisions, trades=trades, cf_rows=cf_rows, asset_class_of=asset_of)
     by_id = {d.id: d for d in decisions}
     for c in cands:

@@ -111,7 +111,19 @@ details>div{padding-bottom:12px}
 }
 @media print{.tabs,.un{display:none}.sek{display:block}}
 
-/* ogrenme tablolari: 5 sutun, ilk sutun (kol adi) genis; dar ekranda kol adi satir atlar */
+/* ML1 tablolari: grup tablosu 5 sutun, zaman dilimi tablosu 6 sutun; ilk sutun genis, dar ekranda satir atlar */
 .og table.n5 col.c1{width:32%}.og table.n5 col.c2{width:19%}.og table.n5 col.c3{width:17%}.og table.n5 col.c4{width:16%}.og table.n5 col.c5{width:16%}
 .og .kolad .n{white-space:normal;overflow-wrap:anywhere}
 .og{overflow-x:auto;max-width:100%}
+
+.zdt table.n6 col.c1{width:27%}.zdt table.n6 col.c2{width:11%}.zdt table.n6 col.c3{width:14%}.zdt table.n6 col.c4{width:17%}.zdt table.n6 col.c5{width:22%}.zdt table.n6 col.c6{width:9%}
+.zdt{overflow-x:auto;max-width:100%}
+.zdt .rt{margin-top:3px;font-size:11px;padding:0 6px;white-space:normal}
+.ml1-not{font-size:14px;line-height:1.5;margin:8px 0}
+table.bas{width:100%;border-collapse:collapse;table-layout:fixed;font-size:13.5px}
+table.bas th{padding:4px 4px 6px}table.bas td{padding:8px 4px;border-top:1px solid var(--cizgi)}
+table.bas th.sg,table.bas td.sg{text-align:right}
+.d3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.d3 .ks .b{font-size:17px}
+.uyar{color:var(--uyar)}
+@media (max-width:420px){.zdt table{font-size:12px}.zdt td .n{overflow-wrap:anywhere}.og table{font-size:12.5px}.d3 .ks .b{font-size:15px}}

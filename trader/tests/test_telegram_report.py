@@ -1,6 +1,8 @@
 """Günlük rapor bölümleri (Defter/Bütçe): salt okunur, her biri bağımsız hata verir."""
 import json
 import shutil
+
+import pytest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -75,7 +77,7 @@ def test_ledger_no_trades(tmp_path):
 def test_ledger_missing_reported_in_report(tmp_path):
     cfg = mkcfg(tmp_path)
     out = T.build_report(cfg, NOW, DAY, T.default_sections(cfg, NOW, DAY))
-    assert out.count("Bazı bilgiler okunamadı") == 1 and out.rstrip().endswith("Bazı bilgiler okunamadı")
+    assert out.count("Bazı bilgiler okunamadı") == 1 and out.rstrip().endswith("Bazı bilgiler okunamadı.")
     for ham in ("defter_yok", "depo_yok", "Defter:", "Ders", "SectionError", "yapilandirma", "_"):
         assert ham not in out
     assert not (tmp_path / "l.sqlite").exists()          # okuma yazı oluşturmaz
@@ -97,19 +99,28 @@ def test_budget_ok_and_corrupt(tmp_path):
     # 23.11 kullanici karari: ust lig, LLM tavani 20 $
     assert "/20.00$" in s and "/0.25$" in s
     _budget(tmp_path, "{bozuk")
-    out = T.build_report(cfg, NOW, DAY, {"Bütçe": lambda: T.rapor_butce(cfg)})
-    assert "Bazı bilgiler okunamadı" in out and "yapilandirma" not in out
+    with pytest.raises(T.SectionError):                      # teknik satir (panel esdegerlik testi): bozuk yapilandirma kodla bildirilir
+        T.section_budget(cfg)
     _budget(tmp_path)
     (tmp_path / "b.sqlite").write_bytes(b"garbage" * 100)
-    out = T.build_report(cfg, NOW, DAY, {"Bütçe": lambda: T.rapor_butce(cfg)})
-    assert "Bazı bilgiler okunamadı" in out and "garbage" not in out
+    with pytest.raises(T.SectionError):
+        T.section_budget(cfg)
+    out = T.build_report(cfg, NOW, DAY, T.default_sections(cfg, NOW, DAY))       # butce satiri gunluk ozette yok (panelde: Yapay zekâ yorum harcaması)
+    assert "garbage" not in out and "bütçe" not in out.lower()
 
 
 def test_rapor_bolumlerinde_ders_yok(tmp_path):
     cfg = mkcfg(tmp_path)
-    assert "Ders" not in T.default_sections(cfg, NOW, DAY)
+    assert T.default_sections(cfg, NOW, DAY) == {}                 # silinen bolumler yok: yalniz Duraklatma / Risk kademesi (yapilandirilmissa)
+    for ad in ("rapor_defter", "rapor_butce", "rapor_ogrenme", "rapor_kurulum_karnesi", "rapor_kacirilan", "rapor_davranis",
+               "section_counterfactual", "kurulumlar_metni", "ATLAMA_TR"):
+        assert not hasattr(T, ad), ad
     out = T.build_report(cfg, NOW, DAY, T.default_sections(cfg, NOW, DAY))
-    assert len(out) <= 3500 and "Dersler:" not in out
+    assert len(out) <= 3500 and "ders" not in out.lower() and "karne" not in out.lower() and "alınmayan" not in out.lower()
+    mkledger(tmp_path / "l.sqlite", "learner", [(True, True)])
+    _status(tmp_path)
+    for metin in (T.build_report(cfg, NOW, DAY, {"Duraklatma": lambda: "x"}), T.haftalik_metni(cfg, NOW), T.ml1_metni(cfg, NOW)):
+        assert "ders" not in metin.lower() and "M1 " not in metin.replace("ML1 ", "")
 
 def _status(tmp_path, now=NOW, **kw):
     d = {"mode": "paper", "kill": False, "kill_state": "flat", "entries_open": True, "equity": 1000.0,
@@ -133,12 +144,12 @@ def test_report_paper_is_plain_turkish(tmp_path):
     out = T.build_report(cfg, NOW, DAY, T.default_sections(cfg, NOW, DAY))
     lines = out.splitlines()
     assert lines[0] == "[ML] 🌙 Günlük özet · 16 Kasım"
-    for want in ("Bugün kapanan işlem yok.", "Kasa: 1.000,00 $ (gün başı 1.000,00 $)",
-                 f"Günlük zarar sınırı: 0,00 $ / {tr_usd(limit_orani() * 1000)} $ kullanıldı", "Açık pozisyon yok.", "Yeni işlemler açık."):
+    for want in ("Bugün kapanan işlem yok.", "Kasa 1.000,00 $ · toplam +0,00 $", "Açık işlem yok.", "ML1 bugün: puanlanacak aday çıkmadı.",
+                 f"Günlük zarar sınırı: 0 $ / {limit_orani() * 1000:.0f} $", "Yeni işlemler açık."):
         assert want in out, want
-    assert "Dersler:" not in out and len(lines) <= 12
+    assert "Dersler:" not in out and len(lines) <= 10
     for ham in ("{", "Sayaclar", "PermissionError", "depo_yok", "Spool", "bilgiler okunamadı", "bilinmeyen_kod",
-                "veto_missing", "kip=", "Bütçe", "Öğrenme", "━"):
+                "veto_missing", "kip=", "Bütçe", "Öğrenme", "━", "gün başı", "kullanıldı"):
         assert ham not in out, ham
 
 
@@ -150,9 +161,11 @@ def test_report_open_positions_and_closed_summary(tmp_path):
            for i in range(8)]
     _status(tmp_path, open_positions=pos)
     out = T.build_report(cfg, NOW, DAY, T.default_sections(cfg, NOW, DAY))
-    assert "Açık pozisyon: 8 (P0 short, P1 long, P2 short, P3 long, …)" in out
+    assert "Açık: 8 işlem" in out and "P0" not in out                      # coin listesi yok: tek satir sayi (+ anlik K/Z varsa)
     assert "Bugün 2 işlem kapandı (1 kâr, 1 zarar)" in out and "USDT" not in out
-    assert len(out.splitlines()) <= 12
+    assert len(out.splitlines()) <= 10
+    _status(tmp_path, open_positions=pos, unrealized_pnl_usd=3.38)
+    assert "Açık: 8 işlem · anlık +3,38 $" in T.build_report(cfg, NOW, DAY, {})
 
 
 def test_report_risk_closed_lines(tmp_path):
@@ -165,7 +178,7 @@ def test_report_risk_closed_lines(tmp_path):
     _status(tmp_path, entries_open=False, equity=1000.0 - 1.1 * limit_orani() * 1000.0)
     assert "Günlük zarar sınırı doldu: bugün yeni işlem açılmaz." in T.build_report(cfg, NOW, DAY, {})
     _status(tmp_path, entries_open=False, gate={"ok": False, "code": "paused"})
-    out = T.build_report(cfg, NOW, DAY, {"Duraklatma": lambda: "⏸️ ana bot: yeni işlemler duraklatıldı — elle durduruldu"})
+    out = T.build_report(cfg, NOW, DAY, {"Duraklatma": lambda: "ana bot: yeni işlemler duraklatıldı — elle durduruldu"})
     assert "Yeni işlemler duraklatıldı." in out and "ana bot" not in out
 
 
@@ -174,6 +187,7 @@ def test_report_heartbeat_missing_first_line(tmp_path):
     _status(tmp_path, now=NOW - timedelta(minutes=7))
     out = T.build_report(cfg, NOW, DAY, {})
     assert out.splitlines()[0] == "[ML] 🔴 Bot yanıt vermiyor (son sinyal 7 dk önce)"
+    assert out.splitlines()[1] == "Günlük özet · 16 Kasım"                  # tek emoji: ozet basligi emojisiz
     assert "Yeni işlemler açık" not in out
 
 
@@ -185,7 +199,8 @@ def test_report_health_line_only_when_not_ok(tmp_path):
     hs.write_text(json.dumps({"last_overall": "OK"}))
     assert "sistem kontrolü" not in T.build_report(cfg, NOW, DAY, {})
     hs.write_text(json.dumps({"last_overall": "CRIT"}))
-    assert "⚠️ Bir sistem kontrolü sorunlu; panoya bak." in T.build_report(cfg, NOW, DAY, {})
+    r = T.build_report(cfg, NOW, DAY, {})
+    assert "Dikkat: bir sistem kontrolü sorunlu; panoya bak." in r and r.count("⚠") == 0           # tek emoji ilk satirda: 🌙
     hs.write_text("{bozuk")
     out = T.build_report(cfg, NOW, DAY, {})
     assert "sistem kontrolü" not in out and "JSONDecodeError" not in out and "bilgiler okunamadı" not in out

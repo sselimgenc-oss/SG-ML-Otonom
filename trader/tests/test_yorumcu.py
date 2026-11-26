@@ -154,10 +154,7 @@ def test_bastan_sona_sahte_istemci_rapor_telegram_ve_butce(betik, tmp_path):
     yazilan = {p.relative_to(tmp_path).as_posix() for p in tmp_path.rglob("*") if p.is_file() and p.suffix == ".md"}
     assert yazilan == {"var/durum/yorumcu/2026-11-24.md"}
     ob = list((tmp_path / "var" / "telegram" / "outbox").glob("*.json"))
-    tx = json.loads(ob[0].read_text())["text"]
-    assert len(ob) == 1 and tx.startswith("Yorumcu raporu 2026-11-24")
-    # tam rapor, sade metin: markdown isareti ve acilmayan dosya yolu yok
-    assert "Nasıl ölçülür" in tx and "**" not in tx and "##" not in tx and ".md" not in tx and "📌 Bulgular" in tx
+    assert ob == []                                         # 26.11: yorumcu raporu Telegram'a gitmez (YORUMCU_TELEGRAM = False); dosya yazildi (yukarida)
     assert g.status().services["yorumcu"].used_usd > 0
     # ayni gun ikinci kosu: tekrar yok
     c2 = FakeClient(MODEL_CEVABI)
@@ -261,9 +258,16 @@ def test_telegram_uzun_rapor_sirali_parcalara_bolunur_hic_satir_kaybolmaz():
     assert "⚠️ Dikkat:" in ps[0] and "**" not in birlesik and "#" not in birlesik
 
 
-def test_telegram_parcalari_outbox_sirasiyla_yazilir(betik, tmp_path):
+def test_yorumcu_telegram_varsayilan_kapali(betik, tmp_path):
+    assert betik.YORUMCU_TELEGRAM is False
+    assert betik.telegram_gonder(tmp_path, {}, "2026-11-24", "## Bulgular\n- x", NOW) is False
+    assert not (tmp_path / "var" / "telegram").exists()
+
+
+def test_telegram_parcalari_outbox_sirasiyla_yazilir(betik, tmp_path, monkeypatch):
     from trader_core.telegram import Outbox
     from trader_reports import yorumcu as Y
+    monkeypatch.setattr(betik, "YORUMCU_TELEGRAM", True)       # kapali yol ayri sinanir; parcalama/outbox mantigi acikken
     metin = "## Bulgular\n" + "\n".join(f"- satir {i} " + "y" * 200 for i in range(60))
     assert betik.telegram_gonder(tmp_path, {}, "2026-11-24", metin, NOW)
     ob = Outbox(tmp_path / "var" / "telegram", lambda: NOW)

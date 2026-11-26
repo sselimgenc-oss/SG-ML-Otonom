@@ -132,7 +132,7 @@ def test_unmeasured_win_rate_when_few_trades(tmp_path):
     p = tmp_path / "l.sqlite"
     mkledger(p, "learner", STD_LEARNER[:2])
     ctx = PP.Ctx(str(p))
-    kz = PP.kz_view(ctx, 1000.0, NOW, None, [])
+    kz = PP.kz_view(ctx, 1000.0, NOW, None)
     assert kz["oran"] == {"olculemedi": "Henüz ölçülemedi (2 işlem, en az 5 gerek)"}
     assert kz["egri"] is None
 
@@ -161,7 +161,7 @@ def test_panel_js_free_of_forbidden_text():
 
 def test_panel_js_new_structure():
     js = (STATIC / "panel.js").read_text(encoding="utf-8")
-    for t in ("ÖZET", "AÇIK", "KAPANAN", "K/Z", "ÖĞRENME", "TEKNİK", "Risk durumu", "Zirveden düşüş", "Toplam K/Z", "Kasa = başlangıç + kapanan K/Z + açık K/Z − açık işlemlerin giriş komisyonu", "'açık K/Z ' + usdS(s.acik_kz)", "Bugün K/Z",
+    for t in ("ÖZET", "AÇIK", "KAPANAN", "K/Z", "ML1", "TEKNİK", "Risk durumu", "Zirveden düşüş", "Toplam K/Z", "Kasa = başlangıç + kapanan K/Z + açık K/Z − açık işlemlerin giriş komisyonu", "'açık K/Z ' + usdS(s.acik_kz)", "Bugün kapanan K/Z",
               "window.self !== window.top", "data-theme", "YENILE_S = 300", "son güncelleme"):
         assert t in js, t
     assert "TAB_MS" not in js and "setInterval" in js and "location.reload" in js

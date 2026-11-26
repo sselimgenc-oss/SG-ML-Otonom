@@ -79,10 +79,11 @@ def karar_bildir(root: Path, env, d: dict, now: datetime) -> bool:
         gitti = False
         if K.degisti(st.get("son_gonderilen"), k):
             try:
+                from trader_core import tg_sade as TS  # noqa: PLC0415
                 from trader_core.telegram import Outbox  # noqa: PLC0415
                 tg = Path((env.get("TELEGRAM_VAR_DIR") or "").strip() or root / "var" / "telegram")
                 imza = hashlib.sha256(json.dumps([k["hazir"], k["eksik"]]).encode()).hexdigest()[:12]
-                gitti = bool(Outbox(tg, lambda: now).enqueue({"text": k["satir"], "severity": "INFO", "dedup_key": f"tur1-karar:{gun}:{imza}",
+                gitti = bool(Outbox(tg, lambda: now).enqueue({"text": TS.etiketle(k["satir"]), "severity": "INFO", "dedup_key": f"tur1-karar:{gun}:{imza}",
                                                               "expires_at": None, "reply_markup": None, "created_at": now.timestamp()}))
             except Exception as e:  # noqa: BLE001
                 log.warning("tur1 karar telegram yazilamadi: %s", type(e).__name__)

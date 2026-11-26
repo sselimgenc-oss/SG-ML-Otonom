@@ -8,10 +8,10 @@
   'use strict';
   var YENILE_S = 300;                                         // sayfa yenileme: 5 dk
   var SAYFA = 20;                                             // tablo: 20 satir + daha fazla
-  var TABS = [['ozet', 'ÖZET'], ['acik', 'AÇIK'], ['kapanan', 'KAPANAN'], ['kz', 'K/Z'], ['ogrenme', 'ÖĞRENME'], ['teknik', 'TEKNİK']];
+  var TABS = [['ozet', 'ÖZET'], ['acik', 'AÇIK'], ['kapanan', 'KAPANAN'], ['kz', 'K/Z'], ['ml1', 'ML1'], ['teknik', 'TEKNİK']];
   var DONEMLER = [['bugun', 'Bugün'], ['7g', '7 gün'], ['30g', '30 gün'], ['tumu', 'Tümü']];
   var BOT = 'learner';
-  var S = {tab: 'ozet', pano: null, kapanan: {}, donem: 'bugun', t0: Date.now(), gen: null, sirala: {}};
+  var S = {tab: 'ozet', pano: null, kapanan: {}, donem: 'bugun', t0: Date.now(), gen: null, sirala: {}, grup: 'ml1'};
   var $ = function (i) { return document.getElementById(i); };
 
   /* ---------- DOM yardimcilari (yalniz textContent) ---------- */
@@ -275,8 +275,8 @@
     if (p.mod) { ro.hidden = false; ro.textContent = p.mod === 'live' ? 'CANLI' : 'KÂĞIT'; } else ro.hidden = true;
     add(z,
       kasaKart(s),
-      sk('Bugün K/Z', usdS(s.bugun), pc(s.bugun_yuzde), cls(s.bugun)),
-      sk('Toplam K/Z', usdS(s.toplam), pc(s.toplam_yuzde), cls(s.toplam)),
+      sk('Bugün kapanan K/Z', usdS(s.bugun), pc(s.bugun_yuzde), cls(s.bugun)),
+      sk('Toplam K/Z', usdS(s.toplam), s.toplam_kaynak === 'kapanan' ? 'yalnız kapanan işlemler (canlı fiyat yok)' : pc(s.toplam_yuzde), cls(s.toplam)),
       sk('Açık poz.', String(s.acik), eskiAlt(s, num(s.acik_kz) ? 'açık K/Z ' + usdS(s.acik_kz) : ''), ''),
       sk('Zirveden düşüş', usdS(s.dusus), pc(s.dusus_yuzde), cls(s.dusus)),
       add(el('div', 'ks risk ' + r.renk), el('div', 'e', 'Risk durumu'),
@@ -350,7 +350,7 @@
       add(s3, d);
     });
     add(ig, s3);
-    if (p.ogrenme) add(ig, ogrenmeOzetKart(p.ogrenme));
+    if (p.ml1) add(ig, ml1OzetKart(p.ml1));
     if (p.isik.renk !== 'kirmizi') add(ig, isikKart(p));
     add(root, ig);
   }
@@ -373,7 +373,7 @@
         // siralama ham degerleri (24.11: acik tabloda v yoktu, siralama calismiyordu); Sure = acilistan bu yana (eski acilis = uzun sure)
         v: [r.coin, num(r.kz_yuzde) ? r.kz_yuzde : null, num(r.kz) ? r.kz : null, num(r.acilis_ts) ? -r.acilis_ts : null],
         detail: [['Stop', px(r.stop)], ['Hedef', px(r.hedef)], ['Büyüklük', usd(r.buyukluk)], ['Kaldıraç', r.kaldirac ? r.kaldirac + 'x' : ''],
-          ['Kol', r.kol], ['Açılış', r.acilis], ['Açılış nedeni', r.neden, 1]]};
+          ['Kol', r.kol], ['Zaman dilimi', r.zd], ['ML1 puanı', num(r.ml1_puan) ? trn(r.ml1_puan, 2) : ''], ['Açılış', r.acilis], ['Açılış nedeni', r.neden, 1]]};
     });
     add(k, tablo(['Sembol', 'Giriş → şimdi', 'K/Z', 'Süre'], rows, [2, 3], 'acik'));
     add(root, k);
@@ -400,8 +400,9 @@
         return {cells: [sym(r.coin, r.yon), el('div', 'n', r.kapanis), kzHucre(r.kz, r.kz_yuzde), el('div', 'n', usd(r.buyukluk)), add(el('div', 'sg'), el('span', 'n', r.neden))],
           v: [r.coin, r.kapanis_ts, r.kz, r.buyukluk, r.neden],
           detail: [['Giriş', px(r.giris)], ['Çıkış', px(r.cikis)], ['Süre', r.sure], ['Büyüklük', usd(r.buyukluk)], ['Kaldıraç', r.kaldirac ? r.kaldirac + 'x' : ''],
-            ['Marj', num(r.marj) ? usd(r.marj) : ''], ['Komisyon', usd(r.komisyon)], ['Kol', r.kol],
-            ['Açılış', r.acilis]]};
+            ['Marj', num(r.marj) ? usd(r.marj) : ''], ['Komisyon', usd(r.komisyon)], ['Kol', r.kol], ['Zaman dilimi', r.zd],
+            ['Sonuç (R)', num(r.r) ? sgn(r.r) + ' R' : ''], ['ML1 puanı', num(r.ml1_puan) ? trn(r.ml1_puan, 2) : ''],
+            ['Açılış', r.acilis], ['Kapanış açıklaması', r.neden_aciklama, 1]]};
       });
       add(k, tablo(['Sembol', 'Kapanış', 'K/Z', 'Büyüklük', 'Neden'], rows, [2, 3, 4], 'kapanan'));
       if (v.daha_fazla) add(k, el('div', 'yok', 'Daha eski ' + v.daha_fazla + ' işlem listede gösterilmiyor.'));
@@ -414,14 +415,21 @@
   /* K/Z */
   function tabKz(root, p) {
     clear(root);
-    var z = p.kz, ig = el('div', 'ig iki');
+    var z = p.kz, ig = el('div', 'ig iki'), t = z.toplam;
     if (z.egri) { var g = kart('Kasa eğrisi · 30 gün'); add(g, cizgiGrafik(z.egri)); add(ig, g); }
-    var d = kart('Dönem K/Z'), g4 = el('div', 'd4');
-    [['bugun', 'Bugün'], ['7g', '7 gün'], ['30g', '30 gün'], ['tumu', 'Toplam']].forEach(function (x) {
+    var n = kart('Toplam K/Z nasıl oluşuyor?');
+    add(n, satir('Kapanan işlemlerden (masraflar düşülmüş)', usdS(t.kapanan), cls(t.kapanan)));
+    if (t.kaynak === 'kasa' && num(t.acik)) add(n, satir('Açık işlemlerden (şu anki değer, giriş komisyonu düşülmüş)', usdS(t.acik), cls(t.acik)));
+    if (t.fark_goster) add(n, satir('Diğer fark (fonlama vb.; incelenmeli)', usdS(t.fark), 'uyar'));
+    add(n, satir(t.kaynak === 'kasa' ? 'Toplam (kasa − başlangıç)' : 'Toplam (yalnız kapanan işlemler)', usdS(t.toplam), cls(t.toplam)));
+    if (t.kaynak !== 'kasa') add(n, el('div', 'yok', 'Kasa bilgisi şu an yok; açık işlemlerin değeri hesaba katılamıyor.'));
+    add(ig, n);
+    var d = kart('Kapanan K/Z'), g3 = el('div', 'd3');
+    [['bugun', 'Bugün'], ['7g', '7 gün'], ['30g', '30 gün']].forEach(function (x) {
       var v = z.donemler[x[0]];
-      add(g4, sk(x[1], usdS(v.kz), pc(v.yuzde), cls(v.kz)));
+      add(g3, sk(x[1], usdS(v.kz), pc(v.yuzde), cls(v.kz)));
     });
-    add(d, g4); add(ig, d);
+    add(d, g3, el('div', 'yok', 'Yalnız kapanmış işlemler; açık işlemler dahil değil.')); add(ig, d);
     if (z.oran) {
       var o = kart('Kazanma oranı');
       if (z.oran.olculemedi) add(o, yok(z.oran.olculemedi));
@@ -429,61 +437,127 @@
         satir('Ortalama kazanç', usdS(z.oran.ort_kazanc), 'iyi'), satir('Ortalama kayıp', usdS(z.oran.ort_kayip), 'kotu'));
       add(ig, o);
     }
-    if (z.kol.length) {
-      var kk = kart('Kaynağa göre K/Z');
-      z.kol.forEach(function (r) { add(kk, satir(r.kol + ' · ' + r.n + ' işlem', usdS(r.kz), cls(r.kz))); });
-      add(ig, kk);
-    }
     if (z.masraf) {
       var m = kart('Masraflar');
       add(m, satir('Komisyon · 30 gün', usd(z.masraf['30g'].komisyon)), satir('Fonlama · 30 gün', usdS(-z.masraf['30g'].fonlama)),
         satir('Komisyon · toplam', usd(z.masraf.tumu.komisyon)), satir('Fonlama · toplam', usdS(-z.masraf.tumu.fonlama)));
       add(ig, m);
     }
+    var f = kart('Fikir grubuna göre');
+    add(f, link('Fikir grubuna göre ayrıntı', 'ml1'));
+    add(ig, f);
     add(root, ig);
   }
 
-  /* ÖĞRENME */
-  /* Öğrenme: kol x zaman dilimi (veri: defter + ders kapanış dosyası) */
-  var DURUM_RENK = {acik: 'yesil', kapali: 'kirmizi'}, DURUM_SIRA = {acik: 0, kapali: 1};
-  function kolAd(r) { return r.kol + ' · ' + r.zd; }
+  /* ML1 */
   function netR(x) { return num(x) ? sgn(x) + ' R' : '—'; }
-  function ogrenmeOzetKart(o) {
-    var z = o.ozet, k = kart('Öğrenme', link('Ayrıntı', 'ogrenme'));
-    add(k, satir('Açık kol', String(z.acik), z.acik ? 'iyi' : ''), satir('Ders kapattı', String(z.kapali), z.kapali ? 'kotu' : ''));
-    function liste(ad, rows) {
-      if (!rows.length) return;
-      add(k, el('div', 'yok', ad));
-      rows.forEach(function (r) { add(k, satir(kolAd(r), netR(r.net_r) + ' · ' + r.n + ' işlem', cls(r.net_r))); });
-    }
-    if (!z.en_iyi.length) add(k, el('div', 'yok', 'Henüz kapanan işlem yok; sıralama sonra görünür.'));
-    liste('En iyi 3 (net R)', z.en_iyi);
-    liste('En kötü 3 (net R)', z.en_kotu);
+  function kaz(x) { return num(x) ? '%' + trn(x, 0) : '—'; }
+  function boldMetin(parts) {                                  // [metin, kalin?] dizisi -> span (yalniz textContent)
+    var d = el('div', 'ml1-not');
+    parts.forEach(function (x) { add(d, x[1] ? el('b', '', x[0]) : document.createTextNode(x[0])); });
+    return d;
+  }
+  function sinavR(r) { return num(r) && Math.abs(r) < 0.005 ? '≈ 0 R' : netR(r); }
+  function sinavNotu(sv) {
+    var r = sv.satirlar;
+    return boldMetin([['Sınav sonucu (' + sv.tarih + '): ', 1], ['ML1 geçmiş veride yalnız ', 0], ['4 saat ve 1 gün', 1],
+      [' zaman dilimlerinde sınavı geçti (işlem başına ortalama ', 0], [sinavR(r[0].ort_r), 1], ['). ', 0], ['1 saat', 1],
+      [' başa baş (' + sinavR(r[1].ort_r) + '), ', 0], ['15 dakika', 1], [' kaybediyor (' + sinavR(r[2].ort_r) + '). ', 0],
+      ['Aşağıdaki tabloda yeşil “sınavı geçti” işaretli satırlar kanıtlı kısımdır; diğerleri deneme niteliğindedir.', 0]]);
+  }
+  function basit(head, rows) {                                 // kucuk sabit tablo (siralama/ayrinti yok)
+    var t = el('table', 'bas'), th = el('thead'), hr = el('tr'), tb = el('tbody');
+    head.forEach(function (h, i) { add(hr, el('th', i ? 'sg' : '', h)); });
+    rows.forEach(function (r) {
+      var tr = el('tr');
+      r.forEach(function (c, i) { add(tr, el('td', i ? 'sg' : '', c)); });
+      add(tb, tr);
+    });
+    return add(t, add(th, hr), tb);
+  }
+  function ml1OzetKart(m) {
+    var k = kart('ML1', link('Ayrıntı', 'ml1')), b = m.eleme.bugun, o = m.zd_ozet;
+    add(k, satir('Durum', m.durum.metin, m.durum.renk === 'kirmizi' ? 'kotu' : ''));
+    add(k, satir('Bugün', b.puanlanan ? b.puanlanan + ' aday puanlandı, ' + b.islem + ek(b.islem) + ' işleme döndü' : 'puanlanacak aday çıkmadı'));
+    add(k, satir('Sınavı geçen kısım (4s + 1g)', o.kanitli.n + ' işlem · ' + netR(o.kanitli.net_r), cls(o.kanitli.net_r)));
+    add(k, satir('Diğer (15dk + 1s)', o.kanitsiz.n + ' işlem · ' + netR(o.kanitsiz.net_r), cls(o.kanitsiz.net_r)));
     return k;
   }
-  function ogrenmeTablolari(root, o) {
-    add(root, ogrenmeOzetKart(o));
-    var rows = o.kollar.map(function (r) {
-      var dr = add(el('div', 'sg'), rozetRenk(r.durum_ad, DURUM_RENK[r.durum]));
-      return {cells: [add(el('div', 'kolad'), el('div', 'n', r.kol), el('div', 'u', r.zd)), el('div', 'n', String(r.n)),
-          el('div', 'n ' + cls(r.net_r), netR(r.net_r)), el('div', 'n', num(r.kazanma) ? '%' + trn(r.kazanma, 0) : '—'), dr],
-        v: [r.kol + ' ' + r.zd, r.n, num(r.net_r) ? r.net_r : null, num(r.kazanma) ? r.kazanma : null, DURUM_SIRA[r.durum]],
-        detail: [['Kol', r.arm], ['Durum', r.durum_ad]]};
+  function ml1Aciklama(m) {
+    var k = kart('ML1 ne yapıyor?');
+    add(k, add(el('div'), rozetRenk(m.durum.metin, m.durum.renk)));
+    add(k, el('div', 'ml1-not', 'Kural kolları aday üretir; ML1 her adaya 0–1 arası puan verir, puanı ' +
+      (num(m.esik) ? trn(m.esik, 2) : 'belirlenen eşik (henüz okunamadı)') + ' ve üstü olanları işleme çevirir. Aynı fırsat için tek işlem açar.'));
+    return add(k, sinavNotu(m.sinav));
+  }
+  function ml1Eleme(m) {
+    var k = kart('Aday eleme'), e = m.eleme;
+    if (!e['7g'].puanlanan && !e.bugun.puanlanan) { add(k, yok('Bu dönemde ML1’in puanladığı aday yok.')); return k; }
+    function sat(ad, x) {
+      return [ad, num(x.puanlanan) ? String(x.puanlanan) : '—', x.gecen + (num(x.gecme_yuzde) ? ' (%' + trn(x.gecme_yuzde, 0) + ')' : ''), String(x.islem)];
+    }
+    add(k, basit(['', 'Puanlanan aday', 'Eşiği geçen', 'İşleme dönen'], [sat('Bugün', e.bugun), sat('7 gün', e['7g'])]));
+    var a = e['7g'].alinmayan;
+    if (a.ayni_olay + a.limit + a.diger > 0)
+      add(k, el('div', 'yok', 'Geçtiği halde alınmayan (7 gün): ' + a.ayni_olay + ' aynı fırsat, ' + a.limit + ' risk sınırı, ' + a.diger + ' diğer.'));
+    return k;
+  }
+  function ml1Zd(m) {
+    var k = kart('ML1’in aldığı işlemler · zaman dilimine göre');
+    if (!m.toplam.n && !m.zd.some(function (r) { return r.acik; })) add(k, yok('ML1’in aldığı ve kapanan işlem henüz yok.'));
+    var sira = m.zd.slice().sort(function (a, b) { return (b.kanitli ? 1 : 0) - (a.kanitli ? 1 : 0); });   // kanitli (4 saat, 1 gün) once; sabit 4 satir
+    var rows = sira.map(function (r) {
+      var ad = add(el('div'), el('div', 'n', r.ad), r.kanitli ? rozetRenk('✅ sınavı geçti', 'yesil') : null);
+      return {cells: [ad, el('div', 'n', String(r.n)), el('div', 'n', kaz(r.kazanma)), el('div', 'n ' + cls(r.net_r), netR(r.net_r)),
+          el('div', 'n ' + cls(r.kz), num(r.kz) ? usdS(r.kz) : '—'), el('div', 'n', String(r.acik))],
+        v: [r.ad, r.n, num(r.kazanma) ? r.kazanma : null, num(r.net_r) ? r.net_r : null, num(r.kz) ? r.kz : null, r.acik],
+        detail: [['İşlem başına ortalama', num(r.ort_r) ? netR(r.ort_r) : ''], ['Açık işlem', String(r.acik)]]};
     });
-    var t = kart('Tüm kollar · zaman dilimine göre');
-    add(t, el('div', 'yok', 'Kapanan işlem, net R (R = işlemde riske atılan tutar), kazanma yüzdesi. Satıra dokun: ayrıntı.'));
-    var w = tablo(['Kol', 'İşlem', 'Net R', 'Kazanma', 'Durum'], rows, [1, 2, 3, 4], 'og_kol');
-    w.className = 'og';
-    add(t, w);
-    add(root, t);
+    var w = tablo(['Zaman dilimi', 'İşlem', 'Kazanan', 'Net R', 'K/Z', 'Açık'], rows, [1, 2, 3, 4, 5], 'ml1_zd');
+    w.className = 'zdt';
+    add(k, w);
+    var o = m.zd_ozet;
+    add(k, el('div', 'yok', 'Sınavı geçen kısım (4 saat + 1 gün): ' + o.kanitli.n + ' işlem · ' + netR(o.kanitli.net_r) + ' · ' + usdS(o.kanitli.kz)));
+    add(k, el('div', 'yok', 'Diğer (1 saat + 15 dakika): ' + o.kanitsiz.n + ' işlem · ' + netR(o.kanitsiz.net_r) + ' · ' + usdS(o.kanitsiz.kz)));
+    add(k, el('div', 'yok', 'R = bir işlemde riske atılan tutar (kasanın %1’i).'));
+    return k;
   }
-  function tabOgrenme(root, p) {
+  function ml1Gruplar(m) {
+    var k = kart('Fikir grubuna göre'), bar = el('div', 'donem');
+    [['ml1', 'ML1 işlemleri'], ['tumu', 'Tüm işlemler']].forEach(function (x) {
+      var b = el('button', x[0] === S.grup ? 'on' : '', x[1]);
+      b.type = 'button';
+      b.addEventListener('click', function () { S.grup = x[0]; ml1Sekme(); });
+      add(bar, b);
+    });
+    add(k, bar);
+    var liste = m.gruplar[S.grup] || [];
+    if (!liste.length) add(k, yok('Bu görünümde kapanan işlem yok.'));
+    else {
+      var rows = liste.map(function (g) {
+        return {cells: [el('div', 'n', g.grup), el('div', 'n', String(g.n)), el('div', 'n', kaz(g.kazanma)), el('div', 'n ' + cls(g.net_r), netR(g.net_r)),
+            el('div', 'n ' + cls(g.kz), num(g.kz) ? usdS(g.kz) : '—')],
+          v: [g.grup, g.n, num(g.kazanma) ? g.kazanma : null, num(g.net_r) ? g.net_r : null, num(g.kz) ? g.kz : null],
+          detail: g.kollar.map(function (c) {
+            return [c.kol + ' · ' + c.zd, c.n + ' işlem · ' + kaz(c.kazanma) + ' · ' + netR(c.net_r) + ' · ' + usdS(c.kz), 1];
+          })};
+      });
+      var w = tablo(['Fikir grubu', 'İşlem', 'Kazanan', 'Net R', 'K/Z'], rows, [1, 2, 3, 4], 'ml1_grup');
+      w.className = 'og';
+      add(k, w);
+    }
+    if (m.eski) add(k, el('div', 'yok', 'ML1 öncesi dönemden ' + m.eski.n + ' kapanan işlem var (K/Z ' + usdS(m.eski.kz) + '); “Tüm işlemler” görünümünde sayılır.'));
+    return k;
+  }
+  function ml1Sekme() {
+    var root = $('sek-ml1'), m = S.pano && S.pano.ml1;
     clear(root);
-    var ig = el('div', 'ig iki');
-    if (!p.ogrenme) add(ig, yokKart('Henüz öğrenme verisi yok.'));
+    if (!m) { add(root, yokKart('ML1 verisi şu an okunamıyor.')); return; }
+    var ig = el('div', 'ig');
+    add(ig, ml1Aciklama(m), ml1Eleme(m), ml1Zd(m), ml1Gruplar(m));
     add(root, ig);
-    if (p.ogrenme) ogrenmeTablolari(root, p.ogrenme);
   }
+  function tabMl1(root, p) { ml1Sekme(); }
 
   /* TEKNİK (katlı) */
   function katli(baslik, renk, bodyFn, ac) {
@@ -493,9 +567,9 @@
     add(d, s, bodyFn(el('div')));
     return d;
   }
-  function bar(ad, kul, lim, pct) {
+  function bar(ad, kul, lim, pct, birim) {
     var w = el('div', 'lim'), r = el('div', 'r');
-    add(r, el('span', '', ad), el('b', '', f2(kul) + ' / ' + f2(lim) + ' $'));
+    add(r, el('span', '', ad), el('b', '', birim === 'adet' ? Math.round(kul) + ' / ' + Math.round(lim) : f2(kul) + ' / ' + f2(lim) + ' $'));
     var c = el('div', 'cub'), i = el('i', pct >= 90 ? 'k' : (pct >= 70 ? 's' : ''));
     i.style.width = Math.min(Math.max(num(pct) ? pct : 0, 0), 100) + '%';
     return add(w, r, add(c, i));
@@ -518,14 +592,10 @@
       return b;
     }, true));
     if (t.limitler) add(root, katli('Risk limitleri', '', function (b) {
-      t.limitler.forEach(function (r) { add(b, bar(r.ad, r.kullanilan, r.limit, r.yuzde)); });
+      t.limitler.forEach(function (r) { add(b, bar(r.ad, r.kullanilan, r.limit, r.yuzde, r.birim)); });
       return b;
     }));
-    if (t.model) add(root, katli('Model ayrıntısı', '', function (b) {
-      t.model.forEach(function (r) { add(b, satir(r.ad + ' · bugünkü çağrı', String(r.cagri_bugun)), satir('Bu ay maliyet', usd(r.maliyet_ay))); });
-      return b;
-    }));
-    if (t.butce) add(root, katli('Bütçe', '', function (b) {
+    if (t.butce) add(root, katli('Yapay zekâ yorum harcaması', '', function (b) {
       return add(b, satir('Bu ay kullanılan', usd(t.butce.kullanilan)), satir('Aylık tavan', usd(t.butce.tavan)));
     }));
     if (t.kayitlar) add(root, katli('Kayıtlar', '', function (b) {
@@ -545,10 +615,10 @@
 
   function ciz(p) {
     renderTop(p);
-    ['ozet', 'acik', 'kz', 'ogrenme', 'teknik'].forEach(function (k) { clear($('sek-' + k)); });
+    ['ozet', 'acik', 'kz', 'ml1', 'teknik'].forEach(function (k) { clear($('sek-' + k)); });
     if (!p || !p.ok) { add($('sek-ozet'), yokKart('Veri şu an okunamıyor.')); return; }
     S.gen = p.generated_at;
-    tabOzet($('sek-ozet'), p); tabAcik($('sek-acik'), p); tabKz($('sek-kz'), p); tabOgrenme($('sek-ogrenme'), p); tabTeknik($('sek-teknik'), p);
+    tabOzet($('sek-ozet'), p); tabAcik($('sek-acik'), p); tabKz($('sek-kz'), p); tabMl1($('sek-ml1'), p); tabTeknik($('sek-teknik'), p);
   }
 
   /* ---------- baslat ---------- */
@@ -586,6 +656,7 @@
     kurTabs();
     var son = null;
     try { son = localStorage.getItem('pano_sekme'); } catch (e) { son = null; }
+    if (son === 'ogr' + 'enme') son = 'ml1';                 // eski sekme kimligi ML1'e yonlenir
     sec(TABS.some(function (x) { return x[0] === son; }) ? son : 'ozet');
     if (SNAP) $('damga').style.display = 'none';
     get('/api/pano?bot=' + BOT).then(function (p) { S.pano = p; ciz(p); sekmeSayilari(p); guncellemeEtiketi(); if (S.tab === 'kapanan') yukleKapanan(); });

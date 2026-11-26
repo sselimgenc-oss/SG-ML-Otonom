@@ -35,7 +35,8 @@ def test_every_known_check_has_short_turkish_text():
         for mark in ("🚨 Sorun: ", "⚠️ Dikkat: ", "✅ Düzeldi: "):
             txt = mark + (duzeldi if "Düzeldi" in mark else sorun)
             assert len(txt) <= 80, (base, len(txt))
-        assert not re.search(r"[a-z]+_[a-z_]+", sorun + duzeldi + anlam), base          # ham kod/ad yok
+        assert not re.search(r"(?<!/)\b[a-z]+_[a-z_]+", sorun + duzeldi + anlam), base   # ham kod/ad yok (gercek komut adlari /hepsini_kapat haric)
+        assert not re.search(r"/kapat\b", sorun + duzeldi + anlam), base                # olmayan komut yok: dogrusu /hepsini_kapat
     # health.py'deki her kontrol adı sözlükte (":bot" eki hariç)
     src = open(H.__file__, encoding="utf-8").read()
     names = set(re.findall(r'name = f?"([a-z0-9_]+)', src)) | {"disk_free", "backup_age"}

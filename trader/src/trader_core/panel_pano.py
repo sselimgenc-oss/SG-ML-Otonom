@@ -1,6 +1,6 @@
 """Pano (panel) gorunum verisi: yalniz GOSTERIM, salt okunur. Risk/motor hesabina dokunmaz.
 
-Panelin yeni yapisi (OZET, ACIK, KAPANAN, K/Z, OGRENME, TEKNIK) icin sade Turkce, zaten bicimlenmis alanlar uretir:
+Panelin yapisi (OZET, ACIK, KAPANAN, K/Z, ML1, TEKNIK) icin sade Turkce, zaten bicimlenmis alanlar uretir:
 kol adi `tg_sade.kol_adi` (Telegram ile ayni), coin "SOL", yon long/short, saatler TSI, ham kod yok.
 Gunluk zarar siniri tek kaynaktan: `panel_data.daily_loss_rate()` (sabit sayi yok).
 Olculemeyen sayi uydurulmaz: {"olculemedi": "Henüz ölçülemedi (N işlem, en az M gerek)"}; bos kart hic uretilmez (None).
@@ -14,13 +14,14 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from . import kol_yasam as KY
 from . import ledger as L
+from . import ml1_gorunum as MG
 from . import panel_data as P
 from . import tg_sade as TS
 
 TR = P.TR
 MIN_ORAN = 5            # kazanma orani / ort. kazanc-kayip icin asgari kapanan islem
+FARK_GOSTER = 5 / 100    # toplam K/Z dokumunde "diger fark" satiri: |fark| bu dolar tutarindan (0,05) kucukse gizlenir (yuvarlama gurultusu)
 
 REJIM_TR = {"range": "yatay piyasa", "trend": "trend", "trending": "trend", "ranging": "yatay piyasa"}
 # giris kapisi / duraklatma kodu -> kisa sade neden (ham kod gosterilmez)
@@ -32,8 +33,7 @@ NEDEN_KISA = {
     "exchange_rate_limited": "borsa istek sınırı", "stale_data": "piyasa verisi eski", "day_start_missing": "gün başı bakiyesi yok",
     "clock_skew": "saat kayması", "order_unknown": "belirsiz emir", "exit_unknown": "belirsiz kapanış",
     "reconcile": "borsayla kayıtlar uyuşmuyor", "degraded": "kayıt sorunu", "equity_unreadable": "bakiye okunamadı",
-    "ml_expired": "model süresi doldu", "ml_no_model": "model yok", "daily_loss": "günlük zarar limiti doldu",
-    "toplam_buyukluk": "toplam büyüklük tavanı", "buyukluk_okunamadi": "toplam büyüklük okunamadı",
+    "ml_no_model": "ML1 modeli yok", "daily_loss": "günlük zarar limiti doldu",
 }
 GENEL_NEDEN = "güvenlik kuralı devrede"
 SAGLIK_TR = {"OK": "Sağlam", "WARN": "Dikkat", "CRIT": "Sorun var", "UNKNOWN": "Bilinmiyor", "SKIPPED": "Atlandı"}
@@ -62,22 +62,11 @@ def tsi_gun(dt: datetime | None) -> str:
     return "—" if dt is None else dt.astimezone(TR).strftime("%d.%m")
 
 
-def sure_metni(a: datetime | None, b: datetime | None) -> str:
-    if a is None or b is None:
-        return "—"
-    m = max(int((b - a).total_seconds() // 60), 0)
-    if m < 60:
-        return f"{m} dk"
-    if m < 1440:
-        return f"{m // 60}s {m % 60}dk" if m % 60 else f"{m // 60}s"
-    return f"{m // 1440}g {(m % 1440) // 60}s"
+sure_metni = TS.sure_metni          # tek biçim: tg_sade.sure_metni (Telegram ile ayni)
 
 
 def neden_sade(kod: Any) -> str:
-    k = str(kod or "")
-    if k.startswith("ml_"):
-        return NEDEN_KISA.get(k, "yapay zekâ filtresi hazır değil")
-    return NEDEN_KISA.get(k, GENEL_NEDEN)
+    return NEDEN_KISA.get(str(kod or ""), GENEL_NEDEN)
 
 
 def olculemedi(n: int, en_az: int, birim: str = "işlem") -> dict:
@@ -128,6 +117,18 @@ class Ctx:
         return TS.kol_adi(t.setup)
 
 
+
+def _puan(ctx: Any, t: L.TradeRecord) -> float | None:
+    """ML1 puani (kararin `features.ml1_skor`); ML1 oncesi/yoksa None."""
+    d = ctx.dec.get(t.decision_id)
+    return MG.skor(d) if d is not None else None
+
+
+def _zd(ctx: Any, t: L.TradeRecord) -> str:
+    d = ctx.dec.get(t.decision_id)
+    return TS.zd_adi((d.trigger_tf if d is not None else None) or str(t.setup or "").partition("@")[2])
+
+
 def _px(x: Any) -> float | None:
     v = _f(x)
     return v
@@ -139,7 +140,9 @@ def closed_row(t: L.TradeRecord, ctx: Ctx) -> dict:
     return {"id": t.trade_id, "coin": TS.coin(t.pair), "yon": TS.yon(t.side), "kol": ctx.kol(t),
             "kapanis": tsi_kisa(t.exit_ts), "acilis": tsi_kisa(t.entry_ts),
             "kz": pnl, "kz_yuzde": (pnl / notional * 100.0) if notional else None,
-            "neden": (lambda x: {"i": "İ"}.get(x[:1], x[:1].upper()) + x[1:])(TS.kapanis_neden(t.exit_reason, pnl)),
+            "neden": TS.ilk_buyuk(TS.kapanis_neden(t.exit_reason, pnl, t.setup)),
+            "neden_aciklama": TS.kapanis_aciklama(t.exit_reason, pnl, t.setup),
+            "r": _f(t.r_multiple), "ml1_puan": _puan(ctx, t), "zd": _zd(ctx, t),
             "giris": _px(t.entry_price), "cikis": _px(t.exit_price), "sure": sure_metni(t.entry_ts, t.exit_ts),
             "komisyon": (t.fee_entry or 0.0) + (t.fee_exit or 0.0), "fonlama": t.funding_paid or 0.0,
             "buyukluk": notional, "kaldirac": t.leverage,
@@ -179,6 +182,7 @@ def open_view(ctx: Ctx, status: Mapping | None, now: datetime) -> dict:
                      "kz_yuzde": _f(p.get("unrealized_pct")), "sure": sure_metni(t.entry_ts, now),
                      "stop": _f(p.get("stop")) if p.get("stop") is not None else _px(t.planned_stop),
                      "hedef": _px(t.planned_target), "buyukluk": notional, "kaldirac": t.leverage,
+                     "ml1_puan": _puan(ctx, t), "zd": _zd(ctx, t),
                      "acilis": tsi_kisa(t.entry_ts), "acilis_ts": t.entry_ts.timestamp() if t.entry_ts else None,
                      "neden": f"{TS.kurulum_adi(t.setup)} sinyali" + (f", {reg}" if reg else ""),
                      "_marj": (notional / t.leverage) if (notional and t.leverage) else None})
@@ -244,12 +248,30 @@ def kz_donem(trades: list, a: datetime | None, b: datetime | None = None) -> flo
                      if t.exit_ts is not None and (a is None or t.exit_ts >= a) and (b is None or t.exit_ts < b))
 
 
+def toplam_kz(ctx: Ctx, status: Mapping | None, state: str, start: float | None) -> dict:
+    """TOPLAM K/Z tek kaynak: kasa - baslangic sermayesi (acik islemler dahil; motorun `equity` degeri). Yalniz kapanan islemlerin toplami
+    ayri ad ('Kapanan islemlerden'). Canli degilse (durum bayat/okunamiyor) ya da kasa/baslangic sayi degilse kapanan toplami gosterilir
+    (`kaynak == "kapanan"`). `fark` = toplam - kapanan - acik (fonlama vb.; beklenen ~0)."""
+    kapanan = math.fsum(t.realized_pnl or 0.0 for t in ctx.closed)
+    d = status or {}
+    eq, st = _f(d.get("equity")), _f(start)
+    if state == "live" and eq is not None and st is not None:
+        toplam = eq - st
+        unreal = _f(d.get("unrealized_pnl_usd"))
+        acik = (unreal - math.fsum(t.fee_entry or 0.0 for t in ctx.open)) if unreal is not None else None
+        fark = (toplam - kapanan - acik) if acik is not None else None
+        return {"toplam": toplam, "kapanan": kapanan, "acik": acik, "fark": fark, "kaynak": "kasa",
+                "fark_goster": fark is not None and abs(fark) >= FARK_GOSTER}
+    return {"toplam": kapanan, "kapanan": kapanan, "acik": None, "fark": None, "kaynak": "kapanan", "fark_goster": False}
+
+
 def serit_view(ctx: Ctx, status: Mapping | None, state: str, kill_file: bool | None, start: float | None, now: datetime,
-               curve: Mapping | None, age_s: float | None = None) -> dict:
+               curve: Mapping | None, age_s: float | None = None, tk: Mapping | None = None) -> dict:
     d = status or {}
     eq = _f(d.get("equity"))
     pnl_bugun = kz_donem(ctx.closed, gun_basi(now), gun_basi(now, -1))
-    toplam = (eq - start) if (eq is not None and start) else None       # TOPLAM K/Z = kasa - baslangic (acik K/Z dahil)
+    tk = tk if tk is not None else toplam_kz(ctx, status, state, start)
+    toplam = tk["toplam"]                                                # TOPLAM K/Z: kz_view ile ayni nesne
     dse = _f(d.get("day_start_equity")) or start
     acik_n = len(d.get("open_positions") or []) if state == "live" else len(ctx.open)
     unreal = _f(d.get("unrealized_pnl_usd")) if state == "live" else None
@@ -268,16 +290,18 @@ def serit_view(ctx: Ctx, status: Mapping | None, state: str, kill_file: bool | N
     return {"kasa": eq, "baslangic": start,
             "bugun": pnl_bugun, "bugun_yuzde": (pnl_bugun / dse * 100.0) if dse else None,
             "toplam": toplam, "toplam_yuzde": (toplam / start * 100.0) if (start and toplam is not None) else None,
+            "toplam_kaynak": tk["kaynak"],
             "acik": acik_n, "acik_kz": unreal, "dusus": dd, "dusus_yuzde": dd_pct,
             "durum_yasi_s": age_s, "risk": risk_durumu(d if state == "live" else None, state, kill_file, pnl_bugun, age_s)}
 
 
 # ----------------------------------------------------------------------------- K/Z
-def kz_view(ctx: Ctx, start: float | None, now: datetime, curve: Mapping | None, arms: list[str]) -> dict:
+def kz_view(ctx: Ctx, start: float | None, now: datetime, curve: Mapping | None, tk: Mapping | None = None) -> dict:
+    """K/Z sekmesi. `tk` = toplam_kz sonucu (ust seritle ayni nesne); verilmezse yalniz kapanan toplami hesaplanir."""
     cl = [t for t in ctx.closed if t.exit_ts is not None]
     d30 = gun_basi(now, 29)
     donemler = {}
-    for ad, a in (("bugun", gun_basi(now)), ("7g", gun_basi(now, 6)), ("30g", d30), ("tumu", None)):
+    for ad, a in (("bugun", gun_basi(now)), ("7g", gun_basi(now, 6)), ("30g", d30)):
         v = kz_donem(cl, a, gun_basi(now, -1) if ad == "bugun" else None)
         donemler[ad] = {"kz": v, "yuzde": (v / start * 100.0) if start else None}
     egri = []
@@ -291,88 +315,22 @@ def kz_view(ctx: Ctx, start: float | None, now: datetime, curve: Mapping | None,
                 "ort_kayip": math.fsum(loss) / len(loss) if loss else None}
     else:
         oran = olculemedi(len(cl), MIN_ORAN)
-    by: dict[str, list[float]] = {}
-    for t in cl:
-        by.setdefault(ctx.kol(t), []).append(t.realized_pnl or 0.0)
-    ad_sira = [TS.kol_adi(a) for a in arms]
-    adlar = [k for k in ad_sira if k in by] + sorted(k for k in by if k not in ad_sira)    # yalniz islemi olan kollar
-    kol = [{"kol": k, "n": len(by[k]), "kz": math.fsum(by[k])} for k in adlar]
 
     def maliyet(a):
         sel = [t for t in cl if a is None or t.exit_ts >= a]
         return {"komisyon": math.fsum((t.fee_entry or 0.0) + (t.fee_exit or 0.0) for t in sel),
                 "fonlama": math.fsum(t.funding_paid or 0.0 for t in sel)}
-    return {"donemler": donemler, "egri": egri if len(egri) >= 2 else None, "oran": oran if cl else None, "kol": kol if cl else [],
+    return {"toplam": dict(tk) if tk is not None else toplam_kz(ctx, None, "stale", start),
+            "donemler": donemler, "egri": egri if len(egri) >= 2 else None, "oran": oran if cl else None,
             "masraf": {"30g": maliyet(d30), "tumu": maliyet(None)} if cl else None}
 
 
-# ----------------------------------------------------------------------------- ogrenme (ML)
-
-
-# ----- ortak durum sozlugu (OZET / OGRENME / Telegram ayni metni kullanir)
-DURUM_ETKILIYOR = "Açık, işlemleri etkiliyor"
-DURUM_KAPALI = "Kapalı"
-
-
-def durum_veri_birikiyor(x: int, y: int | None = None) -> str:
-    return f"Açık, veri birikiyor ({x}/{y})" if y else "Açık, veri birikiyor"
-
-
-def ogrenme_durumu(calisiyor: bool, etkili: bool, x: int = 0, y: int | None = None) -> tuple[str, str]:
-    """(metin, renk): kapali = gri; etkiliyor = yesil; veri birikiyor = sari (kirmizi degil)."""
-    if not calisiyor:
-        return DURUM_KAPALI, "gri"
-    if etkili:
-        return DURUM_ETKILIYOR, "yesil"
-    return durum_veri_birikiyor(x, y), "sari"
-
-
-# ----------------------------------------------------------------------------- ogrenme (kol x zaman dilimi)
-_DURUM_AD = {"acik": "Açık", "kapali": "Ders kapattı"}   # kapali: ders kaydi (arms_off.json); giris ENGELLENMEZ, yalniz bilgi
-
-
-def _arm_kimlik(d: Any) -> str:
-    from .arm_time import arm_id_of  # noqa: PLC0415
-    return getattr(d, "arm_id", None) or arm_id_of(d.setup, d.trigger_tf)
-
-
-def ogrenme_view(ledger_path: str, ctx: Ctx, now: datetime, *, arms: list[str] | None = None) -> dict:
-    """OZET 'Ogrenme' karti + OGRENME sekmesi tablolari. Tum kollar (ayar `arms` + defterde gorulen + ders kapanis dosyasi) icin
-    kol x zaman dilimi satirlari; defterden ve `arms_off.json`dan aynen okunur."""
-    sonuc: dict[str, list[float]] = {}            # arm -> net R (yeniden eskiye)
-    for t in ctx.closed:
-        d = ctx.dec.get(t.decision_id)
-        r = _f(t.r_multiple)
-        if d is not None and r is not None:
-            sonuc.setdefault(_arm_kimlik(d), []).append(r)
-    kapali = {a for a, st in KY.read_arms_state(Path(ledger_path).parent / "arms_off.json").items()
-              if st.get("state") == "closed"}
-    gun0 = gun_basi(now)
-    bugun: dict[str, list[int]] = {}
-    for d in ctx.decisions:
-        if d.bar_close_ts >= gun0:
-            b = bugun.setdefault(_arm_kimlik(d), [0, 0])
-            b[0] += 1
-            b[1] += 1 if d.final_action == "entered" else 0
-    tum = set(arms or []) | set(sonuc) | set(bugun) | kapali
-    kollar = []
-    for a in sorted(tum, key=lambda x: (x.partition("@")[0], x)):
-        vals = sonuc.get(a, [])
-        n = len(vals)
-        durum = "kapali" if a in kapali else "acik"
-        kur, _, zd = a.partition("@")
-        kollar.append({"arm": a, "kol": TS.kurulum_adi(kur), "zd": TS.kol_adi(a).partition(" · ")[2] or (zd or "—"),
-                       "n": n, "net_r": round(math.fsum(vals), 4) if n else None,
-                       "kazanma": round(100.0 * sum(1 for v in vals if v > 0) / n, 1) if n else None,
-                       "durum": durum, "durum_ad": _DURUM_AD[durum]})
-    olcu = [r for r in kollar if r["n"]]
-    iyi = sorted(olcu, key=lambda r: (-r["net_r"], r["arm"]))[:3]
-    kotu = sorted((r for r in olcu if r not in iyi), key=lambda r: (r["net_r"], r["arm"]))[:3]
-    kisa = lambda r: {"arm": r["arm"], "kol": r["kol"], "zd": r["zd"], "net_r": r["net_r"], "n": r["n"]}  # noqa: E731
-    ozet = {"toplam": len(kollar), **{d: sum(1 for r in kollar if r["durum"] == d) for d in _DURUM_AD},
-            "en_iyi": [kisa(r) for r in iyi], "en_kotu": [kisa(r) for r in kotu],
-            "kapanan": sum(r["n"] for r in kollar)}
-    return {"ozet": ozet, "kollar": kollar}
+# ----------------------------------------------------------------------------- ML1
+def ml1_view(ctx: Ctx, now: datetime, *, aktif: Any = None) -> dict:
+    """ML1 sekmesi ve OZET karti. Sayilar `ml1_gorunum.ml1_ozet` (Telegram ile ayni); eski kol kapanis kaydi OKUNMAZ. `aktif` = motor ayarindaki
+    `ml1.aktif`. Islemi olmayan kol/grup hicbir yerde listelenmez."""
+    oz = MG.ml1_ozet(ctx.decisions, ctx.closed, ctx.open, now)
+    return {"durum": MG.durum(ctx.decisions, now, aktif), **oz, "gruplar": MG.gruplar(ctx.decisions, ctx.closed), "sinav": MG.sinav()}
 
 
 # ----------------------------------------------------------------------------- teknik
@@ -449,11 +407,9 @@ def teknik_view(*, health: Mapping | None, risk_rows: list | None, budget: Mappi
                          "uyarilar": uy, "senden": senden, "kontrol_bayat": bool(health.get("check_stale")),
                          "diger_botlar": diger[:4]}
     if risk_rows:
-        out["limitler"] = [{"ad": r["label"], "kullanilan": r["used"], "limit": r["limit"], "yuzde": r["pct"]} for r in risk_rows]
+        out["limitler"] = [{"ad": r["label"], "kullanilan": r["used"], "limit": r["limit"], "yuzde": r["pct"], "birim": r.get("birim", "$")}
+                           for r in risk_rows]
     if budget:
-        sv = budget.get("services") or {}
-        out["model"] = [{"ad": "Yapay zekâ", "cagri_bugun": sum(int(v.get("calls_today") or 0) for v in sv.values()),
-                         "maliyet_ay": budget.get("month_used_usd")}] if sv else None
         out["butce"] = {"kullanilan": budget.get("month_used_usd"), "tavan": budget.get("monthly_cap_usd")}
     if ctx is not None:
         out["kayitlar"] = {"kapanan": len(ctx.closed), "acik": len(ctx.open), "karar": len(ctx.decisions)}
@@ -478,7 +434,7 @@ def _ilk_sorun(saglik: Mapping) -> str:
     return (str(uy[0]) + (f" (+{len(uy) - 1} uyarı daha)" if len(uy) > 1 else "")) if uy else "ayrıntı TEKNİK sekmesinde"
 
 
-def _problem(saglik: Mapping | None, state: str, risk: Mapping, budget: Mapping | None) -> dict:
+def _problem(saglik: Mapping | None, state: str, risk: Mapping, budget: Mapping | None, ml1: Mapping | None = None) -> dict:
     sebepler = []
     if state != "live":
         sebepler.append("Bot yanıt vermiyor")
@@ -488,6 +444,8 @@ def _problem(saglik: Mapping | None, state: str, risk: Mapping, budget: Mapping 
         sebepler.append("Sağlık kontrolü güncel değil")
     if budget and str(budget.get("month_state") or "") in ("exhausted", "blocked"):
         sebepler.append("Yapay zekâ bütçesi doldu")
+    if ml1 and (ml1.get("durum") or {}).get("renk") == "kirmizi":
+        sebepler.append("ML1 modeli yüklenemedi")
     if sebepler:
         return {"renk": "kirmizi", "metin": "; ".join(sebepler[:2])}
     if saglik and saglik.get("renk") == "sari":

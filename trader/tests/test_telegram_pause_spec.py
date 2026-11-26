@@ -124,8 +124,8 @@ class TestDurdur:
     def test_reply_text(self, penv):
         durdur(penv)
         t = penv.last()
-        assert "Yeni giriş durduruldu" in t
-        assert "Açık pozisyonlar zarar durdurlarıyla açık kalır" in t
+        assert "Yeni işlem açma durduruldu" in t
+        assert "Açık işlemler stoplarıyla açık kalır" in t
         assert "/hepsini_kapat" in t
 
     def test_pending_json_has_action_pause_and_no_plain_code(self, penv):
@@ -183,7 +183,7 @@ class TestDurdur:
     def test_bare_code_without_pending_does_nothing(self, penv):
         penv.send("4821")
         assert hold_reasons(penv) == []
-        assert "bekleyen onay yok" in penv.last()
+        assert "Bekleyen onay yok" in penv.last()
 
     def test_command_form_not_accepted(self, penv):
         penv.send("/durdur")
@@ -428,7 +428,7 @@ class TestDevamKillInteraction:
         devam(penv)
         assert kill_active(penv)
         assert hold_reasons(penv) == ["user_cmd"]
-        assert "kapanış" in penv.fake.alltext() or "kapanis" in penv.fake.alltext().lower()
+        assert "Kapanış sürüyor" in penv.fake.alltext()
 
     def test_live_other_origin_kill_refused_pause_untouched(self, penv):
         write_status(penv.status_path, mode="live", kill_state="flat")

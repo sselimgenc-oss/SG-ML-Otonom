@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """YZ yorumcu (ust lig §3; gunluk 05:40 UTC): dunun islemlerini/kararlarini/olcum raporunu sade Turkce yorumlar.
 
-YETKISI YOK: yalniz `var/durum/yorumcu/YYYY-MM-DD.md` yazar (+ Telegram outbox'a kisa ozet). Motor bu dizini okumaz.
+YETKISI YOK: yalniz `var/durum/yorumcu/YYYY-MM-DD.md` yazar. Telegram'a GITMEZ (`YORUMCU_TELEGRAM = False`; gunluk ozet ayni isi 8 satirda yapar). Motor bu dizini okumaz.
 Girdi (hepsi SALT OKUNUR): kagit defteri (kapanmis islemler, kararlar), `var/durum/tur1_olcum_v1.json`, `alinmayan_sonuc_v1.json`,
 haftalik ozetin sabit bolumu. Tum sayilar kodla hesaplanir (`trader_reports.yorumcu`); model yalniz yorumlar.
 Model: claude-sonnet-5-5, MEVCUT `ortak.AnthropicBatchClient` (Batch API) + `budget` servisi `yorumcu` (anahtar: ANTHROPIC_API_KEY_YORUMCU).
@@ -37,6 +37,7 @@ BOT = "learner"
 POLL_ARALIK_S = 30.0
 POLL_AZAMI_S = 3000.0          # servis TimeoutStartSec=3300; batch bu surede bitmezse rapor yok
 CUSTOM_ID = "yorumcu-gunluk"
+YORUMCU_TELEGRAM = False       # rapor dosyaya yazilir, Telegram'a gitmez (gunde birkac uzun mesaj olurdu)
 
 
 def data_root(env) -> Path:
@@ -111,6 +112,8 @@ def varsayilan_istemci(env, b):
 
 
 def telegram_gonder(root: Path, env, tarih: str, metin: str, now: datetime) -> bool:
+    if not YORUMCU_TELEGRAM:
+        return False
     try:
         from trader_core.telegram import Outbox  # noqa: PLC0415
         tg = Path((env.get("TELEGRAM_VAR_DIR") or "").strip() or root / "var" / "telegram")

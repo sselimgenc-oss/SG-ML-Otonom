@@ -1592,7 +1592,7 @@ def test_t_01_paper_devam_requires_flat_state(tmp_path):
     tg_status(e, "paper", "exiting")
     e.TS.set_kill(e, by="me", reason="manual")
     tg_devam(e)
-    assert e.active() and "kapanis" in e.fake.alltext().lower().replace("ı", "i")
+    assert e.active() and "Kapanış sürüyor" in e.fake.alltext()
     for i, (ks, drop) in enumerate(((None, ()), ("flat", ("kill_state",)), ("none", ()))):
         e = make_tg(tmp_path / f"y{i}")
         tg_status(e, "paper", ks, drop=drop)

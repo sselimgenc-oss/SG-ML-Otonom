@@ -34,7 +34,6 @@ def build_api(data: PanelData) -> dict:
            "/api/pano": lambda q: data.cached(("pano", q.get("bot")), lambda: data.pano(q.get("bot"))),
            "/api/kapanan": lambda q: data.cached(("kapanan", q.get("bot"), q.get("period")), lambda: data.kapanan(q.get("bot"), q.get("period"))),
            "/api/budget": lambda q: data.cached(("budget",), data.budget),
-           "/api/learning": lambda q: data.cached(("learning",), data.learning),
            "/api/tutarlilik": lambda q: data.cached(("tutarlilik",), data.tutarlilik),
            "/api/pbo": lambda q: data.cached(("pbo",), data.pbo),
            "/api/ciktikaniti": lambda q: data.cached(("ciktikaniti",), data.ciktikaniti),

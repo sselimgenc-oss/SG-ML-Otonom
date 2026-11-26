@@ -2,7 +2,7 @@
 """Haftalik ozet (DD-12 WP-09, spec eki 18 Kas 2026): haftanin kapanan islemlerini sade Turkce ozetler (sahibin okumasi icin).
 
 Haftalik dosya SABIT BOLUM (LLM'siz: tutarlilik, cikis kaniti, PBO, alinmayan sinyal) + istege bagli "Yorum"
-paragrafindan olusur; sabit bolum anahtar olsun olmasin her hafta yazilir (Telegram gunluk raporu `telegram.rapor_ogrenme` onu okur).
+paragrafindan olusur; sabit bolum anahtar olsun olmasin her hafta yazilir (Telegram haftalik ozeti ve panel okur).
 Tek LLM kullanimi yorumdur ve 24 Kas 2026'dan beri MESSAGE BATCHES API ile yapilir (`trader_core.haftalik_batch`, `ortak.AnthropicBatchClient`):
 1. GONDER (pazar 18:10 UTC): sabit bolum dosyasi hemen yazilir; yorum icin batch gonderilir, batch kimligi + butce rezervi
    `<defter dizini>/weekly_summaries/YYYY-Www.batch.json` dosyasina yazilir (ayni hafta ikinci gonderim yok); kisa sure (`--wait-s`) beklenir.

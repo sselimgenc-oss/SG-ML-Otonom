@@ -94,7 +94,7 @@ def test_fiyat_yok_uyusmazlik_sayilmaz_ayri_durum():
     assert doc["uyusmazlik_sayisi"] == 0 and doc["uyusmazliklar"] == [] and doc["fiyat_bekleniyor"] == [15, 17]
     doc = {**doc, "satirlar": [], "kontroller": [k]}
     t = TS.islem_kontrolu_ozet(doc)
-    assert "uyuşmazlık 0" in t and "ℹ️ Fiyat bekleniyor (piyasa kapalı/veri yok): #15, #17" in t
+    assert "uyuşmazlık 0" in t and "Fiyat bekleniyor (piyasa kapalı/veri yok): 2 işlem" in t and "#" not in t and "ℹ" not in t
     assert "anlık fiyat yok" not in t
     # gercek fark hala uyusmazlik; fiyat bekleyen ayri
     pos2 = pos + [{"trade_id": 7, "side": "long", "entry_price": 100.0, "qty": 2.0, "mark": 101.0}]
@@ -155,7 +155,7 @@ def test_sorunlar_fiyat_yok_seans_disinda_sorun_degil_seans_icinde_sorun():
     s = M.sorunlar(rows, [k], [], st(), acik)
     assert s == ["AMD işleminin güncel fiyatı alınamıyor"]
     t = TS.islem_kontrolu({"sorunlar": s})
-    assert t == "[ML] ⚠️ AMD işleminin güncel fiyatı alınamıyor" and "#" not in t
+    assert t == "[ML] ⚠️ İşlem kontrolünde 1 uyuşmazlık bulundu\nAMD işleminin güncel fiyatı alınamıyor" and "#" not in t
     kasa = {"ad": "Kasa = başlangıç + Σ net K/Z", "sonuc": "kaldı", "ayrinti": "Kasa 1.023,64 $ olmalı, kayıtta 1.020,90 $ · fark 2,74 $"}
     assert M.sorunlar([], [kasa], [], None, acik) == ["Kasa kayıtla tutmuyor: 1.023,64 $ olmalı, kayıtta 1.020,90 $"]
 
@@ -187,7 +187,7 @@ def test_islem_mesajlari_ayni_fiyat_bicimini_kullanir():
     assert T._fiyat(8.8712) == "8,87" and T._fiyat(0.123456) == "0,1235"
 
 
-def test_haftalik_telegrama_gitmez():
+def test_haftalik_yalniz_pazar_gider():
     from types import SimpleNamespace as NS
 
     from trader_core import telegram as T
@@ -196,4 +196,5 @@ def test_haftalik_telegrama_gitmez():
     n.send_text = lambda *a, **k: gonderilen.append(a) or True
     n.kayit = NS(gunde_bir=lambda *a: True)
     n.now = lambda: NOW
-    assert T.haftalik_gonder(None, n, datetime(2026, 11, 22, 12, 0, tzinfo=UTC)) is False and gonderilen == []
+    assert T.HAFTALIK_TELEGRAM is True                                    # 26.11: haftalik ozet Telegram'a gider ...
+    assert T.haftalik_gonder(None, n, datetime(2026, 11, 20, 12, 0, tzinfo=UTC)) is False and gonderilen == []      # ... ama yalniz pazar (cuma: gitmez)

@@ -916,7 +916,7 @@ _HEALTH_TR: dict[str, tuple[str, str, str]] = {
     "market_bar_age": ("Piyasa verisi güncel değil", "Piyasa verisi yeniden güncel",
                        "Eski veriyle işlem açılmaz; yeni işlemler bekletilir."),
     "naked_position": ("Stop'u olmayan açık pozisyon var!", "Stopsuz pozisyon kalmadı",
-                       "Pozisyon korumasız; hemen kontrol et ya da /kapat kullan."),
+                       "Pozisyon korumasız; hemen kontrol et ya da /hepsini_kapat kullan."),
     "exchange_reachable": ("Borsaya ulaşılamıyor", "Borsa bağlantısı yeniden sağlandı",
                            "Emir gönderilemeyebilir; açık pozisyonları borsadan kontrol et."),
     "exchange_ban": ("Borsa geçici engel koydu", "Borsa engeli kalktı",

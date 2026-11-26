@@ -289,7 +289,7 @@ def test_poll_once_uses_offset_next_poll(env):
 def test_stale_command_not_executed(env):
     env.send("/durum", date=env.clk() - timedelta(seconds=121))
     assert "kasa" not in env.fake.alltext().lower()
-    assert "işlenmedi" in env.fake.alltext().lower() or "islenmedi" in env.fake.alltext().lower()
+    assert "yeniden gönder" in env.fake.alltext()                 # "İşlenmedi; yeniden gönder (yaş: N sn)"
 
 
 def test_stale_reply_once_per_update(env):
@@ -482,7 +482,7 @@ def test_devam_refused_while_exiting_paper(env):
     set_kill(env, by="me", reason="manual")
     _devam(env)
     assert kill_active(env)
-    assert "kapanış" in env.fake.alltext() or "kapanis" in env.fake.alltext().lower()
+    assert "Kapanış sürüyor" in env.fake.alltext()
 
 
 def test_devam_refused_while_exiting_live_even_telegram_origin(env):
@@ -572,7 +572,7 @@ def test_durdur_without_pause_config_does_not_kill(env):
 def test_kaldirilan_komutlar_tek_satir_yanit_islem_yok(env, cmd):
     env.send(cmd)
     out = env.fake.of("sendMessage")
-    assert len(out) == 1 and "kaldirildi" in out[0]["text"]
+    assert len(out) == 1 and "kaldırıldı" in out[0]["text"] and "/ml1" in out[0]["text"] and out[0]["text"].startswith("[ML] ")
     assert not kill_active(env)
     names = [p.name for p in env.tmp.rglob("*")]
     assert not any(n.startswith("lesson.sqlite") or n == "lesson.lock" for n in names)

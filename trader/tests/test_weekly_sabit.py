@@ -40,10 +40,8 @@ def test_keyless_writes_fixed_section_and_no_llm(tmp_path, capsys):
     for s in ("Tutarlılık: rapor yok", "Çıkış kanıtı: henüz veri yok", "Alınmayan sinyal: henüz veri yok"):
         assert s in t
     assert "PBO" not in t and "## Yorum" not in t                 # PBO dosyasi yok: sessiz atla
-    # Telegram yolu: sabit satirlar gunluk rapordaki haftalik ozet satirina girer, [ML] etiketi + fit_text sinirina uyar
-    m = T._haftalik_ozet_metni({"week": "2026-W47", "text": t})
-    assert "Tutarlılık: rapor yok" in m and "Alınmayan sinyal: henüz veri yok" in m and "## " not in m
-    assert T.fit_text(T.etiketle(m, "INFO")).startswith("[ML] ") and len(T.fit_text(m)) <= T.MAX_TEXT
+    # 26.11: haftalik dosyanin sabit bolumu Telegram'a girmez (Telegram haftalik ozeti defterden/ML1'den uretilir); dosya panelde kalir
+    assert not hasattr(T, "_haftalik_ozet_metni") and not hasattr(T, "rapor_ogrenme")
 
 
 def test_keyed_adds_comment_after_fixed_and_once_per_week(tmp_path, capsys):

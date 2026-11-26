@@ -94,7 +94,7 @@ if [ "$rc" -eq 0 ] && [ "$simdi" = "$hedef" ]; then
   fi
   printf '%s\t%s\t%s\t%s\n' "$(date -u +%FT%TZ)" "$mevcut" "$hedef" geri_alindi >> "$HIST"
   if [ "$OTOMATIK" -eq 1 ]; then
-    tg_send "[ML] ⚠️ Güncelleme sonrası sorun görüldü; bot otomatik olarak önceki sürüme döndürüldü. Neden: ${NEDEN:-eşik aşıldı}. Bozuk sürüm bir daha kurulmaz."
+    tg_send "[ML] ⚠️ Güncellemeden sonra sorun görüldü; bot önceki sürüme döndürüldü."$'\n'"Neden: ${NEDEN:-eşik aşıldı}. Sorunlu sürüm yeniden kurulmayacak."
     echo "Otomatik geri alindi: ${hedef} (bozuk surum isaretlendi; otomatik guncelleme acik)"
   else
     tg_send "[ML] ⚠️ Son güncelleme geri alındı; bot önceki sürümle çalışıyor."
@@ -104,7 +104,7 @@ if [ "$rc" -eq 0 ] && [ "$simdi" = "$hedef" ]; then
 fi
 
 printf '%s\t%s\t%s\t%s\n' "$(date -u +%FT%TZ)" "$mevcut" "$hedef" geri_alma_basarisiz >> "$HIST"
-tg_send "[ML] ⚠️ Geri alma yapılamadı; bot mevcut sürümle çalışıyor."
+tg_send "[ML] 🔴 Geri alma yapılamadı; bot mevcut sürümle çalışıyor."$'\n'"Senden: bana haber ver."
 mask < "$ILOG" >&2
 if [ "$OTOMATIK" -eq 1 ]; then
   echo "Geri alma BASARISIZ (kurulum cikis=$rc)." >&2

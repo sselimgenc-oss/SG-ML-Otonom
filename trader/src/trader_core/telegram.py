@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any
 
 
+from . import ml1_gorunum as MG
 from . import ortak as ORT
 from . import risk_ladder as RL
 from . import tg_sade as TS
@@ -86,7 +87,7 @@ RATE_PER_MIN = 15
 CODE_RE = re.compile(r"^\d{4}$")
 # Ders sistemi kaldirildi (25.11): eski komutlar tek satirla yanitlanir, hicbir islem yapilmaz.
 KALDIRILAN_KOMUTLAR = ("/ders", "/onayla", "/reddet", "/karantina_kaldir")
-KALDIRILDI_METNI = "Bu komut kaldirildi (ders sistemi kapatildi; ogrenme ML1 uzerinden). Ayar degisikligi icin CLI kullanilir."
+KALDIRILDI_METNI = "Bu komut kaldırıldı. Seçimi artık ML1 yapıyor; durum için /ml1 yaz."
 SEVERITIES = ("INFO", "WARN", "CRIT")
 _TOKEN_RE = re.compile(r"bot\d+:[A-Za-z0-9_\-]+")
 _CTRL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
@@ -563,8 +564,15 @@ def _norm_cmd_text(s: str) -> str:
     return re.sub(r"\s+", " ", s.strip().lower().replace("ı", "i").replace("İ", "i"))
 
 
-HELP = ("/durum  /rapor  /kurulumlar  /hepsini_kapat  /durdur  /devam  /kademe  /kademe_devam  /yardim\n"
-        "/durdur: yeni girisleri durdurur, pozisyonlar acik kalir (tam kapatma icin /hepsini_kapat)")
+BILINMEYEN_METNI = "Bu komutu tanımıyorum. /yardim yaz."
+
+
+def yardim_metni(kademe: bool = False) -> str:
+    """/yardim: 3 satir (kademe komutlari yalniz kademe yapilandirilmissa listelenir)."""
+    ek = " · /kademe · /kademe_devam" if kademe else ""
+    return ("Komutlar: /durum · /rapor · /ml1 · /durdur · /devam · /hepsini_kapat" + ek + "\n"
+            "/durdur: yeni işlem açmayı durdurur; açık işlemler stoplarıyla açık kalır.\n"
+            "/hepsini_kapat: tüm işlemleri kapatır ve botu durdurur (4 haneli kodla onay ister).")
 PAUSE_USER = "user_cmd"
 PAUSE_LATCH = "capital_latch"          # sermaye mandali: /devam + 4 haneli kodla kaldirilir
 PAUSE_LIFTABLE = (PAUSE_USER, PAUSE_LATCH)
@@ -591,12 +599,12 @@ def pause_lines(pauses: Mapping[str, Any], sadece_tutulan: bool = False) -> list
         ad = BOT_TR.get(bot, bot)
         if bot not in st:
             if not sadece_tutulan:
-                lines.append(f"▶️ {ad}: yeni işlemler açık")
+                lines.append(f"{ad}: yeni işlemler açık")
             continue
         nedenler = "; ".join(dict.fromkeys(neden_tr(h.reason) for h in st[bot])) or "duraklatma durumu okunamadı"
         kim = next((f" ({_kisi_tr(h.by)}" + (f", {z}" if (z := _zaman_tr(h.at)) else "") + ")" for h in st[bot]
                     if h.reason != "unreadable"), "")
-        lines.append(f"⏸️ {ad}: yeni işlemler duraklatıldı — {nedenler}{kim}")
+        lines.append(f"{ad}: yeni işlemler duraklatıldı — {nedenler}{kim}")
     return lines
 
 
@@ -788,9 +796,12 @@ class TelegramDaemon:
         return (chat.get("type") == "private" and chat.get("id") == self.cfg.chat_id
                 and frm.get("id") == chat.get("id") and not frm.get("is_bot"))
 
-    def _reply(self, text: str, severity: str = "WARN") -> None:
+    def _reply(self, text: str, severity: str = "WARN", etiket: bool = False) -> None:
+        """`etiket=True`: bilgi yanitlari (/yardim, /durum, /ml1, bilinmeyen/kaldirilan komut) `[ML] ` onekiyle gider; onay kodu akisinin
+        yanitlari eskisi gibi oneksiz (kod, red ve sonuc cumleleri)."""
         try:
-            self.client.send_message(self.cfg.chat_id, fit_text(text), disable_notification=severity == "INFO")
+            self.client.send_message(self.cfg.chat_id, fit_text(TS.etiketle(text) if etiket else text),
+                                     disable_notification=severity == "INFO")
         except Exception as e:  # noqa: BLE001
             log.warning("yanit gonderilemedi: %s", mask(type(e).__name__, self.cfg.token))
 
@@ -822,7 +833,7 @@ class TelegramDaemon:
         age = self.now().timestamp() - float(m.get("date", 0))
         if age > STALE_S or float(m.get("date", 0)) < self.start_ts:
             self._audit("exec", update_id=uid, cmd=text[:20], sonuc="stale")
-            return self._reply(f"islenmedi, yeniden gonder (yas: {int(age)} sn)")
+            return self._reply(f"İşlenmedi; yeniden gönder (yaş: {int(age)} sn)")
         result = self._dispatch_text(text, tail3(frm.get("id")))
         self._audit("exec", update_id=uid, cmd=text[:20] if not CODE_RE.match(text.strip()) else "<kod>",
                     sonuc=result)
@@ -834,7 +845,7 @@ class TelegramDaemon:
         self._unauth = [t for t in self._unauth if now - t < 60] + [now]
         if len(self._unauth) > 10 and now - self._unauth_warned_at > 600:
             self._unauth_warned_at = now
-            self._reply("yetkisiz komut denemesi")
+            self._reply("Yetkisiz komut denemesi.")
 
     def _dispatch_text(self, text: str, who: str) -> str:
         t = text.strip()
@@ -845,23 +856,23 @@ class TelegramDaemon:
             return self._cmd_kill_start()
         parts = t.split()
         if not parts or not parts[0].startswith("/"):
-            self._reply("anlasilmadi. " + HELP)
+            self._reply(BILINMEYEN_METNI, etiket=True)
             return "unknown"
         cmd = parts[0].lower().split("@")[0]
         arg = parts[1] if len(parts) > 1 else ""
         if cmd == "/yardim" or cmd == "/start":
-            self._reply(HELP, "INFO")
+            self._reply(yardim_metni(bool(self.ladders)), "INFO", etiket=True)
             return "ok"
         if cmd == "/durum":
             return self._cmd_status()
         if cmd == "/rapor":
             if self.report_fn is None:
-                self._reply("rapor yapilandirilmadi")
+                self._reply("Rapor yapılandırılmamış.")
                 return "noreport"
-            self._reply(self.report_fn() + "\n(manuel)", "INFO")
+            self._reply(self.report_fn() + "\n(elle istendi)", "INFO")
             return "ok"
-        if cmd == "/kurulumlar":
-            return self._cmd_info(lambda: kurulumlar_metni(self.cfg, self.now()))
+        if cmd in ("/ml1", "/kurulumlar"):                     # /kurulumlar eski ad: ayni yanit
+            return self._cmd_info(lambda: ml1_metni(self.cfg, self.now()))
         if cmd == "/hepsini_kapat":
             return self._cmd_kill_start()
         if cmd == "/devam":
@@ -873,17 +884,17 @@ class TelegramDaemon:
         if cmd == "/kademe_devam":
             return self._cmd_kademe_devam_start()
         if cmd in KALDIRILAN_KOMUTLAR:
-            self._reply(KALDIRILDI_METNI, "INFO")
+            self._reply(KALDIRILDI_METNI, "INFO", etiket=True)
             return "removed"
-        self._reply("bilinmeyen komut. " + HELP)
+        self._reply(BILINMEYEN_METNI, etiket=True)
         return "unknown"
 
     def _cmd_info(self, fn) -> str:
-        """Salt okunur bilgi komutu (/kurulumlar): okunamayan veri tek satırla bildirilir."""
+        """Salt okunur bilgi komutu (/ml1): okunamayan veri tek satırla bildirilir."""
         try:
             text = fn()
         except SectionError as e:
-            self._reply(f"okunamadı: {e.code}", "INFO")
+            self._reply(f"Okunamadı: {e.code}", "INFO", etiket=True)
             return "unreadable"
         self._reply(text, "INFO")
         return "ok"
@@ -892,24 +903,30 @@ class TelegramDaemon:
     def _cmd_status(self) -> str:
         st = self._read_status()
         if not st:
-            self._reply("durum okunamadı")
+            self._reply("Durum okunamadı.", etiket=True)
             return "unreadable"
-        eq = st.get("equity")
         try:
             dk = int((self.now() - parse_ts_z(st["loop_at"])).total_seconds() // 60)
         except Exception:  # noqa: BLE001
             dk = None
-        lines = [f"📊 Anlık durum ({KIP_TR.get(str(st.get('mode')), 'kip bilinmiyor')})", AYRAC]
-        if _num_ok(eq):
-            lines.append(f"💰 Özsermaye: {tr_sayi(eq)} $")
-        lines.append(f"📌 Açık pozisyon: {len(st.get('open_positions') or [])}")
-        lines += _risk_satirlari(st) if not (dk is not None and dk >= 2) else \
-            [f"🚨 Motor yanıt vermiyor! (son sinyal {dk} dk önce)"]
-        if dk is not None and dk < 2:
-            lines.append("🕒 Motor canlı")
+        lines = [f"Anlık durum ({KIP_TR.get(str(st.get('mode')), 'kip bilinmiyor')})"]
+        k = _kasa_toplam_satiri(self.cfg, st)
+        if k:
+            lines.append(k)
+        lines.append(_acik_satiri(st))
+        calisiyor = dk is None or dk < 2
+        if calisiyor:
+            pause_text = "\n".join(pause_lines(self.pauses, sadece_tutulan=True)) if self.pauses else ""
+            doldu = _zarar_doldu(self.cfg, st)
+            d = _durum_satiri(st, pause_text, doldu)
+            if d and not (self.pauses and not st.get("kill") and not doldu):     # duraklatma satiri (asagida) bunu zaten soyler
+                lines.append(d)
+            lines.append("Bot çalışıyor.")
+        else:
+            lines.append(f"Bot yanıt vermiyor! (son sinyal {dk} dk önce)")
         lines += self._pause_lines()
         lines += self._ladder_lines()
-        self._reply("\n".join(lines), "INFO")
+        self._reply("\n".join(lines), "INFO", etiket=True)
         return "ok"
 
     # -- duraklatma (11 §9) ---------------------------------------------------
@@ -933,17 +950,17 @@ class TelegramDaemon:
 
     def _cmd_durdur_start(self) -> str:
         if not self.pauses:
-            self._reply("desteklenmiyor, tam kapatma icin /hepsini_kapat")
+            self._reply("Desteklenmiyor; tam kapatma için /hepsini_kapat")
             return "unsupported"
         st = self._pause_state()
         have = {b: next((h for h in hs if h.reason == PAUSE_USER), None) for b, hs in st.items()}
         if all(have.get(b) is not None for b in self.pauses):
             who = "; ".join(f"{b}: {h.by}, {h.at}" for b, h in have.items() if h is not None)
-            self._reply(f"Girişler zaten durdurulmuş ({who})")
+            self._reply(f"Yeni işlem açma zaten durdurulmuş ({who})")
             return "already"
         code = self._new_pending("pause")
-        self._reply("Yeni giris durdurulacak; acik pozisyonlar zarar durdurlariyla acik kalir. Onay icin "
-                    f"{CODE_TTL_S} sn icinde yalniz su 4 haneli kodu yanitla: {code}")
+        self._reply("Yeni işlem açma durdurulacak; açık işlemler stoplarıyla açık kalır. Onay için "
+                    f"{CODE_TTL_S} sn içinde yalnız şu 4 haneli kodu yanıtla: {code}")
         return "code_sent"
 
     def _pause_devam_refusal(self) -> str | None:
@@ -959,7 +976,7 @@ class TelegramDaemon:
                      else " (kademe inceleme akışıyla ya da sunucuda operatör tarafından kaldırılır)"
                      if "drawdown_review" in others else "; yalnız sunucuda kaldırılır")
             return f"Bu durdurma Telegram'dan kaldırılamaz: {', '.join(others)} ({'; '.join(dict.fromkeys(neden_tr(o) for o in others))}){extra}"
-        return "KILL etkin degil"
+        return "Acil durdurma etkin değil"
 
     def _devam_layer(self) -> tuple[str, str | None]:
         """-> (katman, ret nedeni). Cagri basina tek katman: once KILL, sonra user_cmd duraklatmasi."""
@@ -1124,36 +1141,36 @@ class TelegramDaemon:
 
     def _cmd_kill_start(self) -> str:
         if self.killswitch is None:
-            self._reply("kill dosyasi yapilandirilmadi")
+            self._reply("Acil durdurma yapılandırılmamış.")
             return "noconfig"
         if self.killswitch.active():
             info = self.killswitch.info() or {}
-            self._reply(f"KILL zaten etkin ({info.get('by')}, {info.get('at')})")
+            self._reply(f"Acil durdurma zaten etkin ({info.get('by')}, {info.get('at')})")
             return "already"
         code = self._new_pending("kill")
-        self._reply("Tum pozisyonlar piyasadan kapatilacak ve yeni giris durdurulacak. Onay icin "
-                    f"{CODE_TTL_S} sn icinde yalniz su 4 haneli kodu yanitla: {code}")
+        self._reply("Tüm işlemler piyasadan kapatılacak ve yeni işlem açma durdurulacak (acil durdurma). Onay için "
+                    f"{CODE_TTL_S} sn içinde yalnız şu 4 haneli kodu yanıtla: {code}")
         return "code_sent"
 
     def _devam_refusal(self) -> str | None:
         if self.killswitch is None:
-            return "kill dosyasi yapilandirilmadi"
+            return "Acil durdurma yapılandırılmamış"
         if not self.killswitch.active():
-            return "KILL etkin degil"
+            return "Acil durdurma etkin değil"
         st = self._read_status()
         if st is None:
-            return "durum okunamadı, reddedildi"
+            return "Durum okunamadı, reddedildi"
         if self.expect_status_mode is not None and st.get("mode") != self.expect_status_mode:
-            return "durum dosyası beklenen kipte değil, reddedildi"
+            return "Durum dosyası beklenen kipte değil, reddedildi"
         ks = st.get("kill_state")
         if ks == "exiting":
-            return "kapanis suruyor, bekleyin"
+            return "Kapanış sürüyor, bekleyin"
         if st.get("mode") not in ("paper", "backtest"):       # canli ya da bilinmeyen
             info = self.killswitch.info() or {}
             if not (str(info.get("by", "")).startswith("telegram:") and info.get("reason") == "user_cmd"):
-                return "Bu KILL Telegram'dan kurulmadi; yalniz sunucuda kaldirilir"
+                return "Bu acil durdurma Telegram'dan kurulmadı; yalnız sunucuda kaldırılır"
         if ks != "flat":                                      # DD-9 §7 (O7): HER kipte (paper dahil); eksik/yanlis tip = flat degil
-            return "pozisyonlar kapanmadi (durum flat degil), reddedildi"
+            return "Pozisyonlar kapanmadı (durum flat değil), reddedildi"
         return None
 
     def _cmd_devam_start(self) -> str:
@@ -1165,35 +1182,35 @@ class TelegramDaemon:
         if layer == "kill":
             extra = ""
             if self.pauses and self._pause_state():
-                extra = " Girisleri durduran duraklatma ayrica suruyor; o icin KILL kalkinca /devam'i yeniden gonder."
-            self._reply(f"KILL kaldirilacak ve girisler yeniden acilabilir. {CODE_TTL_S} sn icinde yalniz su 4 haneli "
-                        f"kodu yanitla: {code}.{extra}")
+                extra = " Yeni işlemleri durduran duraklatma ayrıca sürüyor; onun için acil durdurma kalkınca /devam'ı yeniden gönder."
+            self._reply(f"Acil durdurma kaldırılacak ve yeni işlemler yeniden açılabilir. {CODE_TTL_S} sn içinde yalnız şu 4 haneli "
+                        f"kodu yanıtla: {code}.{extra}")
         else:
             held = {h.reason for hs in self._pause_state().values() for h in hs}
             what = " + ".join(t for r, t in ((PAUSE_USER, "Elle durdurma"), (PAUSE_LATCH, "Ana para kilidi")) if r in held)
-            self._reply(f"Girisleri durduran duraklatma kaldirilacak ({what}). {CODE_TTL_S} sn icinde yalniz su 4 haneli "
-                        f"kodu yanitla: {code}")
+            self._reply(f"Yeni işlemleri durduran duraklatma kaldırılacak ({what}). {CODE_TTL_S} sn içinde yalnız şu 4 haneli "
+                        f"kodu yanıtla: {code}")
         return "code_sent"
 
     def _on_code(self, code: str, who: str) -> str:
         p = self._read_pending()
         if not p or p.get("chat_id") != self.cfg.chat_id:
-            self._reply("bekleyen onay yok")
+            self._reply("Bekleyen onay yok.")
             return "no_pending"
         self._clear_pending()                                 # tek kullanimlik / tek deneme
         if self.now().timestamp() > float(p.get("expires_at", 0)):
-            self._reply("sure doldu, yeniden baslat")
+            self._reply("Süre doldu; yeniden başlat.")
             return "expired"
         want = hashlib.sha256((p["salt"] + code).encode()).hexdigest()
         if not hmac.compare_digest(want, p["token_hash"]):
-            self._reply("yanlis kod, iptal edildi")
+            self._reply("Yanlış kod; iptal edildi.")
             return "wrong_code"
         if p["action"] == "ladder_resume":
             return self._ladder_resume_apply(who)
         if p["action"] == "kill":
             self.killswitch.set(by=f"telegram:{who}", reason="user_cmd")
             self.kill_watch = self.now().timestamp()
-            self._reply("KILL kuruldu; motor pozisyonlari kapatiyor")
+            self._reply("Acil durdurma kuruldu; bot işlemleri kapatıyor.")
             return "kill_set"
         if p["action"] == "pause" and self.pauses:
             problems = []
@@ -1209,7 +1226,7 @@ class TelegramDaemon:
                 except Exception as e:  # noqa: BLE001 - onayli kodun ardindan sessiz kalinmaz
                     log.error("pause add basarisiz: %s %s", bot, type(e).__name__)
                     problems.append(f"{bot}: duraklatma YAZILAMADI ({type(e).__name__}); sunucuda kontrol edin")
-            msg = ("Yeni giriş durduruldu. Açık pozisyonlar zarar durdurlarıyla açık kalır. "
+            msg = ("Yeni işlem açma durduruldu. Açık işlemler stoplarıyla açık kalır. "
                    "Hepsini kapatmak için /hepsini_kapat.")
             if problems:
                 msg = "Duraklatma kısmen uygulandı/uygulanamadı:\n" + "\n".join(problems) + "\n" + msg
@@ -1219,7 +1236,7 @@ class TelegramDaemon:
             layer = p.get("layer", "kill")
             if layer == "pause" and self.pauses:
                 if self.killswitch is not None and self.killswitch.active():
-                    self._reply("KILL etkin; önce KILL akışı: /devam ile KILL kaldırılır, duraklatma ondan sonra")
+                    self._reply("Acil durdurma etkin; önce onu kaldır: /devam ile acil durdurma kalkar, duraklatma ondan sonra")
                     return "refused"
                 why = self._pause_devam_refusal()
                 if why:
@@ -1233,7 +1250,7 @@ class TelegramDaemon:
                     except Exception as e:  # noqa: BLE001
                         log.error("pause remove basarisiz: %s %s", bot, type(e).__name__)
                         failed.append(f"{bot}: kaldırılamadı ({type(e).__name__})")
-                head = "Duraklatma (user_cmd / ana para kilidi) kaldirildi." if not failed else \
+                head = "Duraklatma (senin komutun / ana para kilidi) kaldırıldı." if not failed else \
                     "Duraklatma kısmen kaldırıldı:\n" + "\n".join(failed)
                 self._reply(head + "\n" + self._remaining_lines(), "CRIT" if failed else "WARN")
                 return "pause_partial" if failed else "pause_cleared"
@@ -1243,7 +1260,7 @@ class TelegramDaemon:
                 return "refused"
             self.killswitch.clear()
             rem = ("\n" + self._remaining_lines()) if self.pauses else ""
-            self._reply("KILL kaldirildi" + rem)
+            self._reply("Acil durdurma kaldırıldı" + rem)
             return "kill_cleared"
         return "bad_action"
 
@@ -1252,7 +1269,7 @@ class TelegramDaemon:
             self.kill_watch = None
             st = self._read_status()
             if st is None or st.get("kill_state") != "flat":
-                self._reply("CRIT kapatma tamamlanmadi (kill_state flat degil)", "CRIT")
+                self._reply("Kapatma tamamlanmadı (işlemler hâlâ açık olabilir); panoya bak.", "CRIT")
 
     def _handle_callback(self, uid: int, cq: dict) -> None:
         """Eski ders onay dugmeleri (ok/no/ev/vz) artik islem yapmaz: yetkili kullaniciya 'kaldirildi' denir, denetim kaydi yazilir."""
@@ -1336,11 +1353,9 @@ def report_decision(now_utc: datetime, last_day: str | None) -> tuple[str, str]:
 
 
 # ---------------------------------------------------------------------------------------------- sade Türkçe biçimler
-AYRAC = "━━━━━━━━━━━━━━"
 KIP_TR = {"paper": "deneme parası", "testnet": "test ağı", "live": "GERÇEK PARA"}
 AY_TR = ("Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık")
 BOT_TR = {"learner": "ana bot"}
-BUTCE_GOSTER_ORANI = 0.5                     # yapay zekâ bütçesi satırı: sınırın en az yarısı harcanınca görünür
 
 # Neden kodu -> düz Türkçe (duraklatma nedenleri + giriş kapısı kodları). Bilinmeyen kod ASLA ham yazılmaz.
 NEDEN_TR = {
@@ -1362,20 +1377,6 @@ NEDEN_TR = {
     "unreadable": "duraklatma durumu okunamadı", "capital_mismatch": "sermaye kaydı borsadaki bakiyeyle uyuşmuyor",
     "capital_unverified": "sermaye kaydı doğrulanamadı", "equity_unreadable": "özsermaye okunamadı",
 }
-# Atlanan fırsat nedenleri (karar sayaçları `skip:<kod>`).
-ATLAMA_TR = {
-    "veto_missing": "veto hazır değildi", "veto_stale": "veto eskimişti", "veto_blocked": "veto izin vermedi",
-    "stop_width": "stop çok genişti", "rr_below_min": "kazanç/risk oranı yetersizdi",
-    "korelasyon_grubu": "aynı yöndeki korelasyon grubu doluydu", "toplam_buyukluk": "toplam büyüklük tavanı aşılacaktı",
-    "fren_okunamadi": "kayıp freni okunamadı", "buyukluk_okunamadi": "toplam büyüklük okunamadı",
-    "risk_denied": "risk kuralı izin vermedi", "entry_gate_closed": "yeni işlemler kapalıydı",
-    "order_failed": "emir gönderilemedi", "ml_filter": "yapay zekâ filtresi eledi",
-    "etiket_rejim": "rejim etiketi ters yöndeydi", "etiket_duygu": "piyasa duygusu uçtaydı ve ters yöndeydi",
-    "etiket_kalabalik": "kalabalık aynı yöne yığılmıştı", "rules_missing": "borsa kuralı eksikti",
-    "day_start_missing": "gün başı bakiyesi yoktu", "stale_data": "piyasa verisi eskiydi", "kill": "acil durdurma açıktı",
-    "paused": "duraklatma vardı", "degraded": "kayıt sistemi hazır değildi", "params_unavailable": "ayarlar yüklenememişti",
-    "trigger_tf_changed": "zaman dilimi ayarı değişmişti",
-}
 def tr_sayi(x: float, ondalik: int = 2) -> str:
     """1234.5 -> '1.234,50' (Türkçe gösterim)."""
     return f"{x:,.{ondalik}f}".replace(",", "X").replace(".", ",").replace("X", ".")
@@ -1389,10 +1390,6 @@ def tr_isaretli(x: float, ondalik: int = 2) -> str:
 def tr_yuzde(oran: float, ondalik: int = 2) -> str:
     """0.0125 -> '+%1,25'."""
     return ("+" if oran >= 0 else "−") + "%" + tr_sayi(abs(oran) * 100, ondalik)
-
-
-def _usd(x: float) -> str:
-    return tr_sayi(x, 0 if abs(x - round(x)) < 1e-9 else 2)
 
 
 def _fiyat(x: Any) -> str:
@@ -1431,42 +1428,6 @@ def _zaman_tr(at: Any) -> str:
         return ""
 
 
-def _risk_satirlari(st: Mapping[str, Any], pause_text: str = "", gunluk_zarar_doldu: bool = False) -> list[str]:
-    """Risk durumu: yeni işlem kapalıysa nedeni Türkçe söyler; yoksa 'her şey normal'."""
-    if st.get("kill"):
-        ks = "pozisyonlar kapatılıyor" if st.get("kill_state") == "exiting" else "yeni işlem açılmaz"
-        return [f"🛑 Acil durdurma (KILL) açık: {ks}"]
-    out: list[str] = []
-    if pause_text:
-        out.append(pause_text)
-    if gunluk_zarar_doldu:
-        out.append("🛑 Günlük zarar sınırına ulaşıldı: yeni işlemler bugün kapalı")
-    if out:
-        return out
-    if st.get("entries_open") is False:
-        kod = st.get("entries_blocked_reason") or (st.get("gate") or {}).get("code")
-        if kod in (None, "ok"):
-            return ["🛑 Yeni işlemler kapalı"]
-        return [f"🛑 Yeni işlemler kapalı: {neden_tr(kod)}"]
-    if st.get("entries_open") is True:
-        return ["🛡️ Her şey normal, yeni işlemler açık"]
-    return []
-
-
-def _aktivite_satirlari(st: Mapping[str, Any]) -> list[str]:
-    c = st.get("counters") or {}
-    if not isinstance(c, Mapping) or "steps" not in c:
-        return []
-    ac = c.get("trades_opened", c.get("entries", c.get("enter", 0)))
-    out = [f"🔎 Bot açıldığından beri {int(c.get('steps') or 0)} kez piyasaya bakıldı, {int(c.get('decisions') or 0)} fırsat değerlendirildi, "
-           f"{int(ac or 0)} işlem açıldı"]
-    atlanan = sorted(((k[5:], v) for k, v in c.items() if k.startswith("skip:") and v and k[5:] in ATLAMA_TR),
-                     key=lambda kv: -kv[1])[:3]
-    if atlanan:
-        out.append("↳ Atlananlar: " + ", ".join(f"{int(v)} {ATLAMA_TR[k]}" for k, v in atlanan))
-    return out
-
-
 def _pozisyon_satirlari(st: Mapping[str, Any]) -> list[str]:
     pos = st.get("open_positions") or []
     if not pos:
@@ -1481,14 +1442,37 @@ def _pozisyon_satirlari(st: Mapping[str, Any]) -> list[str]:
     return out
 
 
-def _kasa_satiri(eq: Any, dse: Any) -> str | None:
+def _baslangic_kasasi(cfg: TelegramConfig) -> float | None:
+    """Toplam K/Z icin baslangic sermayesi: motor ayarindaki wallet_start (pano ile ayni kaynak); okunamazsa None."""
+    try:
+        v = TS.motor_ayari(cfg.config_dir or None).get("wallet_start")
+    except (OSError, ValueError, TypeError):
+        return None
+    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) else None
+
+
+def _kasa_toplam_satiri(cfg: TelegramConfig, st: Mapping[str, Any]) -> str | None:
+    """'Kasa 915,50 $ · toplam −84,50 $' (toplam = kasa - baslangic; baslangic okunamazsa bu parca yazilmaz)."""
+    eq = st.get("equity")
     if not _num_ok(eq):
         return None
-    return f"💰 Kasa: {tr_sayi(eq)} $" + (f" (gün başı {tr_sayi(dse)} $)" if _num_ok(dse) else "")
+    start = _baslangic_kasasi(cfg)
+    return f"Kasa {TS.sayi(eq)} $" + (f" · toplam {TS.isaretli(eq - start)} $" if start is not None else "")
 
 
-_BOLUM_SIRASI = ("Davranış", "Risk kademesi", "Bütçe", "Öğrenme", "Kurulum karnesi",
-                 "Alınmayan sinyaller (son 7 gün)")
+def _acik_satiri(st: Mapping[str, Any]) -> str:
+    n = len(st.get("open_positions") or [])
+    if not n:
+        return "Açık işlem yok."
+    u = st.get("unrealized_pnl_usd")
+    return f"Açık: {n} işlem" + (f" · anlık {TS.isaretli(u)} $" if _num_ok(u) else "")
+
+
+def _zarar_doldu(cfg: TelegramConfig, st: Mapping[str, Any]) -> bool:
+    eq, dse = st.get("equity"), st.get("day_start_equity")
+    if not (_num_ok(eq) and _num_ok(dse) and dse > 0):
+        return False
+    return max(0.0, dse - eq) >= TS.limit_orani(cfg.config_dir, st.get("mode")) * dse
 
 
 def _durum_satiri(st: Mapping[str, Any] | None, pause_text: str, doldu: bool) -> str:
@@ -1509,9 +1493,72 @@ def _durum_satiri(st: Mapping[str, Any] | None, pause_text: str, doldu: bool) ->
 
 
 
+def _ml1_veri(cfg: TelegramConfig, now: datetime) -> tuple[dict | None, Any]:
+    """ML1 ozeti (pano ile ayni `ml1_gorunum.ml1_ozet`) ve motor ayarindaki `ml1.aktif`. Defter okunamazsa (None, aktif)."""
+    from . import ledger as L  # noqa: PLC0415
+    try:
+        aktif = (TS.motor_ayari(cfg.config_dir or None).get("ml1") or {}).get("aktif")
+    except (OSError, ValueError, TypeError, AttributeError):
+        aktif = None
+    if not cfg.ledger_path or not Path(cfg.ledger_path).exists():
+        return None, aktif
+    try:
+        led = L.open_ledger(cfg.ledger_path, "learner", create=False, read_only=True, migrate=False)
+        try:
+            dec = led.list_decisions()
+            closed = led.list_closed_trades(None, None, L.Ledger.LIST_CLOSED_MAX)
+            acik = led.list_open_trades()
+        finally:
+            led.close()
+    except Exception as e:  # noqa: BLE001
+        log.warning("ML1 verisi okunamadı: %s", type(e).__name__)
+        return None, aktif
+    return MG.ml1_ozet(dec, closed, acik, now), aktif
+
+
+def _ml1_satirlari(oz: dict | None, aktif: Any, *, hafta: bool = False) -> list[str]:
+    """Gunluk ozet (hafta=False) ve haftalik ozet (hafta=True) ML1 satirlari; sayilar pano ile ayni."""
+    if aktif is not True:
+        return ["ML1 kapalı."]
+    if oz is None:
+        return []
+    e = oz["eleme"]["7g" if hafta else "bugun"]
+    z7 = oz["zd_ozet_7g"]
+    if not e["puanlanan"]:
+        ilk = "ML1: puanlanacak aday çıkmadı." if hafta else "ML1 bugün: puanlanacak aday çıkmadı."
+    elif hafta:
+        ilk = (f"ML1: {TS.sayi(e['puanlanan'], 0)} aday puanladı, {TS.sayi(e['islem'], 0)}{TS.iyelik_belirtme(e['islem'])} "
+               f"işleme çevirdi (%{TS.sayi(e['islem'] / e['puanlanan'] * 100, 0)})")
+    else:
+        ilk = f"ML1 bugün: {TS.sayi(e['puanlanan'], 0)} aday puanladı, {e['islem']}{TS.iyelik_belirtme(e['islem'])} işleme çevirdi"
+    if hafta:
+        k, d = MG.ozet_satirlari({"zd_ozet": z7})
+        return [ilk, k, d]
+    if z7["kanitli"]["n"] + z7["kanitsiz"]["n"] == 0:
+        return [ilk]
+    return [ilk, "ML1 işlemleri (7 gün): "
+            f"4s+1g {z7['kanitli']['n']} işlem {MG.r_metni(z7['kanitli']['net_r'])} · "
+            f"15dk+1s {z7['kanitsiz']['n']} işlem {MG.r_metni(z7['kanitsiz']['net_r'])}"]
+
+
+def ml1_metni(cfg: TelegramConfig, now: datetime) -> str:
+    """/ml1 (ve /kurulumlar): en cok 6 satir; sayilar panodaki ML1 sekmesiyle ayni."""
+    oz, aktif = _ml1_veri(cfg, now)
+    if oz is None:
+        raise SectionError("defter_yok")
+    e = oz["eleme"]
+    esik = TS.sayi(oz["esik"], 2) if oz["esik"] is not None else "okunamadı"
+    k, d = MG.ozet_satirlari(oz)
+    return TS.etiketle("\n".join([
+        f"ML1{'' if aktif is True else ' (kapalı)'} · eşik {esik}",
+        f"Bugün: {TS.sayi(e['bugun']['puanlanan'], 0)} aday, {TS.sayi(e['bugun']['gecen'], 0)} geçti, {e['bugun']['islem']} işlem",
+        f"7 gün: {TS.sayi(e['7g']['puanlanan'], 0)} aday, {TS.sayi(e['7g']['gecen'], 0)} geçti, {e['7g']['islem']} işlem",
+        k, d, MG.sinav_satiri()][:TS.MAX_SATIR]))
+
+
 def build_report(cfg: TelegramConfig, now: datetime, day: str, sections: Mapping[str, Callable[[], str]] | None = None
                  ) -> str:
-    """Günlük özet (en çok 12 satır, sade Türkçe). `sections` yalnız 'Duraklatma' için okunur; diğer bölümler panelde."""
+    """Günlük özet (en çok 10 satır, sade Türkçe). `sections` yalnız 'Duraklatma' için okunur; diğer bölümler panelde."""
     problems = 0
     st: dict | None = None
     try:
@@ -1523,9 +1570,11 @@ def build_report(cfg: TelegramConfig, now: datetime, day: str, sections: Mapping
     stale = st is not None and age > STALE_S
     mod = KIP_TR.get(str((st or {}).get("mode")), "")
     out: list[str] = []
-    if stale:
-        out.append(f"🔴 Bot yanıt vermiyor (son sinyal {int(age // 60)} dk önce)")
-    out.append(f"🌙 Günlük özet · {_gun_tr(day)}" + (" · gerçek para" if mod == KIP_TR["live"] else ""))
+    baslik = f"Günlük özet · {_gun_tr(day)}" + (" · gerçek para" if mod == KIP_TR["live"] else "")
+    if stale:                                                    # tek emoji ilk satirda: ozet basligi emojisiz
+        out += [f"🔴 Bot yanıt vermiyor (son sinyal {int(age // 60)} dk önce)", baslik]
+    else:
+        out.append(f"🌙 {baslik}")
     pause_text = ""
     try:
         pause_text = str((sections or {}).get("Duraklatma", lambda: "")() or "").strip()
@@ -1545,16 +1594,16 @@ def build_report(cfg: TelegramConfig, now: datetime, day: str, sections: Mapping
         out.append("Bugün kapanan işlem yok.")
     eq, dse = (st or {}).get("equity"), (st or {}).get("day_start_equity")
     doldu = False
-    if _num_ok(eq):
-        out.append(f"Kasa: {TS.sayi(eq)} $" + (f" (gün başı {TS.sayi(dse)} $)" if _num_ok(dse) else ""))
-        if _num_ok(dse) and dse > 0:
-            kayip, lim = max(0.0, dse - eq), TS.limit_orani(cfg.config_dir, (st or {}).get("mode")) * dse
-            doldu = kayip >= lim
-            out.append(f"Günlük zarar sınırı: {TS.sayi(kayip)} $ / {TS.sayi(lim)} $ kullanıldı")
-    pos = (st or {}).get("open_positions") or []
     if st is not None:
-        out.append("Açık pozisyon yok." if not pos else f"Açık pozisyon: {len(pos)} (" + ", ".join(
-            f"{TS.coin(p.get('pair'))} {TS.yon(p.get('side'))}" for p in pos[:4]) + (", …" if len(pos) > 4 else "") + ")")
+        if (k := _kasa_toplam_satiri(cfg, st)):
+            out.append(k)
+        out.append(_acik_satiri(st))
+        doldu = _zarar_doldu(cfg, st)
+    oz, aktif = _ml1_veri(cfg, now)
+    out += _ml1_satirlari(oz, aktif)
+    if st is not None and _num_ok(dse) and dse > 0 and _num_ok(eq):
+        kayip, lim = max(0.0, dse - eq), TS.limit_orani(cfg.config_dir, st.get("mode")) * dse
+        out.append(f"Günlük zarar sınırı: {TS.sayi(kayip, 0)} $ / {TS.sayi(lim, 0)} $")
     d = _durum_satiri(st, pause_text, doldu)
     if d and not stale:
         out.append(d)
@@ -1562,11 +1611,11 @@ def build_report(cfg: TelegramConfig, now: datetime, day: str, sections: Mapping
         try:
             ov = json.loads(Path(cfg.health_state).read_text(encoding="utf-8")).get("last_overall")
             if isinstance(ov, str) and ov != "OK":
-                out.append("⚠️ Bir sistem kontrolü sorunlu; panoya bak.")
+                out.append("Dikkat: bir sistem kontrolü sorunlu; panoya bak.")
         except Exception as e:  # noqa: BLE001
             log.warning("rapor: sağlık durumu okunamadı: %s", type(e).__name__)
     if problems:
-        out.append("⚠️ Bazı bilgiler okunamadı")
+        out.append("Bazı bilgiler okunamadı.")
     return TS.etiketle("\n".join(out[:TS.MAX_SATIR_OZET]))
 
 
@@ -1670,265 +1719,20 @@ def section_budget(cfg: TelegramConfig) -> str:
     return out
 
 
-def section_counterfactual(cfg: TelegramConfig, now: datetime) -> str:
-    """Alınmayan sinyaller (plan 25a): öğrenen için son 7 günde hesaplanmış varsayımsal sonuçlar (salt okunur)."""
-    if not cfg.ledger_path:
-        raise SectionError("defter_yok")
-    path = Path(cfg.ledger_path).parent / "counterfactual.sqlite"
-    if not path.exists():
-        return "henüz hesaplanmadı"
-    from . import counterfactual as CF  # noqa: PLC0415
-    try:
-        sm = CF.summary(path, "learner", now=now, days=7)
-    except CF.CounterfactualError as e:
-        raise SectionError(e.code) from None
-    if not sm["n"]:
-        return "0"
-    top = sorted(sm["by_reason"].items(), key=lambda kv: (-kv[1]["n"], kv[0]))[:3]
-    parts = "; ".join(f"{k}: {b['n']}, {b['mean_r_net']:+.2f}R" for k, b in top)
-    return (f"{sm['n']} (varsayımsal net R, üst sınır; sonraki kapıları ve dolumları yok sayar, işlem yapılabilir kâr "
-            f"değildir) — {parts}")
-
-
-def rapor_defter(cfg: TelegramConfig, day: str) -> str:
-    """Rapor satırları: bugünün sonucu, kasa, kapanan işlemler."""
-    closed, _opened = _ledger_day(cfg.ledger_path, "learner", day)
-    pnl, r = _sum(closed)
-    win = sum(1 for t in closed if (t.realized_pnl or 0) > 0)
-    loss = len(closed) - win
-    eq = dse = None
-    try:
-        s = json.loads(Path(cfg.status_path).read_text(encoding="utf-8"))
-        eq, dse = s.get("equity"), s.get("day_start_equity")
-    except Exception:  # noqa: BLE001
-        pass
-    oran = f" ({tr_yuzde(pnl / dse)})" if _num_ok(dse) and dse > 0 else ""
-    lines = [f"{'📈' if pnl >= 0 else '📉'} Bugün: {tr_isaretli(pnl)} ${oran}"]
-    if (k := _kasa_satiri(eq, dse)):
-        lines.append(k)
-    lines.append(f"🧾 Bugün kapanan işlem: {len(closed)} · kazanan {win} / kaybeden {loss}"
-                 + (f" · {tr_isaretli(r)} R" if closed else ""))
-    return "\n".join(lines)
-
-
-def rapor_butce(cfg: TelegramConfig) -> str:
-    """Yapay zekâ bütçesi: yalnız bir sınırın en az yarısı harcanmışsa ya da aşılmışsa görünür."""
-    try:
-        s = section_budget_status(cfg)
-    except SectionError as e:
-        if e.code == "depo_yok":                             # henüz hiç harcama yok
-            return ""
-        raise
-    lines = []
-    ay, ay_sinir = s.month_used_usd, s.monthly_cap_usd
-    if ay_sinir > 0 and ay >= BUTCE_GOSTER_ORANI * ay_sinir:
-        lines.append(f"🤖 Yapay zekâ bütçesi: ayda {tr_sayi(ay)} $ / {_usd(ay_sinir)} $"
-                     + (" — doldu, yeni istek yapılmaz" if ay >= ay_sinir else ""))
-    for k, v in s.services.items():
-        if v.cap_usd > 0 and v.used_usd >= BUTCE_GOSTER_ORANI * v.cap_usd:
-            ad = {"haftalik_ozet": "haftalık özet", "lesson": "ders", "haber_kolu": "haber kolu",
-                  "yorumcu": "yorumcu"}.get(k, "yapay zekâ")
-            lines.append(f"🤖 Yapay zekâ bütçesi: bugün {ad} {tr_sayi(v.used_usd)} $ / {_usd(v.cap_usd)} $"
-                         + (" — doldu" if v.used_usd >= v.cap_usd else ""))
-    return "\n".join(lines)
-
-
-def rapor_kacirilan(cfg: TelegramConfig, now: datetime) -> str:
-    """Alınmayan sinyaller (son 7 gün): tek satır; hesap yoksa ya da boşsa görünmez."""
-    if not cfg.ledger_path:
-        return ""
-    path = Path(cfg.ledger_path).parent / "counterfactual.sqlite"
-    if not path.exists():
-        return ""
-    from . import counterfactual as CF  # noqa: PLC0415
-    try:
-        sm = CF.summary(path, "learner", now=now, days=7)
-    except CF.CounterfactualError as e:
-        raise SectionError(e.code) from None
-    if not sm["n"] or sm["mean_r_net"] is None:
-        return ""
-    return (f"🔭 Son 7 günde alınmayan {sm['n']} sinyal varsayımla hesaplandı: ortalama {tr_isaretli(sm['mean_r_net'])} R "
-            f"(gerçek kâr değil)")
-
-
 def rapor_duraklatma(pauses: Mapping[str, Any]) -> str:
     """Yalnız duraklatılmış botlar için satır; hiç duraklatma yoksa boş."""
     return "\n".join(pause_lines(pauses, sadece_tutulan=True))
 
 
-DAVRANIS_YOK = "📐 Davranış değerlendirmesi henüz yok"
-DAVRANIS_MAX_YAS_S = 36 * 3600
-
-
-def _davranis_satirlari(path: Path, now: datetime) -> list[str]:
-    """`<var>/<bot>/drift.json` (şema drift/1) -> report_lines. Eksik/bayat (36 sa)/bozuk dosya -> tek 'henüz yok' satırı.
-    Yalnız standart kütüphane; hiçbir hata dışarı sızmaz (günlük raporu bozmaz)."""
-    try:
-        raw = path.read_bytes()[:1_000_000]
-        d = json.loads(raw.decode("utf-8"))
-        if not isinstance(d, Mapping) or d.get("schema") != "drift/1":
-            return [DAVRANIS_YOK]
-        gen = parse_ts_z(d["generated_at"])
-        if (now - gen).total_seconds() > DAVRANIS_MAX_YAS_S:
-            return [DAVRANIS_YOK]
-        lines = d.get("report_lines")
-        if not isinstance(lines, list):
-            return [DAVRANIS_YOK]
-        out = [str(x) for x in lines if isinstance(x, str) and x.strip()]
-        return out or [DAVRANIS_YOK]
-    except Exception:  # noqa: BLE001
-        return [DAVRANIS_YOK]
-
-
-def rapor_davranis(cfg: TelegramConfig, now: datetime, ladders: Mapping[str, LadderFiles] | None = None) -> str:
-    """Sapma izleyicisi satırları (docs/kagit-degerlendirme-plani.md 4.6): öğrenen. Asla istisna fırlatmaz."""
-    try:
-        base = Path(cfg.status_path).parent if cfg.status_path else (
-            Path(cfg.ledger_path).parent if cfg.ledger_path else None)
-        if base is None:
-            return DAVRANIS_YOK
-        out = _davranis_satirlari(base / "drift.json", now)
-        return "\n".join(out)
-    except Exception:  # noqa: BLE001
-        return DAVRANIS_YOK
-
-
-# ---- DD-12 WP-17: öğrenme (kurulum karnesi, ML, seans/varlık kırılımı, harcama) ----
-_OGR_SINIF = {"kripto": "kripto", "hisse": "hisse senedi", "emtia": "metal / enerji"}
-
-
-def _ogr_view(cfg: TelegramConfig, now: datetime) -> dict:
-    """Öğrenme görünümü; defter okunamazsa `ledger_error` ile döner (bölüm kendi satırını yazar)."""
-    from . import panel_data as PD  # noqa: PLC0415
-    try:
-        return PD.learning_view(cfg.ledger_path, cfg.budget_config, now)
-    except PD.SectionError as e:
-        raise SectionError(e.code) from None
-
-
-def _ogr_defter(cfg: TelegramConfig, now: datetime) -> dict:
-    """Komutlar için: defter hatası varsa SectionError (komut 'okunamadı' yazar)."""
-    lv = _ogr_view(cfg, now)
-    if lv.get("ledger_error"):
-        raise SectionError(lv["ledger_error"])
-    return lv
-
-
-def _r_or_dash(x: Any) -> str:
-    return tr_isaretli(x) + " R" if _num_ok(x) else "—"
-
-
-def _karne_satirlari(lv: Mapping[str, Any]) -> list[str]:
-    out = []
-    for row in lv.get("scorecard") or []:
-        if not row.get("candidates"):
-            continue
-        durum = "KAPALI" if row.get("state") == "closed" else "açık"
-        satir = (f"{row['arm']}: aday {row['candidates']} · alınan {row['taken']} · ort. R (alınan) "
-                 f"{_r_or_dash(row.get('mean_r_taken'))} · alınsaydı {_r_or_dash(row.get('mean_r_taken_cf'))} · {durum}")
-        taken_kasa = (row.get("kasa") or {}).get("taken")          # sanal kasa (yalniz alinan seri); yoksa satir eskisi gibi
-        if taken_kasa:
-            dd = taken_kasa["max_dd_pct"]
-            satir += f" · kasa {taken_kasa['equity']:.2f} $ (en derin {('-' + format(dd, '.2f')) if dd > 0 else '0.00'}%)"
-        out.append(satir)
-    return out
-
-
-def _harcama_satiri(lv: Mapping[str, Any]) -> str:
-    bt = lv.get("budget") or {}
-    if "month_used_usd" in bt:
-        return f"🤖 Yapay zekâ harcaması (ay): {tr_sayi(bt['month_used_usd'])} $ / {_usd(bt['monthly_cap_usd'])} $"
-    return "🤖 Yapay zekâ harcaması: okunamadı"
-
-
-def kurulumlar_metni(cfg: TelegramConfig, now: datetime) -> str:
-    """/kurulumlar: kurulum karnesi (tam); aday yoksa tek satır."""
-    lv = _ogr_defter(cfg, now)
-    satirlar = _karne_satirlari(lv)
-    if not satirlar:
-        return "🧪 Kurulum karnesi\nHenüz aday yok."
-    return "🧪 Kurulum karnesi\n" + "\n".join(satirlar)
-
-
-def rapor_kurulum_karnesi(cfg: TelegramConfig, now: datetime) -> str:
-    lv = _ogr_view(cfg, now)
-    if lv.get("ledger_error"):
-        return ""
-    satirlar = _karne_satirlari(lv)
-    return ("🧪 Kurulum karnesi (haftalık ayrıntı için /kurulumlar)\n" + "\n".join(satirlar)) if satirlar else ""
-
-
-def _seans_satiri(lv: Mapping[str, Any]) -> str:
-    parcalar = []
-    for s, ad in (("open", "açık"), ("closed", "kapalı"), ("weekend", "hafta sonu")):
-        siniflar = lv.get("sessions", {}).get(s) or {}
-        ops = [f"{_OGR_SINIF.get(k, k)} {_r_or_dash(b.get('mean_r_taken'))} ({b.get('taken', 0)} işlem)"
-               for k, b in siniflar.items() if b.get("taken")]
-        if ops:
-            parcalar.append(f"{ad}: " + ", ".join(ops))
-    return "🕒 Seans (ort. R, alınan): " + ("; ".join(parcalar) if parcalar else "henüz işlem yok")
-
-
-def fmt_tsi_tr(iso: str | None) -> str:
-    try:
-        return parse_ts_z(str(iso)).astimezone(TR).strftime("%d.%m %H:%M")
-    except (TypeError, ValueError):
-        return "?"
-
-
-def rapor_ogrenme(cfg: TelegramConfig, now: datetime) -> str:
-    """Günlük rapor: seans kırılımı, açık pozisyonlar, harcama (her zaman), haftalık özet."""
-    lv = _ogr_view(cfg, now)
-    out: list[str] = []
-    if lv.get("ledger_error"):
-        pass                                  # defter yoksa Defter bölümü genel uyarıyı zaten yazar; yalnız harcama kalır
-    else:
-        op = lv["open"]
-        out.append(_seans_satiri(lv))
-        sinif = [f"{_OGR_SINIF.get(k, k)} {_r_or_dash(b.get('mean_r_taken'))}" for k, b in (lv.get("asset_class") or {}).items()
-                 if b.get("taken")]
-        if sinif:
-            out.append("🧭 Varlık sınıfı (ort. R, alınan): " + ", ".join(sinif))
-        if op.get("total"):
-            kume = ", ".join(f"{k} {v}" for k, v in op["by_cluster"].items()) or "—"
-            kurulum = ", ".join(f"{k} {v}" for k, v in op["by_arm"].items()) or "—"
-            out.append(f"📂 Açık pozisyon: {op['total']} · küme: {kume} · kurulum: {kurulum}")
-    out.append(_harcama_satiri(lv))
-    ws = lv.get("weekly_summary")
-    if ws:
-        out.append(_haftalik_ozet_metni(ws))
-    return "\n".join(out)
-
-
-def _haftalik_ozet_metni(ws: Mapping[str, Any]) -> str:
-    """Haftalik ozet dosyasinin Telegram metni: '## Sabit bölüm' satirlari (LLM'siz; hepsi) ya da eski bicimde ilk metin satiri."""
-    lines = str(ws.get("text") or "").splitlines()
-    sabit: list[str] = []
-    if "## Sabit bölüm" in lines:
-        for x in lines[lines.index("## Sabit bölüm") + 1:]:
-            if x.startswith("#"):
-                break
-            if x.strip():
-                sabit.append(x.strip()[:300])
-    if sabit:
-        return f"🗓 Haftalık özet ({ws['week']}):\n" + "\n".join(sabit)
-    satir = next((x.strip() for x in lines if x.strip() and not x.startswith("#")), "")
-    return f"🗓 Haftalık özet ({ws['week']}): {satir[:300]}"
-
-
 def default_sections(cfg: TelegramConfig, now: datetime, day: str, pauses: Mapping[str, Any] | None = None,
                      ladders: Mapping[str, LadderFiles] | None = None) -> dict[str, Callable[[], str]]:
+    """Gunluk ozetin okudugu bolumler: yalniz duraklatma (ve varsa risk kademesi); gerisi `build_report` icinde / panelde."""
     out: dict[str, Callable[[], str]] = {}
     if pauses:                                                   # 11 §9.5: bot basina duraklatma satiri
         out["Duraklatma"] = lambda: rapor_duraklatma(pauses)
     if ladders:                                                  # 12 §9: bot basina tek satir
         out["Risk kademesi"] = lambda: "\n".join(
             "📶 " + ladder_line(b, ladder_view(lf, now)) for b, lf in ladders.items())
-    out["Davranış"] = lambda: rapor_davranis(cfg, now, ladders)
-    out.update({"Defter": lambda: rapor_defter(cfg, day), "Bütçe": lambda: rapor_butce(cfg),
-                "Öğrenme": lambda: rapor_ogrenme(cfg, now),
-                "Kurulum karnesi": lambda: rapor_kurulum_karnesi(cfg, now),
-                "Alınmayan sinyaller (son 7 gün)": lambda: rapor_kacirilan(cfg, now)})
     return out
 
 
@@ -1959,10 +1763,10 @@ def run_report(cfg: TelegramConfig, notifier: TelegramNotifier, now: datetime, s
 
 
 # ---------------------------------------------------------------------------
-# Haftalik ozet (ayri, kisa mesaj; pazar gunu bir kez)
+# Haftalik ozet (ayri mesaj; pazar gunu bir kez)
 # ---------------------------------------------------------------------------
 def haftalik_metni(cfg: TelegramConfig, now: datetime) -> str:
-    """Son 7 gunun kapanan islemleri (defterden). 6 satiri asmaz."""
+    """Son 7 gunun ozeti (defter + ML1; sayilar panodaki ML1 sekmesiyle ayni). En cok 10 satir."""
     from . import ledger as L  # noqa: PLC0415
     led = L.open_ledger(cfg.ledger_path, "learner", create=False, read_only=True, migrate=False)
     try:
@@ -1978,15 +1782,25 @@ def haftalik_metni(cfg: TelegramConfig, now: datetime) -> str:
         pnl, _ = _sum(closed)
         win = sum(1 for t in closed if (t.realized_pnl or 0) > 0)
         lines.append(f"{len(closed)} işlem kapandı ({win} kâr, {len(closed) - win} zarar) · {TS.isaretli(pnl)} $")
+    try:
+        st = json.loads(Path(cfg.status_path).read_text(encoding="utf-8"))
+        if (k := _kasa_toplam_satiri(cfg, st)):
+            lines.append(k)
+    except Exception:  # noqa: BLE001
+        pass
+    oz, aktif = _ml1_veri(cfg, now)
+    lines += _ml1_satirlari(oz, aktif, hafta=True)
+    if closed:
         en = max(closed, key=lambda t: t.realized_pnl or 0.0)
         kt = min(closed, key=lambda t: t.realized_pnl or 0.0)
-        lines.append(f"En iyi: {TS.coin(en.pair)} {TS.isaretli(en.realized_pnl or 0.0)} $")
+        s = f"En iyi: {TS.coin(en.pair)} {TS.isaretli(en.realized_pnl or 0.0)} $"
         if (kt.realized_pnl or 0.0) < 0:
-            lines.append(f"En kötü: {TS.coin(kt.pair)} {TS.isaretli(kt.realized_pnl or 0.0)} $")
-    return TS.etiketle("\n".join(lines[:TS.MAX_SATIR]))
+            s += f" · En kötü: {TS.coin(kt.pair)} {TS.isaretli(kt.realized_pnl or 0.0)} $"
+        lines.append(s)
+    return TS.etiketle("\n".join(lines[:TS.MAX_SATIR_OZET]))
 
 
-HAFTALIK_TELEGRAM = False                       # haftalik ozet Telegram'a gitmez (panelde/raporda kalir)
+HAFTALIK_TELEGRAM = True                        # pazar gunu, gunluk ozetin ardindan ayri mesaj (ML1 satirlariyla)
 
 
 def haftalik_gonder(cfg: TelegramConfig, notifier: "TelegramNotifier", now: datetime) -> bool:
@@ -2013,11 +1827,11 @@ def _imlec_oku(p: Path) -> dict | None:
         return None
 
 
-SAATLIK_ISLEM_MESAJI = 6          # saatte en cok bu kadar tekil islem mesaji; fazlasi saat sonunda tek ozet
+SAATLIK_ISLEM_MESAJI = 4          # saatte en cok bu kadar tekil islem mesaji; fazlasi saat sonunda tek ozet
 
 
 def _kol_haritasi(path: str) -> dict:
-    """trade_id -> okunur kol adi ('M1 · 1s'); ledger salt okunur. arm_id yoksa setup@trigger_tf; okunamazsa bos."""
+    """trade_id -> okunur kol adi ('Trend geri çekilmesi · 4 saat'); ledger salt okunur. arm_id yoksa setup@trigger_tf; okunamazsa bos."""
     import sqlite3  # noqa: PLC0415
     out: dict = {}
     try:
@@ -2055,7 +1869,7 @@ def gonderildi_yaz(var_dir, now: datetime, tur: str, t, pnl: float | None = None
 
 
 def _saat_gonder(kayit, now: datetime, text: str, notifier: "TelegramNotifier", anahtar: str, delta: dict) -> int:
-    """Saatlik sinir: ilk 6 mesaj sessiz gider; sonrakiler `delta` ile ozete eklenir."""
+    """Saatlik sinir: ilk 4 mesaj sessiz gider; sonrakiler `delta` ile ozete eklenir."""
     st = kayit.durum("islem_saat")
     n = int(st.get("n", 0))
     if n < SAATLIK_ISLEM_MESAJI:
@@ -2087,7 +1901,7 @@ def _saat_kaydi(kayit, now: datetime, notifier: "TelegramNotifier") -> int:
 
 def islem_tick(cfg: TelegramConfig, notifier: "TelegramNotifier", now: datetime | None = None) -> int:
     """Yeni acilan/kapanan islemler (sessiz) ve gunluk zarar esikleri (sesli) icin mesaj yollar; yollanan sayiyi dondurur.
-    Ilk calismada mevcut islemler 'bildirilmis' sayilir. Saatte en cok 6 tekil islem mesaji; ayni dakikadaki acilislar tek
+    Ilk calismada mevcut islemler 'bildirilmis' sayilir. Saatte en cok 4 tekil islem mesaji; ayni dakikadaki acilislar tek
     mesaj; fazlasi saat sonunda tek ozet. Imlec: <var>/islem_imleci.json."""
     from . import ledger as L  # noqa: PLC0415
     now = now or datetime.now(UTC)
@@ -2101,10 +1915,17 @@ def islem_tick(cfg: TelegramConfig, notifier: "TelegramNotifier", now: datetime 
     try:
         acik = led.list_open_trades()
         kap = led.list_closed_trades(since=now - timedelta(days=2), until=now + timedelta(minutes=1), limit=500)
+        kararlar = {d.id: (d.trigger_tf, MG.skor(d)) for d in led.list_decisions(since_ts=now - timedelta(days=3))}
     finally:
         led.close()
     kollar = _kol_haritasi(cfg.ledger_path)
-    kol = lambda t: kollar.get(t.trade_id) or TS.kol_adi(t.setup)  # noqa: E731
+
+    def zd_puan(t) -> tuple[str, float | None]:
+        """Zaman dilimi ve ML1 puani: kararin kaydindan; karar 3 gunden eskiyse zaman dilimi kol haritasindan (puan yok)."""
+        tf, puan = kararlar.get(t.decision_id, (None, None))
+        return tf or str(kollar.get(t.trade_id) or "").partition(" · ")[2], puan
+
+    kol = lambda t: TS.kurulum_adi(t.setup)  # noqa: E731
     acilan, kapanan = set(im.get("acilan", [])), set(im.get("kapanan", []))
     kayit = notifier.kayit
     sent = _saat_kaydi(kayit, now, notifier)
@@ -2115,8 +1936,10 @@ def islem_tick(cfg: TelegramConfig, notifier: "TelegramNotifier", now: datetime 
         acilan.add(t.trade_id)
         if ilk:
             continue
+        zd, puan = zd_puan(t)
         yeni_acilan.setdefault(t.entry_ts.strftime("%Y-%m-%dT%H:%M"), []).append(
-            (t, (kol(t), t.pair, t.side, t.entry_price, (t.qty or 0.0) * (t.entry_price or 0.0), t.planned_stop)))
+            (t, (kol(t), t.pair, t.side, t.entry_price, (t.qty or 0.0) * (t.entry_price or 0.0), t.planned_stop, zd, puan,
+                 t.planned_risk)))
     for dk, grup in yeni_acilan.items():
         gitti = _saat_gonder(kayit, now, TS.islemler_acildi([g[1] for g in grup]), notifier,
                              f"islem-ac:{'-'.join(str(g[0].trade_id) for g in grup)}", {"acilan": len(grup)})
@@ -2131,9 +1954,11 @@ def islem_tick(cfg: TelegramConfig, notifier: "TelegramNotifier", now: datetime 
         if ilk:
             continue
         pnl = float(t.realized_pnl or 0.0)
+        zd, _puan = zd_puan(t)
         gitti = _saat_gonder(kayit, now, TS.islem_kapandi(kol(t), t.pair, t.side, pnl, (t.qty or 0.0) * (t.entry_price or 0.0),
-                                                          t.exit_reason), notifier, f"islem-kapat:{t.trade_id}",
-                             {"kapanan": 1, "net": pnl})
+                                                          t.exit_reason, r=t.r_multiple, zd=zd,
+                                                          sure=TS.sure_metni(t.entry_ts, t.exit_ts), setup=t.setup),
+                             notifier, f"islem-kapat:{t.trade_id}", {"kapanan": 1, "net": pnl})
         if gitti:
             gonderildi_yaz(cfg.var_dir, now, "kapandi", t, pnl)
         sent += gitti
@@ -2165,11 +1990,10 @@ def dayaniklilik_tick(cfg: TelegramConfig, notifier: "TelegramNotifier", now: da
 
     for c, sev in s_now.items():
         if c not in s_prev:
-            send(f"{c} borsada islem disi; yeni giris yok" + (", acik pozisyon var (zorla kapatma yok)" if sev == "CRIT" else ""),
-                 sev, f"sembol:{c}:{int(now.timestamp())}")
+            send(TS.sembol_disi(c, sev == "CRIT"), sev, f"sembol:{c}:{int(now.timestamp())}")
     for c in s_prev:
         if c not in s_now:
-            send(f"{c} yeniden islemde; yeni girisler acildi", "INFO", f"sembol-geri:{c}:{int(now.timestamp())}")
+            send(TS.sembol_geri(c), "INFO", f"sembol-geri:{c}:{int(now.timestamp())}")
     if s_now != s_prev:
         kayit.durum_yaz("dayaniklilik", {"sembol": s_now})
     return sent

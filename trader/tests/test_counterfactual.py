@@ -222,12 +222,11 @@ def test_telegram_report_line(tmp_path):
     st.close()
     cfg = T.TelegramConfig("1:tok", 5, str(tmp_path / "tg"), ledger_path=str(out / "ledger.sqlite"))
     now = NOW_OK + H
-    s = T.section_counterfactual(cfg, now)
-    assert s.startswith("1 (varsayımsal net R, üst sınır;") and "veto_blocked: 1, -1.10R" in s       # bulgu 9
-    assert "işlem yapılabilir kâr değildir" in s and "sonraki kapıları ve dolumları yok sayar" in s
-    assert "Alınmayan sinyaller (son 7 gün)" in T.default_sections(cfg, now, "2026-12-05")
-    cfg2 = T.TelegramConfig("1:tok", 5, str(tmp_path / "tg"), ledger_path=str(tmp_path / "bos" / "ledger.sqlite"))
-    assert "henüz" in T.section_counterfactual(cfg2, now)
+    # 26.11: "alinmayan sinyaller" Telegram'dan kalkti (gunluk ozette/komutlarda yok); varsayimsal sonuc hesabi ve ozeti (CF.summary) durur
+    assert not hasattr(T, "section_counterfactual") and not hasattr(T, "rapor_kacirilan")
+    assert "Alınmayan sinyaller (son 7 gün)" not in T.default_sections(cfg, now, "2026-12-05")
+    sm = CF.summary(out / "counterfactual.sqlite", "learner", now=now, days=7)
+    assert sm["n"] == 1 and sm["by_reason"]["veto_blocked"]["n"] == 1 and sm["by_reason"]["veto_blocked"]["mean_r_net"] == pytest.approx(-1.10, abs=0.005)      # bulgu 9
 
 
 # ---- CLI (gercek defter, salt okunur) -------------------------------------------------------------------------
@@ -305,8 +304,7 @@ def test_outcomes_only_known_by_as_of_and_plan_needs_version_2(tmp_path):    # b
     assert CF.outcomes(path, "learner", now=end + 2 * H, days=30, method="plan") == []
 
 
-def test_telegram_line_per_reason_top3(tmp_path):                              # bulgu 9
-    from trader_core import telegram as T
+def test_summary_neden_basina_sayilar(tmp_path):                              # bulgu 9 (Telegram satiri kalkti; ozet hesabi durur)
     mk = mk_market(tmp_path)
     out = tmp_path / "var"
     out.mkdir()
@@ -315,7 +313,5 @@ def test_telegram_line_per_reason_top3(tmp_path):                              #
           dec(4, reason="stop_width"), dec(5, reason="rr_below_min"), dec(6, reason="ml_filter")]
     CF.run_once(bot="learner", decisions=ds, market_path=mk, store=st, now=NOW_OK)
     st.close()
-    cfg = T.TelegramConfig("1:tok", 5, str(tmp_path / "tg"), ledger_path=str(out / "ledger.sqlite"))
-    s = T.section_counterfactual(cfg, NOW_OK + H)
-    assert s.startswith("6 (") and "veto_blocked: 2" in s and "stop_width: 2" in s and "ml_filter: 1" in s
-    assert "rr_below_min" not in s                                                  # en fazla 3 neden
+    sm = CF.summary(out / "counterfactual.sqlite", "learner", now=NOW_OK + H, days=7)
+    assert sm["n"] == 6 and {k: b["n"] for k, b in sm["by_reason"].items()} == {"veto_blocked": 2, "stop_width": 2, "rr_below_min": 1, "ml_filter": 1}

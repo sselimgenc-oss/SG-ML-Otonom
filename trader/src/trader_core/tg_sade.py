@@ -1,7 +1,8 @@
 """Telegram mesajlarini seyrek ve sade tutan katman (kullanici: teknik olmayan, Turkce).
 
 Saf bicimleyiciler + kucuk bir durum defteri. Kurallar:
-  * her mesaj "[ML] " ile baslar; en cok 6 satir (gunluk ozet 12); dosya/servis/modul/kod adi, alt cizgi, journalctl/sunucu yok;
+  * her mesaj "[ML] " ile baslar; en cok 6 satir (gunluk/haftalik ozet 10); mesaj basina en cok bir emoji (yalniz ilk satirda, izinli kume);
+    dosya/servis/modul/kod adi, alt cizgi, journalctl/sunucu yok;
   * uyari sirasi: ne oldu -> ne yapiliyor -> "Senden: ..." (yalniz teknik olmayan biri bir sey yapabiliyorsa);
   * ayni uyari 6 saatte bir (EK_HATIRLATMA_SAAT); duzelince tek "Duzeldi"; "Bot durdu" bu kuraldan muaf;
   * gunluk zarar uyarisi sinirin %80'inde gunde bir kez.
@@ -20,12 +21,15 @@ from typing import Any, Callable, Mapping
 ETIKET = "[ML] "
 EK_HATIRLATMA_SAAT = 6
 MAX_SATIR = 6
-MAX_SATIR_OZET = 12
+MAX_SATIR_OZET = 10
 UYARI_ORANI = 0.80          # limitin %80'i
 BOT_AD = {"learner": "öğrenen"}     # panelde gorunen ad (panel.js BOT_AD)
 TR = timezone(timedelta(hours=3))
 
 _YASAK = re.compile(r"journalctl|systemctl|sunucu|\.py\b|\.service\b|\.timer\b|\.json\b|\.sqlite\b|_", re.I)
+# izinli emoji kumesi: acilis yonu, kapanis sonucu, dikkat, acil, duzeldi, gunluk, haftalik
+EMOJI_IZINLI = ("🟩", "🟥", "🟢", "🔻", "⚪", "⚠", "🔴", "✅", "🌙", "🗓")
+_EMOJI_RE = re.compile("[\U0001F300-\U0001FAFF\u2600-\u27BF\u2B00-\u2BFF\u2139\u2934\u2935\u3030\u303D]")
 
 
 # ----------------------------------------------------------------------------- bicim
@@ -91,8 +95,11 @@ def kontrol(text: str, max_satir: int = MAX_SATIR) -> list[str]:
         out.append("onek")
     if len(text.splitlines()) > max_satir:
         out.append("satir")
-    if _YASAK.search(text):
+    if _YASAK.search(re.sub(r"(?<![\w.])/[a-z0-9_]+", "", text)):          # komut adlari (/hepsini_kapat) alt cizgi sayilmaz
         out.append("yasak")
+    emojiler = _EMOJI_RE.findall(text)
+    if len(emojiler) > 1 or any(e not in EMOJI_IZINLI for e in emojiler) or _EMOJI_RE.search("\n".join(text.splitlines()[1:])):
+        out.append("emoji")
     return out
 
 
@@ -107,7 +114,6 @@ _TF_TR = {"15m": "15 dakika", "1h": "1 saat", "4h": "4 saat", "1d": "1 gün", "5
 # kurulum kodu -> Turkce ad (kaynak: src/trader_engine/strategies/arms/*.py belge dizgileri)
 KURULUM_AD = {"T1": "Trend geri çekilmesi", "R1": "Yatay piyasa kenarı", "TF1": "Trend kırılımı", "B1": "Kırılım yeniden testi",
               "H2": "İki bacaklı geri çekilme", "S1": "Sıkışma kırılımı", "F1": "Sahte kırılım dönüşü",
-              "M1": "Yapay zekâ adayı",
               # 24.11 kullanici karari: formasyon kutuphanesi (MF1 mum formasyonlari)
               "MF1-YILDIZ": "Mum: sabah yıldızı", "MF1-UCASKER": "Mum: üç asker", "MF1-DELICI": "Mum: delici çizgi",
               "MF1-ICSAHTE": "Mum: iç çubuk sahte kopuş", "MF1-DISBAR": "Mum: dış bar", "MF1-YUTAN": "Mum: yutan",
@@ -158,7 +164,7 @@ def kurulum_adi(setup: Any) -> str:
 
 
 def kol_adi(setup: Any, tf: Any = None) -> str:
-    """Kol/kurulum kimligi -> okunur Turkce ad: 'M1@1h' -> 'Yapay zekâ adayı · 1 saat', 'R1@1d' -> 'Yatay piyasa kenarı · 1 gün'.
+    """Kol/kurulum kimligi -> okunur Turkce ad: 'T1@4h' -> 'Trend geri çekilmesi · 4 saat', 'R1@1d' -> 'Yatay piyasa kenarı · 1 gün'.
     `tf` ayrica verilirse (setup '@' icermiyorsa) o kullanilir. Telegram ve panel AYNI fonksiyonu kullanir."""
     s = str(setup or "?").strip()
     _, _, zf = s.partition("@")
@@ -173,42 +179,152 @@ def trade_kol(t: Any) -> str:
 
 
 # ----------------------------------------------------------------------------- islem mesajlari
-def islem_acildi(kol: str, pair: Any, side: Any, giris: Any, tutar: Any, stop: Any) -> str:
+def ilk_buyuk(t: str) -> str:
+    """Turkce baş harf büyütme ('iz süren stop' -> 'İz süren stop')."""
+    return {"i": "İ", "ı": "I"}.get(t[:1], t[:1].upper()) + t[1:]
+
+
+def sure_metni(a: datetime | None, b: datetime | None) -> str:
+    """'45 dk', '6s 20dk', '2g 3s' (pano ve Telegram ayni biçim)."""
+    if a is None or b is None:
+        return "—"
+    m = max(int((b - a).total_seconds() // 60), 0)
+    if m < 60:
+        return f"{m} dk"
+    if m < 1440:
+        return f"{m // 60}s {m % 60}dk" if m % 60 else f"{m // 60}s"
+    return f"{m // 1440}g {(m % 1440) // 60}s"
+
+
+def zd_adi(zd: Any) -> str:
+    """'4h' -> '4 saat' (zaman dilimi kodu ya da hazır ad)."""
+    z = str(zd or "")
+    return _TF_TR.get(z, z)
+
+
+def iyelik_belirtme(n: int) -> str:
+    """Sayi + 3. kisi iyelik + belirtme eki, sayinin okunusuna gore: 9 -> "'unu" (dokuzu), 61 -> "'ini" (altmis biri), 2 -> "'sini"."""
+    n = abs(int(n))
+    t = {0: "'ı", 1: "'ini", 2: "'sini", 3: "'ünü", 4: "'ünü", 5: "'ini", 6: "'sını", 7: "'sini", 8: "'ini", 9: "'unu"}
+    o = {1: "'unu", 2: "'sini", 3: "'unu", 4: "'ını", 5: "'sini", 6: "'ını", 7: "'ini", 8: "'ini", 9: "'ını"}      # on, yirmi, otuz, ...
+    if n == 0:
+        return t[0]
+    if n % 10:
+        return t[n % 10]
+    if n % 100:
+        return o[(n % 100) // 10]
+    if n % 1000:
+        return "'ünü"                       # yuz
+    if n % 1000000:
+        return "'ini"                       # bin
+    return "'unu"                           # milyon
+
+
+def puan_metni(puan: Any) -> str | None:
+    """ML1 puani 2 ondalik ('0,63'); sayi degilse None."""
+    try:
+        v = float(puan)
+    except (TypeError, ValueError):
+        return None
+    return sayi(v, 2) if math.isfinite(v) else None
+
+
+def islem_acildi(kol: str, pair: Any, side: Any, giris: Any, tutar: Any, stop: Any, *, zd: Any = None, puan: Any = None,
+                 risk: Any = None) -> str:
+    """3 satir: yon/coin/zaman dilimi · kurulum adi (+ ML1 puani) · giris/stop/tutar (+ risk). `kol` kurulum adi ya da 'kurulum · zaman
+    dilimi' olabilir (ikincisinde zaman dilimi oradan alinir)."""
+    ad, _, zf = str(kol).partition(" · ")
+    zd_t = zd_adi(zd) or zf
+    p = puan_metni(puan)
     t = f"{sayi(tutar, 0)} $" if tutar is not None else "?"
-    return _bagla([f"{'🟩' if yon(side) == 'long' else '🟥'} {kol} · {coin(pair)} · {yon(side)}",
-                   f"Giriş {fiyat(giris)} · Tutar {t} · Stop {fiyat(stop)}"])
+    r = f" · Risk {sayi(risk, 0)} $" if risk is not None and _sonlu(risk) else ""
+    return _bagla([f"{'🟩' if yon(side) == 'long' else '🟥'} {coin(pair)} {yon(side)} açıldı" + (f" · {zd_t}" if zd_t else ""),
+                   ad + (f" · ML1 puanı {p}" if p else ""),
+                   f"Giriş {fiyat(giris)} · Stop {fiyat(stop)} · Tutar {t}{r}"])
 
 
-KAPANIS_NEDEN = {"stop": "stop", "trail_stop": "stop", "liquidation": "stop", "target": "kâr al", "time_stop": "süre",
-                 "manual": "elle", "force_exit": "elle", "regime_flip": "piyasa değişti"}
+def _sonlu(x: Any) -> bool:
+    try:
+        return math.isfinite(float(x))
+    except (TypeError, ValueError):
+        return False
 
 
-def kapanis_neden(kod: Any, pnl: float | None = None) -> str:
-    """Kapanis nedeni -> sade metin (Telegram ve panel ayni fonksiyon). Iz suren stop ve kârla kapanan stop ayirt edilir."""
-    k = str(kod)
-    if k == "trail_stop":
-        return "iz süren stop"
+# kaldirilan kol aileleri (motordaki KALDIRILAN_KOLLAR ile esitligi testle sinanir; trader_engine ice aktarilmaz)
+KALDIRILAN_AILELER = ("M1", "DL1", "HB1", "C1")
+
+
+def kol_ailesi(setup: Any) -> str:
+    return str(setup or "").partition("@")[0].split("-")[0]
+
+
+# defter kodu -> (etiket, aciklama). stop / force_exit kosula gore ayrilir (kapanis_neden)
+KAPANIS_NEDEN = {
+    "stop": ("stop", "Zarar durdurma seviyesine geldi."),
+    "trail_stop": ("iz süren stop", "Fiyatı izleyen stop çalıştı."),
+    "target": ("kâr al", "Hedef fiyata ulaştı."),
+    "time_stop": ("süre doldu", "İşlem izin verilen sürede sonuçlanmadı; bot kapattı."),
+    "regime_flip": ("piyasa değişti", "Piyasa yapısı işlemin tersine döndü; bot kapattı."),
+    "other": ("bot kapattı (kural/koruma)",
+              "Stop ya da hedefe gelmeden bot kendi kuralıyla kapattı (formasyonun çıkış kuralı ya da koruma)."),
+    "manual": ("elle (borsadan)", "Pozisyon bot dışında, borsadan kapatıldı."),
+    "liquidation": ("tasfiye", "Borsa pozisyonu zorla kapattı."),
+}
+_STOP_KAR = ("kâr al (stop)", "Stop kâra taşınmıştı; kârla kapandı.")
+_KOL_KALDIRILDI = ("kol kaldırıldı", "Bu işlemi açan kol sistemden kaldırıldı; bot açık pozisyonunu kapattı.")
+_ZORUNLU = ("bot kapattı (zorunlu)", "Acil durdurma ya da zorunlu kapatma.")
+_BILINMIYOR = ("bilinmiyor", "Kapanış nedeni kayıtta yok.")
+
+
+def _kapanis(kod: Any, pnl: float | None, setup: Any) -> tuple[str, str]:
+    k = str(kod or "")
     if k == "stop" and pnl is not None and pnl > 0:
-        return "kâr al (stop)"
-    return KAPANIS_NEDEN.get(k, "elle")
+        return _STOP_KAR
+    if k == "force_exit":
+        return _KOL_KALDIRILDI if kol_ailesi(setup) in KALDIRILAN_AILELER else _ZORUNLU
+    return KAPANIS_NEDEN.get(k, _BILINMIYOR)
 
 
-def islem_kapandi(kol: str, pair: Any, side: Any, pnl: float, notional: float | None, neden: Any, kritik: bool = False) -> str:
-    yuz = f" ({isaretli(pnl / notional * 100, 1)}%)" if notional else ""
+def kapanis_neden(kod: Any, pnl: float | None = None, setup: Any = None) -> str:
+    """Kapanis nedeni -> dürüst sade etiket (Telegram ve pano ayni fonksiyon). 'elle' yalniz `manual` (borsadan, bot disi) icindir;
+    bilinmeyen/bos kod 'bilinmiyor' olur."""
+    return _kapanis(kod, pnl, setup)[0]
+
+
+def kapanis_aciklama(kod: Any, pnl: float | None = None, setup: Any = None) -> str:
+    return _kapanis(kod, pnl, setup)[1]
+
+
+def islem_kapandi(kol: str, pair: Any, side: Any, pnl: float, notional: float | None, neden: Any, kritik: bool = False, *,
+                  r: Any = None, zd: Any = None, sure: str | None = None, setup: Any = None) -> str:
+    """2 satir: sonuc (K/Z ve R; R yoksa yuzde) · neden, zaman dilimi, sure."""
+    if r is not None and _sonlu(r):
+        yuz = f" ({isaretli(float(r), 2)} R)"
+    else:
+        yuz = f" ({isaretli(pnl / notional * 100, 1)}%)" if notional else ""
     isaret = "🔴" if kritik else ("🟢" if pnl > 0 else ("🔻" if pnl < 0 else "⚪"))
-    return _bagla([f"{isaret} {kol} · {coin(pair)} · {yon(side)} kapandı",
-                   f"Sonuç {isaretli(pnl)} ${yuz} · {kapanis_neden(neden, pnl)}"])
+    et = kapanis_neden(neden, pnl, setup)
+    ikinci = "Kol kaldırıldı: bot pozisyonu kapattı" if et == "kol kaldırıldı" else ilk_buyuk(et)
+    if zd:
+        ikinci += f" · {zd_adi(zd)}"
+    if sure and sure != "—":
+        ikinci += f" · {sure} sürdü"
+    return _bagla([f"{isaret} {coin(pair)} {yon(side)} kapandı · {isaretli(pnl)} ${yuz}", ikinci])
 
 
-def islemler_acildi(satirlar: list[tuple[str, Any, Any, Any, Any, Any]]) -> str:
-    """Ayni dakikadaki acilislar tek mesaj; her satir bir islem. Tek islem -> `islem_acildi` (tam 2 satir)."""
-    if len(satirlar) == 1:
-        return islem_acildi(*satirlar[0])
-    out = [f"🟩 {len(satirlar)} işlem açıldı"]
-    for kol, pair, side, giris, tutar, stop in satirlar[: MAX_SATIR - 2]:
-        out.append(f"{kol} · {coin(pair)} · {yon(side)} · {fiyat(giris)} · {sayi(tutar, 0)} $ · stop {fiyat(stop)}")
-    if len(satirlar) > MAX_SATIR - 2:
-        out.append(f"… ve {len(satirlar) - (MAX_SATIR - 2)} işlem daha")
+def islemler_acildi(satirlar: list[tuple]) -> str:
+    """Ayni dakikadaki acilislar tek mesaj; her satir (kol, pair, side, giris, tutar, stop[, zd, puan, risk]). Tek islem -> `islem_acildi`."""
+    rows = [tuple(x) + (None,) * (9 - len(x)) for x in satirlar]
+    if len(rows) == 1:
+        k, pr, sd, g, t, st, zd, pu, rk = rows[0]
+        return islem_acildi(k, pr, sd, g, t, st, zd=zd, puan=pu, risk=rk)
+    out = [f"🟩 {len(rows)} işlem açıldı"]
+    for k, pr, sd, g, t, st, zd, pu, rk in rows[:4]:
+        zf = zd_adi(zd) or str(k).partition(" · ")[2]
+        p = puan_metni(pu)
+        out.append(f"{coin(pr)} {yon(sd)}" + (f" · {zf}" if zf else "") + f" · {sayi(t, 0)} $" + (f" · puan {p}" if p else ""))
+    if len(rows) > 4:
+        out.append(f"… ve {len(rows) - 4} işlem daha")
     return _bagla(out)
 
 
@@ -232,18 +348,31 @@ def limit_orani(config_dir: str | Path | None, mode: Any = "paper") -> float:
         return R.LOCKED_CFG.daily_max_loss
 
 
-def _risk_sozlugu(config_dir: str | Path | None, canli: bool) -> dict:
-    """engine.base/learner/(live|paper) ayar dosyalarindaki `risk` bolumu (motorun kullandigi birlesim)."""
-    if not config_dir:
-        config_dir = (os.environ.get("ENGINE_CONFIG_DIR") or "").strip() or str(Path(__file__).resolve().parent.parent.parent / "config")
-    cfg: dict = {}
+def _ayar_dizini(config_dir: str | Path | None) -> str:
+    return str(config_dir) if config_dir else ((os.environ.get("ENGINE_CONFIG_DIR") or "").strip()
+                                               or str(Path(__file__).resolve().parent.parent.parent / "config"))
+
+
+def motor_ayari(config_dir: str | Path | None, canli: bool = False) -> dict:
+    """engine.base/learner/(live|paper) ayar dosyalarinin birlesimi (motorun kullandigi sira; ust anahtarlar, sozluk bolumleri
+    birlesir). Dosya yoksa atlanir; bozuk dosya OSError/ValueError firlatir."""
+    out: dict = {}
     for ad in ("engine.base.json", "engine.learner.json", "engine.live.json" if canli else "engine.paper.json"):
-        p = Path(config_dir) / ad
+        p = Path(_ayar_dizini(config_dir)) / ad
         if p.exists():
             d = json.loads(p.read_text(encoding="utf-8"))
-            if isinstance(d.get("risk"), dict):
-                cfg.setdefault("risk", {}).update(d["risk"])
-    return dict(cfg.get("risk") or {})
+            for k, v in d.items():
+                if isinstance(v, dict) and isinstance(out.get(k), dict):
+                    out[k].update(v)
+                else:
+                    out[k] = v
+    return out
+
+
+def _risk_sozlugu(config_dir: str | Path | None, canli: bool) -> dict:
+    """engine.base/learner/(live|paper) ayar dosyalarindaki `risk` bolumu (motorun kullandigi birlesim)."""
+    r = motor_ayari(config_dir, canli).get("risk")
+    return dict(r) if isinstance(r, dict) else {}
 
 
 def risk_ayari(config_dir: str | Path | None, mode: Any = "paper"):
@@ -259,45 +388,67 @@ def risk_ayari(config_dir: str | Path | None, mode: Any = "paper"):
 
 def limit_uyari(zarar: float, limit: float) -> str:
     return _bagla(["⚠️ Günlük zarar sınırına yaklaşıldı",
-                   f"Bugün {sayi(zarar)} $ kaybedildi; sınır {sayi(limit)} $ (%80 doldu).",
-                   "Sınıra gelirse yeni işlem açılmaz."])
+                   f"Bugün {sayi(zarar, 0)} $ kaybedildi; sınır {sayi(limit, 0)} $ (%80'i doldu).",
+                   "Sınır dolarsa bugün yeni işlem açılmaz."])
 
 
 def limit_doldu(zarar: float, limit: float) -> str:
-    return _bagla(["🛑 Günlük zarar limiti doldu",
-                   f"Bugün {sayi(zarar)} $ kaybedildi (sınır {sayi(limit)} $).",
-                   "Açık pozisyonlar stoplarıyla yönetilmeye devam ediyor; yarına kadar yeni işlem açılmaz."])
+    return _bagla(["🔴 Günlük zarar sınırı doldu",
+                   f"Bugün {sayi(zarar, 0)} $ kaybedildi (sınır {sayi(limit, 0)} $).",
+                   "Açık işlemler stoplarıyla izleniyor; yarın 00:00'a kadar yeni işlem açılmaz."])
+
+
+def _no_sil(x: Any) -> str:
+    """'#12 SOL long: ...' -> 'SOL long: ...' (islem numarasi yerine coin adi kalir)."""
+    return re.sub(r"\s*#\d+\s*", " ", str(x)).strip()
 
 
 def islem_kontrolu(doc: Mapping[str, Any] | int) -> str:
     """Sorun bildirimi (yalniz gercek sorun varsa gonderilir): coin adli sade satirlar, islem numarasi yok. Sayi verilirse tek satir."""
     if not isinstance(doc, Mapping):
-        return etiketle(f"⚠️ İşlem kontrolü: {int(doc)} uyuşmazlık bulundu, inceleniyor.")
+        return etiketle(f"⚠️ İşlem kontrolünde {int(doc)} uyuşmazlık bulundu")
     return islem_kontrolu_sorun(doc)
 
 
 def islem_kontrolu_sorun(doc: Mapping[str, Any]) -> str:
-    """doc['sorunlar'] (mutabakat.sorunlar) -> '[ML] ⚠️ ...' satirlari (en fazla 4)."""
-    sat = [f"⚠️ {str(x)[:140]}" for x in list(doc.get("sorunlar") or [])[:4]]
-    return _bagla(sat or ["⚠️ İşlem kontrolünde sorun bulundu, inceleniyor."])
+    """doc['sorunlar'] (mutabakat.sorunlar) -> ilk satirda tek ⚠️ + en fazla 3 sorun satiri (toplam 4 satir)."""
+    sor = [_no_sil(x)[:140] for x in list(doc.get("sorunlar") or [])]
+    if not sor:
+        return _bagla(["⚠️ İşlem kontrolünde sorun bulundu"])
+    return _bagla([f"⚠️ İşlem kontrolünde {len(sor)} uyuşmazlık bulundu"] + sor[:3], 4)
 
 
 def islem_kontrolu_ozet(doc: Mapping[str, Any]) -> str:
-    """Islem mutabakati ozeti (<=4 satir; en fazla 3 ornek; sade Turkce, formul yok). Kurulum ozeti ve gunluk uyari bunu kullanir."""
+    """Islem mutabakati ozeti (<=4 satir; en fazla 3 ornek; sade Turkce, simge/formul yok)."""
     satir = doc.get("satirlar") or []
     long_n = sum(1 for r in satir if r.get("yon") == "long")
     short_n = sum(1 for r in satir if r.get("yon") == "short")
     kasa = next((k for k in doc.get("kontroller") or [] if str(k.get("ad", "")).startswith("Kasa")), None)
-    kasa_t = "kasa tutuyor ✅" if kasa and kasa.get("sonuc") == "geçti" else (
-        "kasa tutmuyor ❌" if kasa and kasa.get("sonuc") == "kaldı" else "kasa ölçülemedi")
+    kasa_t = "kasa tutuyor" if kasa and kasa.get("sonuc") == "geçti" else (
+        "kasa tutmuyor" if kasa and kasa.get("sonuc") == "kaldı" else "kasa ölçülemedi")
     n, z = int(doc.get("islem_sayisi") or 0), int(doc.get("uyusmazlik_sayisi") or 0)
     sat = [f"İşlem kontrolü: {n} işlem (açık {int(doc.get('acik') or 0)} / kapanan {int(doc.get('kapanan') or 0)} · "
            f"long {long_n} / short {short_n}) · uyuşmazlık {z} · {kasa_t}"]
-    sat += [f"- {str(u)[:120]}" for u in list(doc.get("uyusmazliklar") or [])[:3]]
+    sat += [f"- {_no_sil(u)[:120]}" for u in list(doc.get("uyusmazliklar") or [])[:3]]
     bek = [i for i in (doc.get("fiyat_bekleniyor") or []) if isinstance(i, int)]
     if bek:                                       # nötr bilgi satırı: uyuşmazlık sayılmaz
-        sat.append("ℹ️ Fiyat bekleniyor (piyasa kapalı/veri yok): " + ", ".join(f"#{i}" for i in bek[:6]))
+        coinler = {r.get("islem_no"): r.get("coin") for r in satir if isinstance(r, Mapping)}
+        ad = [str(coinler[i]) for i in bek[:6] if coinler.get(i)]
+        bilinmeyen = len(bek) - len(ad)
+        sat.append("Fiyat bekleniyor (piyasa kapalı/veri yok): " + ", ".join(ad + ([f"{bilinmeyen} işlem"] if bilinmeyen > 0 else [])))
     return _bagla(sat)
+
+
+# ----------------------------------------------------------------------------- sembol (dayaniklilik)
+def sembol_disi(pair: Any, pozisyon_var: bool) -> str:
+    c = coin(pair)
+    if pozisyon_var:
+        return _bagla([f"🔴 {c} borsada işlem dışı ve açık pozisyon var.", "Bot zorla kapatmıyor; stop borsada bekliyor."])
+    return _bagla([f"⚠️ {c} borsada işlem dışı; bu coinde yeni işlem açılmıyor."])
+
+
+def sembol_geri(pair: Any) -> str:
+    return _bagla([f"✅ Düzeldi: {coin(pair)} yeniden işlemde."])
 
 
 # ----------------------------------------------------------------------------- bot durdu
@@ -332,17 +483,15 @@ def bot_duzeldi() -> str:
 
 def duzeldi(ne: str) -> str:
     ne = temizle(ne).rstrip(".")
-    return _bagla([f"✅ Düzeldi: {ne[:1].lower() + ne[1:]}."])
+    kisalt = ne[1:2].isupper() or ne[:2].isupper()          # 'ML1 modeli ...' gibi kisaltmanin ilk harfi kucultulmez
+    return _bagla([f"✅ Düzeldi: {ne if kisalt else ne[:1].lower() + ne[1:]}."])
 
 
 # ----------------------------------------------------------------------------- saglik uyarilari
 # kod ya da kontrol adi -> (ne oldu, ne yapiliyor, Senden | None, duzeldi)
 _SADE: dict[str, tuple[str, str, str | None, str]] = {
-    "ml_expired": ("Modelin süresi doldu.", "Yeni işlem açılmıyor; açık pozisyonlar stoplarıyla izleniyor.", None,
-                   "model yenilendi, yeni işlemler açık"),
-    "ml_no_model": ("Model yüklenemedi.", "Yeni işlem açılmıyor; açık pozisyonlar stoplarıyla izleniyor.", None,
-                    "model yüklendi, yeni işlemler açık"),
-    "ml_expiring_1d": ("Modelin süresi yarın doluyor.", "Yenilenmezse yeni işlemler durur.", None, "model yenilendi"),
+    "ml_no_model": ("ML1 modeli yüklenemedi.", "Kural adayları atlanıyor; açık işlemler stoplarıyla izleniyor.", None,
+                    "ML1 modeli yüklendi"),
     "exchange_ban_open_positions": ("Borsa geçici engel koydu, açık pozisyon var.",
                                     "Borsadaki stoplar yerinde; engel bitince bot emir göndermeye devam eder.",
                                     "Gerekirse pozisyonu Binance uygulamasından elle kapat.", "borsa engeli kalktı"),

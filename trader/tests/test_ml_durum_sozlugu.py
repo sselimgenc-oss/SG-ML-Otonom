@@ -1,11 +1,11 @@
-"""Ortak durum sozlugu + sahipsiz karar duzeltmesi + OZET'te ders karti YOK (24.11: makine ogrenmesi karti, 25.11: ders karti silindi)."""
+"""Sahipsiz karar duzeltmesi + OZET'te ders/ogrenme karti YOK, ML1 ozet karti VAR (24.11 ML karti, 25.11 ders karti silindi, 26.11 ML1)."""
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 from types import SimpleNamespace
 
-from trader_core import panel_pano as PP
 from trader_engine.engine import Engine
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -14,19 +14,13 @@ import test_ledger_spec as T  # noqa: E402
 from test_ledger_spec import clock, dbpath, led, lp  # noqa: E402,F401  (fikstürler)
 
 
-def test_vocabulary_strings_and_colours():
-    assert PP.ogrenme_durumu(True, True) == ("Açık, işlemleri etkiliyor", "yesil")
-    assert PP.ogrenme_durumu(True, False, 6, 10) == ("Açık, veri birikiyor (6/10)", "sari")
-    assert PP.ogrenme_durumu(False, False, 6, 10) == ("Kapalı", "gri")
-
-
-def test_ozet_has_no_ders_card_and_no_ml_card():
+def test_ozet_has_ml1_card_and_no_ders_card():
     js = (ROOT / "src/trader_panel/static/panel.js").read_text(encoding="utf-8")
     ozet = js.split("function tabOzet")[1].split("function isikKart")[0]
     assert "'Ders öğrenmesi'" not in js and "'Makine öğrenmesi'" not in js
-    assert "p.ders" not in js and "p.ml" not in js
+    assert "p.ders" not in js and not re.search(r"\bp\.ml\b", js)        # eski ML filtresi karti yok (p.ml1 ayri: ML1 ozet karti)
     assert "Henüz ders yok" not in js and "Son 7 günde değiştirdiği işlem" not in js
-    assert "ogrenmeOzetKart" in ozet                     # kalan ogrenme karti: kol x zaman dilimi ozeti
+    assert "ml1OzetKart" in ozet and "ogrenmeOzetKart" not in js        # ML1 ozet karti var; kol x zaman dilimi ogrenme karti yok
 
 
 def _eng(led, in_flight=()):

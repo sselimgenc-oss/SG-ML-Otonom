@@ -245,8 +245,8 @@ def tick(env: dict, now: datetime, *, sysctl=_systemctl, runner=None, send=None)
             tum = saglik_kirmizilari(env, yalniz_olumcul=False)
             if tum:
                 basliklar = "; ".join(dict.fromkeys(t for _c, t in tum[:5]))
-                send(f"[ML] ⚠️ Güncellemeden 20 dk sonra kontrol: sorun var ({basliklar}). "
-                     "Geri almak için orkestratöre 'ML geri al' yaz.")
+                send(f"[ML] ⚠️ Güncellemeden 20 dk sonraki kontrolde sorun var: {basliklar}.\n"
+                     "Senden: geri almak için orkestratöre \"ML geri al\" yaz.")
                 action = "oz_kontrol_sorun"
             gs["selfcheck_done"] = True
     elif gs.get("rolled_back"):

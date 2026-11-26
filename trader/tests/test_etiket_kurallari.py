@@ -73,14 +73,20 @@ def test_eski_satirlarin_adlari_okunur_kalir():
     """Defter semasi degismedi: eski etiket_duygu/etiket_kalabalik satirlari gosterimde adiyla okunur."""
     for kod in (EK.REJIM, "etiket_duygu", "etiket_kalabalik"):
         assert kod in AS.NEDEN_SIRA
-    assert TG.ATLAMA_TR[EK.REJIM] and TG.ATLAMA_TR["etiket_duygu"]
+    assert not hasattr(TG, "ATLAMA_TR")                      # Telegram'da atlama nedeni listesi kalmadi (26.11)
     from trader_core import ledger as L
     assert "etiket_duygu" in L._SKIP
 
 
-def test_otomatik_olay_telegram_satiri_yok():
-    st = {"counters": {"steps": 5, "decisions": 3, "enter": 1, "skip:etiket_rejim": 2}, "loop_at": "2026-11-20T12:00:00Z",
-          "etiket_kurallari": {"kurallar": {EK.REJIM: {"son_olay": {"ts": "2026-11-20T03:00:00Z", "olay": "kapandi"}}}}}
-    satirlar = TG._aktivite_satirlari(st)
-    assert any("rejim etiketi ters yöndeydi" in s for s in satirlar)
-    assert not any("Etiket kuralı" in s for s in satirlar)
+def test_otomatik_olay_telegram_satiri_yok(tmp_path):
+    """Etiket kurali olaylari Telegram'a satir olmaz: gunluk ozet yalniz sabit satirlari yazar (sayac/aktivite satiri yok)."""
+    sp = tmp_path / "status.json"
+    sp.write_text(json.dumps({"mode": "paper", "equity": 1000.0, "day_start_equity": 1000.0, "entries_open": True, "open_positions": [],
+                              "counters": {"steps": 5, "decisions": 3, "enter": 1, "skip:etiket_rejim": 2},
+                              "loop_at": "2026-11-20T12:00:00Z",
+                              "etiket_kurallari": {"kurallar": {EK.REJIM: {"son_olay": {"ts": "2026-11-20T03:00:00Z", "olay": "kapandi"}}}}}))
+    cfg = TG.TelegramConfig("1:t", 5, str(tmp_path), "", str(sp), ledger_path=str(tmp_path / "yok.sqlite"))
+    from datetime import datetime, timezone
+    out = TG.build_report(cfg, datetime(2026, 11, 20, 12, 1, tzinfo=timezone.utc), "2026-11-20", {})
+    assert "Etiket kuralı" not in out and "etiketi ters" not in out and "Atlananlar" not in out and "piyasaya bakıldı" not in out
+    assert not hasattr(TG, "_aktivite_satirlari")
