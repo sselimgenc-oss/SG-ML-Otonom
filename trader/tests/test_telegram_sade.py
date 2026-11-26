@@ -400,3 +400,29 @@ def test_ornek_render_acildi_ve_kapandi(rig):
     ok_form(kp, 2)
     assert ac.splitlines()[0].startswith("[ML] 🟩 ") and " açıldı" in ac.splitlines()[0] and "Stop " in ac
     assert kp.splitlines()[0].startswith("[ML] 🟢 ") and "kapandı · +" in kp
+
+
+def _etkin_kurulumlar():
+    import pathlib
+    cfg = json.loads((pathlib.Path(__file__).resolve().parent.parent / "config" / "engine.paper.json").read_text(encoding="utf-8"))
+    return sorted({a.partition("@")[0] for a in cfg["arms"]})
+
+
+def test_her_etkin_kurulumun_long_ve_short_etiketi_var():
+    kur = _etkin_kurulumlar()
+    assert len(kur) == 55
+    for s in kur:
+        assert s in TS.KURULUM_AD and s in TS.KURULUM_AD_SHORT, s
+        assert TS.etiket(s, "long") == TS.KURULUM_AD[s] != s
+        assert TS.etiket(s, "short") == TS.KURULUM_AD_SHORT[s] != s
+        assert TS.etiket(s, "long") != TS.etiket(s, "short"), s          # hepsi yone bagli sozcuk tasir
+    assert set(TS.KURULUM_AD_SHORT) <= set(TS.KURULUM_AD)
+
+
+def test_etiket_yon_duyarli_long_degismedi():
+    assert "tepe" in TS.etiket("IN1-RSI2@1h", "short") and "dip" in TS.etiket("IN1-RSI2", "long")
+    assert TS.etiket("IN1-RSI2", "long") == "Gösterge: RSI(2) dip" == TS.etiket("IN1-RSI2") == TS.kurulum_adi("IN1-RSI2")
+    assert TS.kol_adi("IN1-RSI2@1h", None, "short") == "Gösterge: RSI(2) tepe · 1 saat"
+    assert TS.kol_adi("IN1-RSI2@1h", None, "long") == "Gösterge: RSI(2) dip · 1 saat"
+    assert TS.etiket("XY9", "short") == "XY9"
+    assert TS.etiket("GF1-UCLU", "short") == "Grafik: üçlü tepe" and TS.etiket("GF1-KAMA", "short") == "Grafik: yükselen kama"

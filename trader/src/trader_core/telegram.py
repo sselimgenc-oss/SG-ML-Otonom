@@ -1956,7 +1956,7 @@ def islem_tick(cfg: TelegramConfig, notifier: "TelegramNotifier", now: datetime 
         tf, puan = kararlar.get(t.decision_id, (None, None))
         return tf or str(kollar.get(t.trade_id) or "").partition(" · ")[2], puan
 
-    kol = lambda t: TS.kurulum_adi(t.setup)  # noqa: E731
+    kol = lambda t: TS.etiket(t.setup, t.side)  # noqa: E731
     acilan, kapanan = set(im.get("acilan", [])), set(im.get("kapanan", []))
     kayit = notifier.kayit
     sent = _saat_kaydi(kayit, now, notifier)

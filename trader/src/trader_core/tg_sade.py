@@ -153,29 +153,70 @@ KURULUM_AD = {"T1": "Trend geri çekilmesi", "R1": "Yatay piyasa kenarı", "TF1"
               "IN1-HIZLIMA": "Gösterge: EMA4/EMA9 kesişimi",
               "IN1-BOLL": "Gösterge: Bollinger alt bant dönüşü",
               # 24.11 kullanici karari: formasyon kutuphanesi (PA2 price action formasyonlari)
-              "PA2-EMIRBLOK": "PA: emir bloğu", "PA2-BOLGE": "PA: arz/talep bölgesi", "PA2-FVG": "PA: değer boşluğu",
+              "PA2-EMIRBLOK": "PA: emir bloğu", "PA2-BOLGE": "PA: talep bölgesi", "PA2-FVG": "PA: değer boşluğu",
               "PA2-ONCEKI": "PA: önceki dönem dibi", "PA2-TCIZGI": "PA: trend çizgisi",
               }
 
 
-def kurulum_adi(setup: Any) -> str:
-    s = str(setup or "?").strip().partition("@")[0]
+# Short yon etiketleri: kutuphane/PA dedektorleri long uzayinda yazilir, short = fiyat aynasi (o,h,l,c -> -o,-l,-h,-c); burada
+# her kurulumun AYNALANMIS anlami yazilir (KURULUM_AD long sozlugunun karsiligi). Her etkin kurulum burada bulunmak zorunda.
+KURULUM_AD_SHORT = {
+    "T1": "Trend tepki yükselişi", "R1": "Yatay piyasa üst kenarı", "TF1": "Trend aşağı kırılımı", "B1": "Aşağı kırılım yeniden testi",
+    "H2": "İki bacaklı tepki yükselişi", "S1": "Sıkışma aşağı kırılımı", "F1": "Sahte yukarı kırılım dönüşü",
+    "MF1-DELICI": "Mum: kara bulut örtüsü", "MF1-ICSAHTE": "Mum: iç çubuk sahte yukarı kopuş", "MF1-DISBAR": "Mum: ayı dış bar",
+    "MF1-YUTAN": "Mum: ayı yutan", "MF1-HARAMI": "Mum: ayı harami", "MF1-CIMBIZ": "Mum: cımbız tepe",
+    "MF1-PINBAR": "Mum: pin bar (üst fitil)", "MF1-ICCUBUK": "Mum: iç çubuk aşağı kırılımı",
+    "B1-BOLGE": "Aşağı kırılım yeniden testi: bölge", "H2-MINI": "İki bacaklı tepki yükselişi: mini çizgi",
+    "S1-OLCULU": "Sıkışma aşağı kırılımı: ölçülü hedef", "T1-GERI3": "Trend tepki yükselişi: 3 yükselen dip",
+    "T1-SEVIYE": "Trend tepki yükselişi: eski destek",
+    "GF1-OBO": "Grafik: omuz baş omuz", "GF1-UCLU": "Grafik: üçlü tepe", "GF1-KUPA": "Grafik: ters kupa kulp",
+    "GF1-IKILI": "Grafik: ikili tepe", "GF1-KAMA": "Grafik: yükselen kama", "GF1-UCGEN": "Grafik: üçgen aşağı kırılımı",
+    "GF1-BAYRAK": "Grafik: ayı bayrağı", "GF1-FLAMA": "Grafik: ayı flaması", "GF1-RETEST": "Grafik: aşağı kırılım retesti",
+    "GF1-SAHTE": "Grafik: sahte yukarı kırılım", "GF1-TREND": "Grafik: yükselen kanal", "GF1-KANAL": "Grafik: kanal tepesi",
+    "GF1-YATAY": "Grafik: yatay destek kırılımı",
+    "IN1-UYUMSUZ": "Gösterge: RSI ayı uyumsuzluğu", "IN1-MAKESISIM": "Gösterge: SMA50/200 ölüm kesişimi",
+    "IN1-KUMO": "Gösterge: bulut altı kırılımı", "IN1-TK": "Gösterge: tenkan/kijun aşağı kesişimi",
+    "IN1-FIBO": "Gösterge: fibonacci tepki yükselişi", "IN1-HACIM": "Gösterge: hacimli aşağı kırılım",
+    "IN1-RSI": "Gösterge: RSI 70 dönüşü", "IN1-RSIDONUS": "Gösterge: RSI 70 altına dönüş", "IN1-RSI2": "Gösterge: RSI(2) tepe",
+    "IN1-STOK": "Gösterge: stokastik aşağı kesişimi", "IN1-MACD": "Gösterge: MACD aşağı kesişimi",
+    "IN1-MAGERI": "Gösterge: EMA20 tepki yükselişi", "IN1-BOLLKIR": "Gösterge: Bollinger alt bant kırılımı",
+    "IN1-VWAP": "Gösterge: VWAP altına geçiş", "IN1-FIYATMA": "Gösterge: fiyat SMA50 altına geçiş",
+    "IN1-HIZLIMA": "Gösterge: EMA4/EMA9 aşağı kesişimi", "IN1-BOLL": "Gösterge: Bollinger üst bant dönüşü",
+    "PA2-EMIRBLOK": "PA: satış emir bloğu", "PA2-BOLGE": "PA: arz bölgesi", "PA2-FVG": "PA: düşüş değer boşluğu",
+    "PA2-ONCEKI": "PA: önceki dönem tepesi", "PA2-TCIZGI": "PA: düşen trend çizgisi",
+}
+
+
+def etiket_kodu(setup: Any) -> str:
+    return str(setup or "?").strip().partition("@")[0]
+
+
+def kurulum_adi(setup: Any, side: Any = None) -> str:
+    """Kurulum kodu -> okunur ad. `side` verilir ve short ise aynalanmis (short) ad; yoksa/long ise long ad (eski davranis)."""
+    s = etiket_kodu(setup)
+    if side is not None and yon(side) == "short":
+        return KURULUM_AD_SHORT.get(s) or KURULUM_AD.get(s, s)
     return KURULUM_AD.get(s, s)
 
 
-def kol_adi(setup: Any, tf: Any = None) -> str:
+def etiket(setup: Any, side: Any = None) -> str:
+    """Yon duyarli kurulum etiketi (kurulum_adi ile ayni; Telegram ve panel bu adla cagirir)."""
+    return kurulum_adi(setup, side)
+
+
+def kol_adi(setup: Any, tf: Any = None, side: Any = None) -> str:
     """Kol/kurulum kimligi -> okunur Turkce ad: 'T1@4h' -> 'Trend geri çekilmesi · 4 saat', 'R1@1d' -> 'Yatay piyasa kenarı · 1 gün'.
-    `tf` ayrica verilirse (setup '@' icermiyorsa) o kullanilir. Telegram ve panel AYNI fonksiyonu kullanir."""
+    `tf` ayrica verilirse (setup '@' icermiyorsa) o kullanilir. `side` short ise yon duyarli (aynalanmis) ad. Telegram ve panel AYNI fonksiyonu kullanir."""
     s = str(setup or "?").strip()
     _, _, zf = s.partition("@")
     zf = zf or str(tf or "")
-    ad = kurulum_adi(s)
+    ad = kurulum_adi(s, side)
     return f"{ad} · {_TF_TR.get(zf, zf)}" if zf else ad
 
 
 def trade_kol(t: Any) -> str:
     """Ledger TradeRecord -> kol adi (arm_id yoksa setup@trigger_tf)."""
-    return kol_adi(getattr(t, "arm_id", None) or getattr(t, "setup", None), getattr(t, "trigger_tf", None))
+    return kol_adi(getattr(t, "arm_id", None) or getattr(t, "setup", None), getattr(t, "trigger_tf", None), getattr(t, "side", None))
 
 
 # ----------------------------------------------------------------------------- islem mesajlari

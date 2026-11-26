@@ -173,7 +173,7 @@ def kos(root: Path, now: datetime, env, tg_baslangic: datetime | None = None) ->
 
     def kol(t):
         d = dec.get(t.decision_id)
-        return TS.kol_adi(getattr(d, "arm_id", None) or d.setup, d.trigger_tf) if d is not None else TS.kol_adi(t.setup)
+        return TS.kol_adi(getattr(d, "arm_id", None) or d.setup, d.trigger_tf, t.side) if d is not None else TS.kol_adi(t.setup, None, t.side)
 
     rows = M.motor_satirlari(kapali, acik, kol)
     toplam = M.toplamlar(rows)

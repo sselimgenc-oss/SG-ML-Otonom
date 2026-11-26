@@ -113,8 +113,8 @@ class Ctx:
     def kol(self, t: L.TradeRecord) -> str:
         d = self.dec.get(t.decision_id)
         if d is not None:
-            return TS.kol_adi(getattr(d, "arm_id", None) or d.setup, d.trigger_tf)
-        return TS.kol_adi(t.setup)
+            return TS.kol_adi(getattr(d, "arm_id", None) or d.setup, d.trigger_tf, t.side)
+        return TS.kol_adi(t.setup, None, t.side)
 
 
 
@@ -184,7 +184,7 @@ def open_view(ctx: Ctx, status: Mapping | None, now: datetime) -> dict:
                      "hedef": _px(t.planned_target), "buyukluk": notional, "kaldirac": t.leverage,
                      "ml1_puan": _puan(ctx, t), "zd": _zd(ctx, t),
                      "acilis": tsi_kisa(t.entry_ts), "acilis_ts": t.entry_ts.timestamp() if t.entry_ts else None,
-                     "neden": f"{TS.kurulum_adi(t.setup)} sinyali" + (f", {reg}" if reg else ""),
+                     "neden": f"{TS.etiket(t.setup, t.side)} sinyali" + (f", {reg}" if reg else ""),
                      "_marj": (notional / t.leverage) if (notional and t.leverage) else None})
     kz = [r["kz"] for r in rows if r["kz"] is not None]
     eq = _f((status or {}).get("equity"))
