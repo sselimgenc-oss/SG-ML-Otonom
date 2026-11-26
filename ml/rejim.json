@@ -1,7 +1,7 @@
 {
   "surum": 1,
   "kaynak": "ML",
-  "uretim_ts": "2026-11-26T16:03:09Z",
+  "uretim_ts": "2026-11-26T17:00:49Z",
   "gecerlilik_dk": 90,
   "rejimler": [
     "trend_up",
@@ -11,227 +11,23 @@
     "unclear"
   ],
   "varliklar": {
-    "BTC/USDT": {
-      "baz": "BTC",
-      "varlik_sinifi": "kripto",
+    "AAPL/USDT": {
+      "baz": "AAPL",
+      "varlik_sinifi": "hisse",
       "4h": {
-        "rejim": "trend_down",
+        "rejim": "trend_up",
         "bar_ts": "2026-11-26T12:00:00Z"
       },
       "1d": {
-        "rejim": "trend_down",
+        "rejim": "range",
         "bar_ts": "2026-11-25T00:00:00Z"
       }
     },
-    "ETH/USDT": {
-      "baz": "ETH",
-      "varlik_sinifi": "kripto",
+    "MSFT/USDT": {
+      "baz": "MSFT",
+      "varlik_sinifi": "hisse",
       "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-26T12:00:00Z"
-      },
-      "1d": {
-        "rejim": "trend_down",
-        "bar_ts": "2026-11-25T00:00:00Z"
-      }
-    },
-    "BNB/USDT": {
-      "baz": "BNB",
-      "varlik_sinifi": "kripto",
-      "4h": {
-        "rejim": "trend_down",
-        "bar_ts": "2026-11-26T12:00:00Z"
-      },
-      "1d": {
-        "rejim": "trend_down",
-        "bar_ts": "2026-11-25T00:00:00Z"
-      }
-    },
-    "SOL/USDT": {
-      "baz": "SOL",
-      "varlik_sinifi": "kripto",
-      "4h": {
-        "rejim": "trend_down",
-        "bar_ts": "2026-11-26T12:00:00Z"
-      },
-      "1d": {
-        "rejim": "trend_down",
-        "bar_ts": "2026-11-25T00:00:00Z"
-      }
-    },
-    "XRP/USDT": {
-      "baz": "XRP",
-      "varlik_sinifi": "kripto",
-      "4h": {
-        "rejim": "trend_down",
-        "bar_ts": "2026-11-26T12:00:00Z"
-      },
-      "1d": {
-        "rejim": "trend_down",
-        "bar_ts": "2026-11-25T00:00:00Z"
-      }
-    },
-    "DOGE/USDT": {
-      "baz": "DOGE",
-      "varlik_sinifi": "kripto",
-      "4h": {
-        "rejim": "trend_down",
-        "bar_ts": "2026-11-26T12:00:00Z"
-      },
-      "1d": {
-        "rejim": "trend_down",
-        "bar_ts": "2026-11-25T00:00:00Z"
-      }
-    },
-    "ADA/USDT": {
-      "baz": "ADA",
-      "varlik_sinifi": "kripto",
-      "4h": {
-        "rejim": "trend_down",
-        "bar_ts": "2026-11-26T12:00:00Z"
-      },
-      "1d": {
-        "rejim": "trend_down",
-        "bar_ts": "2026-11-25T00:00:00Z"
-      }
-    },
-    "TRX/USDT": {
-      "baz": "TRX",
-      "varlik_sinifi": "kripto",
-      "4h": {
-        "rejim": "trend_down",
-        "bar_ts": "2026-11-26T12:00:00Z"
-      },
-      "1d": {
-        "rejim": "trend_down",
-        "bar_ts": "2026-11-25T00:00:00Z"
-      }
-    },
-    "LINK/USDT": {
-      "baz": "LINK",
-      "varlik_sinifi": "kripto",
-      "4h": {
-        "rejim": "trend_down",
-        "bar_ts": "2026-11-26T12:00:00Z"
-      },
-      "1d": {
-        "rejim": "trend_down",
-        "bar_ts": "2026-11-25T00:00:00Z"
-      }
-    },
-    "AVAX/USDT": {
-      "baz": "AVAX",
-      "varlik_sinifi": "kripto",
-      "4h": {
-        "rejim": "trend_down",
-        "bar_ts": "2026-11-26T12:00:00Z"
-      },
-      "1d": {
-        "rejim": "trend_down",
-        "bar_ts": "2026-11-25T00:00:00Z"
-      }
-    },
-    "HYPE/USDT": {
-      "baz": "HYPE",
-      "varlik_sinifi": "kripto",
-      "4h": {
-        "rejim": "trend_down",
-        "bar_ts": "2026-11-26T12:00:00Z"
-      },
-      "1d": {
-        "rejim": "trend_down",
-        "bar_ts": "2026-11-25T00:00:00Z"
-      }
-    },
-    "BCH/USDT": {
-      "baz": "BCH",
-      "varlik_sinifi": "kripto",
-      "4h": {
-        "rejim": "trend_down",
-        "bar_ts": "2026-11-26T12:00:00Z"
-      },
-      "1d": {
-        "rejim": "trend_down",
-        "bar_ts": "2026-11-25T00:00:00Z"
-      }
-    },
-    "XLM/USDT": {
-      "baz": "XLM",
-      "varlik_sinifi": "kripto",
-      "4h": {
-        "rejim": "trend_down",
-        "bar_ts": "2026-11-26T12:00:00Z"
-      },
-      "1d": {
-        "rejim": "trend_down",
-        "bar_ts": "2026-11-25T00:00:00Z"
-      }
-    },
-    "SUI/USDT": {
-      "baz": "SUI",
-      "varlik_sinifi": "kripto",
-      "4h": {
-        "rejim": "trend_down",
-        "bar_ts": "2026-11-26T12:00:00Z"
-      },
-      "1d": {
-        "rejim": "trend_down",
-        "bar_ts": "2026-11-25T00:00:00Z"
-      }
-    },
-    "HBAR/USDT": {
-      "baz": "HBAR",
-      "varlik_sinifi": "kripto",
-      "4h": {
-        "rejim": "trend_down",
-        "bar_ts": "2026-11-26T12:00:00Z"
-      },
-      "1d": {
-        "rejim": "trend_down",
-        "bar_ts": "2026-11-25T00:00:00Z"
-      }
-    },
-    "LTC/USDT": {
-      "baz": "LTC",
-      "varlik_sinifi": "kripto",
-      "4h": {
-        "rejim": "trend_down",
-        "bar_ts": "2026-11-26T12:00:00Z"
-      },
-      "1d": {
-        "rejim": "trend_down",
-        "bar_ts": "2026-11-25T00:00:00Z"
-      }
-    },
-    "1000SHIB/USDT": {
-      "baz": "1000SHIB",
-      "varlik_sinifi": "kripto",
-      "4h": {
-        "rejim": "trend_down",
-        "bar_ts": "2026-11-26T12:00:00Z"
-      },
-      "1d": {
-        "rejim": "trend_down",
-        "bar_ts": "2026-11-25T00:00:00Z"
-      }
-    },
-    "DOT/USDT": {
-      "baz": "DOT",
-      "varlik_sinifi": "kripto",
-      "4h": {
-        "rejim": "trend_down",
-        "bar_ts": "2026-11-26T12:00:00Z"
-      },
-      "1d": {
-        "rejim": "trend_down",
-        "bar_ts": "2026-11-25T00:00:00Z"
-      }
-    },
-    "XMR/USDT": {
-      "baz": "XMR",
-      "varlik_sinifi": "kripto",
-      "4h": {
-        "rejim": "unclear",
         "bar_ts": "2026-11-26T12:00:00Z"
       },
       "1d": {
@@ -248,30 +44,6 @@
       },
       "1d": {
         "rejim": "volatile",
-        "bar_ts": "2026-11-25T00:00:00Z"
-      }
-    },
-    "MSFT/USDT": {
-      "baz": "MSFT",
-      "varlik_sinifi": "hisse",
-      "4h": {
-        "rejim": "trend_down",
-        "bar_ts": "2026-11-26T12:00:00Z"
-      },
-      "1d": {
-        "rejim": "trend_down",
-        "bar_ts": "2026-11-25T00:00:00Z"
-      }
-    },
-    "AAPL/USDT": {
-      "baz": "AAPL",
-      "varlik_sinifi": "hisse",
-      "4h": {
-        "rejim": "trend_up",
-        "bar_ts": "2026-11-26T12:00:00Z"
-      },
-      "1d": {
-        "rejim": "range",
         "bar_ts": "2026-11-25T00:00:00Z"
       }
     },
@@ -311,18 +83,6 @@
         "bar_ts": "2026-11-25T00:00:00Z"
       }
     },
-    "AVGO/USDT": {
-      "baz": "AVGO",
-      "varlik_sinifi": "hisse",
-      "4h": {
-        "rejim": "trend_down",
-        "bar_ts": "2026-11-26T12:00:00Z"
-      },
-      "1d": {
-        "rejim": "volatile",
-        "bar_ts": "2026-11-25T00:00:00Z"
-      }
-    },
     "TSLA/USDT": {
       "baz": "TSLA",
       "varlik_sinifi": "hisse",
@@ -335,21 +95,9 @@
         "bar_ts": "2026-11-25T00:00:00Z"
       }
     },
-    "BRKB/USDT": {
-      "baz": "BRKB",
-      "varlik_sinifi": "hisse",
-      "4h": {
-        "rejim": "trend_up",
-        "bar_ts": "2026-11-26T12:00:00Z"
-      },
-      "1d": {
-        "rejim": "trend_up",
-        "bar_ts": "2026-11-25T00:00:00Z"
-      }
-    },
-    "JPM/USDT": {
-      "baz": "JPM",
-      "varlik_sinifi": "hisse",
+    "BTC/USDT": {
+      "baz": "BTC",
+      "varlik_sinifi": "kripto",
       "4h": {
         "rejim": "trend_down",
         "bar_ts": "2026-11-26T12:00:00Z"
@@ -359,45 +107,9 @@
         "bar_ts": "2026-11-25T00:00:00Z"
       }
     },
-    "LLY/USDT": {
-      "baz": "LLY",
-      "varlik_sinifi": "hisse",
-      "4h": {
-        "rejim": "trend_up",
-        "bar_ts": "2026-11-26T12:00:00Z"
-      },
-      "1d": {
-        "rejim": "trend_up",
-        "bar_ts": "2026-11-25T00:00:00Z"
-      }
-    },
-    "WMT/USDT": {
-      "baz": "WMT",
-      "varlik_sinifi": "hisse",
-      "4h": {
-        "rejim": "trend_up",
-        "bar_ts": "2026-11-26T12:00:00Z"
-      },
-      "1d": {
-        "rejim": "trend_up",
-        "bar_ts": "2026-11-25T00:00:00Z"
-      }
-    },
-    "V/USDT": {
-      "baz": "V",
-      "varlik_sinifi": "hisse",
-      "4h": {
-        "rejim": "trend_up",
-        "bar_ts": "2026-11-26T12:00:00Z"
-      },
-      "1d": {
-        "rejim": "trend_up",
-        "bar_ts": "2026-11-25T00:00:00Z"
-      }
-    },
-    "ORCL/USDT": {
-      "baz": "ORCL",
-      "varlik_sinifi": "hisse",
+    "ETH/USDT": {
+      "baz": "ETH",
+      "varlik_sinifi": "kripto",
       "4h": {
         "rejim": "trend_down",
         "bar_ts": "2026-11-26T12:00:00Z"
@@ -407,21 +119,9 @@
         "bar_ts": "2026-11-25T00:00:00Z"
       }
     },
-    "XOM/USDT": {
-      "baz": "XOM",
-      "varlik_sinifi": "hisse",
-      "4h": {
-        "rejim": "trend_down",
-        "bar_ts": "2026-11-26T12:00:00Z"
-      },
-      "1d": {
-        "rejim": "unclear",
-        "bar_ts": null
-      }
-    },
-    "NFLX/USDT": {
-      "baz": "NFLX",
-      "varlik_sinifi": "hisse",
+    "SOL/USDT": {
+      "baz": "SOL",
+      "varlik_sinifi": "kripto",
       "4h": {
         "rejim": "trend_down",
         "bar_ts": "2026-11-26T12:00:00Z"
@@ -431,11 +131,11 @@
         "bar_ts": "2026-11-25T00:00:00Z"
       }
     },
-    "PLTR/USDT": {
-      "baz": "PLTR",
-      "varlik_sinifi": "hisse",
+    "XRP/USDT": {
+      "baz": "XRP",
+      "varlik_sinifi": "kripto",
       "4h": {
-        "rejim": "trend_up",
+        "rejim": "trend_down",
         "bar_ts": "2026-11-26T12:00:00Z"
       },
       "1d": {
@@ -443,39 +143,15 @@
         "bar_ts": "2026-11-25T00:00:00Z"
       }
     },
-    "COST/USDT": {
-      "baz": "COST",
-      "varlik_sinifi": "hisse",
+    "TRX/USDT": {
+      "baz": "TRX",
+      "varlik_sinifi": "kripto",
       "4h": {
         "rejim": "trend_down",
         "bar_ts": "2026-11-26T12:00:00Z"
       },
       "1d": {
-        "rejim": "trend_up",
-        "bar_ts": "2026-11-25T00:00:00Z"
-      }
-    },
-    "AMD/USDT": {
-      "baz": "AMD",
-      "varlik_sinifi": "hisse",
-      "4h": {
         "rejim": "trend_down",
-        "bar_ts": "2026-11-26T12:00:00Z"
-      },
-      "1d": {
-        "rejim": "volatile",
-        "bar_ts": "2026-11-25T00:00:00Z"
-      }
-    },
-    "HD/USDT": {
-      "baz": "HD",
-      "varlik_sinifi": "hisse",
-      "4h": {
-        "rejim": "trend_up",
-        "bar_ts": "2026-11-26T12:00:00Z"
-      },
-      "1d": {
-        "rejim": "trend_up",
         "bar_ts": "2026-11-25T00:00:00Z"
       }
     },
@@ -491,35 +167,11 @@
         "bar_ts": "2026-11-25T00:00:00Z"
       }
     },
-    "XAG/USDT": {
-      "baz": "XAG",
-      "varlik_sinifi": "emtia",
-      "4h": {
-        "rejim": "trend_down",
-        "bar_ts": "2026-11-26T12:00:00Z"
-      },
-      "1d": {
-        "rejim": "trend_down",
-        "bar_ts": "2026-11-25T00:00:00Z"
-      }
-    },
     "BZ/USDT": {
       "baz": "BZ",
       "varlik_sinifi": "emtia",
       "4h": {
         "rejim": "unclear",
-        "bar_ts": "2026-11-26T12:00:00Z"
-      },
-      "1d": {
-        "rejim": "trend_down",
-        "bar_ts": "2026-11-25T00:00:00Z"
-      }
-    },
-    "COPPER/USDT": {
-      "baz": "COPPER",
-      "varlik_sinifi": "emtia",
-      "4h": {
-        "rejim": "trend_down",
         "bar_ts": "2026-11-26T12:00:00Z"
       },
       "1d": {

@@ -1,24 +1,23 @@
 # İşlem mutabakatı
 
-Son kontrol: 2026-11-26 16:51 (TSİ). İşlem: 121 (kapanan 113, açık 8). Uyuşmazlık: 1.
+Son kontrol: 2026-11-26 19:56 (TSİ). İşlem: 121 (kapanan 114, açık 7). Uyuşmazlık: 0.
 
 ## Kontroller
 
 | Kontrol | Sonuç | Ayrıntı |
 |---|---|---|
-| Kasa = başlangıç + Σ net K/Z | geçti | Kasa 912,70 $ tutuyor |
-| Net K/Z: SQL toplamı = motor toplamı = brüt - komisyon - fonlama | geçti | Defter toplamları tutuyor (-89,43 $) |
-| Long toplamı (motor = panel) | geçti | Long işlemler panelle aynı (16 işlem) |
+| Kasa = başlangıç + Σ net K/Z | geçti | Kasa 903,77 $ tutuyor |
+| Net K/Z: SQL toplamı = motor toplamı = brüt - komisyon - fonlama | geçti | Defter toplamları tutuyor (-98,51 $) |
+| Long toplamı (motor = panel) | geçti | Long işlemler panelle aynı (17 işlem) |
 | Short toplamı (motor = panel) | geçti | Short işlemler panelle aynı (97 işlem) |
-| Toplam kapanan (motor = panel 'tümü') | geçti | Kapanan işlemlerin toplamı panelle aynı (113 işlem) |
-| Açık pozisyon sayısı (motor = panel = şerit = durum) | geçti | 8 açık işlem, hepsi aynı |
-| Açık K/Z fiyat kaynağı (panel = motor mark) | kaldı | Açık işlem kâr/zararı panelde farklı: #40 fark 0,02 $, #121 fark 0,01 $, #142 fark 0,02 $; fiyat bekleniyor (piyasa kapalı/veri yok): #20, #111 |
+| Toplam kapanan (motor = panel 'tümü') | geçti | Kapanan işlemlerin toplamı panelle aynı (114 işlem) |
+| Açık pozisyon sayısı (motor = panel = şerit = durum) | geçti | 7 açık işlem, hepsi aynı |
+| Açık K/Z fiyat kaynağı (panel = motor mark) | geçti | Açık işlemlerin kâr/zararı panelle aynı; fiyat bekleniyor (piyasa kapalı/veri yok): #20, #39, #40, #111, #121, #142, #146 |
 | Günlük zarar limiti oranı (panel = kâğıt ayarı) | geçti | Günlük zarar limiti %8,00 (panelle aynı) |
 
 ## Bilgi
 
-- Açık işlemlerin anlık kâr/zararı: kasada -0,47 $, panelde -7,91 $ · fark 7,44 $ (fiyat zamanlaması, uyuşmazlık sayılmaz)
-- Fiyatı gelmeyen açık işlemler: #20, #111 · fiyat bekleniyor (piyasa kapalı/veri yok); uyuşmazlık sayılmaz
+- Fiyatı gelmeyen açık işlemler: #20, #39, #40, #111, #121, #142, #146 · fiyat bekleniyor (piyasa kapalı/veri yok); uyuşmazlık sayılmaz
 
 ## Telegram kaynağı
 
@@ -26,7 +25,7 @@ Telegram geçmişine erişim yok; motorun gönderdi kaydı (imleç) kullanıldı
 
 ## Uyuşmazlıklar
 
-- Açık işlem kâr/zararı panelde farklı: #40 fark 0,02 $, #121 fark 0,01 $, #142 fark 0,02 $; fiyat bekleniyor (piyasa kapalı/veri yok): #20, #111
+Yok.
 
 ## İşlemler
 
@@ -152,4 +151,4 @@ Telegram geçmişine erişim yok; motorun gönderdi kaydı (imleç) kullanıldı
 | 144 | Gösterge: RSI 30 dönüşü · 1 saat | HBAR | short | kapalı | 2026-11-26 04:00 | 2026-11-26 05:12 | 0,052730 | 0,053430 | -4,1860 | 0,3174 | 0,0000 | -4,5034 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 145 | Gösterge: RSI(2) dip · 1 saat | 1000SHIB | short | kapalı | 2026-11-26 06:00 | 2026-11-26 10:00 | 0,003640 | 0,003610 | 1,5923 | 0,1924 | 0,0000 | 1,3999 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 146 | Gösterge: RSI(2) dip · 4 saat | BCH | short | açık | 2026-11-26 11:00 | — | 207,760000 | — | — | 0,0895 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
-| 147 | Gösterge: RSI(2) dip · 1 saat | XMR | long | açık | 2026-11-26 16:00 | — | 494,090000 | — | — | 0,1391 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
+| 147 | Gösterge: RSI(2) dip · 1 saat | XMR | long | kapalı | 2026-11-26 16:00 | 2026-11-26 17:04 | 494,090000 | 478,450000 | -8,8053 | 0,2738 | 0,0000 | -9,0791 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
