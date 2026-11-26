@@ -1,23 +1,23 @@
 # İşlem mutabakatı
 
-Son kontrol: 2026-11-26 08:34 (TSİ). İşlem: 119 (kapanan 110, açık 9). Uyuşmazlık: 1.
+Son kontrol: 2026-11-26 10:19 (TSİ). İşlem: 119 (kapanan 112, açık 7). Uyuşmazlık: 0.
 
 ## Kontroller
 
 | Kontrol | Sonuç | Ayrıntı |
 |---|---|---|
-| Kasa = başlangıç + Σ net K/Z | geçti | Kasa 912,71 $ tutuyor |
-| Net K/Z: SQL toplamı = motor toplamı = brüt - komisyon - fonlama | geçti | Defter toplamları tutuyor (-89,41 $) |
+| Kasa = başlangıç + Σ net K/Z | geçti | Kasa 914,42 $ tutuyor |
+| Net K/Z: SQL toplamı = motor toplamı = brüt - komisyon - fonlama | geçti | Defter toplamları tutuyor (-87,88 $) |
 | Long toplamı (motor = panel) | geçti | Long işlemler panelle aynı (16 işlem) |
-| Short toplamı (motor = panel) | geçti | Short işlemler panelle aynı (94 işlem) |
-| Toplam kapanan (motor = panel 'tümü') | geçti | Kapanan işlemlerin toplamı panelle aynı (110 işlem) |
-| Açık pozisyon sayısı (motor = panel = şerit = durum) | geçti | 9 açık işlem, hepsi aynı |
-| Açık K/Z fiyat kaynağı (panel = motor mark) | kaldı | Açık işlem kâr/zararı panelde farklı: #39 fark 0,06 $, #40 fark 0,05 $, #142 panel ile motor fiyatı farklı; fiyat bekleniyor (piyasa kapalı/veri yok): #20, #111, #121, #134 |
+| Short toplamı (motor = panel) | geçti | Short işlemler panelle aynı (96 işlem) |
+| Toplam kapanan (motor = panel 'tümü') | geçti | Kapanan işlemlerin toplamı panelle aynı (112 işlem) |
+| Açık pozisyon sayısı (motor = panel = şerit = durum) | geçti | 7 açık işlem, hepsi aynı |
+| Açık K/Z fiyat kaynağı (panel = motor mark) | geçti | Açık işlemlerin kâr/zararı panelle aynı; fiyat bekleniyor (piyasa kapalı/veri yok): #20, #111, #121, #134 |
 | Günlük zarar limiti oranı (panel = kâğıt ayarı) | geçti | Günlük zarar limiti %8,00 (panelle aynı) |
 
 ## Bilgi
 
-- Açık işlemlerin anlık kâr/zararı: kasada -4,56 $, panelde -5,92 $ · fark 1,35 $ (fiyat zamanlaması, uyuşmazlık sayılmaz)
+- Açık işlemlerin anlık kâr/zararı: kasada +0,88 $, panelde -4,12 $ · fark 5,00 $ (fiyat zamanlaması, uyuşmazlık sayılmaz)
 - Fiyatı gelmeyen açık işlemler: #20, #111, #121, #134 · fiyat bekleniyor (piyasa kapalı/veri yok); uyuşmazlık sayılmaz
 
 ## Telegram kaynağı
@@ -26,7 +26,7 @@ Telegram geçmişine erişim yok; motorun gönderdi kaydı (imleç) kullanıldı
 
 ## Uyuşmazlıklar
 
-- Açık işlem kâr/zararı panelde farklı: #39 fark 0,06 $, #40 fark 0,05 $, #142 panel ile motor fiyatı farklı; fiyat bekleniyor (piyasa kapalı/veri yok): #20, #111, #121, #134
+Yok.
 
 ## İşlemler
 
@@ -148,6 +148,6 @@ Telegram geçmişine erişim yok; motorun gönderdi kaydı (imleç) kullanıldı
 | 140 | Sahte kırılım dönüşü · 15 dakika | BTC | short | kapalı | 2026-11-26 00:15 | 2026-11-26 02:55 | 60.201,000000 | 60.562,500000 | -2,1690 | 0,3623 | 0,0000 | -2,5313 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 141 | Grafik: ikili dip · 15 dakika | ADA | short | kapalı | 2026-11-26 01:30 | 2026-11-26 03:16 | 0,145400 | 0,148000 | -8,6736 | 0,4894 | -0,0338 | -9,1291 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 142 | Gösterge: RSI(2) dip · 4 saat | LTC | short | açık | 2026-11-26 03:00 | — | 42,750000 | — | — | 0,0449 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
-| 143 | Gösterge: RSI(2) dip · 1 saat | SOL | short | açık | 2026-11-26 04:00 | — | 70,780000 | — | — | 0,0807 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
+| 143 | Gösterge: RSI(2) dip · 1 saat | SOL | short | kapalı | 2026-11-26 04:00 | 2026-11-26 10:00 | 70,780000 | 70,650000 | 0,2964 | 0,1612 | 0,0000 | 0,1352 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 144 | Gösterge: RSI 30 dönüşü · 1 saat | HBAR | short | kapalı | 2026-11-26 04:00 | 2026-11-26 05:12 | 0,052730 | 0,053430 | -4,1860 | 0,3174 | 0,0000 | -4,5034 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
-| 145 | Gösterge: RSI(2) dip · 1 saat | 1000SHIB | short | açık | 2026-11-26 06:00 | — | 0,003640 | — | — | 0,0966 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
+| 145 | Gösterge: RSI(2) dip · 1 saat | 1000SHIB | short | kapalı | 2026-11-26 06:00 | 2026-11-26 10:00 | 0,003640 | 0,003610 | 1,5923 | 0,1924 | 0,0000 | 1,3999 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
