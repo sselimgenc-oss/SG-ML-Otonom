@@ -1,0 +1,69 @@
+{
+ "sema": "ml.mutabakat.v1",
+ "uretim": "2026-11-26T18:21:37Z",
+ "uretim_tsi": "2026-11-26 21:21",
+ "islem_sayisi": 0,
+ "kapanan": 0,
+ "acik": 0,
+ "uyusmazlik_sayisi": 0,
+ "uyusmazliklar": [],
+ "telegram": {
+  "eksik": 0,
+  "yanlis_yon": 0,
+  "yanlis_kz": 0,
+  "fazla": 0,
+  "oncesi": 0,
+  "dagilim": {},
+  "kaynak": "Telegram geçmişine erişim yok; motorun gönderdi kaydı (imleç) kullanıldı. Sıra: (1) gönderim kaydı islem_gonderildi.jsonl (ts, işlem no, tür, yön, K/Z; kayıt başlangıcından itibaren), (2) outbox 'sent' işaretleri (teslim edilmiş mesajın anahtarı; mesaj metni yok), (3) islem_imleci.json (duyurulmuş işlem numaraları). Gönderim kaydından önceki işlemlerde imleç yalnız 'duyuruldu' sayıldığını gösterir, mesaj metnini kanıtlamaz; mesaj sisteminden önceki işlemler 'Telegram öncesi' sayılır, uyuşmazlık değildir."
+ },
+ "fiyat_bekleniyor": [],
+ "fiyat_bekleniyor_durum": null,
+ "panel_notu": "Panel 'tümü' listesi son 200 kapanan işlemi gösterir; toplamlar tüm işlemleri kapsar.",
+ "bilgi": [
+  "Açık işlemlerin anlık kâr/zararı: kasada +0,00 $, panelde +0,00 $ · fark 0,00 $ (fiyat zamanlaması, uyuşmazlık sayılmaz)"
+ ],
+ "kontroller": [
+  {
+   "ad": "Kasa = başlangıç + Σ net K/Z",
+   "sonuc": "geçti",
+   "ayrinti": "Kasa 1.000,00 $ tutuyor"
+  },
+  {
+   "ad": "Net K/Z: SQL toplamı = motor toplamı = brüt - komisyon - fonlama",
+   "sonuc": "geçti",
+   "ayrinti": "Defter toplamları tutuyor (+0,00 $)"
+  },
+  {
+   "ad": "Long toplamı (motor = panel)",
+   "sonuc": "geçti",
+   "ayrinti": "Long işlemler panelle aynı (0 işlem)"
+  },
+  {
+   "ad": "Short toplamı (motor = panel)",
+   "sonuc": "geçti",
+   "ayrinti": "Short işlemler panelle aynı (0 işlem)"
+  },
+  {
+   "ad": "Toplam kapanan (motor = panel 'tümü')",
+   "sonuc": "geçti",
+   "ayrinti": "Kapanan işlemlerin toplamı panelle aynı (0 işlem)"
+  },
+  {
+   "ad": "Açık pozisyon sayısı (motor = panel = şerit = durum)",
+   "sonuc": "geçti",
+   "ayrinti": "0 açık işlem, hepsi aynı"
+  },
+  {
+   "ad": "Açık K/Z fiyat kaynağı (panel = motor mark)",
+   "sonuc": "geçti",
+   "ayrinti": "Açık işlem yok"
+  },
+  {
+   "ad": "Günlük zarar limiti oranı (panel = kâğıt ayarı)",
+   "sonuc": "geçti",
+   "ayrinti": "Günlük zarar limiti %8,00 (panelle aynı)"
+  }
+ ],
+ "sorunlar": [],
+ "satirlar": []
+}

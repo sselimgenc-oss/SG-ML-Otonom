@@ -2,12 +2,12 @@
  "schema": "engine-status/1",
  "bot": "learner",
  "mode": "paper",
- "pid": 259713,
- "started_at": "2026-11-26T17:11:52Z",
- "loop_at": "2026-11-26T18:01:52Z",
- "last_minute_ts": "2026-11-26T18:00:00Z",
- "last_decision_bar_close": "2026-11-26T18:00:00Z",
- "last_candle_open": "2026-11-26T17:00:00Z",
+ "pid": 265166,
+ "started_at": "2026-11-26T18:20:56Z",
+ "loop_at": "2026-11-26T19:01:43Z",
+ "last_minute_ts": "2026-11-26T19:00:00Z",
+ "last_decision_bar_close": "2026-11-26T19:00:00Z",
+ "last_candle_open": "2026-11-26T18:00:00Z",
  "trigger_tf": "1h",
  "param_version_id": 1,
  "ayar_surumu": "54cb9573fc65c1bd2bf7361018897b4c2ac0e42998d6c7bd128feca214d4fd72",
@@ -41,26 +41,25 @@
   "ledger_errors": 0,
   "outbox_failed": 0,
   "unknown_orders": 0,
-  "mark_fallbacks": 8,
+  "mark_fallbacks": 19,
   "minute_gaps": 0,
   "funding_missing": 0,
   "exit_data_gap": 0,
-  "optional_waiting": 2,
-  "reconciles": 50,
-  "steps": 50,
-  "decisions": 4,
-  "ignore:no_arm_closed": 42,
-  "seans_disi_tatil": 6,
-  "skip:seans_disi_tatil": 6,
-  "skip:rr_below_min": 1,
-  "skip:stop_width": 4,
-  "skip:arm_conflict": 3,
-  "etiket_atladi:etiket_rejim": 1,
-  "skip:etiket_rejim": 1,
+  "optional_waiting": 0,
+  "reconciles": 43,
+  "steps": 41,
+  "decisions": 3,
+  "ignore:no_arm_closed": 28,
+  "etiket_atladi:etiket_rejim": 4,
+  "skip:etiket_rejim": 4,
+  "skip:arm_conflict": 5,
+  "skip:stop_width": 5,
+  "seans_disi_tatil": 3,
+  "skip:seans_disi_tatil": 3,
   "ignore:no_signal": 6,
-  "ml1_aday_tampon": 10,
-  "ml1_ogrenme": 10,
-  "ml1_gecti": 10,
+  "ml1_aday_tampon": 12,
+  "ml1_ogrenme": 12,
+  "ml1_gecti": 12,
   "rejects": 0,
   "duplicates": 0,
   "anomalies": 0
@@ -74,7 +73,7 @@
    "last_step_ms": 0.2
   },
   "mtm": {
-   "rows": 4,
+   "rows": 3,
    "errors": 0
   },
   "exec": {
@@ -107,12 +106,12 @@
     "open": 0
    }
   },
-  "optional_waiting": 2
+  "optional_waiting": 0
  },
  "etiket_kurallari": {
   "kurallar": {
    "etiket_rejim": {
-    "atladi": 1,
+    "atladi": 4,
     "veri_yok": 0
    }
   }
@@ -213,6 +212,6 @@
    "kasa_yuzde": 8.0,
    "usd": 80.0
   },
-  "ts": "2026-11-26T18:01:52Z"
+  "ts": "2026-11-26T19:01:43Z"
  }
 }
