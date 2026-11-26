@@ -1,6 +1,6 @@
 # İşlem mutabakatı
 
-Son kontrol: 2026-11-27 00:05 (TSİ). İşlem: 2 (kapanan 0, açık 2). Uyuşmazlık: 0.
+Son kontrol: 2026-11-27 01:19 (TSİ). İşlem: 2 (kapanan 0, açık 2). Uyuşmazlık: 0.
 
 ## Kontroller
 
@@ -31,5 +31,5 @@ Yok.
 
 | İşlem no | Kol | Coin | Yön | Durum | Açılış (TSİ) | Kapanış (TSİ) | Giriş | Çıkış | Brüt $ | Komisyon $ | Fonlama $ | Net K/Z $ | Panel | Telegram açıldı | Telegram kapandı |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 1 | Gösterge: RSI(2) dip · 4 saat | SOL | short | açık | 2026-11-26 23:00 | — | 71,230000 | — | — | 0,0994 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
-| 2 | Gösterge: RSI(2) dip · 1 saat | ETH | short | açık | 2026-11-27 00:00 | — | 1.703,510000 | — | — | 0,2751 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
+| 1 | Gösterge: RSI(2) tepe · 4 saat | SOL | short | açık | 2026-11-26 23:00 | — | 71,230000 | — | — | 0,0994 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
+| 2 | Gösterge: RSI(2) tepe · 1 saat | ETH | short | açık | 2026-11-27 00:00 | — | 1.703,510000 | — | — | 0,2751 | 0,0000 | — | aynı | gönderildi (kayıt) | — |

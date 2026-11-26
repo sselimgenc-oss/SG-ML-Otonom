@@ -1,7 +1,7 @@
 {
  "sema": "ml.mutabakat.v1",
- "uretim": "2026-11-26T21:05:52Z",
- "uretim_tsi": "2026-11-27 00:05",
+ "uretim": "2026-11-26T22:19:06Z",
+ "uretim_tsi": "2026-11-27 01:19",
  "islem_sayisi": 2,
  "kapanan": 0,
  "acik": 2,
@@ -78,7 +78,7 @@
  "satirlar": [
   {
    "islem_no": 1,
-   "kol": "Gösterge: RSI(2) dip · 4 saat",
+   "kol": "Gösterge: RSI(2) tepe · 4 saat",
    "coin": "SOL",
    "yon": "short",
    "durum": "açık",
@@ -98,7 +98,7 @@
   },
   {
    "islem_no": 2,
-   "kol": "Gösterge: RSI(2) dip · 1 saat",
+   "kol": "Gösterge: RSI(2) tepe · 1 saat",
    "coin": "ETH",
    "yon": "short",
    "durum": "açık",
