@@ -7,7 +7,9 @@ alinsaydi ve ogrenme kayitlari boylece formasyon x zaman dilimi bazinda calisir.
 Kurallar: karar yalniz kapanmis son mumda (`t`); `planned_entry = c[t]`; short, long'un fiyat aynasi (o,h,l,c -> -o,-l,-h,-c);
 ayni mumda iki yon cikarsa aday yok. Kitap kurallari sabittir: hicbir ders parametresi (`inp.params.*`) okunmaz.
 Dedektorler yalniz `t` ve oncesini okur (ileriye bakis yok). Stop mesafesi girisin %0,6'sindan kucukse ya da yanlis taraftaysa
-`stop_width`; hedef yanlis taraftaysa `rr_below_min` (sema yalniz bu iki elenme nedenini kabul eder)."""
+`stop_width`; hedef yanlis taraftaysa `rr_below_min` (sema yalniz bu iki elenme nedenini kabul eder).
+Kutuphane kurulumlarinda kazanc/risk tabani ve ATR cinsinden stop ust siniri BILEREK yok (sahip karari, 26.11): ML1 zayif oranli adaylari da gorur;
+`rr_below_min` burada yalniz 'hedef yanlis tarafta' demektir."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -37,7 +39,8 @@ class Formasyon:
     ad: str
     sira: int
     tfs: tuple[str, ...]
-    zaman_stopu: "int | dict"      # mum sayisi; ya da {"15m": 48, "1h": 12} (ZD basina; PA2-TUKENIS)
+    zaman_stopu: "int | dict | None"   # mum sayisi; ya da {"15m": 48, "1h": 12} (ZD basina; PA2-TUKENIS). kip='trail' ise None: zaman stopu UYGULANMAZ
+    #                                    (yalniz rejim cikisi + iz suren stop; sahip karari #13). `time_stop_of` None icin 48 doner ama trail kipi onu OKUMAZ.
     bul: Callable                  # bul(g: Gorunum) -> None | dict(stop, hedef, seviye, olcu, yas, etiket)
     cikis: Callable | None = None  # cikis(inp: ArmInput) -> bool | None (kural cikisi)
     kip: str = "target"            # cikis kipi: "target" (hedef + zaman stopu) | "trail" (iz suren stop; hedef yok; ana kol trail ise)
@@ -226,10 +229,13 @@ def sanal_kurulumlar(mod) -> dict[str, SimpleNamespace]:
     TIME_STOP, EXIT_RULE, compute)."""
     out: dict[str, SimpleNamespace] = {}
     for kod, f in mod.FORMASYONLAR.items():
+        if f.kip == "trail" and f.zaman_stopu is not None:       # sahip karari #13: iz suren kurulumda zaman stopu YOK; kullanilmayan sabit geri gelmesin
+            from . import ArmError                                # gecikmeli: arms/__init__ bu modulu ice aktarir
+            raise ArmError(f"{mod.SETUP}-{kod}: kip='trail' iken zaman_stopu None olmali (zaman stopu uygulanmaz)")
         setup = f"{mod.SETUP}-{kod}"
         feats = {k: v for k, v in KUTUPHANE_FEATURES.items() if not (f.kip == "trail" and k == "rr")}
         out[setup] = SimpleNamespace(
             SETUP=setup, TIMEFRAMES=tuple(f.tfs), CORE=False, EXIT_MODE=f.kip, FEATURES=feats,
-            PRIORITY=int(mod.PRIORITY) + int(f.sira), TIME_STOP=(dict(f.zaman_stopu) if isinstance(f.zaman_stopu, dict) else int(f.zaman_stopu)), EXIT_RULE=f.cikis,
+            PRIORITY=int(mod.PRIORITY) + int(f.sira), TIME_STOP=(dict(f.zaman_stopu) if isinstance(f.zaman_stopu, dict) else None if f.zaman_stopu is None else int(f.zaman_stopu)), EXIT_RULE=f.cikis,
             compute=partial(hesapla, mod.SETUP, mod.FORMASYONLAR, kod), FORMASYON=f, AILE=mod.SETUP)
     return out

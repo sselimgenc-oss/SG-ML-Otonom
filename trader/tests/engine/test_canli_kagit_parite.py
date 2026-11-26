@@ -54,7 +54,7 @@ def test_canli_ml_stratejisi_ve_14_cift_yuklenir():
     assert len(live.pairs) == 14 and "TON/USDT" not in live.pairs and list(live.pairs) == list(paper.pairs)
     assert len(live.optional_pairs) == 9 and set(live.optional_pairs) <= set(live.pairs)   # eski hisse verisi acilisi bloklamaz
     assert live.contract_types == ("PERPETUAL", "TRADIFI_PERPETUAL")
-    assert live.max_positions == 36 and live.flat_bar_guard is True   # 24.11 kullanici karari: max_positions 24 -> 36 (kagit = canli)
+    assert live.max_positions == 14 and live.flat_bar_guard is True   # 24.11 kullanici karari: max_positions 36 -> 14 (kagit = canli)
     assert live.arms == paper.arms
     assert live.clusters == paper.clusters and live.cost_overrides == paper.cost_overrides
     assert live.etiket_kurallari == paper.etiket_kurallari
@@ -372,3 +372,20 @@ def test_kagit_ve_canli_capital_floor_tutusu_ayni_dizide_ayni(tmp_path):
     finally:
         _kapat(peng)
         _kapat(leng)
+
+
+# ----------------------------------------------------------------------------------------------- 26.11 sahip kararlari #4 ve #14
+@pytest.mark.parametrize("mode", ["paper", "live"])
+def test_max_positions_14_cift_sayisina_esit_ve_hesap_tavani(mode):
+    from trader_engine import arm_guard as AG
+    cfg = load_cli_config(CONFIG, "learner", mode)
+    assert cfg.max_positions == len(cfg.pairs) == 14
+    assert AG.account_full(14, 14) is True and AG.account_full(13, 14) is False
+
+
+@pytest.mark.parametrize("mode", ["paper", "live"])
+def test_her_cift_tam_bir_kumede_hisse_teknoloji_yok(mode):
+    cfg = load_cli_config(CONFIG, "learner", mode)
+    assert "hisse_teknoloji" not in cfg.clusters
+    for pair in cfg.pairs:
+        assert sum(pair in c.pairs for c in cfg.clusters.values()) == 1, pair

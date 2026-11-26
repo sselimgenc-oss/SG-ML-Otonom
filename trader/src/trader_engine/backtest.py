@@ -435,7 +435,7 @@ class BacktestRunner:
         if envm:
             if s.paranoid is not None or s.truncate_check is not None or s.fill_model != "native" or s.fee_mult != 1.0 \
                     or s.slip_bps is not None or s.record_shadow or s.veto != "none":
-                raise BacktestArgError("bad_args", "--env: paranoid/truncate-check/legacy_compat/fee-mult/slip-bps/record-shadow/veto desteklenmez")
+                raise BacktestArgError("bad_args", "--env: paranoid/truncate-check/legacy_compat/fee-mult/slip-bps/record-shadow/veto desteklenmez (eski yol icin `--env eski`)")
             check_holdout(s.start, end)          # mode="paper" ile kosuldugu icin motorun kendi kilidi (run_range) devre disi: burada zorunlu
         cfg = self.build_config(out_dir if envm else None)
         if envm:
@@ -559,6 +559,9 @@ class BacktestRunner:
             veto=s.veto, record_filtered=bool(s.record_filtered), skip_flat=bool(s.skip_flat),
             compat_label=("uyum calismasi, yerel sonuc degildir" if cfg.cost.fill_model == "legacy_compat" else None),
             paranoid=paranoid_report, no_paper_record=getattr(veto, "no_paper_record", [])[:200])
+        if (s.flags or {}).get("eski_yol"):                 # `--env eski`: kagitla ayni DEGIL (damga + stderr uyarisi)
+            meta["kagit_paritesi"] = False
+            print("UYARI: --env eski: 5 ciftli taban yolu; sonuclar kagit botla ayni DEGIL (kagit_paritesi=false)", file=sys.stderr)
         if cfg.target_mode != "bar_close":                  # 24.11: eski yolda meta bayt bayt ayni
             meta["target_mode"] = cfg.target_mode
         if cfg.exit_modes:                                  # kip kapaliyken meta bayt bayt ayni
@@ -830,8 +833,8 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--period", default=None, help="IS | WF | YYYYMMDD-YYYYMMDD")
     ap.add_argument("--start", default=None, help="YYYYMMDD (period yerine; HOLDOUT yine reddedilir)")
     ap.add_argument("--end", default=None, help="YYYYMMDD")
-    ap.add_argument("--strategy", default="price_action_v1")
-    ap.add_argument("--tf", default="1h", choices=["1h", "15m"])
+    ap.add_argument("--strategy", default="price_action_v1", help="yalniz --env eski")
+    ap.add_argument("--tf", default="1h", choices=["1h", "15m"], help="yalniz --env eski")
     ap.add_argument("--fill-model", default="native", choices=["native", "legacy_compat"])
     ap.add_argument("--fee-mult", type=float, default=1.0)
     ap.add_argument("--slip-bps", type=float, default=None)
@@ -843,7 +846,7 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--history-dir", default=None)
     ap.add_argument("--synthetic-rules", action="store_true")
     ap.add_argument("--target-trade-risk", type=float, default=None,
-                    help="varsayilan: kilitli hedef risk (0.014); verilirse (0, 0.014] icinde, orn. kagit 0.005")
+                    help="yalniz --env eski: varsayilan kilitli hedef risk (0.014); verilirse (0, 0.014] icinde, orn. kagit 0.005")
     ap.add_argument("--veto", default="none")
     g = ap.add_mutually_exclusive_group()
     g.add_argument("--record-filtered", dest="record_filtered", action="store_true", default=True)
@@ -855,9 +858,9 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--seed", type=int, default=17)
     ap.add_argument("--truncate-check", default=None, help="END' (YYYYMMDDTHH)")
     ap.add_argument("--from-paper-ledger", default=None)
-    ap.add_argument("--env", default=None, choices=["paper"],
-                    help="kagit katmani (config/engine.paper.json: arms/kume/maliyet) + kagitla ayni cok kurullu sinyal kaynagi; "
-                         "verilmezse eski yol (bit bit ayni)")
+    ap.add_argument("--env", default="paper", choices=["paper", "eski"],
+                    help="varsayilan paper = kagit botla ayni yapilandirma (config/engine.paper.json: arms/kume/maliyet + cok kurullu sinyal kaynagi); "
+                         "eski = 5 ciftli taban yolu (yalniz capraz dogrulama/arastirma)")
     ap.add_argument("--wallet-start", type=float, default=None, help="yalniz --env ile: baslangic ozsermayesi")
     ap.add_argument("--out-root", default=None, help="varsayilan: <var_dir>/backtests")
     ap.add_argument("--config-dir", default="config")
@@ -890,8 +893,10 @@ def spec_from_args(a: argparse.Namespace, argv: list[str]) -> BacktestSpec:
         exit_modes = json.loads(a.exit_modes) if getattr(a, "exit_modes", None) else None
     except json.JSONDecodeError as e:
         raise BacktestArgError("bad_args", f"--exit-modes JSON degil: {e}") from e
-    if a.wallet_start is not None and not a.env:
-        raise BacktestArgError("bad_args", "--wallet-start yalniz --env ile")
+    eski = a.env == "eski"                           # P6-03 (Paket 2 / E): varsayilan kagit ortami; eski taban yol ACIKCA istenir
+    env = None if eski else a.env
+    if a.wallet_start is not None and not env:
+        raise BacktestArgError("bad_args", "--wallet-start yalniz --env paper ile (eski yolda yok)")
     return BacktestSpec(
         id=a.id, start=start, end=end, period=period, strategy=a.strategy, tf=a.tf, fill_model=a.fill_model,
         fee_mult=a.fee_mult, slip_bps=a.slip_bps, params=params, granularity=a.granularity, trigger_source=a.trigger_source, source=a.source,
@@ -900,7 +905,7 @@ def spec_from_args(a: argparse.Namespace, argv: list[str]) -> BacktestSpec:
         truncate_check=trunc, from_paper_ledger=a.from_paper_ledger, out_root=a.out_root, config_dir=a.config_dir,
         pairs=tuple(x.strip() for x in a.pairs.split(",")) if a.pairs else None,
         target_trade_risk=a.target_trade_risk, record_shadow=bool(a.record_shadow),
-        env=a.env, wallet_start=a.wallet_start, flags=dict(argv=list(argv)), exit_modes=exit_modes,
+        env=env, wallet_start=a.wallet_start, flags=dict(argv=list(argv), **({"eski_yol": True} if eski else {})), exit_modes=exit_modes,
         target_mode=getattr(a, "target_mode", None))
 
 

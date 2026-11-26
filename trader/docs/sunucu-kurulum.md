@@ -433,7 +433,7 @@ bash /usr/local/lib/trader-root/current/deploy/canli_duman.sh                   
 Sunucu saatte bir ozet verisini repo icindeki ayri `canli-durum` dalina, `ml/` klasorune yazar (CT'nin canli-durum duzeni). Boylece
 orkestrator ve gelistirici Telegram iletimine gerek kalmadan okur. Yayimlanan dosyalar (izin listesi): `rejim.json`,
 `gunluk_ozet_v1.json`, `pano.html` (ogrenme kartlari dahil anlik pano), `mutabakat_v1.json` + `mutabakat.md` (acik/kapanan islemler,
-kasa), `strateji-veri-ml.md`, `tutarlilik_v1.json`, `durum.json` (motor durum dosyasi), `uretim.txt`.
+kasa), `tutarlilik_v1.json`, `durum.json` (motor durum dosyasi), `uretim.txt`.
 Defter (sqlite), ortam dosyalari ve anahtarlar yayimlanmaz; bilinen sir kaliplari gorulurse o tur hic yayimlanmaz.
 
 Kimlik yalniz sunucudaki SSH deploy anahtaridir (ozel kisim sunucudan cikmaz; GitHub'a yalniz `.pub` kismi eklenir). Anahtar yoksa
@@ -460,3 +460,8 @@ systemctl start trader-durum-yayin.service; journalctl -u trader-durum-yayin -n 
 
 ## Canli/testnet anahtar carpisma denetimi (5c)
 - Anahtar carpismasi: baska hesap/bot anahtarlarinin SHA256 ozetleri `/etc/trader-testnet.env` / `/etc/trader-live.env` icine `TRADER_DIGER_ANAHTAR_SHA256=etiket:hex64,...` olarak yazilirsa, bu surecin anahtari/gizlisi o ozetlerden biriyle eslesirse motor acilmaz (`key_collision: <etiket>`; deger asla yazilmaz). Ozet: `printf %s "$ANAHTAR" | sha256sum`.
+
+
+## Testnet kapalı (sahip kararı, 26.11): `TESTNET_ACIK`
+
+`trader-engine-testnet.service` yalnız `BINANCE_API_KEY`, `BINANCE_API_SECRET` **ve** `TESTNET_ACIK=1` (`/etc/trader-testnet.env`) üçü de doluyken etkinleştirilir. `config/engine.testnet.json` 14 enstrümana eşit değildir; açmadan önce önce o dosya kâğıt evrenine eşitlenmeli, sonra `TESTNET_ACIK=1` yazılmalı. Şart sağlanmazsa `install.sh` bilgi satırı yazar, çalışan birime dokunmaz.

@@ -457,14 +457,6 @@
     parts.forEach(function (x) { add(d, x[1] ? el('b', '', x[0]) : document.createTextNode(x[0])); });
     return d;
   }
-  function sinavR(r) { return num(r) && Math.abs(r) < 0.005 ? '≈ 0 R' : netR(r); }
-  function sinavNotu(sv) {
-    var r = sv.satirlar;
-    return boldMetin([['Sınav sonucu (' + sv.tarih + '): ', 1], ['ML1 geçmiş veride yalnız ', 0], ['4 saat ve 1 gün', 1],
-      [' zaman dilimlerinde sınavı geçti (işlem başına ortalama ', 0], [sinavR(r[0].ort_r), 1], ['). ', 0], ['1 saat', 1],
-      [' başa baş (' + sinavR(r[1].ort_r) + '), ', 0], ['15 dakika', 1], [' kaybediyor (' + sinavR(r[2].ort_r) + '). ', 0],
-      ['Aşağıdaki tabloda yeşil “sınavı geçti” işaretli satırlar kanıtlı kısımdır; diğerleri deneme niteliğindedir.', 0]]);
-  }
   function basit(head, rows) {                                 // kucuk sabit tablo (siralama/ayrinti yok)
     var t = el('table', 'bas'), th = el('thead'), hr = el('tr'), tb = el('tbody');
     head.forEach(function (h, i) { add(hr, el('th', i ? 'sg' : '', h)); });
@@ -476,11 +468,11 @@
     return add(t, add(th, hr), tb);
   }
   function ml1OzetKart(m) {
-    var k = kart('ML1', link('Ayrıntı', 'ml1')), b = m.eleme.bugun, o = m.zd_ozet;
+    var k = kart('ML1', link('Ayrıntı', 'ml1')), b = m.eleme.bugun;
     add(k, satir('Durum', m.durum.metin, m.durum.renk === 'kirmizi' ? 'kotu' : ''));
     add(k, satir('Bugün', b.puanlanan ? b.puanlanan + ' aday puanlandı, ' + b.islem + ek(b.islem) + ' işleme döndü' : 'puanlanacak aday çıkmadı'));
-    add(k, satir('Sınavı geçen kısım (4s + 1g)', o.kanitli.n + ' işlem · ' + netR(o.kanitli.net_r), cls(o.kanitli.net_r)));
-    add(k, satir('Diğer (15dk + 1s)', o.kanitsiz.n + ' işlem · ' + netR(o.kanitsiz.net_r), cls(o.kanitsiz.net_r)));
+    add(k, el('div', 'ml1-not', m.durum_satiri));                  // ML1 durum satiri (asama, kapanan islem N/200)
+    add(k, el('div', 'yok', m.tf_satiri));
     return k;
   }
   function ml1Aciklama(m) {
@@ -488,7 +480,8 @@
     add(k, add(el('div'), rozetRenk(m.durum.metin, m.durum.renk)));
     add(k, el('div', 'ml1-not', 'Kural kolları aday üretir; ML1 her adaya 0–1 arası puan verir, puanı ' +
       (num(m.esik) ? trn(m.esik, 2) : 'belirlenen eşik (henüz okunamadı)') + ' ve üstü olanları işleme çevirir. Aynı fırsat için tek işlem açar.'));
-    return add(k, sinavNotu(m.sinav));
+    add(k, el('div', 'ml1-not', m.durum_satiri));
+    return add(k, el('div', 'yok', m.tf_satiri));
   }
   function ml1Eleme(m) {
     var k = kart('Aday eleme'), e = m.eleme;
@@ -505,9 +498,8 @@
   function ml1Zd(m) {
     var k = kart('ML1’in aldığı işlemler · zaman dilimine göre');
     if (!m.toplam.n && !m.zd.some(function (r) { return r.acik; })) add(k, yok('ML1’in aldığı ve kapanan işlem henüz yok.'));
-    var sira = m.zd.slice().sort(function (a, b) { return (b.kanitli ? 1 : 0) - (a.kanitli ? 1 : 0); });   // kanitli (4 saat, 1 gün) once; sabit 4 satir
-    var rows = sira.map(function (r) {
-      var ad = add(el('div'), el('div', 'n', r.ad), r.kanitli ? rozetRenk('✅ sınavı geçti', 'yesil') : null);
+    var rows = m.zd.map(function (r) {
+      var ad = add(el('div'), el('div', 'n', r.ad));
       return {cells: [ad, el('div', 'n', String(r.n)), el('div', 'n', kaz(r.kazanma)), el('div', 'n ' + cls(r.net_r), netR(r.net_r)),
           el('div', 'n ' + cls(r.kz), num(r.kz) ? usdS(r.kz) : '—'), el('div', 'n', String(r.acik))],
         v: [r.ad, r.n, num(r.kazanma) ? r.kazanma : null, num(r.net_r) ? r.net_r : null, num(r.kz) ? r.kz : null, r.acik],
@@ -516,9 +508,6 @@
     var w = tablo(['Zaman dilimi', 'İşlem', 'Kazanan', 'Net R', 'K/Z', 'Açık'], rows, [1, 2, 3, 4, 5], 'ml1_zd');
     w.className = 'zdt';
     add(k, w);
-    var o = m.zd_ozet;
-    add(k, el('div', 'yok', 'Sınavı geçen kısım (4 saat + 1 gün): ' + o.kanitli.n + ' işlem · ' + netR(o.kanitli.net_r) + ' · ' + usdS(o.kanitli.kz)));
-    add(k, el('div', 'yok', 'Diğer (1 saat + 15 dakika): ' + o.kanitsiz.n + ' işlem · ' + netR(o.kanitsiz.net_r) + ' · ' + usdS(o.kanitsiz.kz)));
     add(k, el('div', 'yok', 'R = bir işlemde riske atılan tutar (kasanın %1’i).'));
     return k;
   }

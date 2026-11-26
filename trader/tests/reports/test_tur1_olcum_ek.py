@@ -273,14 +273,14 @@ def test_kosu_testi_yetersiz_ve_kumelenme():
 
 def test_tf_masraf_tablosu():
     a = [mk(i, net=1.0, cost=0.5) for i in range(3)]                  # brüt 1.5 R, masraf 0.5 R
-    b = [dict(mk(10 + i, net=-0.2, cost=0.3), tf="15m") for i in range(2)]   # brüt 0.2, masraf 0.6
+    b = [dict(mk(10 + i, net=-0.2, cost=0.3), tf="4h") for i in range(2)]   # brüt 0.2, masraf 0.6
     c = [dict(mk(20, net=-1.0, cost=0.2), tf="1d")]                  # brüt -0.8: oran yok
     r = T.tf_masraf_tablosu(a + b + c)
     s = {x["tf"]: x for x in r["satirlar"]}
-    assert [x["tf"] for x in r["satirlar"]] == ["15m", "1h", "1d"]
+    assert [x["tf"] for x in r["satirlar"]] == ["1h", "4h", "1d"]
     assert s["1h"]["n"] == 3 and s["1h"]["brut_r"] == pytest.approx(4.5) and s["1h"]["masraf_r"] == pytest.approx(1.5)
     assert s["1h"]["net_r"] == pytest.approx(3.0) and s["1h"]["masraf_brut_orani"] == pytest.approx(1.5 / 4.5)
-    assert s["15m"]["masraf_brut_orani"] == pytest.approx(0.6 / 0.2)
+    assert s["4h"]["masraf_brut_orani"] == pytest.approx(0.6 / 0.2)
     assert s["1d"]["masraf_brut_orani"] is None and s["1d"]["etiket"] == T.YETERSIZ
 
 

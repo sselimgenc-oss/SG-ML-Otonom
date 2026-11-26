@@ -180,11 +180,13 @@ class Engine:
         if self._multi_tf and getattr(signals, "position_fn", False) is None:
             signals.position_fn = self._position_for_arms       # type: ignore[attr-defined]
         self.ml1 = None                                         # 25.11 ML1 kagit giris kapisi (config ml1.aktif + paper + cok kurulumlu kaynak)
+        self._ml1_ariza: str | None = None                      # D2: ML1 acik ama kapi/ogrenici kurulamadi -> `start()` girisleri kapatir (cikislar calisir)
         if _ml1_aktif(cfg) and hasattr(signals, "ml1"):
             try:
                 from .ml1_gate import Ml1Gate
                 self.ml1 = Ml1Gate(cfg.ml1)
-            except Exception as e:  # noqa: BLE001 - ML1 kurulamazsa motor ML1'siz (onceki davranis) calisir; asla kalkis engellenmez
+            except Exception as e:  # noqa: BLE001 - kalkis engellenmez; ama ML1 acikken kapisiz yeni islem de ACILMAZ (D2: ml1_kapi_yok engeli)
+                self._ml1_ariza = f"kapi:{type(e).__name__}"
                 self._c["ml1_kurulamadi"] += 1
                 log.critical("ML1 kurulamadi, kapi devre disi: %r", e)
         if self.ml1 is not None:
@@ -200,7 +202,8 @@ class Engine:
                                          esik=float(og.get("esik", 0.50)), yari_omur_gun=og.get("yari_omur_gun", 30.0),
                                          kuru=bool(og.get("kuru", False)))
                 self.ml1.ogren = self.ogren
-            except Exception as e:  # noqa: BLE001 - ogrenme kurulamazsa motor ogrenmesiz calisir
+            except Exception as e:  # noqa: BLE001 - ogrenme kurulamazsa motor ogrenmesiz calisir (D2: girisler kapali)
+                self._ml1_ariza = "ogrenici"
                 self._c["ml1_ogren_kurulamadi"] += 1
                 log.critical("ML1 ogrenme kurulamadi: %r", e)
         self._params_map: dict | None = None
@@ -208,6 +211,7 @@ class Engine:
         self._mode_flags: dict[str, int] = {}                  # etkin defter surumunun cikis kipi bayraklari (exit_breakeven/exit_partial)
         self._act_id: int | None = None
         self._version_id = 0
+        self._params_kaynak = "defter"                          # defter | son_bilinen | varsayilan (yalniz kagit: defter okunamazken kv'deki son surum)
         self._params_ok = False
         self._active_tf: str | None = None
         self._consec_errors = 0
@@ -436,7 +440,7 @@ class Engine:
             except Exception:  # noqa: BLE001
                 cand = None
         return {
-            "tf": self.tf, "param_version_id": self._version_id, "strategy_name": self.strategy.info.name,
+            "tf": self.tf, "param_version_id": self._version_id, "params_kaynak": self._params_kaynak, "strategy_name": self.strategy.info.name,
             "strategy_version": self.strategy.info.version, "entries_blocked_reason": blocked, "gate_code": code,
             "entries_blocked_reasons": self.state.block_reasons(),          # DD-2: eklemeli; eski alan degismedi
             "entries_open": code == "ok",
@@ -727,12 +731,45 @@ class Engine:
                 self._params_map = m
                 self._act_id = ap.activation_id
                 log.info("parametre surumu %s etkin", ap.version_id)
+                if self.cfg.mode == "paper":                    # D1: defter okunamazsa cikislar bu SON BILINEN surumle surer (yazim hatasi yutulur)
+                    try:
+                        with self.state.tx():
+                            self.state.kv_set("son_params", {"activation_id": ap.activation_id, "version_id": ap.version_id,
+                                                             "params": dict(ap.params)})
+                    except Exception as e2:  # noqa: BLE001
+                        self._c["son_params_yazilamadi"] += 1
+                        log.error("son_params yazilamadi: %r", e2)
             self._version_id = ap.version_id
             self._active_tf = str(ap.params["trigger_tf"])
             self._params_ok = True
+            self._params_kaynak = "defter"
         except Exception as e:  # noqa: BLE001 - fail-closed
             self._params_ok = False
             log.critical("etkin parametre kullanilamiyor (%s); girisler kapali (params_unavailable)", e)
+            if self.cfg.mode == "paper":
+                if self._params_map is None:
+                    self._params_son_bilinen()
+                else:
+                    self._params_kaynak = "son_bilinen"         # surec ici ariza: bellekteki harita zaten son bilinen surum
+
+    def _params_son_bilinen(self) -> None:
+        """D1 (yalniz kagit; ilk okuma basarisiz): kv'deki `son_params` ile cikis parametrelerini kur. Girisler KAPALI kalir (`_params_ok` False),
+        cikislar ASLA atlanmaz. Kayit yoksa/bozuksa strateji varsayilani + ayri alarm. `_act_id` None kalir: defter donunce yeniden yuklenir."""
+        try:
+            rec = self.state.kv_get("son_params")
+            m = dict(rec["params"])
+            flags = {k: int(m.pop(k)) for k in XM.MODE_PARAMS if k in m}
+            self.strategy.validate_params(m)
+            vid = int(rec["version_id"])
+        except Exception as e:  # noqa: BLE001 - kayit yok/bozuk
+            self._params_kaynak = "varsayilan"
+            self._c["params_varsayilan"] += 1
+            log.critical("parametre defteri okunamiyor ve son bilinen surum yok/bozuk (%r); cikislar STRATEJI VARSAYILANIYLA", e)
+            return
+        self._mode_flags, self._params_map, self._version_id = flags, m, vid
+        self._params_kaynak = "son_bilinen"
+        self._c["params_son_bilinen"] += 1
+        log.critical("parametre defteri okunamiyor; cikislar SON BILINEN surumle (%s)", vid)
 
     def _frame_params(self):
         m = dict(self._params_map) if self._params_map is not None else {
@@ -877,7 +914,8 @@ class Engine:
         if self.ml1 is not None:
             self.ml1.warm(self.ledger, now)                       # 25.11 ML1: konfluans tamponu + olay penceresi defterden (firlatmaz)
         if self.ogren is not None:
-            self.ogren.baslat(now)                                # ML1 ogrenme: adaylar/sonuclar dosyalarindan bellek (firlatmaz)
+            if not self.ogren.baslat(now):                        # ML1 ogrenme: adaylar/sonuclar dosyalarindan bellek (firlatmaz)
+                self._ml1_ariza = "ogrenici_baslat"
         if self.is_paper:
             snap = self.state.kv_get("broker_snapshot")
             if snap:
@@ -900,12 +938,42 @@ class Engine:
         mins, decs = 0, 0
         if cfg.mode == "paper":
             self._adopt_new_pairs()
+        self._ml1_ariza_engeli()
         if cfg.mode in FEED_MODES and self._init_cursors():
             c0 = self._c["decisions"]
             mins = self.advance_to(self.clock.now())
             decs = self._c["decisions"] - c0
         return RecoveryReport(replayed_minutes=mins, replayed_decisions=decs,
                               unresolved_orders=len(self.state.unresolved_orders()), reconcile=rep)
+
+    def _ml1_ariza_engeli(self) -> None:
+        """D2 (yalniz kagit, ML1 acikken): kapi/ogrenici kurulamadiysa `ml1_kapi_yok` girisleri kapatir (cikislar ASLA kapanmaz) + CRIT; saglikli
+        yeniden baslatma engeli kendiligiden kaldirir (MANUAL_CLEAR_REASONS'ta DEGIL). Kapi dosyasi hic yokken (ogrenme asamasi) engel KURULMAZ."""
+        if not _ml1_aktif(self.cfg):
+            return
+        if self._ml1_ariza:
+            self._block("ml1_kapi_yok")
+            log.critical("ML1 kapisi kurulamadi (%s): yeni islem ACILMAZ, acik islemler yonetilmeye devam eder", self._ml1_ariza)
+        else:
+            self.state.block_remove("ml1_kapi_yok")
+
+    def _ml1_paket_engeli(self, D: datetime) -> None:
+        """D2 / P3-11: ogrenici YOKKEN (ogrenme.aktif=false) paket dosyasi VAR ama gecersizse `ml1_paket_bozuk` girisleri kapatir; dosya duzelince/silinince kalkar.
+        Ogrenici varken davranis eski (geri donus denetimi duzeltir; gecersiz paket = ogrenme asamasi). Paket dosyasi hic yoksa engel KURULMAZ."""
+        if self.ml1 is None or self.ogren is not None:
+            return
+        try:
+            bozuk = self.ml1.paket_kontrol(D)
+        except Exception as e:  # noqa: BLE001
+            bozuk = f"kontrol_hatasi:{type(e).__name__}"
+        if bozuk:
+            if self._block_new("ml1_paket_bozuk"):
+                log.critical("ML1 paketi bozuk (%s) ve ogrenici yok: yeni islem ACILMAZ", bozuk)
+        else:
+            self.state.block_remove("ml1_paket_bozuk")
+
+    def _block_new(self, reason: str) -> bool:
+        return bool(self.state.block_add(reason))
 
     def _kaldirilan_kollari_kapat(self, now: datetime) -> int:
         """Tek seferlik, idempotent adim (baslangicta): `KALDIRILAN_KOLLAR` kurulumlarinin (ve YALNIZ kagitta, bos olmayan `cfg.arms` icinde
@@ -1504,6 +1572,7 @@ class Engine:
             if self.cfg.mode in FEED_MODES:
                 self._reconcile(now)
             self._refresh_params()
+            self._ml1_paket_engeli(D)
             self.veto.begin_step(now)
             params = self._frame_params()
             frames: dict[str, SignalFrame] = {}

@@ -67,3 +67,14 @@ def test_kisa_calisma_kagit_paketine_dokunmaz(tmp_path, rt, monkeypatch):
     eng = seen["eng"]
     assert eng.ml1 is not None and out.resolve() in eng.ml1._paths[0].parents
     assert eng.ogren is not None and eng.ogren.kuru is True
+
+
+def test_varsayilan_yol_cli_da_ml1_yalitimli(tmp_path, rt):
+    """Paket 2 / E: `--env`siz (varsayilan paper) CLI yolu da paketi cikti dizinine tasir, ogrenme kuru."""
+    a = BT.build_parser().parse_args(["--id", "y2", "--period", "IS"])
+    spec = BT.spec_from_args(a, [])
+    assert spec.env == "paper"
+    out = tmp_path / "out2"
+    cfg = BT.BacktestRunner(spec).build_config(out)
+    assert out.resolve() in Path(cfg.ml1["paket_yolu"]).parents and rt not in Path(cfg.ml1["paket_yolu"]).parents
+    assert cfg.ml1["ogrenme"]["kuru"] is True

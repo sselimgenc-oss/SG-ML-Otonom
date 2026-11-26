@@ -138,7 +138,6 @@ def test_every_unit_handled_by_install():
                         "trader-tur1-haftalik.service",  # tur 1 haftalik YZ yorumu: haftalik zamanlayici etkinlestirilir; servis tetiklenir
                         "trader-yorumcu.service",  # ust lig YZ yorumcu: gunluk zamanlayici etkinlestirilir; servis tetiklenir
                         "trader-mutabakat.service",  # islem mutabakati: gunluk zamanlayici etkinlestirilir; servis ayrica kurulum sonrasi tetiklenir
-                        "trader-strateji-veri.service",  # strateji verisi: kurulum sonrasi tek seferlik sessiz Telegram belgesi (zamanlayici 6 saatte bir dosyayi yeniler; install.sh servisi ayrica kurulum sonrasi tetikler)
                         "trader-durum-yayin.service",  # canli durum yayini: saatlik zamanlayici etkinlestirilir; servis tetiklenir
                         "trader-bakim.service",  # haftalik disk bakimi (zamanlayici etkinlestirilir; servis tetiklenir)
                         "trader-engine-live.service", "trader-engine-env-retry@.service",
@@ -466,3 +465,43 @@ def test_tutarlilik_birimi_ml1_modelleri_salt_okunur_ve_eski_olcum_yok():
     ro = [ln for ln in t.splitlines() if ln.startswith("ReadOnlyPaths=")]
     assert ro and "var/learner/models" in ro[0]
     assert "44 cift" not in t
+
+
+def test_strateji_veri_kaldirildi_birimler_yok_install_devre_disi_birakir():
+    """Sahip karari (Paket 2): 'strateji verisi' ozelligi tamamen kaldirildi; birim dosyalari yok, install.sh durdurur/devre disi birakir/siler, enable_now YOK."""
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    for f in ("deploy/trader-strateji-veri.service", "deploy/trader-strateji-veri.timer", "scripts/strateji_veri_run.py", "src/trader_core/strateji_veri.py"):
+        assert not (root / f).exists(), f
+    t = (root / "deploy/install.sh").read_text(encoding="utf-8")
+    i = t.index("trader-strateji-veri.timer trader-strateji-veri.service \\")
+    blok = t[i:i + 900]
+    assert 'systemctl disable --now "$u"' in blok and 'rm -f "${UNIT_DIR}/$u"' in blok
+    assert "enable_now trader-strateji-veri" not in t and "systemctl start --no-block trader-strateji-veri" not in t
+    assert "strateji-veri-ml.md" not in (root / "deploy/durum_yayinla.sh").read_text(encoding="utf-8")
+
+
+def test_testnet_uc_sart_kilidi_testnet_acik_olmadan_birim_etkinlesmez(tmp_path):
+    """Paket 2 / F (sahip karari #7): iki anahtar dolu ama TESTNET_ACIK bos -> `enable_now trader-engine-testnet.service` CAGRILMAZ;
+    sart betikte bulunur ve ornek dosya TESTNET_ACIK anahtarini tasir; engine.testnet.json icerigi DEGISMEZ (fikstur)."""
+    import subprocess
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    inst = (root / "deploy/install.sh").read_text(encoding="utf-8")
+    assert "has_value /etc/trader-testnet.env TESTNET_ACIK" in inst
+    a, b = inst.index("has_value() {"), inst.index("MISSING=()")
+    g0, g1 = inst.index("# Testnet golge motoru (WP-B8)"), inst.index("# ---- 11. ozet")
+    envf = tmp_path / "t.env"
+    envf.write_text("BINANCE_API_KEY=" + "k" * 40 + "\nBINANCE_API_SECRET=" + "s" * 40 + "\nTESTNET_ACIK=\n")
+    hf = tmp_path / "h.env"
+    hf.write_text("X=1\n")
+    block = inst[g0:g1].replace("/etc/trader-testnet.env", str(envf)).replace("/etc/trader-health.env", str(hf))
+    script = "set -euo pipefail\nMISSING=()\nTRADER_DIR=/srv/t\nenable_now() { echo ENABLED:$1; }\n" + inst[a:b] + block + "\n"
+    out = subprocess.run(["bash", "-c", script], capture_output=True, text=True, check=True).stdout
+    assert "ENABLED:trader-engine-testnet.service" not in out and "testnet kapali" in out
+    assert "TESTNET_ACIK=" in (root / "deploy/trader-testnet.env.example").read_text(encoding="utf-8")
+    import json
+    tn = json.loads((root / "config/engine.testnet.json").read_text(encoding="utf-8"))
+    paper = json.loads((root / "config/engine.paper.json").read_text(encoding="utf-8"))
+    if not set(tn.get("pairs", [])) <= set(paper["pairs"]):                  # testnet ayari kagit 14'un alt kumesi DEGIL: TESTNET_ACIK sarti betikte kilitli
+        assert "has_value /etc/trader-testnet.env TESTNET_ACIK" in inst

@@ -50,6 +50,7 @@ def _x(rng, y: int) -> list[float]:
 
 
 def _ogrenici(tmp: Path, defter, **kw) -> OG.Ml1Ogrenici:
+    kw.setdefault("sinama", False)                          # mekanik testler (n kucuk): orneklem-disi sinama ayri testlerde acik kurulur
     og = OG.Ml1Ogrenici(tmp / "og", tmp / "models" / "ml1_package.json", now_fn=lambda: NOW, ledger=defter, **kw)
     assert og.baslat(NOW)
     return og
@@ -387,6 +388,7 @@ def test_kapi_yalniz_alinan_adayin_vektorunu_ogreniciye_verir(hist, tmp_path, pa
     a = alinanlar[0]
     assert a["arm_id"] == "R1@1h" and a["trade_id"] == 55 and a["decision_id"] == 77 and a["pair"] == "BTC/USDT" and a["tf"] == "1h"
     assert a["decision_ts"] == pd.Timestamp(Dd).isoformat() and len(a["x"]) == K
+    assert a["oz"] == 2                                                 # ozellik tanimi surumu (Paket 2 / C2)
     assert a["x"][M.feature_names().index("tf_1h")] == 1.0 and a["x"][M.feature_names().index("tf_4h")] == 0.0
     assert a["x"][M.feature_names().index("grp_RANGE_EDGE")] == 1.0
     g.note_taken("BTC/USDT", "T1@4h", "long", Dd, 78, 56)               # bu adimda puanlanmamis aday: kayit yok
@@ -409,3 +411,184 @@ def test_ogrenici_yok_ya_da_kayit_hatasi_kapi_kararini_etkilemez(hist, tmp_path)
     g.prepare("BTC/USDT", Dd, (c,))
     g.note_taken("BTC/USDT", "T1@1h", "long", Dd, 1, 1)                 # firlatmaz, sayar
     assert g.counters["ml1_ogren_log_hata"] == 1 and g.verdict(c.last).code is None
+
+
+# ================================================================================================================ orneklem-disi sinama (Paket 2 / B)
+def _rastgele_tampon(n: int, seed: int):
+    """Etiket ozelliklerden BAGIMSIZ (rastgele); ayri olaylar (10 saat arayla)."""
+    rng = np.random.default_rng(seed)
+    y = (rng.random(n) < 0.5).astype(float)
+    X = rng.normal(size=(n, K))
+    ts = [pd.Timestamp(NOW) - pd.Timedelta(days=1) - pd.Timedelta(hours=10 * (n - i)) for i in range(n)]       # artan zaman
+    d = pd.DataFrame({"k": [f"p|a|long|{i:05d}" for i in range(n)], "decision_ts": pd.to_datetime(ts, utc=True), "y": y,
+                      "pair": "BTC/USDT", "side": "long", "tf": "1h"})
+    return d, X
+
+
+def _sinama_ogrenici(tmp: Path, defter, n: int, *, ogrenilebilir: bool, seed: int, **kw) -> OG.Ml1Ogrenici:
+    """n islem alinip kapatilir; 'adim' calistirilmaz. ogrenilebilir=False: ozellikler ve etiket `_rastgele_tampon(n, seed)`'den (bagimsiz)."""
+    og = _ogrenici(tmp, defter, min_islem=n, sinama=True, **kw)
+    rng = np.random.default_rng(seed)
+    d0, X0 = _rastgele_tampon(n, seed)
+    for i in range(n):
+        if ogrenilebilir:
+            y = int(rng.random() < 0.5)
+            x = _x(rng, y)
+        else:
+            y, x = int(d0["y"].iloc[i]), [float(a) for a in X0[i].astype(np.float32)]
+        ts = d0["decision_ts"].iloc[i].to_pydatetime()
+        og.islem_alindi({"pair": "BTC/USDT", "tf": "1h", "setup": "T1", "arm_id": "T1@1h", "group": "G", "side": "long", "entry_ref": 100.0,
+                         "stop": 99.0, "target": None, "stop_dist_atr": 1.0, "decision_ts": ts.isoformat(), "decision_id": 1000 + i,
+                         "trade_id": 1000 + i, "x": x})
+        _kapat(defter, og, i, y)
+    return og
+
+
+def _rastgele_tohum(n: int = 240) -> int:
+    """Rastgele etiketle sinama AUC'si belirgin < 0.5 (< 0.45) cikan ilk tohum (belirleyici; float32 yuvarlamasina dayanikli)."""
+    for sd in range(500):
+        d, X = _rastgele_tampon(n, sd)
+        s = OG.sina(d, X.astype(np.float32).astype(float), NOW)
+        if not s["gecti"] and s.get("auc") is not None and s["auc"] < 0.45:
+            return sd
+    raise AssertionError("tohum bulunamadi")
+
+
+def test_sinama_rastgele_etiket_paket_yazilmaz_ogrenme_surer(tmp_path):
+    defter = SahteDefter()
+    og = _sinama_ogrenici(tmp_path, defter, 240, ogrenilebilir=False, seed=_rastgele_tohum())
+    og.adim(NOW)
+    pk = tmp_path / "models" / "ml1_package.json"
+    dur = json.loads((tmp_path / "og" / "durum.json").read_text())
+    son = [json.loads(x) for x in (tmp_path / "og" / "guncellemeler.jsonl").read_text().splitlines()][-1]
+    assert son["sonuc"].startswith("reddedildi:sinama_") and son["sinama"]["gecti"] is False
+    assert not pk.exists() and og.asama() == "ogrenme" and og.surum == 0 and og.sayac["sinama_red"] == 1
+    assert dur["son_sinama"]["gecti"] is False and dur["asama"] == "ogrenme"
+
+
+def test_sinama_ogrenilebilir_etiket_paket_yazilir_ve_metrik_paketin_icinde(tmp_path):
+    defter = SahteDefter()
+    og = _sinama_ogrenici(tmp_path, defter, 240, ogrenilebilir=True, seed=5)
+    og.adim(NOW)
+    pk = tmp_path / "models" / "ml1_package.json"
+    got, why = M.load_package(pk)
+    assert why is None and og.sayac["yazildi"] == 1
+    s = got["metrics"]["sinama"]
+    assert s["gecti"] is True and s["ll_model"] < s["ll_taban"] and s["auc"] > 0.5 and M.verify_package(got) is None
+    dur = json.loads((tmp_path / "og" / "durum.json").read_text())
+    assert dur["son_sinama"]["gecti"] is True and dur["asama"] == "suzme"
+
+
+def test_sinama_bolme_zaman_sirali_ambargolu_ve_en_az_40():
+    n = 300
+    rng = np.random.default_rng(9)
+    # 4'lu olay kumeleri (1 saat arayla), kumeler 40 saat arayla: sinama siniri kumenin ortasina denk gelebilir
+    ts = [pd.Timestamp(NOW) - pd.Timedelta(days=1) - pd.Timedelta(hours=40 * (n // 4 - i // 4) - (i % 4)) for i in range(n)]
+    y = (rng.random(n) < 0.5).astype(float)
+    d = pd.DataFrame({"k": [f"p|a|long|{i:05d}" for i in range(n)], "decision_ts": pd.to_datetime(ts, utc=True), "y": y,
+                      "pair": "BTC/USDT", "side": "long", "tf": "1h"})
+    X = np.array([_x(rng, int(v)) for v in y])
+    s = OG.sina(d, X, NOW)
+    assert s["n_sinama"] >= 40 and s["n_egitim"] > 0 and s["n_egitim"] + s["n_sinama"] <= n
+    from trader_ml.ml1 import features as F
+    tsn = pd.DatetimeIndex(d["decision_ts"]).as_unit("ns").asi8
+    h = tsn >= pd.Timestamp(s["sinir_ts"]).as_unit("ns").value
+    assert int(h.sum()) == s["n_sinama"]
+    ev = F.events(d[["decision_ts", "pair", "side", "tf"]])["event_id"].to_numpy()
+    egit = (~h) & ~np.isin(ev, ev[h])
+    assert int(egit.sum()) == s["n_egitim"]
+    assert not (set(ev[egit]) & set(ev[h]))                    # ayni olay iki tarafta yok
+    assert tsn[h].min() > tsn[egit].max()                      # sinama tamamen egitimden sonra
+
+
+def test_sinama_etkin_paket_varken_gecemeyen_guncelleme_paketi_degistirmez(tmp_path):
+    defter = SahteDefter()
+    og = _sinama_ogrenici(tmp_path, defter, 240, ogrenilebilir=True, seed=5)
+    og.adim(NOW)
+    pk, iyi = tmp_path / "models" / "ml1_package.json", tmp_path / "models" / "ml1_package.son_iyi.json"
+    assert og.surum == 1
+    b = pk.read_bytes()
+    iyi0 = iyi.read_bytes() if iyi.exists() else None
+    # yeni (kapanan) islemler sinamayi bozar: son dilimi ters etiketli rastgele islemlerle doldur
+    rng = np.random.default_rng(77)
+    for j in range(240, 330):
+        y = int(rng.random() < 0.5)
+        ts = NOW - timedelta(hours=2 + (330 - j))
+        og.islem_alindi({"pair": "BTC/USDT", "tf": "1h", "setup": "T1", "arm_id": "T1@1h", "group": "G", "side": "long", "entry_ref": 100.0,
+                         "stop": 99.0, "target": None, "stop_dist_atr": 1.0, "decision_ts": ts.isoformat(), "decision_id": 1000 + j,
+                         "trade_id": 1000 + j, "x": _x(rng, 1 - y)})                       # sinyal ters: egitimle celisir
+        _kapat(defter, og, j, y)
+    og.adim(NOW + timedelta(minutes=5))
+    son = [json.loads(x) for x in (tmp_path / "og" / "guncellemeler.jsonl").read_text().splitlines()][-1]
+    if og.surum == 1:                                          # reddedildi
+        assert son["sonuc"].startswith("reddedildi:sinama_") and og.sayac["sinama_red"] == 1
+        assert pk.read_bytes() == b and (iyi.read_bytes() if iyi.exists() else None) == iyi0
+        assert og.sayac["geri_donus"] == 0
+    else:                                                      # sinama gecerse paket yenilenir (bu veriyle ret beklenir): testi basarisiz say
+        pytest.fail(f"ters sinyalli dilim sinamayi gecti: {son}")
+
+
+def test_sinama_tek_sinif_ve_yetersiz_veri():
+    d, X = _rastgele_tampon(240, 1)
+    d["y"] = 1.0
+    assert OG.sina(d, X, NOW)["neden"] in ("sinama_tek_sinif", "sinama_egitim_uydurulamadi")
+    # yalniz sinama dilimi tek sinif: egitim iki sinifli
+    d, X = _rastgele_tampon(240, 1)
+    d.loc[d.index[-60:], "y"] = 1.0
+    s = OG.sina(d, X, NOW)
+    assert s["gecti"] is False and s["neden"] == "sinama_tek_sinif"
+    d, X = _rastgele_tampon(60, 1)
+    assert OG.sina(d, X, NOW) == {"gecti": False, "neden": "sinama_yetersiz_veri"}
+
+
+def test_sinama_puanlama_paritesi_m_score_ile_birebir_kirpma_yok():
+    n = 260
+    rng = np.random.default_rng(12)
+    y = (rng.random(n) < 0.5).astype(float)
+    raw = pd.DataFrame(rng.normal(size=(n, K)), columns=M.feature_names())
+    raw["side"], raw["group"], raw["tf"] = "long", "PULLBACK_1LEG", "1h"
+    raw["entry_ref"], raw["stop"], raw["target"] = 100.0, 99.0, np.nan
+    raw["stop_dist_atr"] = 1.0 + 2.0 * y + 0.3 * rng.normal(size=n)
+    X = M.design_matrix(raw)
+    ts = [pd.Timestamp(NOW) - pd.Timedelta(days=1) - pd.Timedelta(hours=10 * (n - i)) for i in range(n)]
+    d = pd.DataFrame({"k": [f"p|a|long|{i:05d}" for i in range(n)], "decision_ts": pd.to_datetime(ts, utc=True), "y": y,
+                      "pair": "BTC/USDT", "side": "long", "tf": "1h"})
+    s = OG.sina(d, X, NOW)
+    assert s["gecti"] is True
+    tsn = pd.DatetimeIndex(d["decision_ts"]).as_unit("ns").asi8
+    h = tsn >= pd.Timestamp(s["sinir_ts"]).as_unit("ns").value
+    from trader_ml.ml1 import features as F
+    ev = F.events(d[["decision_ts", "pair", "side", "tf"]])["event_id"].to_numpy()
+    egit = (~h) & ~np.isin(ev, ev[h])
+    r_e = OG.uydur(d[egit].reset_index(drop=True), X[egit], NOW)
+    pkg = OG.yeni_paket(r_e, esik=0.5, surum=1, simdi=NOW)
+    p = M.score(pkg, raw[h].reset_index(drop=True))                              # kapinin kullandigi yol (paket + ham aday tablosu)
+    p_sina = M._sigmoid(M.standardize(X[h], r_e["st"]) @ r_e["coef"] + r_e["b"])
+    assert np.allclose(p, p_sina, rtol=0, atol=1e-12)
+    assert round(M.log_loss(p, y[h]), 6) == s["ll_model"]
+
+
+def test_sinama_son_sinama_yeniden_baslatmada_korunur(tmp_path):
+    defter = SahteDefter()
+    og = _sinama_ogrenici(tmp_path, defter, 240, ogrenilebilir=True, seed=5)
+    og.adim(NOW)
+    assert og.son_sinama and og.son_sinama["gecti"] is True
+    og2 = OG.Ml1Ogrenici(tmp_path / "og", tmp_path / "models" / "ml1_package.json", now_fn=lambda: NOW, ledger=defter, min_islem=240)
+    assert og2.baslat(NOW) and og2.son_sinama == og.son_sinama and og2.sinama is True
+
+
+def test_oz_karisik_sayaci_eski_kayit_1_sayilir_ve_yeniden_baslatmada_korunur(tmp_path):
+    defter = SahteDefter()
+    og = _ogrenici(tmp_path, defter, min_islem=1000)
+    for i in range(4):
+        _al(og, i, y=i % 2)
+        if i < 2:
+            og.bekleyen[1000 + i].pop("oz", None)                         # eski kayit: alan yok -> 1
+        else:
+            og.bekleyen[1000 + i]["oz"] = 2
+        _kapat(defter, og, i, i % 2)
+    og.adim(NOW)
+    dur = json.loads((tmp_path / "og" / "durum.json").read_text())
+    assert dur["oz_karisik"] == {"1": 2, "2": 2} and dur["kapali_islem"] == 4
+    og2 = OG.Ml1Ogrenici(tmp_path / "og", tmp_path / "models" / "ml1_package.json", now_fn=lambda: NOW, ledger=defter, min_islem=1000)
+    assert og2.baslat(NOW) and dict(og2.n_oz) == {"1": 2, "2": 2}

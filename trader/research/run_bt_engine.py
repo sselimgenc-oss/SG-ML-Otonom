@@ -65,7 +65,8 @@ def main(argv=None) -> int:
     ap.add_argument("--registry", default=str(REGISTRY))
     a = ap.parse_args(argv)
     bt_args = ["--id", a.id, "--period", a.period, "--tf", a.tf, "--fill-model", a.fill_model, "--fee-mult", str(a.fee_mult),
-               "--slip-bps", str(a.slip_bps), "--strategy", a.strategy]
+               "--slip-bps", str(a.slip_bps), "--strategy", a.strategy,
+               "--env", "eski"]                              # P6-03: bu betik 5 ciftli taban yola dayanir (varsayilan artik kagit ortami)
     if a.params:
         bt_args += ["--params", a.params]
     if a.granularity:

@@ -49,8 +49,8 @@ Dokunulmaz: `engine.py`, `gates.py`, `strategy_runner.py` (05), `brokers/*` (03)
 | `--paranoid [N]` | N örneklem (varsayılan 200), `--seed 17` |
 | `--truncate-check END` | §6 |
 | `--from-paper-ledger PATH` | §8 eşitlik raporu |
-| `--env paper` | **Yalnız isteğe bağlı (varsayılan kapalı; bayraksız davranış bit bit aynı).** Kâğıt motorunun yapılandırma katmanı (`engine.paper.json`: `arms`, `arm_max_positions`, kümeler, `risk`, `cost_overrides`, 44 çift) `mode="paper"` ile yüklenir, strateji `price_action_lab_ml` kâğıttaki gibi kurulur ve sinyal kaynağı `engine.signal_source_class(strategy)` ile seçilir (`MultiArmSignalSource`, `strict=False`; `build_engine` ile tek yer). Kâğıt var/KILL/PAUSE yollarına dokunulmaz (hepsi çıktı dizinine taşınır); holdout kilidi `run_once`ta ayrıca denetlenir. `--paranoid/--truncate-check/--fill-model legacy_compat/--fee-mult/--slip-bps/--record-shadow/--veto` ile birlikte reddedilir (çıkış 2). Tutarlılık raporu (`scripts/tutarlilik_run.py`) kullanır |
-| `--wallet-start W` | Yalnız `--env` ile: başlangıç özsermayesi (kâğıt defterinden pencere başı için türetilir) |
+| `--env paper\|eski` | **Varsayılan `paper` (26.11, P6-03): kâğıt botla aynı yapılandırma** (`engine.paper.json`: `arms`, kümeler, maliyet, 14 çift, `price_action_lab_ml`, `target_mode=resting`, `target_trade_risk=0.01`) + kâğıtla aynı çok kurulumlu sinyal kaynağı. `eski` = 5 çiftli taban yol (yalnız çapraz doğrulama/araştırma; `meta.json` `kagit_paritesi=false`, stderr uyarısı). `--strategy/--tf/--target-trade-risk` yalnız `--env eski`. Programatik `BacktestSpec.env` varsayılanı (None) değişmedi. |
+| `--wallet-start W` | Yalnız `--env paper` ile: başlangıç özsermayesi (kâğıt defterinden pencere başı için türetilir) |
 
 Akış:
 1. Yapılandırma: `config/engine.base.json` + bayrak geçersiz kılmaları (`apply_overrides`); `mode="backtest"`, `veto_mode="off"` (ya da `LedgerReplayVeto`), `bot="learner"`.

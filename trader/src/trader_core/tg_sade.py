@@ -109,7 +109,7 @@ def _bagla(satirlar: list[str], max_satir: int = MAX_SATIR) -> str:
 
 
 # ----------------------------------------------------------------------------- kol adi
-_TF_TR = {"15m": "15 dakika", "1h": "1 saat", "4h": "4 saat", "1d": "1 gün", "5m": "5 dakika", "1m": "1 dakika",
+_TF_TR = {"1h": "1 saat", "4h": "4 saat", "1d": "1 gün", "5m": "5 dakika", "1m": "1 dakika",
           "30m": "30 dakika", "1w": "1 hafta"}
 # kurulum kodu -> Turkce ad (kaynak: src/trader_engine/strategies/arms/*.py belge dizgileri)
 KURULUM_AD = {"T1": "Trend geri çekilmesi", "R1": "Yatay piyasa kenarı", "TF1": "Trend kırılımı", "B1": "Kırılım yeniden testi",

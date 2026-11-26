@@ -107,7 +107,7 @@ def test_install_step_testnet_only_and_conditional():
     hits = [h for h in hits if "runuser" in INSTALL[INSTALL.rfind("\n", 0, h):h]]     # yalniz calistirilan satir
     assert len(hits) == 1
     t = INSTALL.index("if has_value /etc/trader-testnet.env BINANCE_API_KEY")
-    e = INSTALL.index("else MISSING+=(\"/etc/trader-testnet.env")
+    e = INSTALL.index("else echo \"Bilgi: testnet kapali")
     assert t < hits[0] < e                                  # anahtar kosulunun icinde
     line = INSTALL[INSTALL.rfind("\n", 0, hits[0]):INSTALL.index("\n", hits[0])]
     assert "--env testnet" in line and "--env live" not in line and "--env paper" not in line

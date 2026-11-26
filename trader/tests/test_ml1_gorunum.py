@@ -41,31 +41,29 @@ def test_kaldirilan_ailer_motordaki_liste_ile_esit():
     assert set(TS.KALDIRILAN_AILELER) == set(KALDIRILAN_KOLLAR)
 
 
-def test_eleme_sayilari_zd_dort_satir_ve_kanitli_yalniz_4h_1d(oz):
+def test_eleme_sayilari_zd_uc_satir_15m_yok(oz):
     o, _ = oz
     b, h = o["eleme"]["bugun"], o["eleme"]["7g"]
     assert (b["puanlanan"], b["gecen"], b["islem"]) == (9, 7, 5)       # 5 girilen (biri acik), 4 atlanan: 1 ayni olay, 1 risk, 2 esik alti
     assert b["gecme_yuzde"] == pytest.approx(7 / 9 * 100, abs=0.06)
     assert b["alinmayan"] == {"ayni_olay": 1, "limit": 1, "diger": 0}
     assert (h["puanlanan"], h["gecen"], h["islem"]) == (11, 8, 6) and h["alinmayan"]["ayni_olay"] == 1
-    assert [r["kod"] for r in o["zd"]] == ["15m", "1h", "4h", "1d"]
-    assert [r["kanitli"] for r in o["zd"]] == [False, False, True, True]
+    assert [r["kod"] for r in o["zd"]] == ["1h", "4h", "1d"] and all("kanitli" not in r for r in o["zd"])
     z = {r["kod"]: r for r in o["zd"]}
-    assert z["4h"]["n"] == 2 and z["4h"]["kazanma"] == 50.0 and z["1d"]["n"] == 1 and z["15m"]["n"] == 1
+    assert z["4h"]["n"] == 2 and z["4h"]["kazanma"] == 50.0 and z["1d"]["n"] == 1
     assert z["1h"]["n"] == 1 and z["1h"]["acik"] == 1                    # acik 1h islemi ve ESKI donemdeki kapanan
-    assert o["zd_ozet"]["kanitli"]["n"] == 3 and o["zd_ozet"]["kanitsiz"]["n"] == 2
     assert o["toplam"]["n"] == 5 and o["eski"]["n"] == 3
-    assert o["zd_ozet_7g"]["kanitli"]["n"] == 3                           # 7 gun icindeki ML1 islemleri
+    assert "zd_ozet" not in o and "zd_ozet_7g" not in o                  # eski kanitli/kanitsiz bolmesi yok
 
 
-def test_zd_bos_donemde_dort_satir_ve_sayilar_none(tmp_path):
+def test_zd_bos_donemde_uc_satir_ve_sayilar_none(tmp_path):
     from panel_support import NOW as N, PARAMS
     led = L.open_ledger(str(tmp_path / "b.sqlite"), "learner", clock=lambda: N)
     led.init_params(PARAMS, reason="x")
     led.close()
     d, c, a = _oku(str(tmp_path / "b.sqlite"))
     o = MG.ml1_ozet(d, c, a, N)
-    assert len(o["zd"]) == 4 and all(r["n"] == 0 and r["net_r"] is None and r["kazanma"] is None for r in o["zd"])
+    assert len(o["zd"]) == 3 and all(r["n"] == 0 and r["net_r"] is None and r["kazanma"] is None for r in o["zd"])
     assert o["esik"] is None and o["eski"] is None and o["eleme"]["bugun"]["gecme_yuzde"] is None
 
 
@@ -116,11 +114,17 @@ def test_durum_rozeti_dort_hal(oz):
     assert MG.durum(d + [pk], NOW, True)["renk"] == "kirmizi"
 
 
-def test_sinav_sabiti_ve_metinleri():
-    s = MG.sinav()
-    assert s["tarih"] == "26.11" and [r["sonuc"] for r in s["satirlar"]] == ["kazanıyor", "başa baş", "kaybediyor"]
-    assert [r["renk"] for r in s["satirlar"]] == ["yesil", "gri", "kirmizi"]
-    assert MG.sinav_satiri() == "Sınav (26.11): 4s+1g +0,11 R · 1s ≈ 0 · 15dk −0,04 R"
+def test_eski_sinav_kaldirildi_yeni_ml1_durum_satiri():
+    assert not hasattr(MG, "SINAV") and not hasattr(MG, "sinav") and not hasattr(MG, "ozet_satirlari") and not hasattr(MG, "KANITLI_ZD")
+    oz = {"ogr": MG.ogr_durumu(None, 37, {"1h": 20, "4h": 12, "1d": 5, "15m": 9}, False)}
+    assert MG.durum_satiri(oz) == "ML1 öğrenme aşamasında: 37/200 kapanan işlem; süzme başlamadı"
+    assert MG.tf_satiri(oz) == "Kapanan işlem: 1s 20 · 4s 12 · 1g 5" and oz["ogr"]["kaynak"] == "defter"
+    oz = {"ogr": MG.ogr_durumu({"asama": "ogrenme", "kapali_islem": 240, "min_islem": 200, "kapali_islem_tf": {"1h": 100, "4h": 90, "1d": 50},
+                                "son_sinama": {"gecti": False, "neden": "sinama_auc"}}, 0, {}, False)}
+    assert MG.durum_satiri(oz) == "ML1 öğrenme aşamasında: 240/200 kapanan işlem; süzme başlamadı (son deneme: geçmedi (sinama_auc))"
+    assert oz["ogr"]["kaynak"] == "durum"
+    suz = {"ogr": MG.ogr_durumu(None, 250, {}, True)}
+    assert MG.durum_satiri(suz) == "ML1 süzme aşamasında: 250 kapanan işlem"
 
 
 def test_iyelik_belirtme_eki():
@@ -153,3 +157,13 @@ def test_suzme_asamasi_durumu_ogrenmeyi_gecer(tmp_path):
     ml1_defter(str(p))
     d, c, a = _oku(str(p))
     assert MG.durum(d, NOW, True)["renk"] == "yesil"
+
+
+def test_sinama_metni_son_deneme_gecmediyse():
+    """Paket 2 / B: ogrenme satirina 'son deneme: gecmedi (<neden>)' (yalniz son_sinama gecmediyse)."""
+    assert MG.sinama_metni({"gecti": False, "neden": "sinama_auc"}) == "son deneme: geçmedi (sinama_auc)"
+    assert MG.sinama_metni({"gecti": True, "neden": "gecti"}) is None and MG.sinama_metni(None) is None
+    d, c, a = _veri_bos() if "_veri_bos" in globals() else ([], [], [])
+    o = MG.ml1_ozet(d, c, a, NOW, {"son_sinama": {"gecti": False, "neden": "sinama_logloss"}})
+    assert o["ogrenme"]["son_sinama"]["neden"] == "sinama_logloss" and o["ogr"]["son_sinama"]["neden"] == "sinama_logloss"
+    assert MG.ml1_ozet(d, c, a, NOW)["ogrenme"]["son_sinama"] is None

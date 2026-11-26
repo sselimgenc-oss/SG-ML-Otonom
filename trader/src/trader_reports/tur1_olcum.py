@@ -41,7 +41,7 @@ KUME_ILK_N = 10              # Kayip kumeleri: listelenecek kume sayisi.
 KUME_MIN_ISLEM = 3           # Bir kumede bundan az kayip varsa "az ornek" notu.
 SEED = 20261123              # Tum rastgelelik bu tohumdan turetilir.
 
-TF_MS = {"15m": 900_000, "1h": 3_600_000, "4h": 14_400_000, "1d": 86_400_000}   # 1d: market.sqlite 4s mumlarından kurulur (tam 6 mumlu UTC günü)
+TF_MS = {"1h": 3_600_000, "4h": 14_400_000, "1d": 86_400_000}   # 1d: market.sqlite 4s mumlarından kurulur (tam 6 mumlu UTC günü)
 YETERSIZ = "yetersiz örnek"
 
 
@@ -425,13 +425,6 @@ def dayaniklilik(trades, mumlar) -> dict:
         o = ozet([t["net_r"] - (m - 1.0) * cost_r(t) for t in trades])
         o["kalan_oran"] = (o["toplam"] / base) if base > 0 else None
         out["masraf"][f"x{m}"] = o
-    # 15 dakikalik mum saati kaymasi
-    out["saat_kaymasi_15dk"] = {
-        "tam_olculebildi": False,
-        "aciklama": ("Gerçek 15 dk mum-saati kayması sinyali yeniden üretmeyi gerektirir (göstergeler kaymış mumlarda yeniden "
-                     "hesaplanır); saklı veriden (defter + market.sqlite) YAPILAMAZ. Aşağıdaki yalnız yaklaşık vekildir: giriş 15 dk "
-                     "gecikir (15dk mumlarla), sinyal/stop/çıkış aynı kalır."),
-        "yaklasik_giris_15dk_gecikme": _senaryo(trades, lambda t: gecikmeli_r(t, mumlar, "15m", 1))}
     return out
 
 
@@ -670,7 +663,7 @@ def tf_masraf_tablosu(trades) -> dict:
     g: dict = defaultdict(list)
     for t in trades:
         g[t["tf"]].append(t)
-    sira = {"15m": 0, "1h": 1, "4h": 2, "1d": 3}
+    sira = {"1h": 0, "4h": 1, "1d": 2}
     rows = []
     for tf, ts in sorted(g.items(), key=lambda kv: (sira.get(kv[0], 9), kv[0])):
         brut = toplam(t["gross_pnl"] / t["planned_risk"] for t in ts)
@@ -839,8 +832,6 @@ def render_md(d: dict) -> str:
                  + (f"; veri yok (zaman dilimi): {_sozluk(v['veri_yok_tf'])}" if v.get("veri_yok_tf") else ""))
     for k, v in dy["masraf"].items():
         L.append(f"- Masraf {k}: net {_r(v['toplam'])} R, kalan oran {_r(v['kalan_oran'], 2)}")
-    L.append(f"- 15 dk mum saati kayması: **tam ölçülemedi** (sinyali yeniden üretmek gerekir). Vekil: giriş 15 dk gecikmeli n="
-             f"{dy['saat_kaymasi_15dk']['yaklasik_giris_15dk_gecikme']['n']}, net {_r(dy['saat_kaymasi_15dk']['yaklasik_giris_15dk_gecikme']['toplam'])} R")
     sk = B["sans_kuyruk"]
     L += ["", "## 3. Şans / kuyruk", f"- n={sk['n']}" + (f" ({YETERSIZ})" if sk["etiket"] else "") + f", {sk['karistirma']} karıştırma"]
     if "maks_dusus" in sk:

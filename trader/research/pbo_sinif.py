@@ -48,7 +48,7 @@ ARM_DIR = ROOT / "research" / "arm_series"
 OUT_JSON = ROOT / "research" / "holdout" / "pbo_sinif_ozet.json"
 OUT_MD = ROOT / "docs" / "ml" / "pbo-raporu.md"
 SECTION = "## Varlik sinifi dokumu — 23.11 degerlendirmesi icin"
-CLUSTER_CLASS = {"kripto_buyuk": "kripto", "kripto_diger": "kripto", "hisse": "hisse", "metal": "emtia", "enerji_sanayi": "emtia"}   # hisse_teknoloji = hisse altkumesi (tekrar sayilmaz)
+CLUSTER_CLASS = {"kripto_buyuk": "kripto", "kripto_diger": "kripto", "hisse": "hisse", "metal": "emtia", "enerji_sanayi": "emtia"}   # hisse_teknoloji kumesi 26.11 sahip karariyla silindi
 RULE_TEXT = ("T >= 128 gun -> n_splits 16; 64 <= T < 128 -> n_splits 8; T < 64 -> hesaplanmadi. T = sinifin ilk sifirdan farkli R'li gunu..2026-04-30; "
              "pencere oncesi sifir gunler dahil degil.")
 

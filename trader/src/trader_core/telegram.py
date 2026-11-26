@@ -1392,6 +1392,8 @@ NEDEN_TR = {
     "exchange_auth": "borsa erişim anahtarı sorunlu", "exchange_unreachable": "borsaya ulaşılamıyor",
     "exchange_rate_limited": "borsa istek sınırına takıldı", "exchange_unknown_code": "borsadan beklenmedik yanıt geldi",
     "working_type_unverified": "borsa stop ayarı doğrulanamadı", "params_unavailable": "strateji ayarları yüklenemedi",
+    "ml1_kapi_yok": "ML1 kapısı kurulamadı (yeni işlem açılmaz; açık işlemler yönetiliyor)",
+    "ml1_paket_bozuk": "ML1 paketi bozuk (yeni işlem açılmaz)",
     "trigger_tf_changed": "zaman dilimi ayarı değişmiş", "degraded": "kayıt sistemi sorunlu",
     "stale_data": "piyasa verisi eski", "day_start_missing": "gün başı bakiyesi bilinmiyor",
     "clock_skew": "sunucu saati kaymış", "order_unknown": "sonucu belirsiz bir emir var",
@@ -1426,9 +1428,11 @@ def _gun_tr(day: str) -> str:
         return str(day)
 
 
-def neden_tr(kod: Any) -> str:
-    """Duraklatma/kapı kodunu düz Türkçeye çevirir; bilinmeyen kod ham yazılmaz."""
+def neden_tr(kod: Any, params_kaynak: Any = None) -> str:
+    """Duraklatma/kapı kodunu düz Türkçeye çevirir; bilinmeyen kod ham yazılmaz. `params_kaynak` ("son_bilinen") yalnız params_unavailable'a ek düşer."""
     k = str(kod or "")
+    if k == "params_unavailable" and params_kaynak == "son_bilinen":
+        return NEDEN_TR[k] + " (çıkışlar son bilinen ayarla sürüyor)"
     if k == "ml_expired":
         return "modelin süresi doldu"
     if k == "ml_no_model":
@@ -1507,6 +1511,8 @@ def _durum_satiri(st: Mapping[str, Any] | None, pause_text: str, doldu: bool) ->
     if pause_text:
         return "Yeni işlemler duraklatıldı."
     if st.get("entries_open") is False:
+        if st.get("gate_code") == "params_unavailable":
+            return f"Yeni işlemler kapalı: {neden_tr('params_unavailable', st.get('params_kaynak'))}."
         return "Yeni işlemler kapalı."
     if st.get("entries_open") is True:
         return "Yeni işlemler açık."
@@ -1535,7 +1541,12 @@ def _ml1_veri(cfg: TelegramConfig, now: datetime) -> tuple[dict | None, Any]:
     except Exception as e:  # noqa: BLE001
         log.warning("ML1 verisi okunamadı: %s", type(e).__name__)
         return None, aktif
-    return MG.ml1_ozet(dec, closed, acik, now), aktif
+    durum = None
+    try:   # ogrenicinin durum dosyasi (var/learner/ml1_ogren/durum.json); okunamazsa sayilar yalniz defterden
+        durum = json.loads((Path(cfg.var_dir).parent / "learner" / "ml1_ogren" / "durum.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError, AttributeError, TypeError):
+        durum = None
+    return MG.ml1_ozet(dec, closed, acik, now, durum), aktif
 
 
 def _ml1_satirlari(oz: dict | None, aktif: Any, *, hafta: bool = False) -> list[str]:
@@ -1545,7 +1556,6 @@ def _ml1_satirlari(oz: dict | None, aktif: Any, *, hafta: bool = False) -> list[
     if oz is None:
         return []
     e = oz["eleme"]["7g" if hafta else "bugun"]
-    z7 = oz["zd_ozet_7g"]
     og = (oz.get("ogrenme") or {}).get("7g" if hafta else "bugun") or {}
     if not e["puanlanan"] and og.get("aday"):
         ilk = (f"ML1 öğrenme aşamasında{'' if hafta else ' (bugün)'}: {TS.sayi(og['aday'], 0)} aday süzülmeden geçti, "
@@ -1558,13 +1568,8 @@ def _ml1_satirlari(oz: dict | None, aktif: Any, *, hafta: bool = False) -> list[
     else:
         ilk = f"ML1 bugün: {TS.sayi(e['puanlanan'], 0)} aday puanladı, {e['islem']}{TS.iyelik_belirtme(e['islem'])} işleme çevirdi"
     if hafta:
-        k, d = MG.ozet_satirlari({"zd_ozet": z7})
-        return [ilk, k, d]
-    if z7["kanitli"]["n"] + z7["kanitsiz"]["n"] == 0:
-        return [ilk]
-    return [ilk, "ML1 işlemleri (7 gün): "
-            f"4s+1g {z7['kanitli']['n']} işlem {MG.r_metni(z7['kanitli']['net_r'])} · "
-            f"15dk+1s {z7['kanitsiz']['n']} işlem {MG.r_metni(z7['kanitsiz']['net_r'])}"]
+        return [ilk, MG.durum_satiri(oz), MG.tf_satiri(oz)]
+    return [ilk, MG.durum_satiri(oz)]
 
 
 def ml1_metni(cfg: TelegramConfig, now: datetime) -> str:
@@ -1575,12 +1580,11 @@ def ml1_metni(cfg: TelegramConfig, now: datetime) -> str:
     e = oz["eleme"]
     ogr = (oz.get("ogrenme") or {}).get("7g") or {}
     esik = TS.sayi(oz["esik"], 2) if oz["esik"] is not None else ("öğrenme aşaması" if ogr.get("aday") else "okunamadı")
-    k, d = MG.ozet_satirlari(oz)
     return TS.etiketle("\n".join([
         f"ML1{'' if aktif is True else ' (kapalı)'} · eşik {esik}",
         f"Bugün: {TS.sayi(e['bugun']['puanlanan'], 0)} aday, {TS.sayi(e['bugun']['gecen'], 0)} geçti, {e['bugun']['islem']} işlem",
         f"7 gün: {TS.sayi(e['7g']['puanlanan'], 0)} aday, {TS.sayi(e['7g']['gecen'], 0)} geçti, {e['7g']['islem']} işlem",
-        k, d, MG.sinav_satiri()][:TS.MAX_SATIR]))
+        MG.durum_satiri(oz), MG.tf_satiri(oz)][:TS.MAX_SATIR]))
 
 
 def build_report(cfg: TelegramConfig, now: datetime, day: str, sections: Mapping[str, Callable[[], str]] | None = None

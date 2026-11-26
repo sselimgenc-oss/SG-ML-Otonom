@@ -326,11 +326,11 @@ def kz_view(ctx: Ctx, start: float | None, now: datetime, curve: Mapping | None,
 
 
 # ----------------------------------------------------------------------------- ML1
-def ml1_view(ctx: Ctx, now: datetime, *, aktif: Any = None) -> dict:
+def ml1_view(ctx: Ctx, now: datetime, *, aktif: Any = None, ogr_durum: Any = None) -> dict:
     """ML1 sekmesi ve OZET karti. Sayilar `ml1_gorunum.ml1_ozet` (Telegram ile ayni); eski kol kapanis kaydi OKUNMAZ. `aktif` = motor ayarindaki
     `ml1.aktif`. Islemi olmayan kol/grup hicbir yerde listelenmez."""
-    oz = MG.ml1_ozet(ctx.decisions, ctx.closed, ctx.open, now)
-    return {"durum": MG.durum(ctx.decisions, now, aktif), **oz, "gruplar": MG.gruplar(ctx.decisions, ctx.closed), "sinav": MG.sinav()}
+    oz = MG.ml1_ozet(ctx.decisions, ctx.closed, ctx.open, now, ogr_durum)
+    return {"durum": MG.durum(ctx.decisions, now, aktif), **oz, "gruplar": MG.gruplar(ctx.decisions, ctx.closed), "durum_satiri": MG.durum_satiri(oz), "tf_satiri": MG.tf_satiri(oz)}
 
 
 # ----------------------------------------------------------------------------- teknik

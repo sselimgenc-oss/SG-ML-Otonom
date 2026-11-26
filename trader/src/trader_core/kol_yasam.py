@@ -1,7 +1,7 @@
 """Kurulum (arm) yasam dongusu: ac/kapa karari, durum dosyasi (`var/<bot>/arms_off.json`) okuma/yazma.
 
 Ders sistemi kaldirildi (25.11); kurulum karnesi icin gereken saf islevler `scripts/counterfactual_run.py` ve
-`trader_core/panel_*` / `strateji_veri` tarafindan kullanildigi icin burada kalir. Standart kutuphane. Motor kapali kurulumu
+`trader_core/panel_*` tarafindan kullanildigi icin burada kalir. Standart kutuphane. Motor kapali kurulumu
 ENGELLEMEZ (19 Kasim sahip karari): `arms_off.json` yalniz karne/rapor bilgisidir. Motor okuyucusu: `arm_guard.load_arms_off`.
 Esik owner kararidir: minimum aday/islem sarti YOK; karar sonumlu ortalamayla (`damped_mean`) verilir; tek degisikligin geri
 alinmasi `damped_effect` ile `rollback_r` (3 R) esigine gore yapilir. Pencere: en fazla son 40 aday (ust sinir, alt sinir degil).

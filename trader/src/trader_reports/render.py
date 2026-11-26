@@ -149,7 +149,7 @@ def build_report(o: Options) -> dict:
                 sqlite_rules = reader.rules()
             else:
                 warnings.append("market_missing")
-        meta["mum_kaynagi"] = (reader.source if reader else "yok") + " (1h/15m, son fiyat)"
+        meta["mum_kaynagi"] = (reader.source if reader else "yok") + " (son fiyat)"
         status = "empty" if (not trades and not decisions) else "ok"
 
         now_ms = I.dt_ms(o.now)

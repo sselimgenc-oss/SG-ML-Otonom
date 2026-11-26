@@ -28,7 +28,7 @@ def test_tam_14_cift_kume_ve_maliyet(ad):
     assert len(raw["optional_pairs"]) == 9 and set(raw["optional_pairs"]) <= set(raw["pairs"])
     cl = {k: v["pairs"] for k, v in raw["clusters"].items()}
     assert cl == {"kripto_buyuk": ["BTC/USDT", "ETH/USDT", "XRP/USDT", "SOL/USDT"], "kripto_diger": ["TRX/USDT"],
-                  "hisse": [p for p in EVREN[:7]], "hisse_teknoloji": [p for p in EVREN[:7]], "metal": ["XAU/USDT"], "enerji_sanayi": ["BZ/USDT"]}
+                  "hisse": [p for p in EVREN[:7]], "metal": ["XAU/USDT"], "enerji_sanayi": ["BZ/USDT"]}
     assert all(v and set(v) <= set(raw["pairs"]) for v in cl.values())             # bos olmayan alt kume
     assert set(raw["cost_overrides"]) == set(raw["optional_pairs"])                  # kripto icin override yok; kalanlar budandi
 

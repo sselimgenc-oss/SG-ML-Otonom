@@ -3,7 +3,8 @@
 `trader_core` `trader_ml`'i ice aktarmaz: kurulum -> fikir grubu eslemesi `trader_ml/ml1/groups.py::_GRUP_KURULUM`dan KOPYALANIR
 (`GRUP_KURULUM`); ikisinin birebir ayni oldugu testle sinanir. Veri yeni tablo/sutun istemez: ML1'in her adaya verdigi puan karar
 kaydinin `features` alaninda (`ml1_skor`, `ml1_esik`, `ml1_grup`), red nedeni `veto_reason`, girilen aday `final_action == "entered"`.
-Esik koda yazilmaz: kaydin kendi `ml1_esik` degeri okunur. Tek tarihli sabit: `SINAV` (sinav sonucu).
+Esik koda yazilmaz: kaydin kendi `ml1_esik` degeri okunur. Eski tohum-ML1 sinavi (2026) YOK: ekranda yeni ML1'in durumu (asama, kapanan islem X/min_islem,
+zaman dilimi sayilari, son orneklem-disi sinama) gosterilir.
 """
 from __future__ import annotations
 
@@ -50,13 +51,8 @@ _SETUP_GRUP: dict[str, str] = {s: g for g, ss in GRUP_KURULUM.items() for s in s
 ESKI_GRUP_AD = "Kaldırılan kollar (eski)"
 DIGER_AD = "Diğer"
 
-# sinav sonucu (26.11): tek yer; yeni sinavda yalniz burasi guncellenir. Baska sinav sayisi uydurulmaz.
-SINAV = {"tarih": "2026-11-26", "esik_notu": True,
-         "satirlar": (("4 saat + 1 gün", 0.110, "kazanıyor"), ("1 saat", 0.0, "başa baş"), ("15 dakika", -0.043, "kaybediyor"))}
-_SINAV_RENK = {"kazanıyor": "yesil", "başa baş": "gri", "kaybediyor": "kirmizi"}
-
-ZD_SIRA = ("15m", "1h", "4h", "1d")            # ekranda: once kanitli olanlar (JS), veri sirasi sabit
-KANITLI_ZD = ("4h", "1d")
+ZD_SIRA = ("1h", "4h", "1d")                  # giris zaman dilimleri (sahip karari: yalniz bu uc)
+MIN_ISLEM_VARSAYILAN = 200                     # `ogrenme.min_islem` (durum dosyasi okunamazsa)
 LIMIT_NEDENLERI = ("risk_denied", "max_positions", "entry_gate_closed")
 AYNI_OLAY = "ml1_ayni_olay"
 PAKET_YOK = "ml1_paket_yok"
@@ -139,8 +135,9 @@ def _tf_of(t: Any, d: Any) -> str:
 
 
 # ----------------------------------------------------------------------------- ozet
-def ml1_ozet(decisions: Sequence[Any], closed: Sequence[Any], open_: Sequence[Any], now: datetime) -> dict:
-    """Saf ozet: esik (kayittan), eleme (bugun / 7g), zaman dilimi tablosu, kanitli/kanitsiz toplamlari, ML1 toplami, ML1 oncesi islemler."""
+def ml1_ozet(decisions: Sequence[Any], closed: Sequence[Any], open_: Sequence[Any], now: datetime, ogr_durum: Any = None) -> dict:
+    """Saf ozet: esik (kayittan), eleme (bugun / 7g), zaman dilimi tablosu, ogrenme durumu (`ogr`), ML1 toplami, ML1 oncesi islemler.
+    `ogr_durum`: ogrenicinin `durum.json` icerigi (yoksa None: sayilar yalniz defterden)."""
     dec = {d.id: d for d in decisions}
     puanli = [d for d in decisions if skor(d) is not None]
     son = max(puanli, key=lambda d: d.bar_close_ts, default=None)
@@ -174,16 +171,8 @@ def ml1_ozet(decisions: Sequence[Any], closed: Sequence[Any], open_: Sequence[An
     zd = []
     for kod in ZD_SIRA:
         sel = [t for t in ml1_islem if _tf_of(t, dec.get(t.decision_id)) == kod]
-        zd.append({"kod": kod, "ad": TS.zd_adi(kod), "kanitli": kod in KANITLI_ZD, **_istatistik(sel), "acik": acik_tf.get(kod, 0)})
+        zd.append({"kod": kod, "ad": TS.zd_adi(kod), **_istatistik(sel), "acik": acik_tf.get(kod, 0)})
 
-    def ayri(rows: Sequence[Any]) -> dict:
-        """kanitli (4s + 1g) / kanitsiz (15dk + 1s) toplamlari."""
-        out = {}
-        for k, kod in (("kanitli", KANITLI_ZD), ("kanitsiz", tuple(z for z in ZD_SIRA if z not in KANITLI_ZD))):
-            sel = [t for t in rows if _tf_of(t, dec.get(t.decision_id)) in kod]
-            out[k] = _toplam(sel)
-        return out
-    ozet = ayri(ml1_islem)
     ilk7 = _gun_basi(now, 6)
 
     def ogrenme(a: datetime) -> dict:
@@ -191,9 +180,10 @@ def ml1_ozet(decisions: Sequence[Any], closed: Sequence[Any], open_: Sequence[An
         sel = [d for d in decisions if ogrenme_mi(d) and d.bar_close_ts >= a]
         return {"aday": len(sel), "islem": sum(1 for d in sel if d.final_action == "entered")}
     tum = _istatistik(ml1_islem)
-    return {"esik": esik, "ogrenme": {"bugun": ogrenme(_gun_basi(now)), "7g": ogrenme(ilk7)},
+    return {"esik": esik, "ogrenme": {"bugun": ogrenme(_gun_basi(now)), "7g": ogrenme(ilk7), "son_sinama": _sinama_of(ogr_durum)},
+            "ogr": ogr_durumu(ogr_durum, len(ml1_islem), {z["kod"]: z["n"] for z in zd}, bool(puanli)),
             "eleme": {"bugun": eleme(_gun_basi(now)), "7g": eleme(_gun_basi(now, 6))},
-            "zd": zd, "zd_ozet": ozet, "zd_ozet_7g": ayri([t for t in ml1_islem if t.exit_ts >= ilk7]),
+            "zd": zd,
             "toplam": {k: tum[k] for k in ("n", "kazanma", "net_r", "kz")},
             "eski": {"n": len(eski), "kz": round(math.fsum(t.realized_pnl or 0.0 for t in eski), 4)} if eski else None}
 
@@ -251,10 +241,50 @@ def durum(decisions: Sequence[Any], now: datetime, aktif: Any) -> dict:
     return {"metin": "Açık: son 24 saatte puanlanacak aday çıkmadı", "renk": "sari"}
 
 
-def sinav() -> dict:
-    y, m, d = (int(x) for x in str(SINAV["tarih"]).split("-"))
-    return {"tarih": f"{d:02d}.{m:02d}",
-            "satirlar": [{"ad": ad, "ort_r": r, "sonuc": s, "renk": _SINAV_RENK.get(s, "gri")} for ad, r, s in SINAV["satirlar"]]}
+def sinama_metni(s: Any) -> str | None:
+    """Ogrenicinin son orneklem-disi sinama denemesi (`durum.json` `son_sinama`) gecmediyse 'son deneme: geçmedi (<neden>)'; gectiyse/yoksa None."""
+    if not isinstance(s, dict) or s.get("gecti") is not False:
+        return None
+    return f"son deneme: geçmedi ({s.get('neden') or 'bilinmiyor'})"
+
+
+def _sinama_of(d: Any) -> dict | None:
+    s = d.get("son_sinama") if isinstance(d, Mapping) else None
+    return dict(s) if isinstance(s, Mapping) else None
+
+
+def ogr_durumu(d: Any, kapanan_defter: int, tf: Mapping[str, int], puanli_var: bool) -> dict:
+    """Yeni ML1'in durumu. Ogrenicinin `durum.json` varsa (asama, kapanan_islem, min_islem, kapali_islem_tf, son_sinama) o esas; yoksa defterden:
+    asama = puanli karar var mi (suzme) yoksa ogrenme; kapanan = ML1 islemi sayisi."""
+    d = d if isinstance(d, Mapping) else {}
+    asama = d.get("asama") if d.get("asama") in ("ogrenme", "suzme") else ("suzme" if puanli_var else "ogrenme")
+    kap = d.get("kapali_islem")
+    mn = d.get("min_islem")
+    tfd = d.get("kapali_islem_tf")
+    return {"asama": asama, "kapanan": int(kap) if isinstance(kap, int) and not isinstance(kap, bool) else int(kapanan_defter),
+            "min_islem": int(mn) if isinstance(mn, int) and not isinstance(mn, bool) and mn > 0 else MIN_ISLEM_VARSAYILAN,
+            "tf": {k: int(tfd.get(k, 0)) for k in ZD_SIRA} if isinstance(tfd, Mapping) else {k: int(tf.get(k, 0)) for k in ZD_SIRA},
+            "son_sinama": _sinama_of(d), "kaynak": "durum" if d else "defter"}
+
+
+def durum_satiri(oz: Mapping) -> str:
+    """'ML1 öğrenme aşamasında: 37/200 kapanan işlem; süzme başlamadı' (pano + Telegram AYNI metin). Süzmede: 'ML1 süzme aşamasında: N kapanan işlem'.
+    Son örneklem-dışı sınama geçmediyse sonuna '(son deneme: geçmedi (<neden>))' eklenir."""
+    o = oz.get("ogr") or {}
+    n = o.get("kapanan", 0)
+    if o.get("asama") == "suzme":
+        t = f"ML1 süzme aşamasında: {n} kapanan işlem"
+    else:
+        t = f"ML1 öğrenme aşamasında: {n}/{o.get('min_islem', MIN_ISLEM_VARSAYILAN)} kapanan işlem; süzme başlamadı"
+    sn = sinama_metni(o.get("son_sinama"))
+    return t + (f" ({sn})" if sn else "")
+
+
+def tf_satiri(oz: Mapping) -> str:
+    """'Kapanan işlem: 1s 12 · 4s 5 · 1g 3' (zaman dilimi sayilari)."""
+    tf = (oz.get("ogr") or {}).get("tf") or {}
+    kisa = {"1h": "1s", "4h": "4s", "1d": "1g"}
+    return "Kapanan işlem: " + " · ".join(f"{kisa[k]} {int(tf.get(k, 0))}" for k in ZD_SIRA)
 
 
 # ----------------------------------------------------------------------------- Telegram metinleri (pano ile ayni sayilar)
@@ -263,24 +293,6 @@ def r_metni(x: Any) -> str:
     return "—" if v is None else f"{TS.isaretli(v)} R"
 
 
-def sinav_satiri() -> str:
-    """'Sınav (26.11): 4s+1g +0,11 R · 1s ≈ 0 · 15dk −0,04 R' (/ml1)."""
-    kisa = {"4 saat + 1 gün": "4s+1g", "1 saat": "1s", "15 dakika": "15dk"}
-    sv = sinav()
-    parcalar = [f"{kisa.get(r['ad'], r['ad'])} " + ("≈ 0" if abs(r["ort_r"]) < 0.005 else f"{TS.isaretli(r['ort_r'])} R")
-                for r in sv["satirlar"]]
-    return f"Sınav ({sv['tarih']}): " + " · ".join(parcalar)
-
-
 def usd_metni(x: Any) -> str:
     v = _f(x)
     return "—" if v is None else f"{TS.isaretli(v)} $"
-
-
-def ozet_satirlari(oz: Mapping, *, uzun: bool = True) -> tuple[str, str]:
-    """('Sınavı geçen kısım (4s+1g): 6 işlem · +1,80 R · +14,10 $', 'Diğer (15dk+1s): ...') (Telegram haftalik ozet ve /ml1)."""
-    out = []
-    for ad, k in (("Sınavı geçen kısım (4s+1g)", "kanitli"), ("Diğer (15dk+1s)", "kanitsiz")):
-        z = oz["zd_ozet"][k]
-        out.append(f"{ad}: {z['n']} işlem · {r_metni(z['net_r'])}" + (f" · {usd_metni(z['kz'])}" if uzun else ""))
-    return out[0], out[1]

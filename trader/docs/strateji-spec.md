@@ -383,3 +383,8 @@ Veto servisi gerçek mantığı; ders servisi; hyperopt/tarama betikleri; Telegr
 | 12 | Freqtrade sürümüne bağlı noktalar (imaj `2026.10`) | Gerçeklemede doğrulanacak: `order_filled` geri çağrısının backtest'te de çağrılması ve ilk `custom_stoploss`'tan önce gelmesi; `custom_data` API'si; `wallets.get_total` kapsamı (gerçekleşmemiş kâr/zarar, `tradable_balance_ratio=0.99` etkisi); `funding_fees` işareti; `stoploss_on_exchange` ile `custom_stoploss` güncelleme aralığı; `__init__`'te `timeframe` atamasının `config["timeframe"]` (şu an `"1h"`) ile etkileşimi |
 | 13 | İç hata kapsamı | Canlıda fail-closed, backtest'te yayılır |
 | 14 | `trader_core` paketinin freqtrade imajında bulunması | `docker-compose.yml` yalnızca `user_data/strategies`'i bağlar; `src/trader_core` için bağlama/kurulum ayrı adım (kapsam dışı) |
+
+
+### Kütüphane kurulumlarında risk/ödül tabanı yok (sahip kararı, 26.11)
+
+Kazanç/risk tabanı ve ATR cinsinden stop üst sınırı kütüphane kurulumlarında BİLEREK yoktur (sahip kararı, 26.11): ML1 zayıf oranlı adayları da görür; `rr_below_min` burada yalnız "hedef yanlış tarafta" demektir.

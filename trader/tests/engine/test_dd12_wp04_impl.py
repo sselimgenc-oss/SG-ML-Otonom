@@ -55,7 +55,7 @@ def test_flat_bar_and_classes():
     assert AG.asset_class("NVDA/USDT", CFG.clusters) == "hisse"
     assert AG.asset_class("XAU/USDT", CFG.clusters) == "emtia"
     assert AG.asset_class("BTC/USDT", CFG.clusters) == "kripto"
-    assert AG.clusters_of("NVDA/USDT", CFG.clusters) == ["hisse", "hisse_teknoloji"]
+    assert AG.clusters_of("NVDA/USDT", CFG.clusters) == ["hisse"]
 
 
 def test_kume_tavani_kaldirildi_yalniz_hesap_tavani():
@@ -105,7 +105,7 @@ def test_gate_paper_rows(env):
     env.held[:] = ["NVDA/USDT", "MSFT/USDT", "AAPL/USDT", "AMZN/USDT", "META/USDT"]
     assert _go(env, "GOOGL/USDT").action == "enter"                           # kume tavani yok (25.11 sadelestirme 3/4)
     assert _go(env, "JPM/USDT").action == "enter"
-    env.held[:] = [f"X{i}" for i in range(36)]   # 24.11 kullanici karari: max_positions 24 -> 36 (kagit = canli)
+    env.held[:] = [f"X{i}" for i in range(14)]   # 24.11 kullanici karari: max_positions 24 -> 36 (kagit = canli)
     o = _go(env, "XRP/USDT")
     assert o.code == "max_positions" and o.event.skip_reason == "max_positions"
     env.led.record_decision(o.event)                                          # defter CHECK'i kabul eder

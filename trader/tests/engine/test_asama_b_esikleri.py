@@ -46,7 +46,7 @@ def test_yapilandirma_kalan_esikler_paper_ve_live():
     for name, cfg in (("engine.paper.json", PAPER), ("engine.live.json", LIVE)):
         raw = _j(name)
         assert raw["risk"]["max_same_dir_risk"] == 0.06 and "leverage" not in raw
-        assert raw["risk"]["max_open_risk"] == 0.12 and raw["risk"]["daily_max_loss"] == 0.08 and raw["max_positions"] == 36
+        assert raw["risk"]["max_open_risk"] == 0.12 and raw["risk"]["daily_max_loss"] == 0.08 and raw["max_positions"] == 14
         assert cfg.risk_config.max_same_dir_risk == 0.06
         assert not set(KALDIRILAN) & set(raw)
         assert all(set(c) == {"pairs"} for c in raw["clusters"].values())

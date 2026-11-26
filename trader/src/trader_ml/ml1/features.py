@@ -22,6 +22,7 @@ from trader_core import arm_time as AT
 from trader_core import pa_features as PF
 from trader_core import signals as S
 
+OZELLIK_SURUM = 2                                             # ozellik tanimi surumu (26.11 sahip karari #8: vol_* olu mumsuz); kapi kayda "oz" yazar, alan yoksa 1
 K_BARS = 3                                                    # konfluans penceresi (mum, satirin kendi tf'i)
 BarsLookup = Callable[[str, str], "tuple[pd.DataFrame, pd.DataFrame] | None"]
 
@@ -130,7 +131,8 @@ def bar_features(c: pd.DataFrame, lookup: BarsLookup, params: S.SignalParams | N
         o, h, l, cl = (trig[x].to_numpy(float) for x in ("open", "high", "low", "close"))
         reg = AT.regime_series(h4, params.regime_params())
         core, _, _ = AT.core_signals(trig, reg, params)
-        vt = _vol_table(trig)
+        tc = AT.strip_dead(trig)                                   # vol_*: yalniz DOLU mumlardan (strategy_runner._vol ile ayni ilke); olu satirda NaN, ileri tasima yok
+        vt = _vol_table(tc) if tc is trig else _vol_table(tc).reindex(trig.index)
         atr = core["atr_tf"].to_numpy(float)
         rows = sub.index[good]
         ii = i[good]

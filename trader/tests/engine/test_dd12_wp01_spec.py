@@ -51,13 +51,13 @@ ENERJI = {"BZ"}
 STOCKS20 = {"NVDA", "MSFT", "AAPL", "GOOGL", "AMZN", "META", "AVGO", "TSLA", "BRKB", "JPM", "LLY", "WMT", "V", "ORCL",
             "XOM", "NFLX", "PLTR", "COST", "AMD", "HD"}
 COMMODITY4 = METAL | ENERJI
-CAPS = {"kripto_buyuk": 6, "kripto_diger": 9, "hisse": 8, "hisse_teknoloji": 5, "metal": 3, "enerji_sanayi": 3}   # 20 Kasim: kagit tavanlari gevsetildi
+CAPS = {"kripto_buyuk": 6, "kripto_diger": 9, "hisse": 8, "metal": 3, "enerji_sanayi": 3}   # 20 Kasim: kagit tavanlari gevsetildi
 
 PINNED_SHA = {
     "engine.base.json": "c177f2a9410d0f22a8b7f160122d9e72d40749384495687e98c8f21d94aaafdf",   # 25.11 kullanici karari: denetim kalan maddeler (start_delay_s kalkti); 24.11 kullanici karari: veto ve C1 artiklari silindi (veto_mode/veto_config kalkti);   # WP-06a: yalniz veto_config yolu; 24.11 kullanici karari: ML filtreleri silindi (ml_mode/ml_model_path kalkti)
     "engine.learner.json": "30ca2842c40cacafbf6cdd90c9e6f1f54fc62b9a9ec913476d1399ac5352cb12",
     "engine.testnet.json": "eff9eb61dcd9018bf86c195a02f7f25f08960473e705cbd114e104c26a956c9c",   # 24.11 kullanici karari: veto ve C1 artiklari silindi
-    "engine.live.json": "345a05ce3ca13baf7c1c0e2c8cbdef72b3f4be4017f981a1916d42ae1617eed7",   # 25.11 sadelestirme 3/4: korelasyon/kayip_freni/toplam_buyukluk_kat/uzun_yon ve kume max_positions kaldirildi; 24.11 kullanici karari: formasyon kutuphanesi birlesik (MF1 48 + GF1 52 + IN1 66 + PA2 29 + PA varyantlari 56 kol; max_positions 36)
+    "engine.live.json": "7d238a673c1111090b7fc11fda08b340e1b2830c1905f3c1caf4ff34bde47560",   # 25.11 sadelestirme 3/4: korelasyon/kayip_freni/toplam_buyukluk_kat/uzun_yon ve kume max_positions kaldirildi; 24.11 kullanici karari: formasyon kutuphanesi birlesik (MF1 48 + GF1 52 + IN1 66 + PA2 29 + PA varyantlari 56 kol; max_positions 36)
     #   # 24.11 kullanici karari: veto ve C1 artiklari silindi (veto_mode, arm_max_positions L1 kalkti);   # 24.11 kullanici karari: DL1 dort zaman dilimi acik; onceki 24.11 ML filtreleri silindi
 }
 # 23.11 kullanici karari: canli = kagit. engine.live.json'a eklenen kagit sistem anahtarlari (+ pairs yerine kagit evreni).
@@ -271,7 +271,7 @@ def test_dt2_paper_golgeli_24_pozisyon():
     assert cfg.shadow_blocks == ("regime", "r1_disabled", "same_bar_reentry")      # 26.11: tf_15m kaldirildi; 19.11 (kagitta her sey acik): golge karar satirlari acik (karar yolunu etkilemez)
     ob = cfg.exit_modes["default"]["breakeven"]["offset_bps"]
     assert cfg.exit_modes == {"default": {"breakeven": {"trigger_r": 1.0, "offset_bps": ob}, "partial": {"trigger_r": 1.5, "frac": 0.5}}}   # 26.11: H2-YARI kaldirildi; 19.11: cikis kipleri kagitta ACIK (spec varsayilanlari)
-    assert cfg.max_positions == 36   # 24.11 kullanici karari: max_positions 24 -> 36 (kagit = canli)
+    assert cfg.max_positions == 14   # 24.11 kullanici karari: max_positions 24 -> 36 (kagit = canli)
     assert cfg.target_trade_risk == 0.01                           # islem basi %1
 
 
@@ -300,7 +300,6 @@ def test_dt2_paper_kumeler_tavansiz_siniflama():
     for name in CAPS:
         assert cl[name][1] is None, name                       # 25.11 sadelestirme 3/4: kume basina tavan kaldirildi
     assert cl["kripto_buyuk"][0] == BUYUK
-    assert cl["hisse_teknoloji"][0] == TEKNOLOJI
     assert cl["metal"][0] == METAL and cl["enerji_sanayi"][0] == ENERJI
     assert cl["hisse"][0] == HISSE7 and len(cl["hisse"][0]) == 7
     assert cl["kripto_diger"][0] == {"TRX"} and not (cl["kripto_diger"][0] & BUYUK)   # 26.11 sahip karari
@@ -331,7 +330,7 @@ def test_dt2_paper_yeni_anahtar_ham_json_listesi():
               "flat_bar_guard", "contract_types", "cost_overrides"):
         assert k in raw, k
     assert not ML_KEYS_REMOVED & set(raw)
-    assert raw["shadow_blocks"] == ["regime", "r1_disabled", "same_bar_reentry"] and raw["max_positions"] == 36   # 24.11 kullanici karari: max_positions 24 -> 36 (kagit = canli)
+    assert raw["shadow_blocks"] == ["regime", "r1_disabled", "same_bar_reentry"] and raw["max_positions"] == 14   # 24.11 kullanici karari: max_positions 24 -> 36 (kagit = canli)
 
 
 # --------------------------------------------------------------------------- D-T2 (yalniz --env paper)

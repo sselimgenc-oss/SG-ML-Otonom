@@ -121,7 +121,7 @@ def ws(tmp_path, monkeypatch, _hist_template):
 def run_bt(args, expect=None) -> int:
     from trader_engine import backtest as B
     try:
-        rc = B.main(list(args))
+        rc = B.main(list(args) if "--env" in args else ["--env", "eski", *args])   # P6-03: bu dosya eski yolu sinar
     except SystemExit as e:  # argparse
         rc = e.code if isinstance(e.code, int) else 2
     rc = int(rc or 0)

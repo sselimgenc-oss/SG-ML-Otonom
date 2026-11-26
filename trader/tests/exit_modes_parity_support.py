@@ -112,7 +112,7 @@ def run_engine(ws: Path, run_id: str, modes: dict | None) -> Path:
             "--synthetic-rules", "--no-record-filtered", "--strategy", "parity_nth", "--pairs", PAIR]
     if modes is not None:
         args += ["--exit-modes", json.dumps(modes)]
-    assert int(B.main(args) or 0) == 0
+    assert int(B.main(["--env", "eski", *args]) or 0) == 0
     return ws / "var" / "backtests" / run_id
 
 

@@ -3,7 +3,7 @@
 Kural kollarinin adaylarindan hangisinin islem olacagina ML1 modeli karar verir. SIFIRDAN BASLAR (sahip karari): tohum paket YOK.
 OGRENME ASAMASI: ogrenilmis paket yokken kapi uygun HER adayi gecirir (Verdict.code None; `ml1_neden="ogrenme"`, `ml1_skor` yok);
 yalniz AYNI_OLAY (bir olay = bir giris) ve motorun mevcut risk/kume/azami-pozisyon kapilari uygulanir. Ogrenici (`ml1_ogren`) yalniz GERCEKTEN
-acilip kapanan islemlerden ogrenir; ilk paket `ogrenme.min_islem` kapanan islemden sonra yayinlanir, sonra kapi esik ile suzer. Ozellikler cevrimdisi hatla AYNI islevlerle hesaplanir
+acilip kapanan islemlerden ogrenir; ilk DENEME `ogrenme.min_islem` kapanan islemden sonra (paket yalniz orneklem-disi sinamayi gecerse yayinlanir), sonra kapi esik ile suzer. Ozellikler cevrimdisi hatla AYNI islevlerle hesaplanir
 (`trader_ml.ml1.features.confluence` ve `bar_features`; yeniden yazim YOK): konfluans, motorun adim adim biriktirdigi aday tamponundan;
 mum ozellikleri, kolun o adimda zaten yukledigi mum pencerelerinden (yalniz aday satirlari icin; her mumda degil).
 
@@ -83,6 +83,7 @@ class Ml1Gate:
         self._verd: dict[tuple[str, str], Verdict] = {}
         self._verd_d: datetime | None = None
         self._son_giris: dict[tuple[str, str, str], datetime] = {}   # (cift, yon, tf) -> onayli son giris karar zamani
+        self.gecersiz_paket: str | None = None                # dosya VAR ama gecersiz ise nedeni; yoksa/gecerliyse None (D2 / P3-11)
         self.ogren = None                                     # Ml1Ogrenici (yalniz kagit + ogrenme.aktif); YALNIZ alinan adayin ozellik vektorunu saklar
         self._x: dict[tuple[str, str, str], tuple[Any, dict]] = {}   # (cift, arm_id, yon) -> (ozellik vektoru x, aday ozeti); yalniz adim boyunca
 
@@ -104,6 +105,7 @@ class Ml1Gate:
             return self._pkg
         self._sig = sig_t
         pkg = None
+        bozuk: str | None = None
         for p, (_, mt, _sz) in zip(self._paths, sig_t):
             if mt is None:
                 continue
@@ -115,11 +117,18 @@ class Ml1Gate:
                 pkg = got
                 log.info("ML1 paketi yuklendi: %s sha=%s esik=%s", p, str(got["sha256"])[:12], got["threshold"])
                 break
+            bozuk = bozuk or str(why)
             log.error("ML1 paketi gecersiz (%s): %s (ogrenici geri donus denetimi duzeltir)", p, why)
+        self.gecersiz_paket = None if pkg is not None else bozuk
         if pkg is None:
             log.info("ML1: ogrenilmis paket yok (%s): ogrenme asamasi (adaylar suzulmeden gecer)", ", ".join(str(p) for p in self._paths))
         self._pkg = pkg
         return pkg
+
+    def paket_kontrol(self, D: datetime) -> str | None:
+        """Paket dosyasi VAR ama gecersizse nedeni, aksi halde None (motor: ogrenici yokken `ml1_paket_bozuk` engeli)."""
+        self._paket(D)
+        return self.gecersiz_paket
 
     # ------------------------------------------------------------------ kol degerlendirmesi: aday tamponu
     def observe(self, pair: str, D: datetime, tf: str, r, trig: pd.DataFrame, h4: pd.DataFrame) -> None:
@@ -346,7 +355,8 @@ class Ml1Gate:
                     [None if not np.isfinite(v) else float(v) for v in X[n]],
                     {"pair": c["pair"], "tf": c["tf"], "setup": c["setup"], "arm_id": c["arm_id"], "group": c["group"], "side": c["side"],
                      "entry_ref": float(c["entry_ref"]), "stop": float(c["stop"]),
-                     "target": None if not np.isfinite(tgt) else float(tgt), "stop_dist_atr": float(c["stop_dist_atr"])})
+                     "target": None if not np.isfinite(tgt) else float(tgt), "stop_dist_atr": float(c["stop_dist_atr"]),
+                     "oz": int(F.OZELLIK_SURUM)})                 # ozellik tanimi surumu (alan yoksa 1 sayilir)
         except Exception as e:  # noqa: BLE001
             self.counters["ml1_ogren_log_hata"] += 1
             log.error("ML1 ogrenme ozellik vektoru hatasi: %r", e)

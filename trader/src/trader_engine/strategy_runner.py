@@ -20,7 +20,7 @@ from trader_core.signals import SignalParams
 from . import arm_guard as AG
 from .errors import is_strategy_error
 from .bars import (ARM_TFS, BARS_PER_DAY_4H, MIN_CONTIG_ARM, STARTUP_BARS_ARM, WINDOW_ARM, aggregate_4h_to_1d, arm_closing_tfs,
-                   arm_tf_delta, tf_delta)
+                   arm_tf_delta, tf_delta, window_missing)
 from .marketdata.sources import MarketView
 from .position_manager import ExitContext
 from .strategies.arms import ArmInput, exit_rule_of, priority_of
@@ -29,6 +29,7 @@ from .types import Position
 from .vol_tahmin import vol_ozellikleri
 
 log = logging.getLogger("engine.runner")
+PENCERE_DELIK_KIPI = "say"          # Paket 2: pencere ici delik YALNIZ sayilir (sonuc degismez); kapiya cevirme ayri deploy + sahip onayi (config anahtari yok)
 _OHLC = ["open", "high", "low", "close"]
 _FILTERED_SKIPS = ("stop_width", "rr_below_min")   # gates._FILTERED_SKIPS ile ayni (kaydedilen elenmis adaylar)
 
@@ -202,6 +203,7 @@ class WindowedSignalSource:
         self.strict = strict
         self.last_exit_fn = last_exit_fn
         self.counters: Counter = Counter()
+        self._delik_tf: dict[str, int] = {}               # bu karar turunda tf -> pencere ici eksik adim (gozlem)
         self._cache: dict[tuple[str, datetime, int], SignalFrame] = {}
         self._latest: dict[tuple[str, datetime], SignalFrame] = {}
         self._cache_d: datetime | None = None
@@ -353,7 +355,17 @@ class MultiArmSignalSource(WindowedSignalSource):
             return None, ("data_gap", f"trigger_bar_missing:{tf}")
         if not self._tail_ok(trig.index, tf, MIN_CONTIG_ARM["trigger"]):
             return None, ("data_gap", f"hole:{tf}")
+        if tf != "4h":                                  # 4s: `_h4_checked` sayar (cifte sayim yok)
+            self._delik_say(tf, trig.index)
         return trig, None
+
+    def _delik_say(self, tf: str, index) -> int:
+        """Pencere ici delik gozlemi (26.11 sahip karari, Paket 2 / C3): kip `say` -> yalniz sayac; SONUC DEGISMEZ. Doner eksik adim sayisi."""
+        n = window_missing(index, tf, STARTUP_BARS_ARM[tf])
+        self._delik_tf[tf] = n
+        if n > 0 and PENCERE_DELIK_KIPI == "say":
+            self.counters["pencere_delik:" + tf] += 1
+        return n
 
     @staticmethod
     def _tail_ok(index: pd.DatetimeIndex, tf: str, need: int) -> bool:
@@ -367,6 +379,7 @@ class MultiArmSignalSource(WindowedSignalSource):
             return ("no_history", f"4h:{len(h4)}<{STARTUP_BARS_ARM['4h']}")
         if not self._tail_ok(h4.index, "4h", MIN_CONTIG_ARM["4h"]):
             return ("data_gap", "hole:4h")
+        self._delik_say("4h", h4.index)
         return None
 
     # ------------------------------------------------------------------ frame
@@ -384,6 +397,7 @@ class MultiArmSignalSource(WindowedSignalSource):
 
     def _build_multi(self, pair: str, D: datetime, params: Mapping[str, object], version_id: int) -> SignalFrame:
         lab = self.strategy
+        self._delik_tf = {}
         closing = arm_closing_tfs(D)
         pos = self.position_fn(pair) if self.position_fn is not None else None
         pos_tf = pos[0] if (pos is not None and pos[0] in closing) else None
@@ -415,6 +429,7 @@ class MultiArmSignalSource(WindowedSignalSource):
                     bad[tf] = g[2]
                     continue
                 trig = g[1]
+                self._delik_say("1h", trig.index)
             else:
                 trig, why = self._arm_gather(pair, D, tf, h4)
                 if why is not None:
@@ -478,8 +493,9 @@ class MultiArmSignalSource(WindowedSignalSource):
         for tf, (st, det) in bad.items():                         # kismi bosluk: kalan zaman dilimleri yine calisir
             self.counters[f"arm_tf_{st}:{tf}"] += 1
         cands.sort(key=lambda c: (c[0], priority_of(c[2].setup), c[1]))     # tf (buyuk once), sonra kurulum onceligi (K-7 md. 3)
-        frames = [SignalFrame(pair=pair, status="ok", detail=None, last=row, table=None, trigger_bar=tb)
-                  for _, _, row, tb in cands]
+        delik = self._delik_tf                            # tf -> pencere ici eksik adim (gozlem; karar satirina `delik=<n>`)
+        frames = [SignalFrame(pair=pair, status="ok", detail=(f"delik={delik[row.tf]}" if delik.get(row.tf) else None), last=row, table=None,
+                              trigger_bar=tb) for _, _, row, tb in cands]
         head = frames[0]
         extras = tuple(f for f in frames[1:] if f.last.signal or (f.last.setup and f.last.side and f.last.skip_reason in _FILTERED_SKIPS))
         return dataclasses.replace(head, extras=extras)

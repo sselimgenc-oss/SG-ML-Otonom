@@ -1141,7 +1141,7 @@ def test_k4_unrouted_gates_zero_and_flag(tmp_path):
     expected = ["stop_width", "rr_below_min", "ml_filter", "order_failed", "veto:claude", "veto:yok", "veto:bayat", "risk:ayni_yon",
                 "risk:gunluk_butce", "risk:gunluk_sinir", "risk:acik_risk", "risk:teminat_toplam", "risk:likidasyon", "risk:boyut",
                 "risk:boyut_min_emir", "risk:cift_acik", "risk:diger", "gate:kill", "gate:stale_data", "gate:rules_missing",
-                "gate:day_start_missing", "gate:params_unavailable", "gate:trigger_tf_changed"]
+                "gate:day_start_missing", "gate:params_unavailable", "gate:trigger_tf_changed", "gate:ml1_kapi_yok", "gate:ml1_paket_bozuk"]
     tr = [mk_trade(1, entry_ts="2026-01-05T10:00")]
     (tmp_path / "long").mkdir()
     r = go(scenario(tmp_path / "long", [], tr), "--since", "2026-01-01", "--until", "2026-03-01")
@@ -1188,7 +1188,7 @@ def test_k6_backtest_mode_veto_not_evaluated(tmp_path):
 
 def test_k7_fixed_rows(tmp_path):
     r = go(scenario(tmp_path, [], [mk_trade(1)]))
-    for k in ("koşul:volatile", "koşul:unclear", "R1 kapalı (v1b)", "15m kapalı"):
+    for k in ("koşul:volatile", "koşul:unclear", "R1 kapalı (v1b)"):
         rows = [d for d in with_value(r.js, k)]
         assert rows, k
         assert any(d.get("yargi") == "kanit_yok" for d in rows), k

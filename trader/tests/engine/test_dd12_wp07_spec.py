@@ -105,7 +105,7 @@ def test_feed_birimi_paper_ve_tavanlar():
 
 
 @pytest.mark.parametrize("rel", ["deploy/trader-engine-testnet.service", "deploy/trader-engine-live.service",
-                                 "deploy/trader-testnet.env.example", "deploy/trader-live.env.example",
+                                 "deploy/trader-live.env.example",       # trader-testnet.env.example: Paket 2 / F (TESTNET_ACIK) ile bilincli degisti
                                  "deploy/trader.slice"])
 def test_testnet_canli_slice_birimleri_degismedi(rel):
     want = _git_show(rel)

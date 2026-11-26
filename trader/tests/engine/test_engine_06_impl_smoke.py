@@ -111,7 +111,7 @@ def ws(tmp_path, monkeypatch, _tpl):
 
 def _bt(*args) -> int:
     from trader_engine import backtest as B
-    return int(B.main(list(args)) or 0)
+    return int(B.main(["--env", "eski", *args]) or 0)           # P6-03: bu dosya 5 ciftli eski yolu sinar (varsayilan artik kagit ortami)
 
 
 def test_impl06_run_outputs_and_determinism(ws):

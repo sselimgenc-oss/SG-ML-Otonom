@@ -1,5 +1,7 @@
 # DD-12 Ek-K: Yeni kurulumların kesin tanımı (TF1, B1, F1, S1, H2)
 
+> **Not (sahip kararı, 26.11):** Kazanç/risk tabanı ve ATR cinsinden stop üst sınırı kütüphane kurulumlarında BİLEREK yoktur (sahip kararı, 26.11): ML1 zayıf oranlı adayları da görür; `rr_below_min` burada yalnız "hedef yanlış tarafta" demektir.
+
 **Tarih:** 19 Kasım 2026 · **Yazan:** mentor · **Bağlı:** `dd12-capraz-varlik-spec.md` §3, §9 (WP-12a/12b), §12 (D-T17); katalog `otonom-trading-arastirma/price-action-kural-katalogu.md`; sözleşme `strategies/arms/__init__.py` (`2dc9d5c`).
 **Durum:** WP-12a/12b bu belgeyle başlayabilir. Bütün sayılar **başlangıç değeridir, ayarlanmamıştır** (katalogdaki "varsayılan"lar dahil); kâğıtta deney etiketiyle çalışır, kârlılık iddiası yoktur.
 **Kullanıcı kararlarına uyum:** her kurulum 15dk / 1s / 4s / 1g'de açıktır (`TIMEFRAMES` dördü de; §3 tablosundaki dar zaman dilimi sütununun yerine geçer); 44 enstrüman; seans yasağı yok; eleme ML ve dersin işidir, bu belge yalnız aday üretir.

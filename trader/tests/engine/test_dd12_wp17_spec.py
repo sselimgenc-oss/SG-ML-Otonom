@@ -175,7 +175,7 @@ def test_pano_ml1_zaman_dilimi_ve_fikir_grubu_kirilimi_var_seans_kirilimi_yok(tm
     try:
         st, _, body = r.req("/api/pano?bot=learner")
         assert st == 200 and body["ok"] and body["ml1"] is not None
-        assert [z["kod"] for z in body["ml1"]["zd"]] == ["15m", "1h", "4h", "1d"] and set(body["ml1"]["gruplar"]) == {"ml1", "tumu"}
+        assert [z["kod"] for z in body["ml1"]["zd"]] == ["1h", "4h", "1d"] and set(body["ml1"]["gruplar"]) == {"ml1", "tumu"}
         assert not re.search(r'"(session|seans)[^"]*"', _api_text(r), re.IGNORECASE), "seans kirilimi pano verisinde yok (26.11)"
     finally:
         r.stop()

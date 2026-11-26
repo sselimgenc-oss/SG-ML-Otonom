@@ -1,5 +1,6 @@
 """ML1 sifirdan ogrenme (yalniz kagit): YALNIZ gercekten acilip kapanan kagit islemlerden ogrenir; tohum paket, taban model, cikis
 simulatoru ile etiketleme ve alinmayan adaylardan ogrenme YOKTUR (sahip karari).
+Bilinen risk (sahip karari #11, 26.11): model yalniz kendi gecirdigi islemleri gorur (secilim yanlilgi); rastgele gecis payi bilerek yok.
 
 Akis (karar adimi sonunda, `_shadow_step` kalibi: durum/broker/emir/kapi uzerinde YAZMA yok, istisna sizmaz):
   1) motor bir islem actiginda (`Engine._enter`) kapi, o adayin ham ozellik vektorunu (x) islem kimligiyle (trade_id + decision_id) birlikte
@@ -7,9 +8,10 @@ Akis (karar adimi sonunda, `_shadow_step` kalibi: durum/broker/emir/kapi uzerind
   2) `adim`: bekleyen alinan islemlerin defterde KAPANIP kapanmadigina bakilir; baglanti kesin: defter islemi trade_id ve decision_id (+ cift/yon)
      ile eslesir (gevsek zaman/kurulum eslesmesi yok). Etiket gercek kapanan islemden: y = 1 eger net r_multiple > 0. Sonuc `sonuclar-*.jsonl`.
   3) kapanan ogrenilmis islem sayisi `ogrenme.min_islem` (ve `min_islem_tf` > 0 ise her zaman diliminde en az o kadar) olana dek paket YOKTUR
-     (kapi her adayi gecirir). Ilk esik asildiktan sonra yeni kapanan islem geldikce (karar adimi basina en cok bir kez) sifir merkezli ridge
-     lojistik yeniden uydurulur (`uydur`: kendi standardizasyonu, 30 gun yari omur, olay agirligi), denetlenir (`denetle`), atomik yazilir
-     (`.tmp` + son_iyi + os.replace). Kapi dosyanin mtime'i degisince paketi yeniden yukler.
+     (kapi her adayi gecirir). Ilk esik asildiktan sonra (200'de ilk DENEME; paket yalniz orneklem-disi sinamayi gecerse yayinlanir) yeni kapanan
+     islem geldikce (karar adimi basina en cok bir kez) sifir merkezli ridge lojistik yeniden uydurulur (`uydur`: kendi standardizasyonu,
+     30 gun yari omur, olay agirligi), `sina` ile en yeni %20'lik dilimde sinanir (log-kayip tabandan iyi + AUC > 0.5; gecemezse paket
+     YAZILMAZ, etkin paket aynen kalir, ogrenme surer), denetlenir (`denetle`), atomik yazilir (`.tmp` + son_iyi + os.replace). Kapi dosyanin mtime'i degisince paketi yeniden yukler.
   4) her adim: etkin paket bozulduysa / kapi puanlama hatasi verdiyse / kapi paketi reddettiyse / ilk 40+ puanlanan adayda gecme orani %0 ise
      (her sey reddedilirse yeni islem de ogrenme de durur) onceki OGRENILMIS pakete, o yoksa pakete hic (= ogrenme asamasi, hepsini gecir)
      donulur + 24 saat duraklatma. Hicbir zaman tohum pakete donulmez.
@@ -35,7 +37,7 @@ from trader_ml.ml1 import model as M
 
 log = logging.getLogger("engine.ml1_ogren")
 
-MIN_ISLEM = 200                   # ilk paketten once kapanan islem sayisi (config ogrenme.min_islem)
+MIN_ISLEM = 200                   # ilk paket DENEMESINDEN once kapanan islem sayisi (config ogrenme.min_islem)
 ESIK = 0.50                       # sabit esik (config ogrenme.esik)
 YARI_OMUR_GUN = 30.0
 PENCERE_GUN = 365
@@ -46,6 +48,8 @@ GERI_IZLE_MIN = 40
 DURAKLAT = timedelta(hours=24)
 YAS_KAPAT_GUN = 120               # defterde hic kapanmayan (acilamamis) alinan kayit bu yastan sonra etiketsiz kapatilir
 SAKLA_AY = 14
+SINAMA_ORAN = 0.20                # orneklem-disi sinama: en yeni islemlerin orani (zaman sirali, ambargolu)
+SINAMA_MIN_N = 40                 # sinama kumesi alt siniri; n // 2'yi asarsa "sinama_yetersiz_veri"
 
 
 # ----------------------------------------------------------------------------------------------------------- saf matematik
@@ -87,10 +91,76 @@ def uydur(d: pd.DataFrame, X: np.ndarray, simdi: datetime, *, yari_omur_gun: flo
             "bas": dd["decision_ts"].min(), "son": dd["decision_ts"].max()}
 
 
-def yeni_paket(r: Mapping, *, esik: float, surum: int, simdi: datetime, ridge: float = RIDGE) -> dict:
+def _auc(p: np.ndarray, y: np.ndarray) -> float:
+    """Mann-Whitney AUC; esit puanlara ortalama sira. Tek sinifta nan."""
+    y = np.asarray(y, float)
+    n1 = float((y > 0.5).sum())
+    n0 = float(len(y) - n1)
+    if n1 == 0 or n0 == 0:
+        return float("nan")
+    r = pd.Series(np.asarray(p, float)).rank(method="average").to_numpy()
+    return float((r[y > 0.5].sum() - n1 * (n1 + 1) / 2.0) / (n1 * n0))
+
+
+def sina(d: pd.DataFrame, X: np.ndarray, simdi: datetime, *, yari_omur_gun: float = YARI_OMUR_GUN, pencere_gun: float = PENCERE_GUN,
+         maks_satir: int = MAKS_SATIR, ridge: float = RIDGE) -> dict:
+    """Orneklem-disi sinama (yayin kapisi): satir kumesi/sirasi `uydur` ile AYNI; en yeni `n_h` satir sinama, oncesi egitim (ayni olaydaki egitim
+    satirlari ambargo ile atilir). Egitim kumesinden uydurulan model sinamada puanlanir (kapiyla ayni yol, kirpma YOK) ve sabit tabanla
+    (egitim taban orani) karsilastirilir. Gecme: iki sinif var, ll_model < ll_taban, auc > 0.5. Firlatmaz."""
+    try:
+        return _sina(d, X, simdi, yari_omur_gun=yari_omur_gun, pencere_gun=pencere_gun, maks_satir=maks_satir, ridge=ridge)
+    except Exception as e:  # noqa: BLE001
+        return {"gecti": False, "neden": f"sinama_hatasi:{type(e).__name__}"}
+
+
+def _sina(d, X, simdi, *, yari_omur_gun, pencere_gun, maks_satir, ridge) -> dict:
+    if len(d) == 0:
+        return {"gecti": False, "neden": "sinama_yetersiz_veri"}
+    simdi_ns = pd.Timestamp(simdi).as_unit("ns").value
+    ts = pd.DatetimeIndex(d["decision_ts"]).as_unit("ns").asi8
+    keep = np.flatnonzero((simdi_ns - ts) / 86_400e9 <= pencere_gun)
+    keep = keep[np.lexsort((d["k"].to_numpy()[keep], ts[keep]))]
+    keep = keep[-int(maks_satir):]
+    n = len(keep)
+    n_h = max(SINAMA_MIN_N, int(np.ceil(SINAMA_ORAN * n)))
+    if n_h > n // 2:
+        return {"gecti": False, "neden": "sinama_yetersiz_veri"}
+    dd = d.iloc[keep].reset_index(drop=True)
+    Xk = np.asarray(X, float)[keep]
+    ts_k = ts[keep]
+    t_b = ts_k[n - n_h]                                          # sinir: sondan n_h'inci satirin zamani
+    h = ts_k >= t_b                                              # ayni damgali satirlar bolunmez
+    ev = F.events(dd[["decision_ts", "pair", "side", "tf"]])["event_id"].to_numpy()
+    egit = (~h) & ~np.isin(ev, ev[h])                            # ambargo: sinamayla ayni olaydaki egitim satirlari atilir
+    sinir_ts = pd.Timestamp(int(t_b), unit="ns", tz="UTC").isoformat()
+    out: dict = {"gecti": False, "neden": "", "n_egitim": int(egit.sum()), "n_sinama": int(h.sum()), "sinir_ts": sinir_ts}
+    r_e = uydur(dd[egit].reset_index(drop=True), Xk[egit], simdi, yari_omur_gun=yari_omur_gun, pencere_gun=pencere_gun, maks_satir=maks_satir, ridge=ridge)
+    if r_e is None:
+        out["neden"] = "sinama_egitim_uydurulamadi"
+        return out
+    y_h = dd["y"].to_numpy(float)[h]
+    y_e = dd["y"].to_numpy(float)[egit]
+    p = M._sigmoid(M.standardize(Xk[h], r_e["st"]) @ r_e["coef"] + r_e["b"])      # kapiyla ayni puanlama yolu: z kirpmasi YOK
+    p0 = float(np.clip(y_e.mean(), 1e-6, 1 - 1e-6))
+    ll_m = M.log_loss(p, y_h)
+    ll_t = M.log_loss(np.full(len(y_h), p0), y_h)
+    auc = _auc(p, y_h)
+    out.update({"ll_model": round(ll_m, 6), "ll_taban": round(ll_t, 6), "auc": None if not np.isfinite(auc) else round(auc, 6), "taban_oran": round(p0, 6)})
+    if len(np.unique(y_h)) < 2:
+        out["neden"] = "sinama_tek_sinif"
+    elif not ll_m < ll_t:
+        out["neden"] = "sinama_logloss"
+    elif not auc > 0.5:
+        out["neden"] = "sinama_auc"
+    else:
+        out["gecti"], out["neden"] = True, "gecti"
+    return out
+
+
+def yeni_paket(r: Mapping, *, esik: float, surum: int, simdi: datetime, ridge: float = RIDGE, metrics: dict | None = None) -> dict:
     """Uydurma sonucundan imzali paket (`ml1/1` semasi; ozellik adlari kodun `feature_names()`i; esik config'ten)."""
     pkg = M.build_package(M.feature_names(), r["st"], r["coef"], r["b"], float(esik), float(ridge), train_start=r["bas"], train_end=r["son"],
-                          n_train=r["n_sonuc"], created_at=pd.Timestamp(simdi).to_pydatetime())
+                          n_train=r["n_sonuc"], metrics=metrics, created_at=pd.Timestamp(simdi).to_pydatetime())
     pkg = copy.deepcopy(pkg)
     pkg.pop("sha256", None)
     pkg["online"] = {"surum": int(surum), "n_sonuc": int(r["n_sonuc"]), "n_etkin": round(float(r["n_etkin"]), 4),
@@ -150,13 +220,16 @@ def _vek(x) -> np.ndarray:
 # ----------------------------------------------------------------------------------------------------------- ogrenici
 class Ml1Ogrenici:
     def __init__(self, dizin, paket_yolu, *, now_fn: Callable[[], datetime], ledger=None, kapi=None, min_islem: int = MIN_ISLEM,
-                 min_islem_tf: int = 0, esik: float = ESIK, yari_omur_gun: float = YARI_OMUR_GUN, kuru: bool = False) -> None:
+                 min_islem_tf: int = 0, esik: float = ESIK, yari_omur_gun: float = YARI_OMUR_GUN, kuru: bool = False,
+                 sinama: bool = True) -> None:
         self.dir = Path(dizin)
         self.paket_yolu = Path(paket_yolu)
         self.son_iyi_yolu = self.paket_yolu.with_name("ml1_package.son_iyi.json")
         self.now_fn, self.ledger, self.kapi = now_fn, ledger, kapi
         self.min_islem, self.min_islem_tf, self.esik = int(min_islem), int(min_islem_tf), float(esik)
         self.yari_omur, self.kuru = float(yari_omur_gun), bool(kuru)
+        self.sinama = bool(sinama)                       # yalniz testler kapatir; motor GECIRMEZ, config'ten okunmaz
+        self.son_sinama: dict | None = None
         self.sayac: Counter = Counter()
         self.hazir = False
         self.bekleyen: dict[int, dict] = {}              # trade_id -> alinan (henuz kapanmamis) islemin kaydi (x dahil)
@@ -165,6 +238,7 @@ class Ml1Ogrenici:
         self._sn: list[tuple] = []                       # (k, ts_ns, y, pair, side, tf, x float32); yalniz etiketli
         self.n_kapali = 0                                # kapanan ogrenilmis (etiketli) islem sayisi (kalici; son 14 ayin dosyalarindan)
         self.n_tf: Counter = Counter()
+        self.n_oz: Counter = Counter()                   # kapanan ogrenilmis islemler: ozellik tanimi surumu -> sayi (eski kayit atilmaz, oran gorunur)
         self.surum = 0
         self.duraklat_bitis: datetime | None = None
         self.son_guncelleme: str | None = None
@@ -205,11 +279,12 @@ class Ml1Ogrenici:
 
     def _durum_yaz(self, simdi: datetime) -> None:
         d = {"aktif": True, "kuru": self.kuru, "asama": self.asama(), "kapali_islem": self.n_kapali, "min_islem": self.min_islem,
-             "min_islem_tf": self.min_islem_tf, "kapali_islem_tf": {tf: int(self.n_tf.get(tf, 0)) for tf in M.TFS}, "esik": self.esik,
+             "min_islem_tf": self.min_islem_tf, "kapali_islem_tf": {tf: int(self.n_tf.get(tf, 0)) for tf in M.TFS}, "oz_karisik": {k: int(v) for k, v in sorted(self.n_oz.items())},
+             "esik": self.esik,
              "surum": self.surum, "son_guncelleme": self.son_guncelleme, "guncellendi": pd.Timestamp(simdi).isoformat(),
              "bugun": dict(self.bugun), "n_etkin": round(self.n_etkin, 3), "n_tampon": len(self._sn), "bekleyen": len(self.bekleyen),
              "duraklat_bitis": None if self.duraklat_bitis is None else self.duraklat_bitis.isoformat(),
-             "son_geri_donus": self.son_geri_donus, "sayac": dict(self.sayac)}
+             "son_geri_donus": self.son_geri_donus, "son_sinama": self.son_sinama, "sayac": dict(self.sayac)}
         _atomik_yaz_bayt(self._p("durum.json"), json.dumps(d, sort_keys=True, indent=1).encode("utf-8"))
 
     # ------------------------------------------------------------------ baslangic: dosyalardan kurulum
@@ -226,6 +301,7 @@ class Ml1Ogrenici:
                 self.surum = int(dur.get("surum") or 0)
                 self.son_guncelleme = dur.get("son_guncelleme")
                 self.son_geri_donus = dur.get("son_geri_donus")
+                self.son_sinama = dur.get("son_sinama")
                 self.bugun.update(dur.get("bugun") or {})
                 db = dur.get("duraklat_bitis")
                 self.duraklat_bitis = pd.Timestamp(db).to_pydatetime() if db else None
@@ -245,7 +321,7 @@ class Ml1Ogrenici:
 
     def _kur(self, simdi: datetime) -> None:
         sinir_ns = (pd.Timestamp(simdi) - pd.Timedelta(days=PENCERE_GUN)).as_unit("ns").value
-        self._sn, self.n_kapali, self.n_tf = [], 0, Counter()
+        self._sn, self.n_kapali, self.n_tf, self.n_oz = [], 0, Counter(), Counter()
         for ay in self._aylar(simdi, SAKLA_AY):
             for r in self._oku(self._p(f"sonuclar-{ay}.jsonl")):
                 tid = int(r["trade_id"])
@@ -254,6 +330,7 @@ class Ml1Ogrenici:
                 if "y" in r and r.get("x") is not None:
                     self.n_kapali += 1
                     self.n_tf[r["tf"]] += 1
+                    self.n_oz[str(int(r.get("oz") or 1))] += 1
                     ts = pd.Timestamp(r["decision_ts"]).as_unit("ns").value
                     if ts >= sinir_ns:
                         self._sn.append((r["k"], ts, float(r["y"]), r["pair"], r["side"], r["tf"], _vek(r["x"])))
@@ -316,13 +393,14 @@ class Ml1Ogrenici:
             y = 1 if rm > 0 else 0
             row = {"trade_id": tid, "decision_id": int(r["decision_id"]), "k": r["k"], "decision_ts": r["decision_ts"],
                    "exit_ts": pd.Timestamp(t.exit_ts).isoformat(), "y": y, "r_net": float(rm), "exit_reason": t.exit_reason, "tf": r["tf"],
-                   "pair": r["pair"], "side": r["side"], "arm_id": r["arm_id"], "x": r["x"]}
+                   "pair": r["pair"], "side": r["side"], "arm_id": r["arm_id"], "x": r["x"], "oz": int(r.get("oz") or 1)}
             self._ekle(self._p(f"sonuclar-{_ay(D)}.jsonl"), [row])
             self.kapali.add(tid)
             self.bekleyen.pop(tid, None)
             self._sn.append((r["k"], pd.Timestamp(r["decision_ts"]).as_unit("ns").value, float(y), r["pair"], r["side"], r["tf"], _vek(r["x"])))
             self.n_kapali += 1
             self.n_tf[r["tf"]] += 1
+            self.n_oz[str(int(r.get("oz") or 1))] += 1
             self._yeni_sonuc += 1
             self.bugun["sonuc"] += 1
             n += 1
@@ -364,13 +442,24 @@ class Ml1Ogrenici:
             self._yeni_sonuc = 0                                 # tek sinif/veri yok: sonraki kapanan islemde yeniden denenir
             return None
         self.n_etkin = r["n_etkin"]
-        yeni = yeni_paket(r, esik=self.esik, surum=self.surum + 1, simdi=D)
+        s = None
+        if self.sinama:
+            s = sina(d, X, D, yari_omur_gun=self.yari_omur)
+            self.son_sinama = {"ts": pd.Timestamp(D).isoformat(), **s}
+        yeni = yeni_paket(r, esik=self.esik, surum=self.surum + 1, simdi=D, metrics=None if s is None else {"sinama": s})
         red, olc = denetle(yeni, self.esik)
         onceki, _ = M.load_package(self.paket_yolu)
         satir = {"ts": pd.Timestamp(D).isoformat(), "surum": self.surum + 1, "onceki_sha": None if onceki is None else str(onceki["sha256"])[:12],
                  "yeni_sha": str(yeni["sha256"])[:12], "yeni_sonuc": self._yeni_sonuc, "n_sonuc": r["n_sonuc"], "kapali_islem": self.n_kapali,
                  "n_etkin": round(r["n_etkin"], 3)}
-        if red is not None:
+        if s is not None:
+            satir["sinama"] = s
+        if s is not None and not s["gecti"]:
+            # yayin kapisi: etkin paket (varsa) AYNEN kalir, geri donus tetiklenmez, ogrenme surer (sonraki kapanan islemde yeniden denenir)
+            satir["sonuc"] = f"reddedildi:{s['neden']}"
+            self.sayac["sinama_red"] += 1
+            log.warning("ML1 paketi orneklem-disi sinamayi gecemedi: %s", s["neden"])
+        elif red is not None:
             satir["sonuc"] = f"reddedildi:{red}"
             self.sayac["reddedildi"] += 1
             log.warning("ML1 guncelleme reddedildi: %s", red)

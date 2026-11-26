@@ -56,7 +56,7 @@ Kullanıcı onayıyla C1 geçmişi defterden silinir ve kasa "C1 hiç olmamış 
    Paper risk kademesi bellekte tutulur (günlük dosyası yok, tepe özsermaye açılışta yeniden kurulur) ve kol küçültme çarpanı defterden
    türetilir: ikisi de motor yeniden başlayınca C1'siz yeniden oluşur.
 5. **Yan dosyalar:** `counterfactual.sqlite`/`exit_counterfactual.sqlite` C1 satırları; `islem_gonderildi.jsonl`/`islem_imleci.json`
-   C1 işlem numaraları; türetilmiş çıktılar (`mutabakat*`, `strateji-veri-ml.md`, `tutarlilik_v1.json`) silinir ve yeniden üretilir.
+   C1 işlem numaraları; türetilmiş çıktılar (`mutabakat*`, `tutarlilik_v1.json`) silinir ve yeniden üretilir.
 6. **Doğrulama (hepsi geçmeli):** `Ledger._verify` (motorun açılışta yaptığı) + tüm tetikleyiciler mevcut + davranış sınaması
    (UPDATE `append-only` ile reddedilmeli) + `integrity_check` + `foreign_key_check` + C1 satırı kalmadı + state'te C1 kalmadı +
    **kasa kalanı değişmedi**: `kalan = kasa + açık işlemlerin giriş komisyonu/fonlaması − başlangıç − Σ kapanan net K/Z` göç öncesi ve

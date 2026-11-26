@@ -742,13 +742,13 @@ def test_gates_fixed_rows_from_shadow_rows_and_legacy_fallback():
                                                           for r in t24["rows"])
     shadow = [{"id": i, "block": b, "bar_close_ts": "2026-12-01T09:00:00.000Z", "pos_open": po}
               for i, (b, po) in enumerate([("regime_volatile", 0), ("regime_volatile", 1), ("same_bar_reentry", 0),
-                                           ("tf_15m", 1)], start=1)]
+                                           ("regime_unclear", 0)], start=1)]
     new = G.build(**kw, shadow=shadow, cf_shadow=None)
     t = _blk(new, "aday_uretmeyen")
     rows = {r["hucre"]: r for r in t["rows"]}
     assert rows["koşul:volatile"]["n_engel"] == 2 and rows["koşul:volatile"]["n_pozisyon_acik"] == 1
-    assert rows["aynı mumda yeniden giriş"]["n_engel"] == 1 and rows["tf_15m" if False else "15m kapalı"]["n_engel"] == 1
-    assert rows["koşul:unclear"]["n_engel"] == 0 and rows["koşul:unclear"]["yargi"] == "kanit_yok"
+    assert rows["aynı mumda yeniden giriş"]["n_engel"] == 1 and "15m kapalı" not in rows
+    assert rows["koşul:unclear"]["n_engel"] == 1
     assert all(r["pay"] == "—" for r in t["rows"]) and "n_pozisyon_acik" in t["columns"]
     # kapi karnesi, n_engel_toplam ve pay: golge satirlardan etkilenmez
     assert new["n_engel_toplam"] == legacy["n_engel_toplam"] and new["gate_counts"] == legacy["gate_counts"]

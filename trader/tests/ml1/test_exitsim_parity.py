@@ -87,7 +87,7 @@ def world(tmp_path_factory):
         args = ["--id", "ml1", "--period", P.PERIOD, "--tf", "1h", "--fill-model", "native", "--granularity", "1m", "--trigger-source", "last",
                 "--synthetic-rules", "--no-record-filtered", "--strategy", "ml1_nth", "--pairs", P.PAIR, "--target-mode", "resting",
                 "--exit-modes", json.dumps(MODES)]
-        assert int(B.main(args) or 0) == 0
+        assert int(B.main(["--env", "eski", *args]) or 0) == 0
         run_dir = ws / "var" / "backtests" / "ml1"
         from trader_core import ledger as L
         led = L.open_ledger(run_dir / "ledger.sqlite", "learner", create=False, read_only=True, migrate=False)

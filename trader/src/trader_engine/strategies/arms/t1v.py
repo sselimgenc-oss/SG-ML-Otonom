@@ -56,8 +56,8 @@ def seviye(g):
 
 
 FORMASYONLAR = {
-    "GERI3": Formasyon("GERI3", "T1 varyant: 3 dusen tepe geri cekilmesi", 1, TUM_ZD, 48, geri3, kip="trail"),
-    "SEVIYE": Formasyon("SEVIYE", "T1 varyant: eski direnc seviyesine geri cekilme", 2, TUM_ZD, 48, seviye, kip="trail"),
+    "GERI3": Formasyon("GERI3", "T1 varyant: 3 dusen tepe geri cekilmesi", 1, TUM_ZD, None, geri3, kip="trail"),
+    "SEVIYE": Formasyon("SEVIYE", "T1 varyant: eski direnc seviyesine geri cekilme", 2, TUM_ZD, None, seviye, kip="trail"),
 }
 
 

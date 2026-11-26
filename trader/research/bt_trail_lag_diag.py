@@ -60,8 +60,11 @@ def lag_path(signals_src, pair, side, entry_ts, entry_px, init_stop, trail_atr, 
 def analyse(run: str) -> dict:
     meta = json.loads((ENG_ROOT / f"{run}_compat" / "meta.json").read_text())
     ap = BT.build_parser()
-    a = ap.parse_args(meta["flags"]["argv"])
-    spec = BT.spec_from_args(a, meta["flags"]["argv"])          # holdout kilidi burada da dogrulanir
+    argv = list(meta["flags"]["argv"])
+    if "--env" not in argv:
+        argv += ["--env", "eski"]                              # P6-03: bu tani eski taban yola dayanir (varsayilan artik kagit ortami)
+    a = ap.parse_args(argv)
+    spec = BT.spec_from_args(a, argv)          # holdout kilidi burada da dogrulanir
     runner = BT.BacktestRunner(spec)
     cfg = runner.build_config()
     raw = runner.build_view(cfg)

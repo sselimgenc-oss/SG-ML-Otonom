@@ -23,7 +23,6 @@ def _trader(tmp: Path) -> Path:
     (t / "var" / "durum").mkdir(parents=True)
     (t / "var" / "learner").mkdir(parents=True)
     (t / "var" / "durum" / "mutabakat_v1.json").write_text('{"sema": "x", "islem_sayisi": 3}\n', encoding="utf-8")
-    (t / "var" / "durum" / "strateji-veri-ml.md").write_text("# Strateji\n", encoding="utf-8")
     (t / "var" / "durum" / "baska_dosya.json").write_text("{}\n", encoding="utf-8")            # izin listesinde yok
     (t / "var" / "learner" / "status.json").write_text('{"bot": "learner", "open_positions": []}\n', encoding="utf-8")
     (t / "var" / "learner" / "ledger.sqlite").write_bytes(b"SQLite")                              # defter yayimlanmaz
@@ -69,7 +68,7 @@ def test_ilk_yayin_yetim_dal_izin_listesi_ve_ikinci_yayin(tmp_path):
     assert r.returncode == 0, r.stderr
     assert "yayimlandi" in r.stdout
     assert _dosyalar(repo) == ["ml/durum.json", "ml/model_paketleri.txt", "ml/mutabakat_v1.json",
-                               "ml/paper_models_son.csv", "ml/strateji-veri-ml.md", "ml/uretim.txt"]
+                               "ml/paper_models_son.csv", "ml/uretim.txt"]
     pk = subprocess.run(["git", "--git-dir", str(repo), "show", "canli-durum:ml/model_paketleri.txt"], capture_output=True, text=True, check=True)
     assert "pa_proposer/M1@1h.json" in pk.stdout and "gizli_icerik" not in pk.stdout and " UTC " in pk.stdout   # yalniz ad/boyut/zaman
     kok = subprocess.run(["git", "--git-dir", str(repo), "rev-list", "--max-parents=0", "canli-durum"], capture_output=True, text=True, check=True)
@@ -78,12 +77,11 @@ def test_ilk_yayin_yetim_dal_izin_listesi_ve_ikinci_yayin(tmp_path):
     assert json.loads(durum.stdout)["bot"] == "learner"
     # ikinci tur: dosya degisti, ayni dala yeni commit (gecmis korunur, zorla itme yok)
     (trader / "var" / "durum" / "mutabakat_v1.json").write_text('{"sema": "x", "islem_sayisi": 4}\n', encoding="utf-8")
-    (trader / "var" / "durum" / "strateji-veri-ml.md").unlink()
     r2 = _kos(trader, repo, tmp_path)
     assert r2.returncode == 0, r2.stderr
     n = subprocess.run(["git", "--git-dir", str(repo), "rev-list", "--count", "canli-durum"], capture_output=True, text=True, check=True)
     assert n.stdout.strip() == "2"
-    assert "ml/strateji-veri-ml.md" not in _dosyalar(repo)                                         # kaynakta yoksa dalda da yok
+    assert "ml/baska_dosya.json" not in _dosyalar(repo)                                             # izin listesinde olmayan dosya dalda yok
     branches = subprocess.run(["git", "--git-dir", str(repo), "branch", "--format=%(refname:short)"], capture_output=True, text=True, check=True)
     assert branches.stdout.split() == ["canli-durum"]                                              # baska dala yazilmaz
 

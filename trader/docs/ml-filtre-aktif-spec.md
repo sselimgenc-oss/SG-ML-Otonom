@@ -19,3 +19,13 @@
 **Eski yol:** `ml_model_path` boş + `ml_pairs` yoksa eski tek-model (r03) yolu kapalı kalır (sağlık alarmı üretmez); ML etkinliği kurulum filtresindedir. Canlı/testnet yolu değişmedi.
 
 **İlk etki:** bir kurulum ≥10 kapanmış işleme ulaştıktan sonraki ilk gece eğitiminde (00:40 UTC) paket oluşur; motor dosyayı bir sonraki girişte okur. Mevcut ML kurulum süzgeci (`trader_ml.setup_filter`, `var/learner/models/setup_filter`) gece eğitimine devam eder; motor tarafından tüketilmez.
+
+
+## Bilinen riskler (26.11 sahip kararları, Paket 2)
+
+- **Seçilim yanlılığı (karar #11):** model yalnız kendi geçirdiği işlemleri görür; rastgele geçiş payı bilerek yoktur.
+- **Örneklem-dışı sınama (karar #1):** her yayın denemesinde (ilk paket ve sonraki güncellemeler) en yeni %20'lik (en az 40) dilimde sınanır; eğitim/sınama zaman sıralıdır, aynı olaydaki eğitim satırları ambargolanır. Geçme: iki sınıf var, `ll_model < ll_taban`, `AUC > 0.5`. Geçemezse paket YAZILMAZ, etkin paket aynen kalır, öğrenme sürer. **Zayıflık:** 40 işlemlik sınama zayıf bir testtir; hiç bilgi taşımayan (rastgele etiketli, 96 özellikli) bir model n=240'ta ölçülen ~%16, n=400'de ~%6 oranında şans eseri geçer (300 tohum taraması). Amaç "açıkça kötü modeli" durdurmaktır; `GERI_IZLE_MIN` geri dönüş denetimi aynen kalır.
+- **Özellik tanımı sürümü (karar #8, 26.11):** `vol_*` özellikleri ölü mumlar (hacim 0, o=h=l=c) dışarıda bırakılarak hesaplanır (`OZELLIK_SURUM = 2`); önceki işlemler eski tanımla kaydedilmiştir ve atılmaz; `durum.json` `oz_karisik` oranı gösterir.
+- **Kapı arızası (karar #10):** ML1 açıkken kapı/öğrenici kurulamazsa (`ml1_kapi_yok`) ya da öğrenici yokken paket bozuksa (`ml1_paket_bozuk`) yeni işlem AÇILMAZ; açık işlemler/çıkışlar yönetilmeye devam eder. Paket dosyası hiç yoksa (öğrenme aşaması) engel yoktur.
+- **Parametre defteri (karar #9, yalnız kâğıt):** defter okunamazsa çıkışlar kv'deki son bilinen sürümle sürer; girişler kapalı kalır (`params_unavailable`).
+- **Sahip adımları (P7-02 / P7-09):** güncelleme dalı koruması ve pano parolası canlıya geçişe ertelendi (bu pakette uygulanmadı).

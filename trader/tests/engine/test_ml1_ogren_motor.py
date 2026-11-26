@@ -23,6 +23,23 @@ from trader_ml.ml1 import model as M  # noqa: E402
 MIN_ISLEM = 6
 
 
+class _SinamasizOgrenici(OG.Ml1Ogrenici):
+    """Bu dosyanin mekanik testleri (min_islem = 6, n < 40) orneklem-disi sinamayi calistiramaz: yalniz test, kurucu anahtariyla kapatir
+    (motor `sinama` GECIRMEZ ve config'ten okunmaz: bkz. test_ml1_ogren_sinama_motor.py)."""
+
+    def __init__(self, *a, **kw):
+        kw["sinama"] = False
+        super().__init__(*a, **kw)
+
+
+@pytest.fixture(autouse=True, scope="module")
+def _sinamasiz_ogrenici():
+    mp = pytest.MonkeyPatch()
+    mp.setattr(OG, "Ml1Ogrenici", _SinamasizOgrenici)
+    yield
+    mp.undo()
+
+
 @pytest.fixture(scope="module")
 def hist(tmp_path_factory):
     d = tmp_path_factory.mktemp("ogren_hist") / "hist"

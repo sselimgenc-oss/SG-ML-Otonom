@@ -40,7 +40,7 @@ def olculu(g):
 
 
 FORMASYONLAR = {
-    "HACIM": Formasyon("HACIM", "S1 varyant: kutuda dusuk, kirilimda yuksek hacim", 1, TUM_ZD, 48, hacim, kip="trail"),
+    "HACIM": Formasyon("HACIM", "S1 varyant: kutuda dusuk, kirilimda yuksek hacim", 1, TUM_ZD, None, hacim, kip="trail"),
     "OLCULU": Formasyon("OLCULU", "S1 varyant: olculu hedef (kutu dibi + direk)", 2, TUM_ZD, 48, olculu),
 }
 

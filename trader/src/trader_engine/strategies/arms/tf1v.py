@@ -34,8 +34,8 @@ def fitil(g):
 
 
 FORMASYONLAR = {
-    "HACIM": Formasyon("HACIM", "TF1 varyant: hacim onayli kirilim", 1, TUM_ZD, 48, hacim, kip="trail"),
-    "FITIL": Formasyon("FITIL", "TF1 varyant: ust fitilsiz kirilim", 2, TUM_ZD, 48, fitil, kip="trail"),
+    "HACIM": Formasyon("HACIM", "TF1 varyant: hacim onayli kirilim", 1, TUM_ZD, None, hacim, kip="trail"),
+    "FITIL": Formasyon("FITIL", "TF1 varyant: ust fitilsiz kirilim", 2, TUM_ZD, None, fitil, kip="trail"),
 }
 
 

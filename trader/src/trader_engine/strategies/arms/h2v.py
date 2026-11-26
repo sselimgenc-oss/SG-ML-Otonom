@@ -42,8 +42,8 @@ def yari(g):
 
 
 FORMASYONLAR = {
-    "MINI": Formasyon("MINI", "H2 varyant: mini cizgi kirilimi tetigi", 1, TUM_ZD, 48, mini, kip="trail"),
-    "YARI": Formasyon("YARI", "H2 varyant: yarim pozisyon sabit kar, kalan iz suren", 2, TUM_ZD, 48, yari, kip="trail"),
+    "MINI": Formasyon("MINI", "H2 varyant: mini cizgi kirilimi tetigi", 1, TUM_ZD, None, mini, kip="trail"),
+    "YARI": Formasyon("YARI", "H2 varyant: yarim pozisyon sabit kar, kalan iz suren", 2, TUM_ZD, None, yari, kip="trail"),
 }
 
 

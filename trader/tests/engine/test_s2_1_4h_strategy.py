@@ -472,7 +472,7 @@ def _entry_signal_closes(run_dir: Path) -> list[pd.Timestamp]:
 
 def test_h11_end_to_end_smoke(ws):
     from trader_engine import backtest as B
-    assert int(B.main(["--id", "h4a", "--strategy", "price_action_v1_4h", *BASE]) or 0) == 0
+    assert int(B.main(["--env", "eski", "--id", "h4a", "--strategy", "price_action_v1_4h", *BASE]) or 0) == 0
     run = ws / "var/backtests/h4a"
     meta = json.loads((run / "meta.json").read_text())
     assert meta["strategy"] == "price_action_v1_4h"

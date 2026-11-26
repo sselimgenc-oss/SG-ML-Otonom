@@ -496,11 +496,13 @@ fi
 # 24.11 kullanici karari: AI veto ve C1 artiklari tamamen silindi. 25.11: haber sinyali (HB1) isi de kaldirildi (trader-haber-sinyal.*);
 # 25.11 sahip karari: ders sistemi (trader-lesson.*) ve gece islem notu (trader-notes.*) kaldirildi, ogrenme ML1'e tasindi. Eski kurulumdaki birimler/dosyalar burada temizlenir
 # (her adim varlik kontrollu ve idempotent; defter/state dosyalarina DOKUNULMAZ, shared/veto/ okunmaz ve silinmez).
+# Strateji verisi (Telegram belgesi, trader-strateji-veri.*) sahip karariyla kaldirildi: ayni dongude durdurulur/devre disi birakilir/silinir, enable_now YOK.
 # Sahip karari: evren 14 cift SABIT; aylik evren kaplamasi (trader-universe.*) kaldirildi: durdurulur, devre disi birakilir, silinir.
 for u in trader-veto.timer trader-veto.service trader-ct-kadro.timer trader-ct-kadro.service trader-c1-goc.service \
          trader-haber-sinyal.timer trader-haber-sinyal.service \
          trader-lesson.timer trader-lesson.service trader-notes.timer trader-notes.service \
          trader-ml-retrain.timer trader-ml-retrain.service \
+         trader-strateji-veri.timer trader-strateji-veri.service \
          trader-universe.timer trader-universe.service; do
   if [ -e "${UNIT_DIR}/$u" ] || systemctl is-enabled --quiet "$u" 2>/dev/null || systemctl is-active --quiet "$u" 2>/dev/null; then
     systemctl disable --now "$u" >/dev/null 2>&1 || true
@@ -619,7 +621,6 @@ if ! has_value /etc/trader-lesson.env ANTHROPIC_API_KEY_YORUMCU; then MISSING+=(
 enable_now trader-durum-yayin.timer
 # Haftalik disk bakimi (sqlite WAL checkpoint/VACUUM + eski cikti temizligi; izin listesi). unit ReadWritePaths (var) zaten yukarida olusur
 enable_now trader-bakim.timer
-enable_now trader-strateji-veri.timer   # strateji verisi raporu 6 saatte bir yenilenir (Telegram belgesi yalniz ilk kez)
 # Otomatik guncelleme (docs/motor/oto-guncelleme-spec.md): komutlar root sahipli surum dizininden; durum dizini root 0700.
 safe_tree_path "$OTO_STATE_DIR"
 install -d -m 0700 -o root -g root "$OTO_STATE_DIR"
@@ -658,7 +659,8 @@ if [ "$LIVE" -eq 1 ]; then
 fi
 
 # Testnet golge motoru (WP-B8): BINANCE_API_KEY ve BINANCE_API_SECRET ikisi de doluysa acilir (gercek para yok; yalniz testnet.binancefuture.com)
-if has_value /etc/trader-testnet.env BINANCE_API_KEY && has_value /etc/trader-testnet.env BINANCE_API_SECRET; then
+# Sahip karari (26.11): testnet KAPALI (config/engine.testnet.json 14 enstrumana esit degil); anahtarlar dolu olsa bile ucuncu sart TESTNET_ACIK=1. Calisan birime dokunulmaz.
+if has_value /etc/trader-testnet.env BINANCE_API_KEY && has_value /etc/trader-testnet.env BINANCE_API_SECRET && has_value /etc/trader-testnet.env TESTNET_ACIK; then
   # saglik denetcisi golge motoru da izler (stopsuz pozisyon / borsa erisimi); kullanici degeri korunur
   grep -q '^HEALTH_SHADOW_VAR_DIR=' /etc/trader-health.env || echo "HEALTH_SHADOW_VAR_DIR=" >> /etc/trader-health.env
   sed -i "s#^HEALTH_SHADOW_VAR_DIR=\$#HEALTH_SHADOW_VAR_DIR=${TRADER_DIR}/var-testnet#" /etc/trader-health.env
@@ -677,17 +679,17 @@ if has_value /etc/trader-testnet.env BINANCE_API_KEY && has_value /etc/trader-te
   fi
   enable_now trader-engine-testnet.service
   enable_now trader-engine-env-retry@testnet.timer   # acilis kapisi (cikis 7) yeniden deneme: testnet birimi icin (DD-9 §2.3)
-else MISSING+=("/etc/trader-testnet.env  -> BINANCE_API_KEY ve BINANCE_API_SECRET (Binance Futures TESTNET anahtari; testnet golge motoru, ikisi de dolu olmadan acilmaz)"); fi
+else echo "Bilgi: testnet kapali (sahip karari): acmak icin once engine.testnet.json 14 enstrumana esitlenmeli, sonra TESTNET_ACIK=1 (/etc/trader-testnet.env)"; fi
 
 # ---- 11. ozet ---------------------------------------------------------------------
 # DD-12 WP-18: kâgit kapanis denetimi (yalniz UYARI; kurulumu durdurmaz). DD-12 zamanlayicilari etkin olmali; veto, C1 ve ikiz
 # birimleri kalmamali (kaldirma yukarida yapildi; eski bir kopya kaldiysa burada gorunur).
 say "DD-12 zamanlayici denetimi"
 for t in trader-weekly-summary.timer \
-         trader-counterfactual@learner.timer trader-exit-counterfactual@learner.timer trader-tutarlilik.timer trader-mutabakat.timer trader-tur1-olcum.timer trader-tur1-haftalik.timer trader-weekly-collect.timer trader-yorumcu.timer trader-durum-yayin.timer trader-haber.timer trader-piyasa-veri.timer trader-bakim.timer trader-strateji-veri.timer; do
+         trader-counterfactual@learner.timer trader-exit-counterfactual@learner.timer trader-tutarlilik.timer trader-mutabakat.timer trader-tur1-olcum.timer trader-tur1-haftalik.timer trader-weekly-collect.timer trader-yorumcu.timer trader-durum-yayin.timer trader-haber.timer trader-piyasa-veri.timer trader-bakim.timer; do
   if systemctl is-enabled --quiet "$t" 2>/dev/null; then echo "  etkin: $t"; else echo "UYARI: $t etkin degil (systemctl enable --now $t)"; fi
 done
-for u in trader-veto.service trader-veto.timer trader-c1-goc.service trader-haber-sinyal.timer trader-haber-sinyal.service trader-lesson.timer trader-lesson.service trader-notes.timer trader-notes.service trader-ml-retrain.timer trader-ml-retrain.service trader-universe.timer trader-universe.service trader-engine@twin.service trader-engine-retry@twin.timer; do
+for u in trader-veto.service trader-veto.timer trader-c1-goc.service trader-haber-sinyal.timer trader-haber-sinyal.service trader-lesson.timer trader-lesson.service trader-notes.timer trader-notes.service trader-ml-retrain.timer trader-ml-retrain.service trader-universe.timer trader-universe.service trader-strateji-veri.timer trader-strateji-veri.service trader-strateji-veri.service trader-engine@twin.service trader-engine-retry@twin.timer; do
   if [ -e "${UNIT_DIR}/$u" ]; then echo "UYARI: eski birim duruyor: $u (install.sh'i yeniden calistirin veya elle kaldirin)"; fi
 done
 say "OZET"
@@ -706,10 +708,6 @@ echo "Surum: ${COMMIT} (${RELEASE_FILE})"
 # bu yuzden surum dosyasi yazildiktan SONRA baslatilir (yoksa eski commit okunur ve ozet bir tur gecikir)
 if [ -e "${UNIT_DIR}/trader-mutabakat.service" ]; then
   if systemctl start --no-block trader-mutabakat.service >/dev/null 2>&1; then echo "Baslatildi: trader-mutabakat.service (kurulum sonrasi)"; else echo "UYARI: trader-mutabakat.service baslatilamadi (kurulum devam ediyor)."; fi
-fi
-# Strateji verisi (beyin firtinasi): sessiz tek Telegram belgesi; birim kendi isaret dosyasiyla (var/durum/strateji_veri_gonderildi.json) bir kez gonderir. Salt okunur, kurulumu durdurmaz:
-if [ -e "${UNIT_DIR}/trader-strateji-veri.service" ]; then
-  if systemctl start --no-block trader-strateji-veri.service >/dev/null 2>&1; then echo "Baslatildi: trader-strateji-veri.service (kurulum sonrasi, tek seferlik)"; else echo "UYARI: trader-strateji-veri.service baslatilamadi (kurulum devam ediyor)."; fi
 fi
 if [ -n "$LIVE_WARN" ]; then echo "UYARI: $LIVE_WARN"; fi
 if [ "$NO_LIVE" -eq 1 ]; then echo "UYARI (--no-live): /etc/trader-telegram.env, /etc/trader-health.env (LIVE_BOTS, LIVE_VAR_DIR, LIVE_PAUSE_FILE, KILL_FILE, ENGINE_STATUS_PATH, LEDGER_PATH, LADDER_BOTS) ve /etc/trader-lesson.env (LEDGER_PATH) hala CANLI yollari tasiyor olabilir; elle kagit degerlerine alin."; fi

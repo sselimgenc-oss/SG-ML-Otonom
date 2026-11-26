@@ -74,10 +74,10 @@ def test_kapali_kilitte_eski_davranis(monkeypatch):
 
 def test_kilit_bayragi_kopyalari_esit():
     """Tek anahtar: trader_engine.holdout.KILIT_ACIK ile katman geregi kopya bayraklar (core, ml) ayni degerde."""
-    from trader_core import counterfactual, exit_counterfactual, strateji_veri
+    from trader_core import counterfactual, exit_counterfactual
     from trader_ml import config
     from trader_ml import guards as mlg
     v = H.KILIT_ACIK
-    assert counterfactual.KILIT_ACIK is v and exit_counterfactual.KILIT_ACIK is v and strateji_veri.KILIT_ACIK is v
+    assert counterfactual.KILIT_ACIK is v and exit_counterfactual.KILIT_ACIK is v
     assert config.KILIT_ACIK is v and mlg.KILIT_ACIK is v
     assert (config.HOLDOUT_START.to_pydatetime(), config.HOLDOUT_END.to_pydatetime()) == H.HOLDOUT

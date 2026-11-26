@@ -79,9 +79,9 @@ def test_testnet_unit_renders_and_exec_resolves(tmp_path):
 def test_testnet_env_example_stub_empty_keys_and_install_perms(tmp_path):
     ex = (DEPLOY / "trader-testnet.env.example").read_text(encoding="utf-8")
     kv = dict(l.split("=", 1) for l in ex.splitlines() if l and not l.startswith("#") and "=" in l)
-    assert kv == {"BINANCE_API_KEY": "", "BINANCE_API_SECRET": ""}
+    assert kv == {"BINANCE_API_KEY": "", "BINANCE_API_SECRET": "", "TESTNET_ACIK": ""}
     out = render_env_files(tmp_path)
-    assert out["trader-testnet.env"] == {"BINANCE_API_KEY": "", "BINANCE_API_SECRET": ""}
+    assert out["trader-testnet.env"] == {"BINANCE_API_KEY": "", "BINANCE_API_SECRET": "", "TESTNET_ACIK": ""}
     assert stat.S_IMODE((tmp_path / "trader-testnet.env").stat().st_mode) == 0o600
     inst = (DEPLOY / "install.sh").read_text(encoding="utf-8")
     assert re.search(r'copy_env "\$REL_DIR/deploy/trader-testnet\.env\.example"\s+/etc/trader-testnet\.env\s+"root:root"\s+0600', inst)
@@ -91,7 +91,7 @@ def test_install_gates_testnet_unit_on_both_keys_and_creates_dirs():
     inst = (DEPLOY / "install.sh").read_text(encoding="utf-8")
     assert not re.search(r"^enable_now trader-engine-testnet\.service", inst, re.M)
     m = re.search(r"if has_value /etc/trader-testnet\.env BINANCE_API_KEY && has_value /etc/trader-testnet\.env "
-                  r"BINANCE_API_SECRET; then.*?enable_now trader-engine-testnet\.service.*?\nelse MISSING", inst, re.S)
+                  r"BINANCE_API_SECRET && has_value /etc/trader-testnet\.env TESTNET_ACIK; then.*?enable_now trader-engine-testnet\.service.*?\nelse echo", inst, re.S)
     assert m, "testnet birimi anahtar denetimi olmadan aciliyor"
     assert '"$TRADER_DIR/var-testnet"' in inst and '"$TRADER_DIR/shared/testnet"' in inst
     assert "/etc/trader-testnet.env" in (DEPLOY / "uninstall.sh").read_text(encoding="utf-8")
@@ -104,9 +104,10 @@ def test_install_gate_executes_empty_vs_filled(tmp_path):
     b = inst.index("MISSING=()")
     g0 = inst.index("# Testnet golge motoru (WP-B8)")
     g1 = inst.index("# ---- 11. ozet")
-    for key, secret, expect in (("", "", False), ("k" * 40, "", False), ("k" * 40, "s" * 40, True)):
-        envf = tmp_path / f"t{expect}{bool(key)}.env"
-        envf.write_text(f"BINANCE_API_KEY={key}\nBINANCE_API_SECRET={secret}\n")
+    for key, secret, acik, expect in (("", "", "", False), ("k" * 40, "", "", False), ("k" * 40, "s" * 40, "", False),
+                                      ("k" * 40, "", "1", False), ("k" * 40, "s" * 40, "1", True)):
+        envf = tmp_path / f"t{expect}{bool(key)}{bool(secret)}{bool(acik)}.env"
+        envf.write_text(f"BINANCE_API_KEY={key}\nBINANCE_API_SECRET={secret}\nTESTNET_ACIK={acik}\n")
         hf = tmp_path / "health.env"
         hf.write_text("ENGINE_VAR_DIR=/x\n")
         block = inst[g0:g1].replace("/etc/trader-testnet.env", str(envf)).replace("/etc/trader-health.env", str(hf))
@@ -114,7 +115,8 @@ def test_install_gate_executes_empty_vs_filled(tmp_path):
                   + inst[a:b] + block + "\necho missing=${#MISSING[@]}\n")
         r = subprocess.run(["bash", "-c", script], capture_output=True, text=True, check=True).stdout
         assert ("ENABLED:trader-engine-testnet.service" in r) is expect, r
-        assert ("missing=0" in r) is expect
+        assert "missing=0" in r                                # kapali testnet MISSING satiri uretmez (bilgi satiri)
+        assert ("Bilgi: testnet kapali" in r) is (not expect)
         if expect:
             assert "HEALTH_SHADOW_VAR_DIR=/srv/t/var-testnet" in hf.read_text()
 

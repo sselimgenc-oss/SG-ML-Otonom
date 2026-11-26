@@ -65,8 +65,8 @@ def test_tum_bicimleyiciler_kurallara_uyar(tmp_path):
     metinler = [
         TS.islem_acildi("Trend geri çekilmesi", "SOL/USDT", "long", 142.3, 300, 139.1, zd="4h", puan=0.63, risk=9),
         TS.islem_acildi("Yatay piyasa kenarı", "SOL/USDT", "long", 142.3, 300, 139.1),
-        TS.islem_kapandi("T1 · 15dk", "SOL/USDT", "long", 9.6, 300, "target", r=1.07, zd="4h", sure="6s 20dk"),
-        TS.islem_kapandi("T1 · 15dk", "BTC/USDT", "short", -6.4, 300, "trail_stop"),
+        TS.islem_kapandi("T1 · 1s", "SOL/USDT", "long", 9.6, 300, "target", r=1.07, zd="4h", sure="6s 20dk"),
+        TS.islem_kapandi("T1 · 1s", "BTC/USDT", "short", -6.4, 300, "trail_stop"),
         TS.islem_kapandi("x", "SOL/USDT", "long", -3.0, 300, "force_exit", setup="M1@1h", zd="1h", sure="2g 3s"),
         TS.islemler_acildi([("T1", "SOL/USDT", "long", 1.0, 250, 0.9, "4h", 0.63, 9)] * 2),
         TS.saatlik_ozet(4, 3, 5.2), TS.sembol_disi("SOL/USDT", False), TS.sembol_disi("SOL/USDT", True), TS.sembol_geri("SOL/USDT"),
@@ -104,15 +104,15 @@ def test_acildi_uc_satir_puansiz_ikinci_satirda_yalniz_kurulum_adi():
 
 
 def test_kapandi_r_durust_neden_zaman_dilimi_ve_sure():
-    k = TS.islem_kapandi("T1 · 15dk", "SOL/USDT", "long", 9.6, 300, "target", r=1.07, zd="4h", sure="6s 20dk")
+    k = TS.islem_kapandi("T1 · 1s", "SOL/USDT", "long", 9.6, 300, "target", r=1.07, zd="4h", sure="6s 20dk")
     assert k == "[ML] 🟢 SOL long kapandı · +9,60 $ (+1,07 R)\nKâr al · 4 saat · 6s 20dk sürdü"
-    y = TS.islem_kapandi("T1 · 15dk", "SOL/USDT", "long", 9.6, 300, "target")                 # R yok: yuzde (eski davranis)
+    y = TS.islem_kapandi("T1 · 1s", "SOL/USDT", "long", 9.6, 300, "target")                 # R yok: yuzde (eski davranis)
     assert y.splitlines()[0] == "[ML] 🟢 SOL long kapandı · +9,60 $ (+3,2%)" and y.splitlines()[1] == "Kâr al"
-    z = TS.islem_kapandi("T1 · 15dk", "BTC/USDT", "short", -6.4, 300, "stop", r=-1.0)
+    z = TS.islem_kapandi("T1 · 1s", "BTC/USDT", "short", -6.4, 300, "stop", r=-1.0)
     assert z.splitlines()[0].startswith("[ML] 🔻") and "−6,40 $ (−1,00 R)" in z and z.splitlines()[1] == "Stop"
-    assert "🔴" not in z and "🔴" in TS.islem_kapandi("T1 · 15dk", "BTC/USDT", "short", -6.4, 300, "stop", kritik=True)
-    assert "Süre doldu" in TS.islem_kapandi("T1 · 15dk", "ETH/USDT", "long", 1, 100, "time_stop")
-    assert "Elle (borsadan)" in TS.islem_kapandi("T1 · 15dk", "ETH/USDT", "long", 1, 100, "manual")
+    assert "🔴" not in z and "🔴" in TS.islem_kapandi("T1 · 1s", "BTC/USDT", "short", -6.4, 300, "stop", kritik=True)
+    assert "Süre doldu" in TS.islem_kapandi("T1 · 1s", "ETH/USDT", "long", 1, 100, "time_stop")
+    assert "Elle (borsadan)" in TS.islem_kapandi("T1 · 1s", "ETH/USDT", "long", 1, 100, "manual")
     assert "Bot kapattı (kural/koruma)" in TS.islem_kapandi("x", "ETH/USDT", "long", 1, 100, "other")
     assert "Kâr al (stop)" in TS.islem_kapandi("x", "ETH/USDT", "long", 1, 100, "stop")
     kal = TS.islem_kapandi("x", "ETH/USDT", "long", -1, 100, "force_exit", setup="M1@1h", zd="1h", sure="2g 3s")
@@ -255,7 +255,7 @@ def test_teknik_uyarilar_susar(rig, kod):
 
 
 def test_kol_adi_bicimi():
-    assert "M1" not in TS.KURULUM_AD and TS.kol_adi("T1@15m") == "Trend geri çekilmesi · 15 dakika"
+    assert "M1" not in TS.KURULUM_AD and TS.kol_adi("T1@1h") == "Trend geri çekilmesi · 1 saat"
     assert "Kadro" not in TS.KURULUM_AD.get("C1", "") and "C1" not in TS.KURULUM_AD and TS.kol_adi("R1@1d") == "Yatay piyasa kenarı · 1 gün"
     assert TS.kol_adi("R1@4h") == "Yatay piyasa kenarı · 4 saat"
     assert TS.kol_adi("T1", "1h") == "Trend geri çekilmesi · 1 saat" and TS.kol_adi("T1") == "Trend geri çekilmesi"
@@ -362,9 +362,9 @@ def test_islem_mesajlari_sessiz_gider(rig):
 def test_ayni_dakikadaki_acilislar_tek_mesaj():
     t = TS.islemler_acildi([("T1", "SOL/USDT", "long", 142.3, 250, 139.1, "4h", 0.63, 9),
                             ("R1", "ETH/USDT", "short", 3000, 180, 3100, "1d", 0.61, 7),
-                            ("S1", "BTC/USDT", "long", 60000, 300, 59000, "15m", 0.59, 10)])
+                            ("S1", "BTC/USDT", "long", 60000, 300, 59000, "1h", 0.59, 10)])
     assert t.splitlines() == ["[ML] 🟩 3 işlem açıldı", "SOL long · 4 saat · 250 $ · puan 0,63", "ETH short · 1 gün · 180 $ · puan 0,61",
-                              "BTC long · 15 dakika · 300 $ · puan 0,59"]
+                              "BTC long · 1 saat · 300 $ · puan 0,59"]
     ok_form(t)
     assert "puan" not in TS.islemler_acildi([("T1", "SOL/USDT", "long", 1, 1, 1, "4h"), ("T1", "ETH/USDT", "long", 1, 1, 1, "4h")])
     buyuk = TS.islemler_acildi([("T1 · 1 saat", "SOL/USDT", "long", 1, 1, 1)] * 6)

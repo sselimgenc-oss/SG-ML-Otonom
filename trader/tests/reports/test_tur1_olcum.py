@@ -121,9 +121,8 @@ def test_gecikme_fiyatlama_ve_kacirilan(tmp_path):
         m.close()
 
 
-def test_saat_kaymasi_acikca_olculemedi():
-    d = T.dayaniklilik([mk(1)], None)["saat_kaymasi_15dk"]
-    assert d["tam_olculebildi"] is False and "YAPILAMAZ" in d["aciklama"]
+def test_saat_kaymasi_15dk_bolumu_kaldirildi():
+    assert not [k for k in T.dayaniklilik([mk(1)], None) if "15" in k]
 
 
 # ---------------------------------------------------------------- bolum 3
@@ -230,7 +229,7 @@ def test_rapor_butunu_ve_md(tmp_path):
     assert d == d2 and d["sema"] == T.SCHEMA and set(d["bolumler"]) == {"rakip_kiyasi", "dayaniklilik", "sans_kuyruk", "canli_sartlari", "yon_denetimi", "kayip_kumeleri"}
     json.dumps(d)
     md = T.render_md(d)
-    assert "yetersiz örnek" in md and "FAIL" in md and "tam ölçülemedi" in md
+    assert "yetersiz örnek" in md and "FAIL" in md and "15 dk" not in md and "15dk" not in md
 
 
 def test_betik_ve_zamanlayici_kablolari():

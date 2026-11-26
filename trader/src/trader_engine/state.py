@@ -28,7 +28,8 @@ BLOCK_KV_PRIMARY = "entries_blocked_reason"
 MANUAL_CLEAR_REASONS: tuple[str, ...] = ("engine_errors", "strategy_mismatch")
 _BLOCK_PRIORITY: tuple[str, ...] = MANUAL_CLEAR_REASONS + (
     "reconcile_unknown_position", "reconcile_state_orphan", "reconcile_foreign_order",
-    "reconcile_account_mode_drift", "reconcile_ledger_orphan", "stop_failed", "exit_unknown")
+    "reconcile_account_mode_drift", "reconcile_ledger_orphan", "stop_failed", "exit_unknown",
+    "ml1_kapi_yok", "ml1_paket_bozuk")
 
 
 def block_primary(reasons: list[str]) -> str | None:

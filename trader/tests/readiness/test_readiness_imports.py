@@ -29,8 +29,6 @@ ENTRIES = {
     "backup": ("script:scripts/health_backup.py", []),
     "mutabakat": ("script:scripts/mutabakat_run.py", ["trader_core.mutabakat", "trader_core.ledger", "trader_core.panel_pano",
                                                        "trader_panel.data", "trader_core.telegram"]),
-    "strateji-veri": ("script:scripts/strateji_veri_run.py", ["trader_core.strateji_veri", "trader_core.ledger", "trader_core.telegram",
-                                                              "trader_panel.data", "requests"]),
     "tutarlilik": ("script:scripts/tutarlilik_run.py", ["trader_engine.backtest", "trader_engine.config", "trader_engine.holdout",
                                                          "trader_engine.marketdata.store", "trader_core.ledger"]),
 }

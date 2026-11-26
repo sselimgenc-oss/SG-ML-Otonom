@@ -454,12 +454,14 @@ def test_engine_keeps_running_in_learning_phase_and_reloads_new_package(tmp_path
     d3 = T.decisions(eng)[n2:]
     esik = [r for r in d3 if r["veto_reason"] == "gate:ml1_esik_alti"]
     assert esik and all(r["skip_reason"] == "ml_filter" and r["final_action"] == "skipped" and r["features"]["ml1_esik"] == 1.5 for r in esik)
-    pk.write_text("{bozuk", encoding="utf-8")                               # bozulur: motor yine calisir, ogrenme asamasina doner
+    pk.write_text("{bozuk", encoding="utf-8")                               # bozulur: motor yine calisir; ogrenici yoksa yeni giris kapanir
     n3 = len(T.decisions(eng))
     c = eng.counters()["decisions"]
     eng.run_range(seg[3], seg[3] + timedelta(hours=6))
     assert eng.counters()["decisions"] > c and eng.counters().get("callback_errors", 0) == 0
     d4 = T.decisions(eng)[n3:]
-    assert any(r["features"].get("ml1_neden") == "ogrenme" for r in d4) and not any(r["veto_reason"] == "gate:ml1_paket_yok" for r in d4)
+    # Paket 2 / D2 (P3-11): ogrenici YOK + dosya var ama bozuk -> `ml1_paket_bozuk` girisleri kapatir (motor calisir, cikislar surer)
+    assert eng.state.block_has("ml1_paket_bozuk") and not [r for r in d4 if r["final_action"] == "entered"]
+    assert not any(r["veto_reason"] == "gate:ml1_paket_yok" for r in d4)
     eng.ledger.close()
     eng.state.close()

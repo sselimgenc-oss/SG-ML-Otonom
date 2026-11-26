@@ -34,7 +34,7 @@ import pandas as pd
 
 from trader_core import arm_time as AT
 from trader_core import signals as S
-from trader_engine.bars import MIN_CONTIG_ARM, STARTUP_BARS_ARM
+from trader_engine.bars import MIN_CONTIG_ARM, STARTUP_BARS_ARM, window_missing_series
 from trader_engine.strategies import arms as A
 from trader_engine.strategies.arms import ArmInput
 from trader_engine.strategies.arms import _kutuphane as K
@@ -249,6 +249,9 @@ def scan_pair_tf(pair: str, tf: str, trig: pd.DataFrame, h4: pd.DataFrame, arm_i
                                           int(r.get("yas", 0)), f"{setup}_{side}:{etiket}", params))
     df = _frame(rows)
     df.attrs["n_err"] = nerr
+    # pencere ici delik GOZLEMI (Paket 2 / C3, motor `PENCERE_DELIK_KIPI = "say"` ile ayni olcu): gecerli karar mumlarindan son STARTUP_BARS_ARM[tf]
+    # satirlik penceresinde eksik izgara adimi olanlarin sayisi. Sonuc (aday tablosu) DEGISMEZ.
+    df.attrs["pencere_delik"] = int((gecerli & (window_missing_series(trig.index, tf, STARTUP_BARS_ARM[tf])[s0:] > 0)).sum())
     return df
 
 

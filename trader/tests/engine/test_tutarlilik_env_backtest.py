@@ -200,15 +200,37 @@ def test_env_flag_holdout_and_bad_args_rejected(tmp_path, kilitli_motor):      #
     bad = BT.BacktestSpec(id="b", start=START, end=END, env="paper", config_dir=str(ROOT / "config"), slip_bps=3.0)
     with pytest.raises(BacktestArgError):
         BT.BacktestRunner(bad).run_once(tmp_path / "o2")
-    with pytest.raises(BacktestArgError):                          # --wallet-start yalniz --env ile
-        BT.spec_from_args(BT.build_parser().parse_args(["--id", "w", "--period", "20241101-20241201", "--wallet-start", "900"]), [])
+    with pytest.raises(BacktestArgError):                          # --wallet-start yalniz --env paper ile (eski yolda yok)
+        BT.spec_from_args(BT.build_parser().parse_args(["--id", "w", "--period", "20241101-20241201", "--wallet-start", "900", "--env", "eski"]), [])
 
 
-def test_cli_parser_env_flag_default_off():
+def test_cli_parser_env_flag_varsayilan_paper_eski_acikca():
     a = BT.build_parser().parse_args(["--id", "z", "--period", "IS"])
-    assert a.env is None and a.wallet_start is None
+    assert a.env == "paper" and a.wallet_start is None
     sp = BT.spec_from_args(a, [])
-    assert sp.env is None and sp.wallet_start is None
+    assert sp.env == "paper" and sp.wallet_start is None                 # P6-03: varsayilan = kagit ortami
+    a = BT.build_parser().parse_args(["--id", "z", "--period", "IS", "--env", "eski"])
+    sp = BT.spec_from_args(a, [])
+    assert sp.env is None and sp.flags.get("eski_yol") is True
+    assert BT.BacktestSpec(id="x", start=START, end=END).env is None     # veri sinifi varsayilani DEGISMEZ (programatik cagrilar/altin testler)
     a = BT.build_parser().parse_args(["--id", "z", "--period", "IS", "--env", "paper", "--wallet-start", "950"])
     sp = BT.spec_from_args(a, [])
     assert sp.env == "paper" and sp.wallet_start == 950.0
+
+
+def test_varsayilan_build_config_kagit_ortami_14_cift(tmp_path):
+    """P6-03 (Paket 2 / E): `--env`siz CLI = kagit botla ayni yapilandirma."""
+    a = BT.build_parser().parse_args(["--id", "v", "--period", "IS"])
+    cfg = BT.BacktestRunner(BT.spec_from_args(a, [])).build_config(tmp_path / "o")
+    assert len(cfg.pairs) == 14 and cfg.strategy == "price_action_lab_ml" and cfg.target_mode == "resting" and cfg.target_trade_risk == 0.01
+
+
+def test_eski_env_meta_kagit_paritesi_false_ve_stderr_uyarisi(tmp_path, capsys):
+    db = tmp_path / "market.sqlite"
+    _write_store(db)
+    a = BT.build_parser().parse_args(["--id", "e", "--start", "20241101", "--end", "20241102", "--env", "eski", "--source", "store",
+                                      "--market-db", str(db), "--synthetic-rules", "--pairs", "BTC/USDT", "--out-root", str(tmp_path / "bt")])
+    spec = BT.spec_from_args(a, ["--env", "eski"])
+    res = BT.BacktestRunner(spec).run_once(tmp_path / "bt" / "e")
+    assert res.meta["kagit_paritesi"] is False
+    assert "kagit_paritesi=false" in capsys.readouterr().err

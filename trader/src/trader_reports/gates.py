@@ -10,18 +10,18 @@ from .stats import merge, DASH, MIN_G, MIN_N, SubTable, cluster_mean, mean, wils
 SKIP_DIRECT = ("stop_width", "rr_below_min", "ml_filter", "order_failed")
 RISK_CLASSES = ("ayni_yon", "gunluk_butce", "gunluk_sinir", "acik_risk", "teminat_toplam", "likidasyon", "boyut",
                 "boyut_min_emir", "cift_acik", "diger")
-GATE_CODES = ("kill", "stale_data", "rules_missing", "day_start_missing", "params_unavailable", "trigger_tf_changed")
+GATE_CODES = ("kill", "stale_data", "rules_missing", "day_start_missing", "params_unavailable", "trigger_tf_changed",
+              "ml1_kapi_yok", "ml1_paket_bozuk")
 EXPECTED = (list(SKIP_DIRECT) + ["entry_gate_closed", "other", "veto:claude", "veto:yok", "veto:bayat"]
             + [f"risk:{c}" for c in RISK_CLASSES] + [f"gate:{c}" for c in GATE_CODES])
 _RISK_PREFIX = (("aynı yön", "ayni_yon"), ("günlük zarar bütçesi", "gunluk_butce"), ("günlük sınır aşıldı", "gunluk_sinir"),
                 ("toplam açık risk", "acik_risk"), ("toplam teminat", "teminat_toplam"), ("likidasyon çok yakın", "likidasyon"))
 FIXED_ROWS = (("koşul:volatile", lambda d: d["regime"] == "volatile"), ("koşul:unclear", lambda d: d["regime"] == "unclear"),
-              ("R1 kapalı (v1b)", lambda d: d["setup"] == "R1"), ("15m kapalı", lambda d: d["trigger_tf"] == "15m"))
+              ("R1 kapalı (v1b)", lambda d: d["setup"] == "R1"))
 # WP-3 8-2 (rapor-paketi-spec v1.1): sabit satirlar `v_shadow_decisions.block`'tan gelir (sema 4); tablo yoksa FIXED_ROWS (kanit_yok).
 SHADOW_ROWS = (("koşul:volatile", "regime_volatile"), ("koşul:unclear", "regime_unclear"),
-               ("R1 kapalı (v1b)", "r1_disabled"), ("15m kapalı", "tf_15m"), ("aynı mumda yeniden giriş", "same_bar_reentry"))
-SHADOW_NOTES = {"koşul:volatile": "yalnız T1 (bu koşulda R1 tanımsız)", "koşul:unclear": "yalnız T1 (bu koşulda R1 tanımsız)",
-                "15m kapalı": "1 saatlik ızgarada oynatılır (yaklaşık)"}
+               ("R1 kapalı (v1b)", "r1_disabled"), ("aynı mumda yeniden giriş", "same_bar_reentry"))
+SHADOW_NOTES = {"koşul:volatile": "yalnız T1 (bu koşulda R1 tanımsız)", "koşul:unclear": "yalnız T1 (bu koşulda R1 tanımsız)"}
 SHADOW_TABLE_NOTE = ("Gölge satırlar karar paydasına girmez (pay —); n_pozisyon_acik gerçekte hiç alınamayacak satırları ayrı "
                      "gösterir: kanıt üst sınırdır.")
 CF_NOTE = ("Alınmayan sinyallerin sonucu (karşı-olgu) üst sınırdır: emir gerçekleşmesi, sonraki kapılar ve gerçek çıkış kuralı "
@@ -232,7 +232,8 @@ _TR_NAMES = {"stop_width": "stop genişliği", "rr_below_min": "kazanç/risk ora
              "risk:boyut": "boyutlandırma", "risk:boyut_min_emir": "en küçük emir", "risk:cift_acik": "çift zaten açık",
              "risk:diger": "diğer risk", "gate:kill": "acil durdurma", "gate:stale_data": "bayat veri",
              "gate:rules_missing": "borsa kuralı yok", "gate:day_start_missing": "gün başı bakiyesi yok",
-             "gate:params_unavailable": "ayarlar okunamadı", "gate:trigger_tf_changed": "zaman dilimi değişti"}
+             "gate:params_unavailable": "ayarlar okunamadı", "gate:trigger_tf_changed": "zaman dilimi değişti",
+             "gate:ml1_kapi_yok": "ML1 kapısı kurulamadı", "gate:ml1_paket_bozuk": "ML1 paketi bozuk"}
 
 
 def tr_name(key: str) -> str:

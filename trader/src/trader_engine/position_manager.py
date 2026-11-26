@@ -95,6 +95,7 @@ def evaluate_exit(pos: Position, ctx: ExitContext | None) -> ExitDecision:
             for h, l in zip(ctx.highs, ctx.lows):
                 if signals.target_reached(pos.side, pos.planned_target, h, l):
                     return ExitDecision("exit", "target", None, float(pos.planned_target))
+        # trail kipinde zaman stopu YOKTUR (sahip karari #13): bu dal yalniz target kipi icin
         if ctx.rule_exit:                           # 24.11: kutuphane kural cikisi (neden `other`; defter CHECK kisiti)
             return ExitDecision("exit", "other", None, None)
         from .strategies import arms as _arms

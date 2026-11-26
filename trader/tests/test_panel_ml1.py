@@ -39,8 +39,9 @@ def test_pano_govdesinde_ml1_ve_ogrenme_yok(ml1_env):
     assert p["ok"] and "ogrenme" not in p
     m = p["ml1"]
     assert m["durum"] == {"metin": "Açık: adayları ML1 seçiyor", "renk": "yesil"} and m["esik"] == 0.6
-    assert [r["kod"] for r in m["zd"]] == ["15m", "1h", "4h", "1d"] and m["sinav"]["tarih"] == "26.11"
-    assert {"eleme", "zd_ozet", "gruplar", "toplam", "eski"} <= set(m)
+    assert [r["kod"] for r in m["zd"]] == ["1h", "4h", "1d"] and "sinav" not in m and "zd_ozet" not in m
+    assert m["durum_satiri"].startswith("ML1 ") and m["tf_satiri"].startswith("Kapanan işlem: 1s ")
+    assert {"eleme", "ogr", "gruplar", "toplam", "eski"} <= set(m)
     assert m["eleme"]["bugun"]["puanlanan"] == 9 and m["gruplar"]["tumu"][-1]["grup"] == "Kaldırılan kollar (eski)"
 
 
@@ -120,10 +121,13 @@ def test_arayuz_sekmeler_ml1_ve_eski_kartlar_yok():
     assert "['ml1', 'ML1']" in js and "'ÖĞRENME'" not in js and "Ders kapattı" not in js and "Açık kol" not in js
     ozet = js.split("function tabOzet")[1].split("function isikKart")[0]
     assert "ml1OzetKart" in ozet and "ogrenmeOzetKart" not in js
-    for s in ("Aday eleme", "sınavı geçti", "Sınav sonucu", "Fikir grubuna göre", "ML1 işlemleri", "Tüm işlemler", "Toplam K/Z nasıl oluşuyor?",
+    for s in ("Aday eleme", "Fikir grubuna göre", "ML1 işlemleri", "Tüm işlemler", "Toplam K/Z nasıl oluşuyor?",
               "Kapanan K/Z", "Bugün kapanan K/Z", "Yapay zekâ yorum harcaması"):
         assert s in js, s
     assert "Kaynağa göre K/Z" not in js and "Model ayrıntısı" not in js
+    for s in ("sınavı geçti", "Sınav sonucu", "Sınavı geçen", "kanitli", "kanitsiz", "zd_ozet", "15 dakika", "15dk"):
+        assert s not in js, s
+    assert "m.durum_satiri" in js and "m.tf_satiri" in js
     assert "sek-ml1" in (STATIC / "index.html").read_text(encoding="utf-8")
 
 

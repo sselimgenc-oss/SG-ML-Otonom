@@ -1433,7 +1433,7 @@ def build_preflight_tree(tmp: Path):
     sec = {"key": "SIZMA-LIVEKEY-" + "a" * 32, "secret": "SIZMA-LIVESECRET-" + "b" * 32, "tkey": "SIZMA-TESTNETKEY-" + "c" * 32,
            "tsecret": "SIZMA-TESTNETSEC-" + "d" * 32, "tag": tag, "token": TG_TOKEN}
     _write_env(etc / "trader-live.env", {"BINANCE_API_KEY": sec["key"], "BINANCE_API_SECRET": sec["secret"], "LIVE_CONFIRM": tag})
-    _write_env(etc / "trader-testnet.env", {"BINANCE_API_KEY": sec["tkey"], "BINANCE_API_SECRET": sec["tsecret"]})
+    _write_env(etc / "trader-testnet.env", {"BINANCE_API_KEY": sec["tkey"], "BINANCE_API_SECRET": sec["tsecret"], "TESTNET_ACIK": "1"})
     f = live_fields(root)
     _write_env(etc / "trader-telegram.env", {"TELEGRAM_BOT_TOKEN": sec["token"], "TELEGRAM_CHAT_ID": "424242", **f})
     _write_env(etc / "trader-health.env", {"HEARTBEAT_URL": "https://example.invalid/x", "LIVE_BOTS": "learner",
@@ -1487,7 +1487,7 @@ def test_y_11_live_preflight_consistent_then_each_break_fails_its_check(tmp_path
                                               "LIVE_CONFIRM": "SIZMA-baska-etiket"})
 
     def same_key(etc2, sec2, *_):
-        _write_env(etc2 / "trader-testnet.env", {"BINANCE_API_KEY": sec2["key"], "BINANCE_API_SECRET": sec2["tsecret"]})
+        _write_env(etc2 / "trader-testnet.env", {"BINANCE_API_KEY": sec2["key"], "BINANCE_API_SECRET": sec2["tsecret"], "TESTNET_ACIK": "1"})
 
     def tg_kill(etc2, sec2, root2):
         _write_env(etc2 / "trader-telegram.env", {"TELEGRAM_BOT_TOKEN": sec2["token"], "TELEGRAM_CHAT_ID": "424242",

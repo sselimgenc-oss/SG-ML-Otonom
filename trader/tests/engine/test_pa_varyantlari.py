@@ -529,3 +529,40 @@ def test_telegram_adlari_varyant():
             continue
         assert tg_sade.kurulum_adi(f"{ad}@1h") != ad, ad
     assert "Sıkışma kırılımı" in tg_sade.kol_adi("S1-OLCULU@1h")
+
+
+# ---------------------------------------------------------------- Paket 2 / D3 (sahip karari #13): iz suren kurulumda zaman stopu YOK
+def _trail_kurulumlari():
+    return {s: m for s, m in arms.discover().items() if getattr(m, "EXIT_MODE", None) == "trail" and getattr(m, "FORMASYON", None) is not None}
+
+
+def test_trail_kipli_sanal_kurulumlarda_time_stop_none_ve_time_stop_of_48():
+    tr = _trail_kurulumlari()
+    assert tr
+    for setup, m in tr.items():
+        assert m.TIME_STOP is None and m.FORMASYON.zaman_stopu is None, setup
+        assert arms.time_stop_of(setup, "1h") == 48                           # None -> 48 (yalniz target kolu/scan sutunu okur)
+
+
+def test_trail_kipli_pozisyon_100_kapanmis_mumda_time_stop_ile_cikmaz():
+    from types import SimpleNamespace
+    from trader_engine import position_manager as PM
+    setup = next(iter(_trail_kurulumlari()))
+    pos = SimpleNamespace(setup=setup, side="long", initial_stop=98.0, entry_bar_open=object(), entry_price=100.0, trail_atr=3.0,
+                          current_stop=98.0, planned_target=None, trigger_tf="1h")
+    n = 100
+    ctx = PM.ExitContext(bar_close_ts=None, highs=np.full(n, 100.4), lows=np.full(n, 99.6), atrs=np.full(n, 1.0),
+                         regime_last="trend_up", last_close=100.0, n_closed=n, rule_exit=False)
+    d = PM.evaluate_exit(pos, ctx)
+    assert d.reason != "time_stop"
+
+
+def test_trail_kipi_ile_zaman_stopu_tanimi_arm_error():
+    from types import SimpleNamespace
+    from trader_engine.strategies.arms import _kutuphane as KK
+    f = KK.Formasyon("X", "x", 1, ("1h",), 48, lambda g: None, kip="trail")
+    mod = SimpleNamespace(SETUP="ZZ", FORMASYONLAR={"X": f}, PRIORITY=900)
+    with pytest.raises(arms.ArmError):
+        KK.sanal_kurulumlar(mod)
+    ok = KK.Formasyon("X", "x", 1, ("1h",), None, lambda g: None, kip="trail")
+    assert KK.sanal_kurulumlar(SimpleNamespace(SETUP="ZZ", FORMASYONLAR={"X": ok}, PRIORITY=900))["ZZ-X"].TIME_STOP is None

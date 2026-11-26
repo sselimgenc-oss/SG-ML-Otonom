@@ -324,8 +324,8 @@ def _clusters_of(cfg, base):
 
 def test_cluster_membership_multi():
     cfg = load_cli_config(CONFIG, "learner", "paper")
-    assert _clusters_of(cfg, "NVDA") == {"hisse", "hisse_teknoloji"}
-    assert _clusters_of(cfg, "TSLA") == {"hisse", "hisse_teknoloji"}      # 26.11: 7 hissenin hepsi teknoloji kumesinde
+    assert _clusters_of(cfg, "NVDA") == {"hisse"}
+    assert _clusters_of(cfg, "TSLA") == {"hisse"}      # 26.11: 7 hissenin hepsi teknoloji kumesinde
     assert _clusters_of(cfg, "BTC") == {"kripto_buyuk"}
     assert _clusters_of(cfg, "TRX") == {"kripto_diger"}
     assert _clusters_of(cfg, "XAU") == {"metal"}
@@ -397,7 +397,7 @@ def test_metal_one_open_other_member_enters(mk):
 
 def test_account_cap_24(mk):
     import dataclasses as _dc
-    assert _paper_cfg().max_positions == 36          # 24.11 kullanici karari: max_positions 36 (kume tavanlari toplami 29 < 36: hesap tavani kumelerle dolmaz)
+    assert _paper_cfg().max_positions == 14          # 24.11 kullanici karari: max_positions 36 (kume tavanlari toplami 29 < 36: hesap tavani kumelerle dolmaz)
     e = mk(mode_cfg=_dc.replace(_paper_cfg(), max_positions=24))   # mekanizma testi: tavan 24 ile
     # 24 pozisyonu kume tavanlarini asmadan doldur: buyuk 5 + diger 9 + hisse 8 (tech 2 + nontech 6) + metal 2
     e.fill(BUYUK[:5] + DIGER[:9] + NONTEK[:6] + TEK[:2] + METAL)
@@ -409,14 +409,14 @@ def test_account_cap_24(mk):
 
 def test_account_cap_23_allows_24th(mk):
     e = mk()
-    e.fill(BUYUK[:5] + DIGER[:9] + NONTEK[:6] + TEK[:2] + ["XAU"])
-    assert len(e.state.open_positions()) == 23
+    e.fill(BUYUK[:5] + DIGER[:8])                                    # 26.11 sahip karari #4: tavan 14 -> 13 dolu, 14. girer
+    assert len(e.state.open_positions()) == 13
     assert e.decide("BZ").action == "enter"
 
 
 def test_kume_dolu_olsa_da_yalniz_hesap_tavani_engeller(mk):
     e = mk()
-    e.fill(BUYUK[:5] + DIGER[:9] + NONTEK[:6] + TEK[:2] + METAL)     # hesap 24 dolu (tavan 36), diger kume 9 dolu
+    e.fill(BUYUK[:4] + DIGER[:9])                                    # hesap 13 dolu (tavan 14), diger kume 9 dolu
     assert e.decide("XMR").action == "enter"
 
 
@@ -563,7 +563,7 @@ def test_no_veto_step_in_paper_entry_and_rows_not_evaluated(mk):
 
 def test_all_rejection_rows_veto_not_evaluated(mk):
     e = mk()
-    e.fill([f"X{i}" for i in range(36)])
+    e.fill([f"X{i}" for i in range(14)])
     rows = [e.decide("AMD"), e.decide("BTC", volume=0.0)]
     assert all(r.event.veto_status == "not_evaluated" for r in rows)
     assert {r.event.skip_reason for r in rows} == {"max_positions", "flat_bar"}
@@ -572,7 +572,7 @@ def test_all_rejection_rows_veto_not_evaluated(mk):
 def test_rejection_skip_reasons_valid_in_ledger_v5(mk):
     """Red satirlari defterde gercekten yazilabilir (ledger v5 skip_reason sozlugu)."""
     e = mk()
-    e.fill([f"X{i}" for i in range(36)])
+    e.fill([f"X{i}" for i in range(14)])
     out = e.decide("AMD")
     e.led.record_decision(out.event)
     for r in ("cluster_cap", "flat_bar", "session_closed", "max_positions"):
@@ -594,7 +594,7 @@ def test_neutrality_testnet_live_configs_unchanged_and_veto_required():
         except Exception as ex:  # noqa: BLE001 - canli onay/anahtar gibi nedenlerle yuklenemeyebilir
             pytest.skip(f"{env} yuklenemedi: {ex}")
         if env == "live":                  # 23.11 kullanici karari: canli = kagit (veto yok; kume/tavan/tatil bari korumasi acik)
-            assert c.clusters and c.max_positions == 36 and c.flat_bar_guard is True   # 24.11 kullanici karari: max_positions 36
+            assert c.clusters and c.max_positions == 14 and c.flat_bar_guard is True   # 24.11 kullanici karari: max_positions 36
             continue
         assert not c.clusters and c.max_positions is None and c.flat_bar_guard is False
 
