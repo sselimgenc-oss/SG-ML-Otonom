@@ -2,15 +2,15 @@
  "schema": "engine-status/1",
  "bot": "learner",
  "mode": "paper",
- "pid": 199744,
- "started_at": "2026-11-26T01:26:24Z",
- "loop_at": "2026-11-26T03:00:16Z",
- "last_minute_ts": "2026-11-26T02:58:00Z",
- "last_decision_bar_close": "2026-11-26T02:45:00Z",
- "last_candle_open": "2026-11-26T02:30:00Z",
+ "pid": 206434,
+ "started_at": "2026-11-26T03:04:41Z",
+ "loop_at": "2026-11-26T04:00:20Z",
+ "last_minute_ts": "2026-11-26T03:59:00Z",
+ "last_decision_bar_close": "2026-11-26T03:45:00Z",
+ "last_candle_open": "2026-11-26T03:30:00Z",
  "trigger_tf": "1h",
  "param_version_id": 4,
- "ayar_surumu": "af3146589ed9ad282091a337398b1ec730724d7c10308ca6f5d403daa43e2f57",
+ "ayar_surumu": "7f40b561391078de896a979c543aa50b8ede1ed89a554e8b40232d67ac60b2dc",
  "strategy": {
   "name": "price_action_lab_ml",
   "version": "1.0-lab1"
@@ -25,8 +25,8 @@
  "entries_blocked_reason": null,
  "entries_blocked_reasons": [],
  "dry_run": true,
- "wallet": 912.7989663127875,
- "equity": 910.5417794931275,
+ "wallet": 912.7023661727875,
+ "equity": 908.8531647868274,
  "account_stale": false,
  "day_start_equity": 926.8888059621488,
  "open_positions": [
@@ -38,11 +38,11 @@
    "entry_price": 109.86,
    "stop": 120.79207954312925,
    "asset_class": "hisse",
-   "mark": 106.31,
-   "notional_usd": 97.8052,
-   "unrealized_pnl_usd": 3.2659999999999973,
-   "unrealized_pct": 3.231385399599488,
-   "mark_ts": "2026-11-26T02:47:00Z",
+   "mark": 106.36,
+   "notional_usd": 97.8512,
+   "unrealized_pnl_usd": 3.22,
+   "unrealized_pct": 3.185872929182596,
+   "mark_ts": "2026-11-26T03:47:00Z",
    "fee_paid_entry": 0.0505356,
    "funding_paid": -0.014271496486881101,
    "partial_realized_usd": 0.0,
@@ -56,11 +56,11 @@
    "entry_price": 540.83,
    "stop": 607.9888235436537,
    "asset_class": "kripto",
-   "mark": 557.99,
-   "notional_usd": 94.85830000000001,
-   "unrealized_pnl_usd": -2.917199999999995,
-   "unrealized_pct": -3.1729009115618525,
-   "mark_ts": "2026-11-26T02:59:00Z",
+   "mark": 559.11,
+   "notional_usd": 95.04870000000001,
+   "unrealized_pnl_usd": -3.1075999999999957,
+   "unrealized_pct": -3.3799900153467766,
+   "mark_ts": "2026-11-26T04:00:00Z",
    "fee_paid_entry": 0.04597055000000001,
    "funding_paid": -0.004821834066,
    "partial_realized_usd": 0.0,
@@ -74,11 +74,11 @@
    "entry_price": 61.016,
    "stop": 69.7696565685986,
    "asset_class": "kripto",
-   "mark": 61.505,
-   "notional_usd": 81.18660000000001,
-   "unrealized_pnl_usd": -0.6454800000000057,
-   "unrealized_pct": -0.8014291333420813,
-   "mark_ts": "2026-11-26T02:59:00Z",
+   "mark": 61.779,
+   "notional_usd": 81.54828,
+   "unrealized_pnl_usd": -1.007160000000007,
+   "unrealized_pct": -1.2504916743149423,
+   "mark_ts": "2026-11-26T04:00:00Z",
    "fee_paid_entry": 0.040270560000000004,
    "funding_paid": -0.05047896972460663,
    "partial_realized_usd": 0.0,
@@ -92,11 +92,11 @@
    "entry_price": 353.1,
    "stop": 353.63,
    "asset_class": "hisse",
-   "mark": 362.87,
-   "notional_usd": 130.6332,
-   "unrealized_pnl_usd": 3.517199999999993,
-   "unrealized_pct": 2.7669215519682755,
-   "mark_ts": "2026-11-26T02:47:00Z",
+   "mark": 362.89,
+   "notional_usd": 130.6404,
+   "unrealized_pnl_usd": 3.5243999999999867,
+   "unrealized_pct": 2.772585669781921,
+   "mark_ts": "2026-11-26T03:47:00Z",
    "fee_paid_entry": 0.1253505,
    "funding_paid": -0.00589504766051616,
    "partial_realized_usd": 2.9434999999999887,
@@ -110,11 +110,11 @@
    "entry_price": 581.58,
    "stop": 567.4,
    "asset_class": "hisse",
-   "mark": 581.6,
-   "notional_usd": 372.22400000000005,
-   "unrealized_pnl_usd": 0.012799999999988359,
-   "unrealized_pct": 0.0034389078028786765,
-   "mark_ts": "2026-11-26T02:59:00Z",
+   "mark": 582.2,
+   "notional_usd": 372.60800000000006,
+   "unrealized_pnl_usd": 0.39680000000000293,
+   "unrealized_pct": 0.10660614188933672,
+   "mark_ts": "2026-11-26T03:48:00Z",
    "fee_paid_entry": 0.1861056,
    "funding_paid": 0.12322713455723136,
    "partial_realized_usd": 0.0,
@@ -128,11 +128,11 @@
    "entry_price": 400.67,
    "stop": 420.5566369548579,
    "asset_class": "hisse",
-   "mark": 414.7,
-   "notional_usd": 95.381,
-   "unrealized_pnl_usd": -3.226899999999994,
-   "unrealized_pct": -3.5016347617740218,
-   "mark_ts": "2026-11-26T02:47:00Z",
+   "mark": 414.83,
+   "notional_usd": 95.4109,
+   "unrealized_pnl_usd": -3.256799999999993,
+   "unrealized_pct": -3.5340804153043575,
+   "mark_ts": "2026-11-26T03:47:00Z",
    "fee_paid_entry": 0.04607705000000001,
    "funding_paid": 0.0,
    "partial_realized_usd": 0.0,
@@ -146,11 +146,11 @@
    "entry_price": 42.75,
    "stop": 44.86929291003532,
    "asset_class": "kripto",
-   "mark": 43.4,
-   "notional_usd": 91.09660000000001,
-   "unrealized_pnl_usd": -1.364349999999997,
-   "unrealized_pct": -1.5204678362573065,
-   "mark_ts": "2026-11-26T02:59:00Z",
+   "mark": 43.79,
+   "notional_usd": 91.91521,
+   "unrealized_pnl_usd": -2.1829599999999982,
+   "unrealized_pct": -2.432748538011694,
+   "mark_ts": "2026-11-26T03:59:00Z",
    "fee_paid_entry": 0.04486612500000001,
    "funding_paid": 0.0,
    "partial_realized_usd": 0.0,
@@ -164,19 +164,37 @@
    "entry_price": 70.78,
    "stop": 72.67604881660372,
    "asset_class": "kripto",
-   "mark": 71.12,
-   "notional_usd": 162.15359999999998,
-   "unrealized_pnl_usd": -0.7752000000000077,
-   "unrealized_pct": -0.4803616840915561,
-   "mark_ts": "2026-11-26T02:59:00Z",
+   "mark": 70.99,
+   "notional_usd": 161.85719999999998,
+   "unrealized_pnl_usd": -0.4787999999999857,
+   "unrealized_pct": -0.2966939813506552,
+   "mark_ts": "2026-11-26T04:00:00Z",
    "fee_paid_entry": 0.0806892,
+   "funding_paid": 0.0,
+   "partial_realized_usd": 0.0,
+   "partial_fee_usd": 0.0
+  },
+  {
+   "trade_id": 145,
+   "pair": "1000SHIB/USDT",
+   "side": "short",
+   "qty": 53077.0,
+   "entry_price": 0.00364,
+   "stop": 0.0037204111432399246,
+   "asset_class": "kripto",
+   "mark": 0.003657,
+   "notional_usd": 194.102589,
+   "unrealized_pnl_usd": -0.9023090000000047,
+   "unrealized_pct": -0.4670329670329694,
+   "mark_ts": "2026-11-26T03:59:00Z",
+   "fee_paid_entry": 0.09660014,
    "funding_paid": 0.0,
    "partial_realized_usd": 0.0,
    "partial_fee_usd": 0.0
   }
  ],
- "unrealized_pnl_usd": -2.1331300000000204,
- "mark_ts": "2026-11-26T02:59:00Z",
+ "unrealized_pnl_usd": -3.7944289999999947,
+ "mark_ts": "2026-11-26T04:00:00Z",
  "open_trade_ids": [
   20,
   39,
@@ -185,7 +203,8 @@
   121,
   134,
   142,
-  143
+  143,
+  145
  ],
  "counters": {
   "rules_missing": 0,
@@ -195,31 +214,25 @@
   "ledger_errors": 0,
   "outbox_failed": 0,
   "unknown_orders": 0,
-  "mark_fallbacks": 5317,
-  "minute_gaps": 22806,
+  "mark_fallbacks": 5341,
+  "minute_gaps": 23016,
   "funding_missing": 0,
   "exit_data_gap": 0,
   "optional_waiting": 0,
-  "reconciles": 317,
-  "steps": 94,
-  "decisions": 6,
-  "trades_closed": 2,
-  "skip:ml1_esik_alti": 135,
-  "skip:stop_width": 221,
-  "arm_would_close": 31,
-  "seans_disi_tatil": 37,
-  "skip:seans_disi_tatil": 37,
-  "ignore:position_exists": 21,
-  "skip:arm_conflict": 20,
-  "ignore:no_signal": 50,
-  "skip:max_positions": 6,
-  "korelasyon_grubu_blok": 2,
-  "skip:korelasyon_grubu": 2,
-  "skip:rr_below_min": 2,
-  "shadow_reentry": 2,
-  "ml1_aday_tampon": 207,
-  "ml1_esik_alti": 155,
-  "ml1_gecti": 14,
+  "reconciles": 197,
+  "trades_opened": 1,
+  "target_placed": 1,
+  "steps": 60,
+  "decisions": 3,
+  "skip:ml1_esik_alti": 33,
+  "skip:stop_width": 50,
+  "ignore:position_exists": 9,
+  "ignore:no_signal": 64,
+  "seans_disi_tatil": 1,
+  "skip:seans_disi_tatil": 1,
+  "ml1_aday_tampon": 45,
+  "ml1_esik_alti": 33,
+  "ml1_gecti": 1,
   "rejects": 23,
   "duplicates": 0,
   "anomalies": 0
@@ -228,12 +241,12 @@
   "shadow": {
    "rows": 0,
    "errors": 0,
-   "budget_skips": 208,
+   "budget_skips": 104,
    "tf15_holdout_wait": 0,
-   "last_step_ms": 5149.1
+   "last_step_ms": 5215.0
   },
   "mtm": {
-   "rows": 6,
+   "rows": 3,
    "errors": 0
   },
   "exec": {
@@ -243,7 +256,7 @@
  },
  "cluster_counts": {
   "account": {
-   "open": 8,
+   "open": 9,
    "max": 36
   },
   "clusters": {
@@ -252,7 +265,7 @@
     "max": 6
    },
    "kripto_diger": {
-    "open": 2,
+    "open": 3,
     "max": 9
    },
    "hisse": {
@@ -272,1470 +285,7 @@
     "max": 3
    }
   },
-  "optional_waiting": 0,
-  "arms": {
-   "T1@15m": {
-    "open": 0,
-    "max": 6,
-    "scope": "arm"
-   },
-   "T1@1h": {
-    "open": 0,
-    "max": 6,
-    "scope": "arm"
-   },
-   "T1@4h": {
-    "open": 0,
-    "max": 6,
-    "scope": "arm"
-   },
-   "T1@1d": {
-    "open": 0,
-    "max": 6,
-    "scope": "arm"
-   },
-   "R1@15m": {
-    "open": 0,
-    "max": 6,
-    "scope": "arm"
-   },
-   "R1@1h": {
-    "open": 0,
-    "max": 6,
-    "scope": "arm"
-   },
-   "R1@4h": {
-    "open": 0,
-    "max": 6,
-    "scope": "arm"
-   },
-   "R1@1d": {
-    "open": 0,
-    "max": 6,
-    "scope": "arm"
-   },
-   "TF1@15m": {
-    "open": 0,
-    "max": 6,
-    "scope": "arm"
-   },
-   "TF1@1h": {
-    "open": 0,
-    "max": 6,
-    "scope": "arm"
-   },
-   "TF1@4h": {
-    "open": 1,
-    "max": 6,
-    "scope": "arm"
-   },
-   "TF1@1d": {
-    "open": 2,
-    "max": 6,
-    "scope": "arm"
-   },
-   "B1@15m": {
-    "open": 0,
-    "max": 6,
-    "scope": "arm"
-   },
-   "B1@1h": {
-    "open": 0,
-    "max": 6,
-    "scope": "arm"
-   },
-   "B1@4h": {
-    "open": 0,
-    "max": 6,
-    "scope": "arm"
-   },
-   "B1@1d": {
-    "open": 0,
-    "max": 6,
-    "scope": "arm"
-   },
-   "H2@15m": {
-    "open": 0,
-    "max": 6,
-    "scope": "arm"
-   },
-   "H2@1h": {
-    "open": 0,
-    "max": 6,
-    "scope": "arm"
-   },
-   "H2@4h": {
-    "open": 0,
-    "max": 6,
-    "scope": "arm"
-   },
-   "H2@1d": {
-    "open": 1,
-    "max": 6,
-    "scope": "arm"
-   },
-   "S1@15m": {
-    "open": 0,
-    "max": 6,
-    "scope": "arm"
-   },
-   "S1@1h": {
-    "open": 0,
-    "max": 6,
-    "scope": "arm"
-   },
-   "S1@4h": {
-    "open": 0,
-    "max": 6,
-    "scope": "arm"
-   },
-   "S1@1d": {
-    "open": 0,
-    "max": 6,
-    "scope": "arm"
-   },
-   "F1@15m": {
-    "open": 0,
-    "max": 6,
-    "scope": "arm"
-   },
-   "F1@1h": {
-    "open": 0,
-    "max": 6,
-    "scope": "arm"
-   },
-   "F1@4h": {
-    "open": 0,
-    "max": 6,
-    "scope": "arm"
-   },
-   "F1@1d": {
-    "open": 0,
-    "max": 6,
-    "scope": "arm"
-   },
-   "M1@1h": {
-    "open": 0,
-    "max": 4,
-    "scope": "setup_total"
-   },
-   "M1@4h": {
-    "open": 0,
-    "max": 4,
-    "scope": "setup_total"
-   },
-   "M1@15m": {
-    "open": 0,
-    "max": 4,
-    "scope": "setup_total"
-   },
-   "M1@1d": {
-    "open": 0,
-    "max": 4,
-    "scope": "setup_total"
-   },
-   "MF1-YILDIZ@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-YILDIZ@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-YILDIZ@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-YILDIZ@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-UCASKER@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-UCASKER@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-UCASKER@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-UCASKER@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-DELICI@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-DELICI@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-DELICI@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-DELICI@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-ICSAHTE@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-ICSAHTE@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-ICSAHTE@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-ICSAHTE@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-DISBAR@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-DISBAR@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-DISBAR@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-DISBAR@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-YUTAN@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-YUTAN@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-YUTAN@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-YUTAN@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-HARAMI@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-HARAMI@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-HARAMI@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-HARAMI@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-TERSCEKIC@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-TERSCEKIC@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-TERSCEKIC@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-TERSCEKIC@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-CIMBIZ@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-CIMBIZ@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-CIMBIZ@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-CIMBIZ@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-PINBAR@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-PINBAR@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-PINBAR@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-PINBAR@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-ICCUBUK@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-ICCUBUK@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-ICCUBUK@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-ICCUBUK@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-MARUBOZU@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-MARUBOZU@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-MARUBOZU@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "MF1-MARUBOZU@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "B1-BOLGE@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "B1-BOLGE@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "B1-BOLGE@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "B1-BOLGE@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "B1-MUM@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "B1-MUM@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "B1-MUM@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "B1-MUM@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "F1-IKINCI@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "F1-IKINCI@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "F1-IKINCI@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "F1-IKINCI@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "H2-MINI@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "H2-MINI@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "H2-MINI@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "H2-MINI@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "H2-YARI@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "H2-YARI@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "H2-YARI@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "H2-YARI@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "R1-ALT@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "R1-ALT@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "R1-ALT@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "R1-ALT@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "R1-ERKEN@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "R1-ERKEN@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "R1-ERKEN@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "R1-ERKEN@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "R1-HA@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "R1-HA@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "R1-HA@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "R1-HA@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "S1-HACIM@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "S1-HACIM@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "S1-HACIM@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "S1-HACIM@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "S1-OLCULU@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "S1-OLCULU@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "S1-OLCULU@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "S1-OLCULU@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "T1-GERI3@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "T1-GERI3@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "T1-GERI3@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "T1-GERI3@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "T1-SEVIYE@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "T1-SEVIYE@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "T1-SEVIYE@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "T1-SEVIYE@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "TF1-FITIL@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "TF1-FITIL@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "TF1-FITIL@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "TF1-FITIL@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "TF1-HACIM@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "TF1-HACIM@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "TF1-HACIM@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "TF1-HACIM@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-BAYRAK@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-BAYRAK@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-BAYRAK@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-BAYRAK@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-FLAMA@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-FLAMA@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-FLAMA@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-FLAMA@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-IKILI@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-IKILI@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-IKILI@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-IKILI@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-KAMA@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-KAMA@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-KAMA@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-KAMA@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-KANAL@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-KANAL@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-KANAL@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-KANAL@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-KUPA@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-KUPA@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-KUPA@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-KUPA@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-OBO@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-OBO@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-OBO@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-OBO@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-RETEST@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-RETEST@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-RETEST@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-RETEST@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-SAHTE@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-SAHTE@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-SAHTE@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-SAHTE@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-TREND@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-TREND@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-TREND@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-TREND@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-UCGEN@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-UCGEN@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-UCGEN@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-UCGEN@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-UCLU@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-UCLU@1h": {
-    "open": 1,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-UCLU@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-UCLU@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-YATAY@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-YATAY@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-YATAY@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "GF1-YATAY@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-BOLL@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-BOLL@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-BOLL@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-BOLL@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-BOLLKIR@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-BOLLKIR@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-BOLLKIR@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-BOLLKIR@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-FIBO@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-FIBO@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-FIBO@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-FIBO@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-FIYATMA@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-FIYATMA@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-FIYATMA@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-FIYATMA@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-HACIM@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-HACIM@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-HACIM@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-HACIM@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-HIZLIMA@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-HIZLIMA@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-HIZLIMA@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-HIZLIMA@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-KUMO@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-KUMO@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-KUMO@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-KUMO@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-MACD@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-MACD@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-MACD@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-MACD@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-MAGERI@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-MAGERI@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-MAGERI@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-MAGERI@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-MAKESISIM@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-MAKESISIM@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-MAKESISIM@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-MAKESISIM@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-RSI@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-RSI@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-RSI@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-RSI@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-RSI2@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-RSI2@1h": {
-    "open": 2,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-RSI2@4h": {
-    "open": 1,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-RSI2@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-RSIDONUS@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-RSIDONUS@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-RSIDONUS@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-RSIDONUS@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-STOK@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-STOK@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-STOK@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-STOK@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-TK@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-TK@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-TK@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-TK@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-UYUMSUZ@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-UYUMSUZ@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-UYUMSUZ@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-UYUMSUZ@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-VWAP@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "IN1-VWAP@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "PA2-EMIRBLOK@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "PA2-EMIRBLOK@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "PA2-EMIRBLOK@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "PA2-EMIRBLOK@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "PA2-BOLGE@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "PA2-BOLGE@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "PA2-BOLGE@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "PA2-BOLGE@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "PA2-FVG@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "PA2-FVG@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "PA2-FVG@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "PA2-FVG@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "PA2-ONCEKI@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "PA2-ONCEKI@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "PA2-ONCEKI@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "PA2-TCIZGI@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "PA2-TCIZGI@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "PA2-TCIZGI@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "PA2-TCIZGI@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "PA2-SEVIYE@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "PA2-SEVIYE@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "PA2-SEVIYE@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "PA2-SEVIYE@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "PA2-UCVURUS@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "PA2-UCVURUS@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "PA2-UCVURUS@4h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "PA2-UCVURUS@1d": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "PA2-TUKENIS@15m": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   },
-   "PA2-TUKENIS@1h": {
-    "open": 0,
-    "max": 3,
-    "scope": "arm"
-   }
-  },
-  "families": {
-   "MF1": {
-    "open": 0,
-    "max": 6
-   },
-   "B1": {
-    "open": 0,
-    "max": 6
-   },
-   "F1": {
-    "open": 0,
-    "max": 6
-   },
-   "H2": {
-    "open": 0,
-    "max": 6
-   },
-   "R1": {
-    "open": 0,
-    "max": 6
-   },
-   "S1": {
-    "open": 0,
-    "max": 6
-   },
-   "T1": {
-    "open": 0,
-    "max": 6
-   },
-   "TF1": {
-    "open": 0,
-    "max": 6
-   },
-   "GF1": {
-    "open": 1,
-    "max": 6
-   },
-   "IN1": {
-    "open": 3,
-    "max": 6
-   },
-   "PA2": {
-    "open": 0,
-    "max": 6
-   }
-  }
+  "optional_waiting": 0
  },
  "etiket_kurallari": {
   "kurallar": {
@@ -1761,9 +311,9 @@
   "dep_net": 1000.0,
   "base": 1000.0,
   "peak": 1000.0,
-  "equity": 908.4819221286674,
-  "dd_base_pct": 9.15180778713326,
-  "dd_peak_pct": 9.15180778713326,
+  "equity": 908.7850325592875,
+  "dd_base_pct": 9.12149674407125,
+  "dd_peak_pct": 9.12149674407125,
   "stop_at": 800.0,
   "floor_at": 600.0,
   "near": false,
@@ -1791,56 +341,56 @@
   "uyari": true,
   "ortak": {
    "2": {
-    "usd": 22.51,
-    "kasa_yuzde": 2.4718
+    "usd": 26.42,
+    "kasa_yuzde": 2.9069
    },
    "5": {
-    "usd": 56.27,
-    "kasa_yuzde": 6.1795
+    "usd": 66.05,
+    "kasa_yuzde": 7.2673
    },
    "10": {
-    "usd": 112.53,
-    "kasa_yuzde": 12.359
+    "usd": 132.1,
+    "kasa_yuzde": 14.5346
    },
    "20": {
-    "usd": 225.07,
-    "kasa_yuzde": 24.718
+    "usd": 264.2,
+    "kasa_yuzde": 29.0692
    }
   },
   "iliskili": {
    "2": {
-    "usd": 15.55,
-    "kasa_yuzde": 1.7074
+    "usd": 19.45,
+    "kasa_yuzde": 2.1406
    },
    "5": {
-    "usd": 38.87,
-    "kasa_yuzde": 4.2684
+    "usd": 48.64,
+    "kasa_yuzde": 5.3514
    },
    "10": {
-    "usd": 77.73,
-    "kasa_yuzde": 8.5369
+    "usd": 97.27,
+    "kasa_yuzde": 10.7028
    },
    "20": {
-    "usd": 155.46,
-    "kasa_yuzde": 17.0737
+    "usd": 194.55,
+    "kasa_yuzde": 21.4056
    }
   },
   "stop_dolumu": {
    "taban": {
-    "usd": 55.33,
-    "kasa_yuzde": 6.0763
+    "usd": 58.13,
+    "kasa_yuzde": 6.3961
    },
    "stres_2x": {
-    "usd": 56.95,
-    "kasa_yuzde": 6.2546
+    "usd": 59.85,
+    "kasa_yuzde": 6.5857
    },
    "stopsuz": 0
   },
   "gunluk_limit": {
    "oran": 0.08,
    "kasa_yuzde": 8.0,
-   "usd": 72.84
+   "usd": 72.71
   },
-  "ts": "2026-11-26T03:00:17Z"
+  "ts": "2026-11-26T04:00:20Z"
  }
 }
