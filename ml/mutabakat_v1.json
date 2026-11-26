@@ -1,7 +1,7 @@
 {
  "sema": "ml.mutabakat.v1",
- "uretim": "2026-11-26T03:05:12Z",
- "uretim_tsi": "2026-11-26 06:05",
+ "uretim": "2026-11-26T04:40:15Z",
+ "uretim_tsi": "2026-11-26 07:40",
  "islem_sayisi": 119,
  "kapanan": 110,
  "acik": 9,
@@ -25,13 +25,13 @@
  "fiyat_bekleniyor_durum": null,
  "panel_notu": "Panel 'tümü' listesi son 200 kapanan işlemi gösterir; toplamlar tüm işlemleri kapsar.",
  "bilgi": [
-  "Açık işlemlerin anlık kâr/zararı: kasada -1,27 $, panelde -1,16 $ · fark 0,11 $ (fiyat zamanlaması, uyuşmazlık sayılmaz)"
+  "Açık işlemlerin anlık kâr/zararı: kasada -4,87 $, panelde -4,96 $ · fark 0,09 $ (fiyat zamanlaması, uyuşmazlık sayılmaz)"
  ],
  "kontroller": [
   {
    "ad": "Kasa = başlangıç + Σ net K/Z",
    "sonuc": "geçti",
-   "ayrinti": "Kasa 912,70 $ tutuyor"
+   "ayrinti": "Kasa 912,71 $ tutuyor"
   },
   {
    "ad": "Net K/Z: SQL toplamı = motor toplamı = brüt - komisyon - fonlama",

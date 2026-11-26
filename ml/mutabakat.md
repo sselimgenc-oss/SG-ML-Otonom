@@ -1,12 +1,12 @@
 # İşlem mutabakatı
 
-Son kontrol: 2026-11-26 06:05 (TSİ). İşlem: 119 (kapanan 110, açık 9). Uyuşmazlık: 0.
+Son kontrol: 2026-11-26 07:40 (TSİ). İşlem: 119 (kapanan 110, açık 9). Uyuşmazlık: 0.
 
 ## Kontroller
 
 | Kontrol | Sonuç | Ayrıntı |
 |---|---|---|
-| Kasa = başlangıç + Σ net K/Z | geçti | Kasa 912,70 $ tutuyor |
+| Kasa = başlangıç + Σ net K/Z | geçti | Kasa 912,71 $ tutuyor |
 | Net K/Z: SQL toplamı = motor toplamı = brüt - komisyon - fonlama | geçti | Defter toplamları tutuyor (-89,41 $) |
 | Long toplamı (motor = panel) | geçti | Long işlemler panelle aynı (16 işlem) |
 | Short toplamı (motor = panel) | geçti | Short işlemler panelle aynı (94 işlem) |
@@ -17,7 +17,7 @@ Son kontrol: 2026-11-26 06:05 (TSİ). İşlem: 119 (kapanan 110, açık 9). Uyu�
 
 ## Bilgi
 
-- Açık işlemlerin anlık kâr/zararı: kasada -1,27 $, panelde -1,16 $ · fark 0,11 $ (fiyat zamanlaması, uyuşmazlık sayılmaz)
+- Açık işlemlerin anlık kâr/zararı: kasada -4,87 $, panelde -4,96 $ · fark 0,09 $ (fiyat zamanlaması, uyuşmazlık sayılmaz)
 
 ## Telegram kaynağı
 
