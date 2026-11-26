@@ -157,7 +157,8 @@ _OPTIONAL_KEYS = {"strategy", "target_trade_risk", "startup_wait_s", "pause_file
                   "optional_pairs", "retired_pairs", "max_positions", "risk", "clusters", "flat_bar_guard", "contract_types",
                   "cost_overrides", "arms", "exit_modes", "etiket_kurallari",
                   "ml1"}
-_ML1_KEYS = {"aktif": bool, "paket_yolu": str, "tohum_yolu": str}
+_ML1_KEYS = {"aktif": bool, "paket_yolu": str, "tohum_yolu": str, "ogrenme": dict}
+_OGRENME_KEYS = {"aktif": bool, "kuru": bool, "n0": (int, float), "yari_omur_gun": (int, float)}
 _PAPER_ONLY_KEYS = ("optional_pairs", "max_positions", "risk", "clusters", "flat_bar_guard", "contract_types",
                     "cost_overrides", "arms")
 # 25.11 sadelestirme: ML1 kapisi secer; boyut/giris frenleri 3 katmana indi (islem basi risk, gunluk zarar siniri, hesap geneli acik
@@ -322,6 +323,13 @@ def _build_ml1(v: Any) -> dict[str, Any]:
     if not isinstance(v, Mapping) or not set(v) <= set(_ML1_KEYS) or "aktif" not in v:
         raise ConfigError(f"ml1 {sorted(_ML1_KEYS)} anahtarlarindan olusmali ('aktif' zorunlu): {v!r}")
     for k, x in v.items():
+        if k == "ogrenme":
+            if not isinstance(x, Mapping) or not set(x) <= set(_OGRENME_KEYS):
+                raise ConfigError(f"ml1.ogrenme {sorted(_OGRENME_KEYS)} anahtarlarindan olusmali: {x!r}")
+            for kk, xx in x.items():
+                if isinstance(xx, bool) != (kk in ("aktif", "kuru")) or not isinstance(xx, _OGRENME_KEYS[kk]) or (kk in ("n0", "yari_omur_gun") and xx <= 0):
+                    raise ConfigError(f"ml1.ogrenme.{kk} gecersiz: {xx!r}")
+            continue
         if not isinstance(x, _ML1_KEYS[k]) or (k != "aktif" and not x.strip()):
             raise ConfigError(f"ml1.{k} turu gecersiz: {x!r}")
     return dict(v)

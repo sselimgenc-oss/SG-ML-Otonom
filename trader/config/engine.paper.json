@@ -11,7 +11,7 @@
   "max_positions": 36,
   "target_trade_risk": 0.01,
   "risk": {"target_trade_risk": 0.01, "max_open_risk": 0.12, "max_same_dir_risk": 0.06, "daily_max_loss": 0.08},
-  "ml1": {"aktif": true},
+  "ml1": {"aktif": true, "ogrenme": {"aktif": true, "kuru": false}},
   "clusters": {
     "kripto_buyuk": {"pairs": ["BTC/USDT", "ETH/USDT", "XRP/USDT", "BNB/USDT", "SOL/USDT"]},
     "kripto_diger": {"pairs": ["DOGE/USDT", "ADA/USDT", "TRX/USDT", "LINK/USDT", "AVAX/USDT", "HYPE/USDT", "BCH/USDT", "XLM/USDT", "SUI/USDT", "HBAR/USDT", "LTC/USDT", "1000SHIB/USDT", "DOT/USDT", "XMR/USDT"]},

@@ -385,7 +385,7 @@ def test_config_switch_and_paper_only():
     from trader_engine.config import ConfigError, apply_overrides, load_cli_config
     from trader_engine.engine import _ml1_aktif
     cfg = load_cli_config(T.ROOT / "config", "learner", "paper")
-    assert dict(cfg.ml1) == {"aktif": True} and _ml1_aktif(cfg)
+    assert dict(cfg.ml1) == {"aktif": True, "ogrenme": {"aktif": True, "kuru": False}} and _ml1_aktif(cfg)
     assert not _ml1_aktif(apply_overrides(cfg, ml1={"aktif": False}))
     assert not _ml1_aktif(apply_overrides(cfg, ml1={}))
     assert not _ml1_aktif(dataclasses.replace(cfg, ml1={}))

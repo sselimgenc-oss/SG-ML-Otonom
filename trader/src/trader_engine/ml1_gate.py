@@ -33,6 +33,7 @@ from trader_core import arm_time as AT
 from trader_ml.ml1 import features as F
 from trader_ml.ml1 import groups as G
 from trader_ml.ml1 import model as M
+from trader_ml.ml1.model import design_matrix as _design_matrix      # test `M` yerine SimpleNamespace koyabilir: ayri takma ad
 
 log = logging.getLogger("engine.ml1")
 
@@ -79,6 +80,7 @@ class Ml1Gate:
         self._verd: dict[tuple[str, str], Verdict] = {}
         self._verd_d: datetime | None = None
         self._son_giris: dict[tuple[str, str, str], datetime] = {}   # (cift, yon, tf) -> onayli son giris karar zamani
+        self.ogren = None                                     # Ml1Ogrenici (yalniz kagit + ogrenme.aktif); puanlanan adaylari dosyaya ekler
 
     # ------------------------------------------------------------------ paket
     def _paket(self, D: datetime) -> dict | None:
@@ -205,11 +207,27 @@ class Ml1Gate:
             return None
         return self._verd.get((row.pair, row.arm_id))
 
-    def note_entry(self, pair: str, side: str, tf: str, D: datetime) -> None:
+    def note_entry(self, pair: str, side: str, tf: str, D: datetime, arm_id: str | None = None) -> None:
         try:
             self._son_giris[(pair, side, tf)] = D
         except Exception:  # noqa: BLE001
             pass
+        if self.ogren is not None and arm_id:
+            try:
+                self.ogren.isaretle_alindi(pair, arm_id, side, D)
+            except Exception:  # noqa: BLE001 - ogrenme kaydi karari etkilemez
+                self.counters["ml1_ogren_log_hata"] += 1
+
+    def paket_durumu(self) -> tuple[bool, str | None]:
+        """(kapinin yukledigi dosya imzasi etkin dosyayla guncel mi, kapinin etkin paket sha'si ya da None). Ogrenici geri donus denetimi icin."""
+        p = self._paths[0]
+        try:
+            st = os.stat(p)
+            cur = (str(p), st.st_mtime_ns, st.st_size)
+        except OSError:
+            cur = (str(p), None, None)
+        guncel = self._sig is not None and self._sig[0] == cur
+        return guncel, (None if self._pkg is None else str(self._pkg["sha256"]))
 
     def _crit(self, D: datetime, msg: str) -> None:
         if self._crit_at is None or D - self._crit_at >= CRIT_ARALIGI or D < self._crit_at:
@@ -272,6 +290,7 @@ class Ml1Gate:
         thr = float(pkg["threshold"])
         sha = str(pkg["sha256"])[:12]
         out = []
+        out_kayit = []
         for n, i in enumerate(rows):
             r = cands[i].last
             tf = r.tf
@@ -289,11 +308,34 @@ class Ml1Gate:
                      "ml1_conf_groups": int(cr["conf_groups"]), "ml1_conf_opp": int(cr["conf_opp"])}
             self._koy(r, Verdict(code, p, feats))
             out.append((-p, n, i))
+            out_kayit.append((p, code))
+        if self.ogren is not None:
+            self._ogren_kaydet(pkg, full, cur, out_kayit)
         # puana gore (yuksek once; esitlikte mevcut sira) yalniz uygun adaylarin yuvalarinda yeniden diz
         yeni = list(cands)
         for (_, _, src), slot in zip(sorted(out), rows):
             yeni[slot] = cands[src]
         return tuple(yeni)
+
+    def _ogren_kaydet(self, pkg: dict, full: pd.DataFrame, cur: pd.DataFrame, sk: list) -> None:
+        """Puanlanan her adayi ham ozellik vektoruyle (x) ogrenme dosyasina ekler. Hata = sayac; karar etkilenmez."""
+        try:
+            X = _design_matrix(full, list(pkg["feature_names"]))
+            sha = str(pkg["sha256"])[:12]
+            recs = []
+            for n, (p, code) in enumerate(sk):
+                c = cur.iloc[n]
+                ts = pd.Timestamp(c["decision_ts"])
+                tgt = c["target"]
+                recs.append({"k": f"{c['pair']}|{c['arm_id']}|{c['side']}|{ts.isoformat()}", "decision_ts": ts.isoformat(), "pair": c["pair"],
+                             "tf": c["tf"], "setup": c["setup"], "arm_id": c["arm_id"], "group": c["group"], "side": c["side"],
+                             "entry_ref": float(c["entry_ref"]), "stop": float(c["stop"]),
+                             "target": None if not np.isfinite(tgt) else float(tgt), "stop_dist_atr": float(c["stop_dist_atr"]),
+                             "x": [None if not np.isfinite(v) else float(v) for v in X[n]], "skor": p, "sha": sha, "kod": code})
+            self.ogren.kaydet(recs)
+        except Exception as e:  # noqa: BLE001
+            self.counters["ml1_ogren_log_hata"] += 1
+            log.error("ML1 ogrenme aday kaydi hatasi: %r", e)
 
     def _lookup(self, pair: str, tf: str):
         return self._bars.get((pair, tf))

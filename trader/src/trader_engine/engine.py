@@ -190,6 +190,18 @@ class Engine:
         if self.ml1 is not None:
             signals.ml1 = self.ml1                              # type: ignore[attr-defined]
             self.gate.ml1 = self.ml1
+        self.ogren = None                                       # ML1 aninda ogrenme (yalniz kagit + ml1.ogrenme.aktif); yeni servis yok
+        og = (cfg.ml1 or {}).get("ogrenme") or {}
+        if self.ml1 is not None and cfg.mode == "paper" and og.get("aktif"):
+            try:
+                from .ml1_ogren import Ml1Ogrenici
+                self.ogren = Ml1Ogrenici(cfg.path("ml1_ogren"), self.ml1._paths[0], self.ml1._paths[1], view=view, now_fn=clock.now,
+                                         ledger=ledger, kapi=self.ml1, n0=og.get("n0", 5000.0), yari_omur_gun=og.get("yari_omur_gun", 30.0),
+                                         kuru=bool(og.get("kuru", False)))
+                self.ml1.ogren = self.ogren
+            except Exception as e:  # noqa: BLE001 - ogrenme kurulamazsa motor ogrenmesiz calisir
+                self._c["ml1_ogren_kurulamadi"] += 1
+                log.critical("ML1 ogrenme kurulamadi: %r", e)
         self._params_map: dict | None = None
         self._exit_seen: dict[int, datetime] = {}                 # canli telafi: trade_id -> en son degerlendirilen TF siniri (bellek)
         self._mode_flags: dict[str, int] = {}                  # etkin defter surumunun cikis kipi bayraklari (exit_breakeven/exit_partial)
@@ -227,7 +239,8 @@ class Engine:
         self._gate_quote: tuple[str, datetime, dict | None] | None = None        # D17 sorgusu (cift, ts, sonuc) - tek GET paylasimi
         self._shadow_ctx: tuple | None = None                                    # (D, frames, params) son karar adimi
         self._rec = {"shadow": {"rows": 0, "errors": 0, "budget_skips": 0, "tf15_holdout_wait": 0, "last_step_ms": 0.0},
-                     "mtm": {"rows": 0, "errors": 0}, "exec": {"dropped": 0, "quote_errors": 0}}
+                     "mtm": {"rows": 0, "errors": 0}, "exec": {"dropped": 0, "quote_errors": 0},
+                     "ml1_ogren": {"adim_ms": 0.0, "sonuc": 0, "guncelleme": 0, "hata": 0}}
         simulated = bool(getattr(broker, "is_simulated", False))
         self.mtm = MtmRecorder(None if cfg.mode == "backtest" else self._write_equity_mark,
                                src="sim" if simulated else "exchange", keep=cfg.mode == "backtest",
@@ -862,6 +875,8 @@ class Engine:
         self._init_tf_and_strategy()
         if self.ml1 is not None:
             self.ml1.warm(self.ledger, now)                       # 25.11 ML1: konfluans tamponu + olay penceresi defterden (firlatmaz)
+        if self.ogren is not None:
+            self.ogren.baslat(now)                                # ML1 ogrenme: adaylar/sonuclar dosyalarindan bellek (firlatmaz)
         if self.is_paper:
             snap = self.state.kv_get("broker_snapshot")
             if snap:
@@ -1420,6 +1435,28 @@ class Engine:
                 self.status.write(self, force=True)
             self._mtm_decision(D)                               # WP-3: karar adiminin butun isleri bittikten SONRA
             self._shadow_step(D)
+            self._ml1_ogren_step(D)
+
+    def _ml1_ogren_step(self, D: datetime) -> None:
+        """ML1 aninda ogrenme adimi (`_shadow_step` kalibi): cozme + uydurma + guvenlik. Durum/broker/emir/kapi uzerinde YAZMA yok; istisna sizmaz."""
+        if self.ogren is None or self._stop:
+            return
+        rec = self._rec["ml1_ogren"]
+        t0 = self.clock.now()
+        try:
+            acik = {p for p in self.cfg.pairs if self.state.position_for_pair(p) is not None}
+            r = self.ogren.adim(D, acik)
+            rec["sonuc"] += int(r.get("sonuc", 0))
+            rec["guncelleme"] += int(bool(r.get("guncelleme")))
+            rec["hata"] = int(self.ogren.sayac.get("hata", 0))
+        except Exception as e:  # noqa: BLE001
+            rec["hata"] += 1
+            log.warning("ML1 ogrenme adimi hatasi: %r", e)
+        finally:
+            try:
+                rec["adim_ms"] = round((self.clock.now() - t0).total_seconds() * 1000.0, 1)
+            except Exception:  # noqa: BLE001
+                pass
 
     # ------------------------------------------------------------------ DD-6 D11: ayni bar icin yazilim cikislari yeniden denemesi
     def _schedule_exit_retry(self, D: datetime) -> None:
@@ -2091,7 +2128,7 @@ class Engine:
                     tried = True
                     entered = c.last
                     if self.ml1 is not None and self.gate.ml1 is not None and self.ml1.verdict(c.last) is not None:
-                        self.ml1.note_entry(pair, c.last.side, c.last.tf or self.tf, D)       # 25.11 ML1: olay penceresi (bir olay = bir giris)
+                        self.ml1.note_entry(pair, c.last.side, c.last.tf or self.tf, D, c.last.arm_id)       # 25.11 ML1: olay penceresi (bir olay = bir giris)
                     self._enter(pair, D, c, out)
                     self._kalan_adaylar(pair, D, cands[k + 1:], entered, pre)     # onceliginde kaybedenler: arm_conflict
                     break

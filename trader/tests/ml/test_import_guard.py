@@ -33,6 +33,7 @@ def test_engine_and_core_never_import_ml_libs():
 
 # 25.11 ML1 kagit kapisi: motorun trader_ml'e TEK izinli kopru (yalniz trader_ml.ml1 ozellik/model islevleri; egitim kodu cevrimdisidir)
 ML1_KOPRU = "trader_engine/ml1_gate.py"
+ML1_KOPRULER = (ML1_KOPRU, "trader_engine/ml1_ogren.py")    # ogrenici de yalniz trader_ml.ml1.* (model/features/exitsim/scan) kullanir
 
 
 def _ml1_only(py: Path) -> bool:
@@ -44,9 +45,10 @@ def _ml1_only(py: Path) -> bool:
 
 def test_engine_and_core_do_not_import_trader_ml():
     for pkg in ("trader_engine", "trader_core"):
-        bad = [f for f, i in _scan(pkg).items() if "trader_ml" in i and f != ML1_KOPRU]
+        bad = [f for f, i in _scan(pkg).items() if "trader_ml" in i and f not in ML1_KOPRULER]
         assert not bad, bad
-    assert _ml1_only(SRC / ML1_KOPRU)                                  # kopru yalniz trader_ml.ml1.* ice aktarir
+    for k in ML1_KOPRULER:
+        assert _ml1_only(SRC / k)                                      # kopruler yalniz trader_ml.ml1.* ice aktarir
 
 
 def test_model_evaluator_is_numpy_only():
@@ -60,7 +62,7 @@ def test_model_evaluator_is_numpy_only():
 def test_engine_imports_only_core_for_ml():
     """Motor ML icin yalniz trader_core.ml_* kullanir (trader_ml'e hic dokunmaz)."""
     for f, imps in _scan("trader_engine").items():
-        assert "trader_ml" not in imps or f == ML1_KOPRU, f
+        assert "trader_ml" not in imps or f in ML1_KOPRULER, f
 
 
 def test_no_ml_training_libraries_anywhere_in_runtime_dependencies():
