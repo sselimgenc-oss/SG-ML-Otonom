@@ -1,24 +1,24 @@
 # İşlem mutabakatı
 
-Son kontrol: 2026-11-26 02:21 (TSİ). İşlem: 115 (kapanan 106, açık 9). Uyuşmazlık: 0.
+Son kontrol: 2026-11-26 04:26 (TSİ). İşlem: 118 (kapanan 108, açık 10). Uyuşmazlık: 0.
 
 ## Kontroller
 
 | Kontrol | Sonuç | Ayrıntı |
 |---|---|---|
-| Kasa = başlangıç + Σ net K/Z | geçti | Kasa 924,44 $ tutuyor |
-| Net K/Z: SQL toplamı = motor toplamı = brüt - komisyon - fonlama | geçti | Defter toplamları tutuyor (-77,29 $) |
+| Kasa = başlangıç + Σ net K/Z | geçti | Kasa 912,80 $ tutuyor |
+| Net K/Z: SQL toplamı = motor toplamı = brüt - komisyon - fonlama | geçti | Defter toplamları tutuyor (-88,96 $) |
 | Long toplamı (motor = panel) | geçti | Long işlemler panelle aynı (15 işlem) |
-| Short toplamı (motor = panel) | geçti | Short işlemler panelle aynı (91 işlem) |
-| Toplam kapanan (motor = panel 'tümü') | geçti | Kapanan işlemlerin toplamı panelle aynı (106 işlem) |
-| Açık pozisyon sayısı (motor = panel = şerit = durum) | geçti | 9 açık işlem, hepsi aynı |
-| Açık K/Z fiyat kaynağı (panel = motor mark) | geçti | Açık işlemlerin kâr/zararı panelle aynı; fiyat bekleniyor (piyasa kapalı/veri yok): #20, #40, #111, #121, #126, #134, #141 |
+| Short toplamı (motor = panel) | geçti | Short işlemler panelle aynı (93 işlem) |
+| Toplam kapanan (motor = panel 'tümü') | geçti | Kapanan işlemlerin toplamı panelle aynı (108 işlem) |
+| Açık pozisyon sayısı (motor = panel = şerit = durum) | geçti | 10 açık işlem, hepsi aynı |
+| Açık K/Z fiyat kaynağı (panel = motor mark) | geçti | Açık işlemlerin kâr/zararı panelle aynı; fiyat bekleniyor (piyasa kapalı/veri yok): #20, #111, #121, #126, #134 |
 | Günlük zarar limiti oranı (panel = kâğıt ayarı) | geçti | Günlük zarar limiti %8,00 (panelle aynı) |
 
 ## Bilgi
 
-- Açık işlemlerin anlık kâr/zararı: kasada +5,66 $, panelde -2,41 $ · fark 8,07 $ (fiyat zamanlaması, uyuşmazlık sayılmaz)
-- Fiyatı gelmeyen açık işlemler: #20, #40, #111, #121, #126, #134, #141 · fiyat bekleniyor (piyasa kapalı/veri yok); uyuşmazlık sayılmaz
+- Açık işlemlerin anlık kâr/zararı: kasada +3,09 $, panelde -6,46 $ · fark 9,55 $ (fiyat zamanlaması, uyuşmazlık sayılmaz)
+- Fiyatı gelmeyen açık işlemler: #20, #111, #121, #126, #134 · fiyat bekleniyor (piyasa kapalı/veri yok); uyuşmazlık sayılmaz
 
 ## Telegram kaynağı
 
@@ -145,5 +145,8 @@ Yok.
 | 136 | Gösterge: Bollinger alt bant dönüşü · 1 saat | BTC | short | kapalı | 2026-11-25 22:00 | 2026-11-25 22:17 | 59.690,000000 | 60.169,000000 | -4,3110 | 0,5394 | 0,0000 | -4,8504 | aynı | gönderildi (outbox işareti) | gönderildi (kayıt) |
 | 138 | Gösterge: RSI(2) dip · 15 dakika | XAU | short | kapalı | 2026-11-25 22:30 | 2026-11-26 01:00 | 3.556,990000 | 3.599,120000 | -4,5079 | 0,3829 | -0,0492 | -4,8416 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 139 | Gösterge: RSI(2) dip · 15 dakika | XAG | short | kapalı | 2026-11-25 22:30 | 2026-11-26 02:15 | 40,900000 | 41,410000 | -2,8218 | 0,2277 | -0,0329 | -3,0166 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
-| 140 | Sahte kırılım dönüşü · 15 dakika | BTC | short | açık | 2026-11-26 00:15 | — | 60.201,000000 | — | — | 0,1806 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
-| 141 | Grafik: ikili dip · 15 dakika | ADA | short | açık | 2026-11-26 01:30 | — | 0,145400 | — | — | 0,2425 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
+| 140 | Sahte kırılım dönüşü · 15 dakika | BTC | short | kapalı | 2026-11-26 00:15 | 2026-11-26 02:55 | 60.201,000000 | 60.562,500000 | -2,1690 | 0,3623 | 0,0000 | -2,5313 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
+| 141 | Grafik: ikili dip · 15 dakika | ADA | short | kapalı | 2026-11-26 01:30 | 2026-11-26 03:16 | 0,145400 | 0,148000 | -8,6736 | 0,4894 | -0,0338 | -9,1291 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
+| 142 | Gösterge: RSI(2) dip · 4 saat | LTC | short | açık | 2026-11-26 03:00 | — | 42,750000 | — | — | 0,0449 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
+| 143 | Gösterge: RSI(2) dip · 1 saat | SOL | short | açık | 2026-11-26 04:00 | — | 70,780000 | — | — | 0,0807 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
+| 144 | Gösterge: RSI 30 dönüşü · 1 saat | HBAR | short | açık | 2026-11-26 04:00 | — | 0,052730 | — | — | 0,1577 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
