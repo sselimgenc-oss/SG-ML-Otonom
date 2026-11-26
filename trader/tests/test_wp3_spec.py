@@ -2022,14 +2022,14 @@ def test_P2_mtm_on_minute_speed():
     pos = [mkpos(i, p) for i, p in enumerate(pairs)]
     from trader_engine.types import MinuteBar
     t0 = datetime(2027, 1, 1, tzinfo=UTC)
-    t = time.perf_counter()
+    t = time.process_time()                             # CPU suresi: paralel CI kosucusunda (xdist) duvar saati dalgalanmasindan etkilenmez
     for k in range(100_000):
         ts = t0 + timedelta(minutes=k)
         bars = {p: MinuteBar(p, ts, 60, 100, 101, 99, 100, 100, 101, 99, 100, 1.0) for p in pairs}
         rec.on_minute(ts, bars, pos, 1000.0)
-        if time.perf_counter() - t > 30:
+        if time.process_time() - t > 30:
             break
-    assert time.perf_counter() - t <= 2.0 + 2.0         # allowance: 10 MinuteBar constructions per iteration (~2 s)
+    assert time.process_time() - t <= 2.0 + 2.0         # allowance: 10 MinuteBar constructions per iteration (~2 s)
 
 
 def test_P3_migration_speed(tmp_path):
