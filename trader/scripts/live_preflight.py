@@ -113,12 +113,12 @@ def main(argv=None, *, etc_dir="/etc", config_dir=None, id_groups=None) -> int:
 
     rec("telegram_paths", paths_ok(_parse_env(etc / "trader-telegram.env"), True))
     rec("health_paths", paths_ok(_parse_env(etc / "trader-health.env"), True))
-    les = _parse_env(etc / "trader-lesson.env")
+    les = _parse_env(etc / "trader-lesson.env")      # dosya adi tarihsel: yorumcu/haftalik ozet/veri servislerinin ortak env dosyasi (ders servisi kaldirildi)
     if les is not None and tag is not None:
         les = {**les, "LIVE_BOTS": "learner", "LIVE_VAR_DIR": tag["var_dir"], "LIVE_PAUSE_FILE": tag["pause_file"]}
-        rec("lesson_paths", paths_ok(les, False))
+        rec("ortak_env_paths", paths_ok(les, False))
     else:
-        rec("lesson_paths", False)
+        rec("ortak_env_paths", False)
     rec("trader_not_in_tg", TG_GROUP not in _trader_groups(id_groups))
     rel = None
     try:

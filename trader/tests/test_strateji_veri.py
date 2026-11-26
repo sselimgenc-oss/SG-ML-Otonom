@@ -91,7 +91,7 @@ def root(tmp_path):
     mk(tmp_path / "var/learner/ledger.sqlite")
     (tmp_path / "config/panel.json").write_text(json.dumps({
         "schema": "panel/1", "host": "127.0.0.1", "port": 18787, "status_path": "var/learner/status.json",
-        "ledger_path": "var/learner/ledger.sqlite", "budget_config": "config/budget.json", "lesson_store": "user_data/lesson.sqlite",
+        "ledger_path": "var/learner/ledger.sqlite", "budget_config": "config/budget.json",
         "health_state": str(tmp_path / "state.json"), "kill_file": "shared/KILL", "engine_config": "config/engine.base.json"}))
     (tmp_path / "config/engine.paper.json").write_text(json.dumps({"arms": ARMS}))
     return tmp_path
@@ -202,7 +202,7 @@ def test_ml10_flags_losing_arms_and_lists_mechanisms(root):
     md = _md(root)
     sec = md.split("## ML 10")[1].split("## ML 11")[0]
     assert "T1@4h" in sec and "ZARARDA" in sec
-    assert "Ders: kol kapatma (arms_off)" in sec and "10 R freni" in sec and "Kol bazında otomatik karantina" in sec
+    assert "Kol kapatma kaydı (arms_off)" in sec and "10 R freni" not in sec and "Kol bazında otomatik karantina" in sec
     assert "giriş ENGELLENMEZ" in sec
 
 

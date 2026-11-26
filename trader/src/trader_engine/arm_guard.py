@@ -62,7 +62,7 @@ from trader_core.arm_time import (CARRY_REGIME, CARRY_SIGNAL, active_mask, core_
 
 
 def load_arms_off(path) -> frozenset[str]:
-    """DD-12 WP-13 (D-T22): ders kapattigi kurulumlar (`var/<bot>/arms_off.json`, yazan: lesson.write_arms_state). Salt
+    """DD-12 WP-13 (D-T22): ders kapattigi kurulumlar (`var/<bot>/arms_off.json`, yazan: kol_yasam.write_arms_state). Salt
     okuma; dosya yoksa ya da bozuksa bos kume (hepsi acik). Kayit yapisi: {"arms": {arm_id: {"state": "closed", ...}}}."""
     try:
         with open(path, encoding="utf-8") as f:

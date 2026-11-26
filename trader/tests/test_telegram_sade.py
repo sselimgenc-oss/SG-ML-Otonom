@@ -8,7 +8,6 @@ import pytest
 
 from test_telegram_report import DAY, NOW, mkledger
 from trader_core import health as H
-from trader_core import lesson as LS
 from trader_core import telegram as T
 from trader_core import tg_sade as TS
 
@@ -68,10 +67,6 @@ def test_tum_bicimleyiciler_kurallara_uyar(tmp_path):
         TS.islem_kapandi("T1 · 15dk", "BTC/USDT", "short", -6.4, 300, "trail_stop"),
         TS.limit_uyari(40.0, 50.0), TS.limit_doldu(50.0, 50.0), TS.bot_durdu(str(sp)), TS.bot_durdu(None),
         TS.bot_duzeldi(), TS.duzeldi("hesap_ayarı yeniden doğru"),
-        TS.onay_istegi("rr_min", 1.5, 1.8, "kanıt_sayısı yeterli", "17.11 10:00"),
-        TS.ders_mesaji("info", "applied", "t", "rr_min 1.5 -> 1.8 (otomatik). Kapsam: R1+T1. Kanit: x")[0],
-        TS.ders_mesaji("warn", "rolled_back", "t", "rr_min 1.8 -> 1.5: kotu Kapsam: M1.")[0],
-        TS.ders_mesaji("warn", "brake")[0],
         TS.birim_metni("trader-feed.service"), TS.birim_metni("trader-engine-live.service", str(sp)),
         TS.birim_metni("trader-backup.service"),
         T.build_report(T.TelegramConfig("1:t", 5, str(tmp_path), "", str(sp), ledger_path=str(tmp_path / "l")), NOW, DAY),
@@ -241,24 +236,6 @@ def test_teknik_uyarilar_susar(rig, kod):
     assert rig.fake.texts == []
 
 
-def test_ders_uygulandi_ve_geri_alindi_telegrama_gitmez(rig):
-    def nt(code, body):
-        return LS.LessonNotice("info" if code == "applied" else "warn", code, "t", body, f"{code}|d|1", T0)
-    ap = nt("applied", "rr_min 1.5 -> 1.8 (otomatik). Kapsam: R1+T1. Kanit: n=5. Geri alma: dugme")
-    rb = nt("rolled_back", "rr_min 1.8 -> 1.5: ders etkisi kotu. Kapsam: M1@1h.")
-    for x in (ap, ap, rb, rb):
-        assert rig.n.notify(x) is True
-    assert rig.fake.texts == []                           # ders mesajlari artik yalniz gunluge gider
-    # metin uretimi (gunluk/panel icin) degismedi
-    assert TS.ders_mesaji("info", "applied", "t", ap.body)[0] == "[ML] Ders uygulandı: en düşük kazanç/risk oranı 1.5 → 1.8 · Yatay piyasa kenarı + Trend geri çekilmesi"
-
-
-def test_ders_teknik_hata_ve_zaman_asimi_susar(rig):
-    for lvl, code in (("info", "needs_user_expired"), ("warn", "run_failed"), ("warn", "llm_error")):
-        assert rig.n.notify(LS.LessonNotice(lvl, code, "t", "b", f"{code}|d|1", T0)) is True
-    assert rig.fake.texts == []
-
-
 def test_kol_adi_bicimi():
     assert TS.kol_adi("M1@1h") == "Yapay zekâ adayı · 1 saat" and TS.kol_adi("T1@15m") == "Trend geri çekilmesi · 15 dakika"
     assert "Kadro" not in TS.KURULUM_AD.get("C1", "") and "C1" not in TS.KURULUM_AD and TS.kol_adi("R1@1d") == "Yatay piyasa kenarı · 1 gün"
@@ -308,18 +285,6 @@ def test_kagitta_yuzde_80_uyarisi_ayardaki_limite_gore(rig, monkeypatch):
     (rig.tmp / "status.json").write_text(json.dumps({"mode": "paper", "equity": 950.0, "day_start_equity": 1000.0,
                                                      "loop_at": NOW.strftime("%Y-%m-%dT%H:%M:%SZ")}))
     assert "Günlük zarar sınırı: 50,00 $ / 80,00 $ kullanıldı" in T.build_report(rep_cfg, NOW, DAY)
-
-
-def test_onay_istegi_karar_mesaji_kisa_ve_sade(rig):
-    req = LS.ApprovalRequest(request_id="lr-2026-11-16-1", proposal_id=3, base_version_id=1, param="rr_min", from_value=1.5,
-                             to_value=1.8, scope="s", reason_code="rc", shadow_period=False, provisional=False, title="T",
-                             body="kanıt_sayısı yeterli, kâr artıyor", evidence={"n": 1}, created_at=T0,
-                             expires_at=T0 + timedelta(hours=24))
-    assert rig.n.request_approval(req) is True
-    t = rig.fake.texts[0]
-    assert t.startswith("[ML] 🗳 Karar gerekiyor: en düşük kazanç/risk oranı")
-    assert len(t.splitlines()) <= 6 and "rr_min" not in t and "kanıt sayısı" in t
-    assert "/onayla lr-2026-11-16-1" in t
 
 
 def test_gunluk_ozet_12_satiri_asmaz_ve_haftalik_yalniz_pazar(rig):
@@ -386,7 +351,7 @@ def test_ayni_dakikadaki_acilislar_tek_mesaj():
     assert "ve 5 işlem daha" in buyuk
 
 
-def test_gunluk_ozet_ders_satiri_model_satiri_yok(tmp_path):
+def test_gunluk_ozet_model_satiri_yok(tmp_path):
     sp = tmp_path / "status.json"
     mkledger(tmp_path / "l.sqlite", "learner", [])
     sp.write_text(json.dumps({"mode": "paper", "equity": 1000.0, "day_start_equity": 1000.0, "entries_open": True,
@@ -394,7 +359,7 @@ def test_gunluk_ozet_ders_satiri_model_satiri_yok(tmp_path):
                               "ml": {"mode": "active", "state": "ok", "expires_at": "2026-12-30T00:00:00Z"}}))   # eski blok: gorunmez
     cfg = T.TelegramConfig("1:t", 5, str(tmp_path), "", str(sp), ledger_path=str(tmp_path / "l.sqlite"))
     r = T.build_report(cfg, NOW, DAY)
-    assert "Dersler: bugün 0 uygulandı, 0 geri alındı · işlemlere etkili" in r and "Model:" not in r
+    assert "Dersler:" not in r and "Model:" not in r
     ok_form(r, TS.MAX_SATIR_OZET)
 
 

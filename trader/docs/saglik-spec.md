@@ -1,5 +1,8 @@
 # Sağlık izleme, dış nabız, günlük yedek ve yeniden başlatma kurtarma — arayüz ve kurallar (spesifikasyon v1, 16 Kasım 2026)
 
+> 25 Kasım: sahip kararıyla ders sistemi KALDIRILDI (`trader_core/lesson.py`, `lesson_run`, gece notu, onay/ret akışı, panel/Telegram ders bölümleri; öğrenme ML1'e taşındı). Bu belgedeki ders/not/onay (`/ders`, `/onayla`, `/reddet`) bölümleri tarihsel kayıttır, geçerli değildir. Defterin parametre sürümü mekanizması (kullanıcı sürümü, etkinleştirme, `parent_version_id`) ve şeması AYNEN kalır.
+
+
 > 18 Kasım: kullanıcı kararıyla değişti. Veto tazeliği alarmı ve ikiz sağlık kontrolleri kaldırıldı (veto/ikiz yok).
 
 Bu belge kod ve test içermez; testler bu belgeden yazılır. Biçim `risk-kilidi-spec.md` ile aynıdır. Defter arayüzleri `defter-spec.md`'den (Bölüm 4, 7.2, 8) alınmıştır; çelişkide o belge geçerlidir.

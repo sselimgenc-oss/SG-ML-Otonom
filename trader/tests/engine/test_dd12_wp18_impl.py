@@ -275,7 +275,7 @@ def test_m1_nightly_hatasinda_cikis_3_ve_csv_yazilir(tmp_path, monkeypatch):
 
 
 # ---- (d) kurulum, birimler, sunucu belgesi --------------------------------------------------------------------------
-DD12_TIMERS = ("trader-notes.timer", "trader-weekly-summary.timer", "trader-ml-retrain.timer", "trader-universe.timer",
+DD12_TIMERS = ("trader-weekly-summary.timer", "trader-ml-retrain.timer", "trader-universe.timer",
                "trader-counterfactual@learner.timer", "trader-exit-counterfactual@learner.timer")
 
 

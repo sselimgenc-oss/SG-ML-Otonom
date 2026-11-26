@@ -37,7 +37,7 @@ SILME_IZIN = (
 GECICI_DIZIN_AD = "exitcf_bt_*"                              # sistem gecici dizininde (tempfile.gettempdir) de aranir
 # Asla silinmez: ad (fnmatch) ve var'a gore yol onekleri
 KORUNAN_AD = ("ledger.sqlite*", "counterfactual.sqlite*", "exit_counterfactual.sqlite*", "market.sqlite*", "state.sqlite*",
-              "lesson.sqlite*", "*.sqlite", "*.sqlite-wal", "*.sqlite-shm", "*.feather", "PAUSE.*", "status.json", "pause_audit.jsonl")
+              "*.sqlite", "*.sqlite-wal", "*.sqlite-shm", "*.feather", "PAUSE.*", "status.json", "pause_audit.jsonl")
 KORUNAN_ONEK = ("history", "durum", "vision_raw")           # var/history*, var/durum/*.json, ...
 
 

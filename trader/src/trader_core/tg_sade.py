@@ -523,57 +523,6 @@ def birim_metni(birim: str, status_path: str | None = None) -> str | None:
     return None
 
 
-# ----------------------------------------------------------------------------- ders / onay
-def _ders_ayrinti(title: str, body: str) -> tuple[str, str, str, str]:
-    """Bildirim govdesinden (param, eski, yeni, kapsam)."""
-    m = re.match(r"\s*(\w+) (\S+) -> (\S+)", body or "")
-    k = re.search(r"Kapsam: ([A-Za-z0-9+@]+)", body or "")
-    param, eski, yeni = (m.group(1), m.group(2), m.group(3).rstrip(":")) if m else ("", "", "")
-    return param, eski, yeni, (k.group(1) if k else "")
-
-
-def _ders_ne(param: str, eski: str, yeni: str) -> str:
-    if not param:
-        return "bir ayar"
-    return f"{PARAM_AD.get(param, temizle(param))} {eski} → {yeni}".strip()
-
-
-def _kapsam_oku(kapsam: str) -> str:
-    return " + ".join(kol_adi(x) for x in kapsam.split("+") if x) if kapsam else ""
-
-
-def ders_mesaji(level: str, code: str, title: str = "", body: str = "") -> tuple[str, str] | None:
-    """Ders bildirimi -> (metin, tekrar anahtari) | None (susar). Uygulandi ve geri alindi kullaniciya gider (ders artik onaysiz
-    uygulaniyor); onay-zaman-asimi/teknik hatalar susar; fren eski tek satir."""
-    code = str(code)
-    param, eski, yeni, kapsam = _ders_ayrinti(title, body)
-    kol = _kapsam_oku(kapsam)
-    if code == "applied":
-        t = _bagla([f"Ders uygulandı: {_ders_ne(param, eski, yeni)}" + (f" · {kol}" if kol else "")])
-        return t, f"ders|applied|{param}|{kapsam}"
-    if code == "rolled_back":
-        if param:
-            t = _bagla([f"Ders geri alındı: {_ders_ne(param, eski, yeni)}" + (f" · {kol}" if kol else "") + " (sonuç kötüleşti)"])
-        else:
-            t = _bagla(["⚠️ Son ayar değişikliği geri alındı", "Bot önceki güvenli ayarla devam ediyor."])
-        return t, f"ders|rolled_back|{param}|{kapsam}"
-    if code == "brake":
-        return _bagla(["⚠️ Ders freni devrede", "Bot önceki güvenli ayarla devam ediyor; yeni ders uygulanmıyor."]), "ders|brake"
-    return None
-
-
-PARAM_AD = {"rr_min": "en düşük kazanç/risk oranı", "range_width_atr": "aralık genişliği sınırı",
-            "vol_ratio_max": "en yüksek oynaklık oranı", "edge_zone_atr": "kenar bölgesi genişliği",
-            "pullback_ema": "geri çekilme ortalaması", "stop_buffer_atr": "stop payı", "trail_atr": "iz sürme mesafesi",
-            "range_target_frac": "aralık hedef oranı", "trigger_tf": "tetik zaman dilimi"}
-
-
-def onay_istegi(param: str, eski: Any, yeni: Any, neden: str, son: str) -> str:
-    ad = PARAM_AD.get(param, temizle(param))
-    return _bagla([f"🗳 Karar gerekiyor: {ad}", f"{eski} → {yeni}", f"Neden: {temizle(neden)[:140]}", f"Son geçerlilik: {son}"],
-                  4)
-
-
 # ----------------------------------------------------------------------------- durum defteri
 class Kayit:
     """Alarm tekrar sinirlayici + gunluk-bir-kez isaretleri. Dosya: <var>/alarm_kaydi.json (bozuksa bos baslar)."""

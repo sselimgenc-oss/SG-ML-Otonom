@@ -1,5 +1,8 @@
 # DD-8 — Canlı başlangıç güvenliği (uygulama şartnamesi v1, 18 Kasım 2026)
 
+> 25 Kasım: sahip kararıyla ders sistemi KALDIRILDI (`trader_core/lesson.py`, `lesson_run`, gece notu, onay/ret akışı, panel/Telegram ders bölümleri; öğrenme ML1'e taşındı). Bu belgedeki ders/not/onay (`/ders`, `/onayla`, `/reddet`) bölümleri tarihsel kayıttır, geçerli değildir. Defterin parametre sürümü mekanizması (kullanıcı sürümü, etkinleştirme, `parent_version_id`) ve şeması AYNEN kalır.
+
+
 > **[ASKIDA — kullanıcı yeniden belirleyecek]** 18 Kasım: kullanıcı kararıyla gerçek paraya ilişkin bütün kararlar (başlangıç tutarı, kasa tavanı 1500 USD, duman testi/canlı tarihleri) askıya alındı; bu belgedeki değerler uygulanmaz.
 
 **Hazırlayan:** mentor · **Taban:** `claude/charming-hawking-ab5w5q` @ `3586d93` (DD-2 birleşmiş)

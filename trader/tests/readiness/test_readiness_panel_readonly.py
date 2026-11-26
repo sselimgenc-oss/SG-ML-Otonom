@@ -17,7 +17,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 def test_budget_guard_read_only_never_writes(tmp_path, monkeypatch):
     from trader_core import budget as B
-    env = Env(tmp_path, learner=False, lesson=False, health=False)
+    env = Env(tmp_path, learner=False, health=False)
     cfg = B.load_config(env.root / "config/budget.json")
     db = env.root / "user_data/budget.sqlite"
     before = db.read_bytes()
@@ -39,7 +39,7 @@ def test_budget_guard_read_only_never_writes(tmp_path, monkeypatch):
 
 def test_budget_ro_missing_store_is_unavailable_not_created(tmp_path):
     from trader_core import budget as B
-    env = Env(tmp_path, learner=False, lesson=False, health=False)
+    env = Env(tmp_path, learner=False, health=False)
     cfg = B.load_config(env.root / "config/budget.json")
     db = env.root / "user_data/budget.sqlite"
     db.unlink()
@@ -49,7 +49,7 @@ def test_budget_ro_missing_store_is_unavailable_not_created(tmp_path):
 
 def test_panel_budget_view_uses_read_only_guard(tmp_path, monkeypatch):
     from trader_core import budget as B, panel_data as P
-    env = Env(tmp_path, learner=False, lesson=False, health=False)
+    env = Env(tmp_path, learner=False, health=False)
     kinds = []
     orig = B.BudgetGuard.__init__
 

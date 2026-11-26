@@ -34,13 +34,13 @@ def test_kol_satirlari_dinamik_ve_sayilar(tmp_path):
     assert [r["arm"] for r in z["en_iyi"]] == ["R1@1h"] and z["en_kotu"] == []             # tek olculen kol iki listede tekrar etmez
 
 
-def test_kucultulmus_durum_ve_son_ders(tmp_path):
+def test_kucultulmus_durum(tmp_path):
     zarar = [(False, True, datetime(2026, 11, 14, 1 + i, tzinfo=UTC)) for i in range(5)]
     v = _view(tmp_path, specs=zarar)
     r = {x["arm"]: x for x in v["kollar"]}["R1@1h"]
     assert r["n"] == 5 and r["kazanma"] == 0.0 and r["net_r"] < 0
     assert r["carpan"] == 0.5 and r["durum"] == "kucultulmus" and r["durum_ad"] == "Küçültülmüş"
-    assert r["son_ders"] is None                           # ders etkili karar yok: uydurma tarih yok
+    assert "son_ders" not in r                             # ders sistemi kaldirildi (25.11)
     assert v["ozet"]["kucultulmus"] == 1 and v["ozet"]["en_kotu"] == [] and v["ozet"]["en_iyi"][0]["arm"] == "R1@1h"
 
 
@@ -85,7 +85,7 @@ def test_pano_govdesinde_ogrenme_ve_arayuz(tmp_path_factory):
         e.close()
     o = p["ogrenme"]
     assert o is not None and {"ozet", "kollar", "modeller"} <= set(o)
-    assert all({"arm", "kol", "zd", "n", "net_r", "kazanma", "carpan", "durum", "son_ders"} <= set(r) for r in o["kollar"])
+    assert all({"arm", "kol", "zd", "n", "net_r", "kazanma", "carpan", "durum"} <= set(r) for r in o["kollar"])
     js = (ROOT / "src/trader_panel/static/panel.js").read_text(encoding="utf-8")
-    for s in ("ogrenmeOzetKart", "ogrenmeTablolari", "'og_kol'", "'og_model'", "p.ogrenme", "Karantinada kol", "bilinmiyor", "Ders öğrenmesi", "Kademeli küçültme"):
+    for s in ("ogrenmeOzetKart", "ogrenmeTablolari", "'og_kol'", "'og_model'", "p.ogrenme", "Karantinada kol", "bilinmiyor", "Kademeli küçültme"):
         assert s in js

@@ -146,7 +146,7 @@ def test_restart_semantics_match_exit_codes():
     assert eng["RestartPreventExitStatus"].split() == [str(EXIT_STARTUP_GATE), "8"] == ["7", "8"]     # DD-8: 8 = kalici ret (damga vb.)
     assert fd["RestartPreventExitStatus"].split() == [str(F.EXIT_BAN), str(F.EXIT_GEOBLOCK)] == ["3", "6"]
     for u in ("trader-engine@.service", "trader-feed.service", "trader-telegram.service",
-              "trader-lesson.service", "trader-health.service", "trader-backup.service", "trader-telegram-report.service",
+              "trader-health.service", "trader-backup.service", "trader-telegram-report.service",
               "trader-counterfactual@.service", "trader-exit-counterfactual@.service"):
         assert "OnFailure=trader-health-fail@%n.service" in (DEPLOY / u).read_text(encoding="utf-8"), u
 

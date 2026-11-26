@@ -1,5 +1,8 @@
 # Alınmayan sinyal × sonuç raporu — belirtim (19 Kasım 2026)
 
+> 25 Kasım: sahip kararıyla ders sistemi KALDIRILDI (`trader_core/lesson.py`, `lesson_run`, gece notu, onay/ret akışı, panel/Telegram ders bölümleri; öğrenme ML1'e taşındı). Bu belgedeki ders/not/onay (`/ders`, `/onayla`, `/reddet`) bölümleri tarihsel kayıttır, geçerli değildir. Defterin parametre sürümü mekanizması (kullanıcı sürümü, etkinleştirme, `parent_version_id`) ve şeması AYNEN kalır.
+
+
 **Yalnız ölçüm/rapor.** Motor, kapılar, kol ayarları, ders ve ML özellikleri değişmez (kol ayarlarına 23.11'e kadar dokunulmaz). Şema `ml.alinmayan_sonuc.v1`; satır biçimi `ml.haber_sonuc.v1` ve CT `ct.rejim_sonuc.v1` ile aynıdır (aynı yardımcılar: `haber_sonuc._satirlar`, `yaz_atomik`). Kod: `src/trader_core/alinmayan_sonuc.py` (saf `topla`/`olustur` + okuyucu). Veri kaynağı `docs/alinmayan-sinyal-spec.md` (gece işi).
 
 ## Veri

@@ -64,24 +64,8 @@ def test_exitcf_ok_per_setup(env):
     assert t1["basabas"] == {"n": 2, "delta_r": 2.2} and t1["kismi"] == {"n": 1, "delta_r": -0.1}
     r1 = next(k for k in r["kurulumlar"] if k["kurulum"] == "R1")
     assert r1["basabas"]["n"] == 0 and r1["basabas"]["delta_r"] is None
-    assert r["son_kosu_v1"] and r["son_kosu_v2"] and r["bekleyen"] == []
+    assert r["son_kosu_v1"] and r["son_kosu_v2"] and "bekleyen" not in r
     json.dumps(r, allow_nan=False)
-
-
-def test_exitcf_pending_label_from_lesson(env):
-    mk_store(env.root / "var/learner/exit_counterfactual.sqlite",
-             modes=[(1, "T1", "off", 1.0), (1, "T1", "breakeven", 2.0)])
-    bek = P.exitcf_bekleyen({"open_requests": [{"param": "exit_breakeven", "from": 0, "to": 1},
-                                               {"param": "trail_atr", "from": 3.0, "to": 3.25},
-                                               {"param": "rr_min", "from": 1.5, "to": 1.25}],
-                             "proposals": [{"changes": {"exit_partial": 1}}]})
-    assert bek == ["exit:breakeven", "exit:partial", "trail_atr:up"]
-    assert P.exitcf_bekleyen({"open_requests": [{"param": "trail_atr", "from": 3.0, "to": 2.75}]}) == []
-    r = P.exitcf_view(str(env.root / "var/learner/exit_counterfactual.sqlite"), NOW, bek)
-    assert r["kurulumlar"][0]["bekleyen"] == ["exit:breakeven"]      # yalniz kaniti olan kipte etiket
-    assert r["bekleyen"] == ["exit:breakeven", "exit:partial", "trail_atr:up"]
-    # uc nokta: ders deposundaki acik talep (rr_min) etiket uretmez
-    assert pd_(env).ciktikaniti()["kurulumlar"][0]["bekleyen"] == []
 
 
 @pytest.mark.parametrize("make,neden", [(None, "dosya_yok"), ("garbage", "bozuk"), ("empty", "kayit_yok")])
@@ -108,7 +92,6 @@ def test_exitcf_old_store_without_modes_table(env):
 def test_views_never_raise_on_bad_input():
     assert P.exitcf_view("", NOW)["var"] is False
     assert not hasattr(P, "haber_view") and not hasattr(P, "haber_sonuc_view")
-    assert P.exitcf_bekleyen(None) == [] and P.exitcf_bekleyen({"open_requests": "x", "proposals": [1]}) == []
 
 
 def test_server_endpoints_and_snapshot(env):

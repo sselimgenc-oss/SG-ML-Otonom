@@ -119,7 +119,7 @@ def test_tsi_day_boundary(env):
 
 
 def test_empty_cards_hidden_and_unmeasured_text(pano):
-    assert pano["ders"]["durum"] == "Açık, veri birikiyor" and pano["ders"]["son"] is None   # veri yok: kart yine uretilir (OZET'te zorunlu); 24.11 kullanici karari: ders hizi / aile destegi - "0/10" etki sayaci kalkti
+    assert "ders" not in pano                                  # 25.11: ders sistemi kaldirildi; ders karti yok
     assert "ml" not in pano                                    # 24.11: makine ogrenmesi karti (ML filtresi) silindi
     z = pano["kz"]
     assert z["oran"]["kazanma_yuzde"] == 60.0                    # 5 islem >= asgari
@@ -169,7 +169,7 @@ def test_panel_js_new_structure():
     assert "repeat(3,minmax(0,1fr))" in css and "repeat(6,minmax(0,1fr))" in css and ".gomulu .ust{display:none}" in css
 
 
-# ---------------- Turkce bicim, ek yardimcisi, ders/ML durumlari
+# ---------------- Turkce bicim, ek yardimcisi, ML durumlari
 def _node_js(code: str) -> str:
     import shutil
     import subprocess
@@ -197,26 +197,15 @@ def test_server_number_format_turkish():
     assert PP.tr_sayi(1428.4) == "1.428,40" and PP.tr_sayi(-7.2) == "7,20" and PP.tr_sayi(1000000) == "1.000.000,00"
 
 
-def test_param_sentence_has_unit_and_turkish_decimal():
-    s = PP._param_farki({"stop_buffer_atr": 0.3}, {"stop_buffer_atr": 0.2})
-    assert s == "stop payı 0,3 → 0,2 ATR"
-
-
 def test_strip_has_start_not_kasa_pct_and_title_turkish(pano):
     assert pano["serit"]["baslangic"] == 1000.0 and "kasa_yuzde" not in pano["serit"]
     assert "<h1>İşlem Botu</h1>" in (STATIC / "index.html").read_text(encoding="utf-8")
 
 
 def test_partial_state_is_not_healthy_and_says_why():
-    k = PP.kismi_durum({"renk": "kirmizi"})
-    assert k == ["ders işlemleri etkilemiyor"]
+    k = ["bir özellik işlemleri etkilemiyor"]
     y = PP.ne_yapmali("live", {"renk": "yesil"}, 3, k)
-    assert y.startswith("Bir şey yapmanız gerekmiyor; ders işlemleri")
-    assert PP.kismi_durum({"renk": "yesil"}) == [] and PP.kismi_durum(None) == []
-
-
-def test_katki_label_uses_resolved_count():
-    assert PP.katki_olculemedi(0) == {"olculemedi": "Henüz ölçülemedi (sonucu belli 0 karar, en az 10)"}
+    assert y.startswith("Bir şey yapmanız gerekmiyor; bir özellik işlemleri")
 
 
 def _h(overall, *fps):
@@ -225,7 +214,7 @@ def _h(overall, *fps):
 
 
 def _tv(health):
-    return PP.teknik_view(health=health, risk_rows=None, budget=None, tut=None, pbo=None, ctx=None, ders=None)
+    return PP.teknik_view(health=health, risk_rows=None, budget=None, tut=None, pbo=None, ctx=None)
 
 
 def test_saglik_uyarisi_adiyla_gorunur_ve_isik_ne_yapmali():

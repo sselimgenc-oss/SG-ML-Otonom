@@ -66,7 +66,7 @@ class Rig:
             build(self)
         lf = {"learner": T.LadderFiles(self.log, str(self.status_path), self.pause)} if with_ladders else None
         self.d = T.TelegramDaemon(self.cfg, T.TelegramClient("1:tok", self.fake, lambda s: None), now_fn=self.clk,
-                                  runner=lambda *a: (0, "{}"), sleep=lambda s: None, random_code=lambda: "0427",
+                                  sleep=lambda s: None, random_code=lambda: "0427",
                                   killswitch=self.ks, pauses={"learner": self.pause}, ladders=lf)
         self.uid = 0
 

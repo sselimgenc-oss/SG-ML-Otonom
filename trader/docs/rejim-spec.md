@@ -1,5 +1,8 @@
 # Rejim etiketi — arayüz ve kurallar (spesifikasyon v1, 16 Kasım 2026)
 
+> 25 Kasım: sahip kararıyla ders sistemi KALDIRILDI (`trader_core/lesson.py`, `lesson_run`, gece notu, onay/ret akışı, panel/Telegram ders bölümleri; öğrenme ML1'e taşındı). Bu belgedeki ders/not/onay (`/ders`, `/onayla`, `/reddet`) bölümleri tarihsel kayıttır, geçerli değildir. Defterin parametre sürümü mekanizması (kullanıcı sürümü, etkinleştirme, `parent_version_id`) ve şeması AYNEN kalır.
+
+
 Kaynak kural: `otonom-trading-arastirma/strateji-v1.md` Bölüm 2, 3 ve 6. Bu belge o bölümlerdeki rejim kurallarını koda dökülebilir hale getirir; sayılar kârlılık kanıtı değil, backtest ile sınanacak başlangıç değerleridir. Bu belge kod ve test içermez; testler bu belgeden yazılır.
 
 Modüller:

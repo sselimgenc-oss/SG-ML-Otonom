@@ -48,7 +48,7 @@ jobs:
                   max_turns=12,
                   cwd=".",
               )
-              async for m in query(prompt="Su dosyalari tamamen oku: trader/src/trader_core/lesson.py, trader/src/trader_engine/engine.py, trader/src/trader_engine/gates.py. Her biri icin satir sayisini ve en uzun fonksiyonun adini tek satirda yaz.", options=opts):
+              async for m in query(prompt="Su dosyalari tamamen oku: trader/src/trader_core/telegram.py, trader/src/trader_engine/engine.py, trader/src/trader_engine/gates.py. Her biri icin satir sayisini ve en uzun fonksiyonun adini tek satirda yaz.", options=opts):
                   print(type(m).__name__, getattr(m, "result", "") or "")
                   cost = getattr(m, "total_cost_usd", None)
                   if cost is not None:

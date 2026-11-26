@@ -7,7 +7,7 @@ from readiness_support import DEPLOY, install_text, unit_kv
 
 RAM_MB, SWAP_MB = 2048, 4096
 DAEMONS = ["trader-feed.service", "trader-engine@.service", "trader-panel.service", "trader-telegram.service"]
-ONESHOTS = ["trader-health.service", "trader-backup.service", "trader-lesson.service", "trader-panel-publish.service"]
+ONESHOTS = ["trader-health.service", "trader-backup.service", "trader-panel-publish.service"]
 
 
 def _mem(name: str):
@@ -35,12 +35,13 @@ def test_memory_budget_sums():
     worst = always + transient + cf
     assert always == 260 + 750 + 64 + 96 == 1170        # DD-12 §8: feed 260, ogrenen 750
     assert _mem("trader-counterfactual@.service") == 128
-    assert worst == 1170 + 64 + 96 + 256 + 400 + 128 == 2114   # DD-12 WP-06a: veto birimi (256 MB) kalkti
+    assert worst == 1170 + 64 + 96 + 400 + 128 == 1858   # DD-12 WP-06a: veto birimi kalkti; 25.11: ders birimi (256 MB) kalkti
     # her zaman acik birimlerin SERT tavan toplami RAM'in %60'ini gecmez; boylece baska proje icin >= 800 MB kalir (OS ~150 MB dahil degil)
     assert always <= 0.6 * RAM_MB
     # en kotu ust uste binme bile RAM + takas icinde (OOM yerine takas); RAM'i asar -> swappiness=10 ve takas 4 GB sart
     assert worst < RAM_MB + SWAP_MB
-    assert worst > RAM_MB          # belgelenen risk: tum tavanlar ayni anda dolarsa takasa girilir (denetim raporu OPEN-9)
+    # 25.11: ders birimi (256 MB) kalkinca en kotu ust uste binme de RAM icine sigar (eskiden takasa girilirdi; denetim raporu OPEN-9)
+    assert worst <= RAM_MB
     t = install_text()
     assert 'SWAP_SIZE="4G"' in t and "vm.swappiness=10" in t
 
@@ -53,7 +54,7 @@ def test_tutarlilik_weekly_oneshot_is_bounded_and_fits_slice():
     kv = _kv("trader-tutarlilik.service")
     assert kv["Slice"] == "trader.slice" and kv["Nice"] == "10"
     assert m <= int(_kv("trader.slice")["MemoryMax"][:-1]) // 2          # slice tavaninin yarisini asmaz
-    worst = 1170 + 64 + 96 + 256 + 400 + 128 + m
+    worst = 1170 + 64 + 96 + 400 + 128 + m
     assert worst < RAM_MB + SWAP_MB
     tm = (DEPLOY / "trader-tutarlilik.timer").read_text(encoding="utf-8")
     assert "OnCalendar=Mon *-*-* 00:30:00 UTC" in tm and "Persistent=true" in tm
@@ -68,7 +69,7 @@ def test_veri_toplama_oneshots_are_bounded_and_fit_slice():
         assert kv["Slice"] == "trader.slice" and kv["Nice"] == "15"
         assert kv["ReadWritePaths"] == rw + ("" if ad == "haber" else "/var") and kv["ProtectSystem"] == "strict" and kv["NoNewPrivileges"] == "true"
         assert m <= int(_kv("trader.slice")["MemoryMax"][:-1]) // 2
-        assert 1170 + 64 + 96 + 256 + 400 + 128 + m < RAM_MB + SWAP_MB
+        assert 1170 + 64 + 96 + 400 + 128 + m < RAM_MB + SWAP_MB
         tm = (DEPLOY / f"trader-{ad}.timer").read_text(encoding="utf-8")
         assert "OnCalendar=hourly" in tm and "Persistent=true" in tm and "WantedBy=timers.target" in tm
 
@@ -81,7 +82,7 @@ def test_bakim_weekly_oneshot_is_bounded_and_fits_slice():
     assert kv["Slice"] == "trader.slice" and kv["Nice"] == "19" and kv["IOSchedulingClass"] == "idle"
     assert kv["ReadWritePaths"] == "/opt/trader/var" and kv["ProtectSystem"] == "strict" and kv["NoNewPrivileges"] == "true"
     assert m <= int(_kv("trader.slice")["MemoryMax"][:-1]) // 2
-    assert 1170 + 64 + 96 + 256 + 400 + 128 + m < RAM_MB + SWAP_MB
+    assert 1170 + 64 + 96 + 400 + 128 + m < RAM_MB + SWAP_MB
     tm = (DEPLOY / "trader-bakim.timer").read_text(encoding="utf-8")
     assert "OnCalendar=Sun *-*-* 04:20:00 UTC" in tm and "Persistent=true" in tm and "WantedBy=timers.target" in tm
 
@@ -95,7 +96,7 @@ def test_mutabakat_daily_oneshot_is_bounded_and_fits_slice():
     assert kv["ReadWritePaths"] == "/opt/trader/var/durum -/opt/trader/var/telegram"
     assert kv["ProtectSystem"] == "strict" and kv["NoNewPrivileges"] == "true" and kv["PrivateNetwork"] == "true"
     assert m <= int(_kv("trader.slice")["MemoryMax"][:-1]) // 2
-    assert 1170 + 64 + 96 + 256 + 400 + 128 + m < RAM_MB + SWAP_MB
+    assert 1170 + 64 + 96 + 400 + 128 + m < RAM_MB + SWAP_MB
     tm = (DEPLOY / "trader-mutabakat.timer").read_text(encoding="utf-8")
     assert "OnCalendar=*-*-* 04:40:00 UTC" in tm and "Persistent=true" in tm and "WantedBy=timers.target" in tm
     t = install_text()
@@ -192,7 +193,7 @@ def test_install_uninstall_handle_slice_and_publish_stays_gated():
 
 def test_exit_counterfactual_oneshot_is_bounded_and_fits_slice():
     """Cikis karsi-olgusu (25c): gece isi 23:40 UTC; pandas/numpy ice aktarilir (kacinilmaz) -> 256 MB (soft 192 MB). Alinmayan-sinyal isi (23:10, 128 MB)
-    ile cakismaz (kisa omurlu, siradan biter); ders servisi (hourly :17) ile ayni anda sure bindirmesi yalniz saat 23:40-00:xx; toplam butceye
+    ile cakismaz (kisa omurlu, siradan biter); toplam butceye
     bir 'gece isi' payi olarak girer (ONESHOTS listesinde degil: ml-retrain/counterfactual gibi gece isleri sirayla calisir)."""
     m = _mem("trader-exit-counterfactual@.service")
     kv = dict(unit_kv((DEPLOY / "trader-exit-counterfactual@.service").read_text(encoding="utf-8")))
@@ -200,5 +201,5 @@ def test_exit_counterfactual_oneshot_is_bounded_and_fits_slice():
     assert kv["Slice"] == "trader.slice" and kv["Nice"] == "15" and kv["CPUQuota"] == "30%"
     slice_max = int(dict(unit_kv((DEPLOY / "trader.slice").read_text(encoding="utf-8")))["MemoryMax"][:-1])
     assert m <= slice_max // 2                                                  # slice tavaninin yarisini asmaz
-    worst = 1170 + 64 + 96 + 256 + 400 + 128 + m                                # en kotu ust uste binme bile RAM + takas icinde
+    worst = 1170 + 64 + 96 + 400 + 128 + m                                # en kotu ust uste binme bile RAM + takas icinde
     assert worst < RAM_MB + SWAP_MB

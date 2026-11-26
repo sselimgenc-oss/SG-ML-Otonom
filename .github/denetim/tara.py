@@ -28,7 +28,7 @@ Ara:
 6. Yanlis seyi dogrulayan ya da hicbir sey dogrulamayan testler (yalniz alanla ilgiliyse).
 
 KURALLAR: Her bulgu icin dosya ve satiri kendin okuyarak dogrula; tahmin yazma. Emin olmadigini "emin_degil" isaretle.
-Kullanici kararlariyla celisen tasarim tercihlerini (kalite kapisiz model yayini, onaysiz ders, 5 dk otomatik guncelleme) hata sayma.
+Kullanici kararlariyla celisen tasarim tercihlerini (kalite kapisiz model yayini, 5 dk otomatik guncelleme) hata sayma.
 Kucuk stil konularini yazma. En fazla 15 bulgu; en onemliler once.
 
 CIKTI: Son mesajinda YALNIZ su JSON'u yaz (baska metin yok):

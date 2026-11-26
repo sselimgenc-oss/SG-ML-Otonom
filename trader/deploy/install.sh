@@ -354,7 +354,7 @@ install -d -m 0750 -o "$TRADER_USER" -g "$TRADER_USER" "$TRADER_DIR/var/learner"
 install -d -m 0750 -o root -g root /var/backups/trader
 # user_data trader sahibi olmali (onceden root yazdiysa duzelt)
 chown -hR "$TRADER_USER:$TRADER_USER" "$TRADER_DIR/user_data"
-# budget.sqlite'i trader sahipli onceden olustur (yoksa): ilk olusturan root olursa dosya root:root 0600 kalir ve ders/telegram acamaz (OPEN-8).
+# budget.sqlite'i trader sahipli onceden olustur (yoksa): ilk olusturan root olursa dosya root:root 0600 kalir ve telegram/yorumcu acamaz (OPEN-8).
 # Sifir bayt dosya gecerlidir: budget.py bos dosyayi 'ilk olusturma' sayip semayi kendisi kurar.
 if [ ! -e "$TRADER_DIR/user_data/budget.sqlite" ]; then
   safe_tree_path "$TRADER_DIR/user_data/budget.sqlite"
@@ -496,10 +496,12 @@ if [ -d "$TRADER_DIR/var/twin" ]; then
   [ -e "$TWIN_ARCH" ] && TWIN_ARCH="${TWIN_ARCH}-$(date -u +%H%M%S)"
   mv "$TRADER_DIR/var/twin" "$TWIN_ARCH" && echo "Ikiz verisi arsive tasindi (silinmedi): $TWIN_ARCH"
 fi
-# 24.11 kullanici karari: AI veto ve C1 artiklari tamamen silindi. 25.11: haber sinyali (HB1) isi de kaldirildi (trader-haber-sinyal.*). Eski kurulumdaki birimler/dosyalar burada temizlenir
+# 24.11 kullanici karari: AI veto ve C1 artiklari tamamen silindi. 25.11: haber sinyali (HB1) isi de kaldirildi (trader-haber-sinyal.*);
+# 25.11 sahip karari: ders sistemi (trader-lesson.*) ve gece islem notu (trader-notes.*) kaldirildi, ogrenme ML1'e tasindi. Eski kurulumdaki birimler/dosyalar burada temizlenir
 # (her adim varlik kontrollu ve idempotent; defter/state dosyalarina DOKUNULMAZ, shared/veto/ okunmaz ve silinmez).
 for u in trader-veto.timer trader-veto.service trader-ct-kadro.timer trader-ct-kadro.service trader-c1-goc.service \
-         trader-haber-sinyal.timer trader-haber-sinyal.service; do
+         trader-haber-sinyal.timer trader-haber-sinyal.service \
+         trader-lesson.timer trader-lesson.service trader-notes.timer trader-notes.service; do
   if [ -e "${UNIT_DIR}/$u" ] || systemctl is-enabled --quiet "$u" 2>/dev/null || systemctl is-active --quiet "$u" 2>/dev/null; then
     systemctl disable --now "$u" >/dev/null 2>&1 || true
   fi
@@ -537,7 +539,7 @@ drift_first_run() { # var/<bot> dizinini hazirla ve ilk olcumu hemen al (yoksa s
 }
 enable_now trader-drift@learner.timer; drift_first_run learner   # gunluk sapma izleyicisi (WP-2; 20:20 TSI, salt okunur; var/<bot>/drift.json tek yazar; Telegram'a mesaj atmaz)
 enable_now trader-counterfactual@learner.timer   # alinmayan sinyal gece isi (23:10 UTC); defter/market salt okunur, var/<bot>/counterfactual.sqlite tek yazar
-enable_now trader-exit-counterfactual@learner.timer   # cikis karsi-olgusu gece isi (23:40 UTC; plan 25c); defter/market salt okunur, var/<bot>/exit_counterfactual.sqlite tek yazar; yalniz kanit (ders menusune bilgi)
+enable_now trader-exit-counterfactual@learner.timer   # cikis karsi-olgusu gece isi (23:40 UTC; plan 25c); defter/market salt okunur, var/<bot>/exit_counterfactual.sqlite tek yazar; yalniz kanit (panel/rapor bilgisi)
 enable_now trader-panel.service   # salt okunur pano: yalniz 127.0.0.1:8787, anahtar gerekmez
 
 # Kurulum isareti (docs/sunucu-kurulum.md 'Kurulum sonrasi koruma'): kod degistiyse motorlar yeniden baslamadan ONCE yazilir.
@@ -583,12 +585,7 @@ if has_value /etc/trader-telegram.env TELEGRAM_BOT_TOKEN && has_value /etc/trade
   # saglik uyarilari Telegram'a: anahtarlar tamam oldugunda NOTIFIER=auto zaten telegram'i secer (ornek dosyada auto); log kalmissa auto yap
   sed -i 's#^NOTIFIER=log$#NOTIFIER=auto#' /etc/trader-health.env
 else MISSING+=("/etc/trader-telegram.env -> TELEGRAM_BOT_TOKEN ve TELEGRAM_CHAT_ID (Telegram)"); fi
-# ders: Anthropic anahtari VE Telegram anahtarlari (config/lesson.json notifier=telegram; bildirimcisiz cikis 1)
-if has_value /etc/trader-lesson.env ANTHROPIC_API_KEY_LESSON && [ "$TG_OK" -eq 1 ]; then
-  enable_now trader-lesson.timer
-else MISSING+=("/etc/trader-lesson.env  -> ANTHROPIC_API_KEY_LESSON ve Telegram anahtarlari (ders servisi; ikisi de dolu olmadan acilmaz)"); fi
-# DD-12 WP-09: gece islem notu (kodla; anahtar/ag gerekmez) ve haftalik ozet (anahtar yoksa no-op; butce payi haftalik_ozet)
-enable_now trader-notes.timer
+# 25.11: ders servisi ve gece islem notu kaldirildi (yukaridaki emekli birim dongusu eski kopyalari temizler); haftalik ozet (anahtar yoksa no-op; butce payi haftalik_ozet) ayri zamanlayicidir
 enable_now trader-ml-retrain.timer
 # DD-12 WP-16: unit ReadWritePaths (namespace) icin dizin ilk kurulumda olussun; birim ilk calismadan once vardir
 safe_tree_path "$TRADER_DIR/var/universe"
@@ -690,11 +687,11 @@ else MISSING+=("/etc/trader-testnet.env  -> BINANCE_API_KEY ve BINANCE_API_SECRE
 # DD-12 WP-18: kâgit kapanis denetimi (yalniz UYARI; kurulumu durdurmaz). DD-12 zamanlayicilari etkin olmali; veto, C1 ve ikiz
 # birimleri kalmamali (kaldirma yukarida yapildi; eski bir kopya kaldiysa burada gorunur).
 say "DD-12 zamanlayici denetimi"
-for t in trader-notes.timer trader-weekly-summary.timer trader-ml-retrain.timer trader-universe.timer \
+for t in trader-weekly-summary.timer trader-ml-retrain.timer trader-universe.timer \
          trader-counterfactual@learner.timer trader-exit-counterfactual@learner.timer trader-tutarlilik.timer trader-mutabakat.timer trader-tur1-olcum.timer trader-tur1-haftalik.timer trader-weekly-collect.timer trader-yorumcu.timer trader-durum-yayin.timer trader-haber.timer trader-piyasa-veri.timer trader-bakim.timer trader-strateji-veri.timer; do
   if systemctl is-enabled --quiet "$t" 2>/dev/null; then echo "  etkin: $t"; else echo "UYARI: $t etkin degil (systemctl enable --now $t)"; fi
 done
-for u in trader-veto.service trader-veto.timer trader-c1-goc.service trader-haber-sinyal.timer trader-haber-sinyal.service trader-engine@twin.service trader-engine-retry@twin.timer; do
+for u in trader-veto.service trader-veto.timer trader-c1-goc.service trader-haber-sinyal.timer trader-haber-sinyal.service trader-lesson.timer trader-lesson.service trader-notes.timer trader-notes.service trader-engine@twin.service trader-engine-retry@twin.timer; do
   if [ -e "${UNIT_DIR}/$u" ]; then echo "UYARI: eski birim duruyor: $u (install.sh'i yeniden calistirin veya elle kaldirin)"; fi
 done
 say "OZET"

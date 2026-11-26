@@ -21,7 +21,7 @@ from pathlib import Path
 _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE.parent / "src"))
 
-from trader_core import lesson as LS  # noqa: E402
+from trader_core import kol_yasam as KY  # noqa: E402
 from trader_core import panel_data as P  # noqa: E402
 from trader_core import strateji_veri as SV  # noqa: E402
 from trader_core import telegram as T  # noqa: E402
@@ -66,21 +66,17 @@ def rapor_uret(root: Path, now: datetime) -> str | None:
         kararlar = led.list_decisions(since_ts=SV.KILIT[1])
         kapali = led.list_closed_trades(since=SV.KILIT[1], limit=P.CLOSED_MAX)
         acik = led.list_open_trades()
-        try:
-            fren = bool(LS.brake_active(led))
-        except Exception:  # noqa: BLE001
-            fren = None
     finally:
         led.close()
     by_id = {d.id: d for d in kararlar}
     islemler = SV.islem_satirlari(kapali, acik, by_id)
     kr = SV.karar_satirlari(kararlar)
     atlanan = (len(kapali) + len(acik) - len(islemler)) + (len(kararlar) - len(kr))
-    arms_off = LS.read_arms_state(led_path.parent / "arms_off.json")           # yok/bozuk -> {} (hepsi acik)
+    arms_off = KY.read_arms_state(led_path.parent / "arms_off.json")           # yok/bozuk -> {} (hepsi acik)
     tut, tut_t = SV.tutarlilik_oku(root / "var" / "durum" / "tutarlilik_v1.json")
     doc = SV.hesapla(kollar=yapilandirilmis_kollar(root / "config"), islemler=islemler, kararlar=kr, simdi=now, tutarlilik=tut,
                      tut_veri=tut_t, arms_off=arms_off,
-                     fren=fren, atlanan=atlanan)
+                     atlanan=atlanan)
     return SV.markdown(doc)
 
 

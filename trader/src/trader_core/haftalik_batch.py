@@ -1,6 +1,6 @@
 """Haftalik YZ raporlari icin Message Batches API yardimcisi (24 Kasim 2026 kullanici karari: promosyon kredisi yalniz Batch'i kapsar).
 
-Kullananlar: `scripts/weekly_summary_run.py`, `scripts/tur1_haftalik_yorum_run.py`. Ders sistemindeki `lesson.AnthropicBatchClient`
+Kullananlar: `scripts/weekly_summary_run.py`, `scripts/tur1_haftalik_yorum_run.py`. `ortak.AnthropicBatchClient`
 (submit/poll/cancel) kullanilir; yeni SDK ya da istemci yok. Akis: GONDER (butce `authorize` (batch fiyatli tahmin) -> `client.submit` ->
 durum dosyasi: batch kimligi + butce rezervi) ve sonraki kosularda TOPLA (`client.poll`; bitince `record(..., batch=True)`, basarisizsa
 `release`). Durum dosyasi diskte tutulur: ayni hafta icin ikinci gonderim yapilmaz.
@@ -19,7 +19,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from trader_core import budget as _budget
-from trader_core import lesson as LS
+from trader_core import ortak as ORT
 
 log = logging.getLogger("trader.haftalik_batch")
 POLL_ARALIK_S = 30.0
@@ -80,7 +80,7 @@ def varsayilan_istemci(env, b, service: str, timeout_s: float = 60.0):
     if not key:
         return None
     import anthropic  # noqa: PLC0415  (mevcut SDK; yeni bagimlilik yok)
-    return LS.AnthropicBatchClient(client=anthropic.Anthropic(api_key=key, max_retries=0, timeout=timeout_s))
+    return ORT.AnthropicBatchClient(client=anthropic.Anthropic(api_key=key, max_retries=0, timeout=timeout_s))
 
 
 def telegram_yaz(tg_dir: Path, text: str, dedup_key: str, now: datetime) -> bool:
@@ -101,7 +101,7 @@ def gonder(client, b, service: str, model: str, params: dict, est_in_tokens: int
     try:
         est = b.estimate_cost(model, max(1, est_in_tokens), max_out, batch=True)
     except Exception as e:  # noqa: BLE001  (model fiyat tablosunda yok vb.)
-        log.warning("maliyet tahmini yapilamadi: %s", LS.scrub(e))
+        log.warning("maliyet tahmini yapilamadi: %s", ORT.scrub(e))
         return None, "no_price"
     grant = b.authorize(service, est)
     if not hasattr(grant, "grant_id"):
@@ -112,8 +112,8 @@ def gonder(client, b, service: str, model: str, params: dict, est_in_tokens: int
         try:
             b.release(grant)
         except Exception as e2:  # noqa: BLE001
-            log.error("butce serbest birakilamadi: %s", LS.scrub(e2))
-        log.warning("batch gonderilemedi: %s", LS.scrub(type(e).__name__))
+            log.error("butce serbest birakilamadi: %s", ORT.scrub(e2))
+        log.warning("batch gonderilemedi: %s", ORT.scrub(type(e).__name__))
         return None, "llm_error"
     return {"hafta": hafta, "batch_id": str(bid), "custom_id": custom_id, "model": model, "service": service,
             "grant": _grant_dict(grant), "submitted_at": utc_iso(now), "durum": SUBMITTED}, "submitted"
@@ -131,7 +131,7 @@ def _yokla(client, st: dict) -> Sonuc:
     except Exception as e:  # noqa: BLE001
         if getattr(e, "status", None) == 404 or getattr(e, "status_code", None) == 404:
             return Sonuc("failed", neden="batch bulunamadı")
-        log.warning("batch yoklanamadi (sonraki kosuda tekrar): %s", LS.scrub(type(e).__name__))
+        log.warning("batch yoklanamadi (sonraki kosuda tekrar): %s", ORT.scrub(type(e).__name__))
         return Sonuc("pending")
     if pr.status != "ended":
         return Sonuc("pending")
@@ -170,12 +170,12 @@ def topla(client, st: dict, now: datetime, b, *, bekle_s: float = 0.0, sleep=tim
         grant = _grant_nesne(st.get("grant") or {}, service)
         if sn.durum == "ok":
             try:
-                b.record(service, grant, LS.budget_usage(sn.usage), model, True)
+                b.record(service, grant, ORT.budget_usage(sn.usage), model, True)
             except Exception as e:  # noqa: BLE001
-                log.error("butce kaydi yazilamadi: %s", LS.scrub(e))
+                log.error("butce kaydi yazilamadi: %s", ORT.scrub(e))
             return sn
         try:
             b.release(grant)
         except Exception as e:  # noqa: BLE001
-            log.error("butce serbest birakilamadi: %s", LS.scrub(e))
+            log.error("butce serbest birakilamadi: %s", ORT.scrub(e))
         return sn

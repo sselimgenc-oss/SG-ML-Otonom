@@ -196,27 +196,3 @@ def test_cpcv_counts_and_disjointness():
     for g in range(N):                                  # each group is tested in C(N-1,k-1) splits
         assert sum(g in tg for tg in res.test_groups) == 5
         assert sorted(res.paths[:, g].tolist()) == sorted(i for i, tg in enumerate(res.test_groups) if g in tg)
-
-
-# ---------------------------------------------------------------------------------------------- lesson_stats_check
-def test_lesson_stats_check_report_and_cli(tmp_path, capsys):
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-    import lesson_stats_check as C
-
-    rng = np.random.default_rng(5)
-    rows = [("T1" if i % 3 else "R1", float(rng.normal(0.3, 1.0)), f"2026-01-{1 + i // 3:02d}") for i in range(90)]
-    rep = C.build_report(rows, (30, 45, 60))
-    assert rep["n_closed"] == 90 and rep["n_cells"] == 7   # ALL 3 + T1(60 rows) 3 + R1(30 rows) 1
-    allc = [x for x in rep["cells"] if x["scope"] == "ALL"]
-    assert [x["c"] for x in allc] == [30, 45, 60]
-    x = allc[0]
-    r30 = np.array([r for _, r, _ in rows[:30]])
-    assert x["mean_r"] == pytest.approx(r30.mean())
-    sr = r30.mean() / r30.std(ddof=1)
-    assert x["sharpe_trade"] == pytest.approx(sr)
-    assert 0.0 <= x["p_cl"] <= x["p_holm"] <= 1.0          # Holm never lowers a p-value
-    assert 0.0 <= x["dsr"] <= x["psr0"] <= 1.0              # deflating never raises the probability
-    assert "karara etkisi yok" in C.render_text(rep)
-    assert C.build_report(rows[:10], (30,))["cells"] == []
-    assert C.main(["--ledger", str(tmp_path / "yok.sqlite")]) == 1
-    assert C.main(["--ledger", "x", "--checkpoints", "a"]) == 1

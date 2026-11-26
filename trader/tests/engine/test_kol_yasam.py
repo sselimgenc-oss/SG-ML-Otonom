@@ -1,7 +1,6 @@
-"""24.11 kullanici karari: ders hizi / aile destegi (kol aç/kapa dersinde aile ortalamasi, alinsaydi temizligi, kartlar)."""
+"""24.11 kullanici karari: kol ac/kapa yasam dongusunde aile destegi (aile ortalamasi, alinsaydi temizligi, kartlar). Ders sistemi kaldirildi (25.11); kol_yasam modulu kalir."""
 from __future__ import annotations
 
-import json
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -13,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from trader_core import counterfactual as CF  # noqa: E402
-from trader_core import lesson as LS  # noqa: E402
+from trader_core import kol_yasam as LS  # noqa: E402
 from trader_core import panel_pano as PP  # noqa: E402
 import counterfactual_run as CR  # noqa: E402
 
@@ -132,42 +131,18 @@ def test_arm_rows_plan_once_sonra_barrier(tmp_path):
     assert {x["decision_id"]: x["hyp_r_net"] for x in CF.arm_rows(p, "learner", method="barrier")} == {1: -1.0, 2: 0.5}
 
 
-# ---- madde 4/6: esikler ve geri alma degismedi --------------------------------------------------------------------------
-def test_lesson_json_esikleri_degismedi():
-    """24.11 kullanici karari: ders hizi / aile destegi - ders esikleri (lesson.json) AYNEN kalir."""
-    doc = json.loads((Path(__file__).resolve().parents[2] / "config" / "lesson.json").read_text(encoding="utf-8"))
-    assert (doc["min_affected"], doc["min_gap_r"], doc["min_z"], doc["min_distinct_days"]) == (8, 0.5, 1.64, 4)
-    assert (doc["shrink_n"], doc["rollback_effect_r"], doc["brake_effect_r"]) == (10, 3.0, 10.0)
+def test_kol_yasam_esikleri_degismedi():
     assert (LS.ARM_CLOSE_R, LS.ARM_REOPEN_R) == (-0.15, 0.05)
+    assert (LS.SHRINK_N, LS.ROLLBACK_EFFECT_R) == (10, 3.0)
+
+
+def test_arms_state_yaz_oku(tmp_path):
+    LS.write_arms_state(tmp_path / "arms_off.json", {"R1@1h": {"state": "closed"}}, NOW)
+    assert LS.read_arms_state(tmp_path / "arms_off.json") == {"R1@1h": {"state": "closed"}}
+    assert LS.read_arms_state(tmp_path / "yok.json") == {}
 
 
 # ---- madde 5: kartlar ---------------------------------------------------------------------------------------------------
-def test_kol_dersleri_arms_off(tmp_path):
-    LS.write_arms_state(tmp_path / "arms_off.json", {
-        "R1@1h": {"state": "closed", "epoch_start": "2026-11-10T10:00:00+00:00", "closed_at": "2026-11-10T10:00:00+00:00",
-                  "n": 4, "mean_r": -0.2, "last_event": "closed"},
-        "T1@4h": {"state": "open", "epoch_start": "2026-11-15T10:00:00+00:00", "closed_at": None, "n": 2, "mean_r": 0.1,
-                  "last_event": "reopened"},
-        "M1@1h": {"state": "open", "epoch_start": None, "closed_at": None, "n": 0, "mean_r": None, "last_event": None}}, NOW)
-    r = PP.kol_dersleri(str(tmp_path / "l.sqlite"))
-    assert [(x["kol"], x["olay"]) for x in r] == [("T1@4h", "reopened"), ("R1@1h", "closed")]
-    assert PP.kol_dersleri(str(tmp_path / "yok" / "l.sqlite")) == []
-
-
-def _cp(stream, c_, mid, n_a, n_b, g, passed=False):
-    return LS.CheckpointResult(stream, "rr_min", c_, "2026-11-20", "h", passed, "2026-11-27",
-                               {mid: {"passed": passed, "fail_reasons": [], "stats": {"n_a": n_a, "n_b": n_b, "g": g}}})
-
-
-def test_ders_ilerleme_en_yakin_aday():
-    cfg = LS.load_config()
-    assert LS.lesson_progress([], cfg) is None
-    cps = [_cp("s1", 10, "rr_min:down", 1, 9, 1), _cp("s1", 20, "rr_min:down", 5, 9, 3),      # s1: son nokta 5/8, 3/4
-           _cp("s2", 20, "vol_ratio_max:up", 2, 8, 2)]
-    r = LS.lesson_progress(cps, cfg)
-    assert (r["akis"], r["n"], r["n_hedef"], r["gun"], r["gun_hedef"]) == ("s1", 5, 8, 3, 4)
-
-
 def test_kucultme_karti_aile_nedeni_ve_sifir_islemli_kol(tmp_path):
     from panel_support import mkledger
     t0 = datetime(2026, 11, 1, tzinfo=UTC)

@@ -355,11 +355,11 @@ def _can_unshare():
 @pytest.mark.skipif(not _can_unshare(), reason="mount namespace (root+unshare) yok")
 def test_sandbox_file_level_rw_cannot_create_sqlite_journal_or_wal(tmp_path):
     """ProtectSystem=strict + `ReadWritePaths=<dosya>`: dizin salt okunur kalir; SQLite -journal/-wal/-shm OLUSTURAMAZ.
-    Ders/Telegram birimleri budget.sqlite (journal_mode=DELETE) ve lesson.sqlite (WAL) icin yalniz dosya yollari listeler -> OPEN-2.
+    Telegram/yorumcu birimleri budget.sqlite (journal_mode=DELETE) ve WAL kipli sqlite dosyalari icin yalniz dosya yollari listeler -> OPEN-2.
     Dizin duzeyinde RW verilince calisir (karsi kanit)."""
     ud = tmp_path / "ud"
     ud.mkdir()
-    for n, mode in (("budget.sqlite", "DELETE"), ("lesson.sqlite", "WAL")):
+    for n, mode in (("budget.sqlite", "DELETE"), ("wal.sqlite", "WAL")):
         c = sqlite3.connect(ud / n)
         c.execute(f"pragma journal_mode={mode}")
         c.execute("create table t(x)")
@@ -369,7 +369,7 @@ def test_sandbox_file_level_rw_cannot_create_sqlite_journal_or_wal(tmp_path):
     probe.write_text('''
 import sqlite3, sys
 res = []
-for n, m in (("budget.sqlite", "DELETE"), ("lesson.sqlite", "WAL")):
+for n, m in (("budget.sqlite", "DELETE"), ("wal.sqlite", "WAL")):
     try:
         c = sqlite3.connect(sys.argv[1] + "/" + n, timeout=1, isolation_level=None)
         c.execute("pragma journal_mode=" + m); c.execute("begin immediate"); c.execute("insert into t values(1)"); c.execute("commit"); c.close()
@@ -385,12 +385,12 @@ print(" ".join(res))
             extra = f'mount --bind {ud} {ud}\n'
         else:
             extra += "".join(f'[ -e {ud}/{f} ] && {{ mount --bind {ud}/{f} {ud}/{f}; mount -o remount,bind,rw {ud}/{f}; }}\n'
-                             for f in ("budget.sqlite", "lesson.sqlite", "lesson.sqlite-wal", "lesson.sqlite-shm"))
+                             for f in ("budget.sqlite", "wal.sqlite", "wal.sqlite-wal", "wal.sqlite-shm"))
         r = subprocess.run(["unshare", "-m", "sh", "-c", extra + f'{sys.executable} {probe} {ud}'], capture_output=True, text=True)
         return r.stdout.strip()
 
-    assert run(dir_rw=False) == "budget.sqlite:FAIL lesson.sqlite:FAIL"
-    assert run(dir_rw=True) == "budget.sqlite:ok lesson.sqlite:ok"
+    assert run(dir_rw=False) == "budget.sqlite:FAIL wal.sqlite:FAIL"
+    assert run(dir_rw=True) == "budget.sqlite:ok wal.sqlite:ok"
 
 
 # ------------------------------------------------------------------ yedek (backup timer'in calistirdigi kod): ledger+state yedegi, dogrulama

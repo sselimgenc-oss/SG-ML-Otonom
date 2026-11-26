@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from trader_core import counterfactual as CF  # noqa: E402
-from trader_core import lesson as LS  # noqa: E402
+from trader_core import kol_yasam as LS  # noqa: E402
 from trader_engine import arm_guard as AG  # noqa: E402
 from trader_engine.marketdata.store import MarketStore  # noqa: E402
 from trader_engine.types import Bar  # noqa: E402

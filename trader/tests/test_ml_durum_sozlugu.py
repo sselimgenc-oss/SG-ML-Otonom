@@ -1,4 +1,4 @@
-"""Ders/Etiket ortak durum sozlugu + sahipsiz karar duzeltmesi + OZET'te ders karti (24.11: makine ogrenmesi karti silindi)."""
+"""Ortak durum sozlugu + sahipsiz karar duzeltmesi + OZET'te ders karti YOK (24.11: makine ogrenmesi karti, 25.11: ders karti silindi)."""
 from __future__ import annotations
 
 import sys
@@ -20,12 +20,13 @@ def test_vocabulary_strings_and_colours():
     assert PP.ogrenme_durumu(False, False, 6, 10) == ("Kapalı", "gri")
 
 
-def test_ozet_always_has_ders_card_and_no_ml_card():
+def test_ozet_has_no_ders_card_and_no_ml_card():
     js = (ROOT / "src/trader_panel/static/panel.js").read_text(encoding="utf-8")
     ozet = js.split("function tabOzet")[1].split("function isikKart")[0]
-    assert "'Ders öğrenmesi'" in ozet and "'Makine öğrenmesi'" not in js
-    assert "if (p.ders)" not in ozet and "p.ml" not in js
-    assert "Henüz ders yok" in ozet and "Son 7 günde değiştirdiği işlem" in ozet
+    assert "'Ders öğrenmesi'" not in js and "'Makine öğrenmesi'" not in js
+    assert "p.ders" not in js and "p.ml" not in js
+    assert "Henüz ders yok" not in js and "Son 7 günde değiştirdiği işlem" not in js
+    assert "ogrenmeOzetKart" in ozet                     # kalan ogrenme karti: kol x zaman dilimi ozeti
 
 
 def _eng(led, in_flight=()):

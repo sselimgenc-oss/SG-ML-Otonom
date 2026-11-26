@@ -1,5 +1,5 @@
-"""DD-12 WP-17 uygulayici duman testleri: ogrenme gorunumu (kurulum karnesi, ders, ML, seans/varlik kirilimi, acik
-pozisyon, haftalik ozet, harcama), Telegram bolumleri ve /kurulumlar, /ders komutlari, pano uc noktasi ve sekme."""
+"""DD-12 WP-17 uygulayici duman testleri: ogrenme gorunumu (kurulum karnesi, ML, seans/varlik kirilimi, acik
+pozisyon, haftalik ozet, harcama), Telegram bolumleri ve /kurulumlar komutu, pano uc noktasi ve sekme."""
 from __future__ import annotations
 
 import json
@@ -58,7 +58,7 @@ def _act(kind, actor, reason, at=NOW):
 
 @pytest.fixture
 def world(tmp_path, monkeypatch):
-    """Kurulum karnesi, ders, ML, seans ve acik pozisyon senaryosu; yollar tmp, defter sahte."""
+    """Kurulum karnesi, ML, seans ve acik pozisyon senaryosu; yollar tmp, defter sahte."""
     led_path = tmp_path / "var" / "ledger.sqlite"
     led_path.parent.mkdir(parents=True)
     led_path.write_bytes(b"")                         # varlik kontrolu icin; okuma sahte defterden
@@ -83,8 +83,7 @@ def world(tmp_path, monkeypatch):
     ]
     trades = [SimpleNamespace(decision_id=1, r_multiple=1.0), SimpleNamespace(decision_id=3, r_multiple=-0.5)]
     open_trades = [SimpleNamespace(decision_id=5, pair="ETH/USDT")]
-    acts = [_act("rollback", "lesson", "lesson_brake: referans sürüme dönüldü"), _act("apply", "lesson", "ders")]
-    fake = FakeLedger(decisions, trades, open_trades, acts)
+    fake = FakeLedger(decisions, trades, open_trades, [])
     monkeypatch.setattr(PD, "open_ledger_ro", lambda path, bot: fake)
     cf_rows = [{"decision_id": 2, "hyp_r_net": -1.0}, {"decision_id": 4, "hyp_r_net": 0.5}]
     monkeypatch.setattr(CF, "arm_rows", lambda path, bot, **kw: cf_rows)
@@ -103,7 +102,7 @@ def test_parse_ts_z_accepts_fractional_utc_and_rejects_naive_or_offset():
 
 
 # ---- ogrenme gorunumu -------------------------------------------------------------------------------------------
-def test_learning_view_scorecard_lesson_m1_sessions_open(world):
+def test_learning_view_scorecard_m1_sessions_open(world):
     lv = PD.learning_view(world.ledger, world.budget, NOW)
     arms = {r["arm"]: r for r in lv["scorecard"]}
     t1, m1, f1 = arms["T1@1h"], arms["M1@1h"], arms["F1@1h"]
@@ -111,9 +110,7 @@ def test_learning_view_scorecard_lesson_m1_sessions_open(world):
     assert t1["mean_r_taken_cf"] == pytest.approx((1.0 - 1.0) / 2)     # alinan + alinmayan; 24.11: tekillestirme 4. karari dusurur
     assert (m1["candidates"], m1["taken"], m1["mean_r_taken"], m1["state"]) == (2, 2, -0.5, "closed")
     assert (f1["candidates"], f1["state"]) == (0, "open")                     # yapilandirilmis, adayi yok
-    assert lv["lesson"]["applied"] == 1 and lv["lesson"]["rollbacks"] == 0
-    assert lv["lesson"]["brake_active"] is True and lv["lesson"]["brake_events"] == 1
-    assert lv["lesson"]["closed_arms"] == ["M1@1h"]
+    assert "lesson" not in lv                                                  # 25.11: ders sistemi kaldirildi
     assert "ml" not in lv                                                      # 24.11: ML filtre sayilari (elenen/gecen/etki) silindi
     assert (lv["m1"]["candidates"], lv["m1"]["taken"]) == (2, 2)
     assert lv["sessions"]["open"]["kripto"]["taken"] == 2
@@ -141,20 +138,19 @@ def _cfg(world):
 def test_daily_sections_show_learning_and_scorecard(world):
     cfg = _cfg(world)
     ogr = T.rapor_ogrenme(cfg, NOW)
-    assert "Ders: uygulanan 1 · geri alınan 0 · −10 R freni AKTİF" in ogr
-    assert "elenen" not in ogr and "M1: aday 2, giriş 2" in ogr
+    assert "Ders:" not in ogr and "elenen" not in ogr and "M1: aday 2, giriş 2" in ogr
     assert "Haftalık özet (2026-W47)" in ogr
     karne = T.rapor_kurulum_karnesi(cfg, NOW)
     assert "T1@1h: aday 2 · alınan 1" in karne and "M1@1h: aday 2 · alınan 2" in karne and "KAPALI" in karne
     assert "F1@1h" not in karne                                                 # adayi olmayan kurulum satiri yok
     out = T.build_report(cfg, NOW, "2026-11-19", {"Öğrenme": lambda: ogr, "Kurulum karnesi": lambda: karne})
     assert "📚" not in out and "🧪" not in out and len(out.splitlines()) <= 12     # gunluk ozet kisa; bolumler komutlarda
-    assert ogr.index("📚 Ders") < ogr.index("Haftalık özet")
+    assert ogr.index("M1: aday") < ogr.index("Haftalık özet")
     for banned in ("ikiz", "twin", "veto"):
         assert banned not in (ogr + karne).lower()
 
 
-def test_kurulumlar_and_ders_commands_reply_through_dispatch(world):
+def test_kurulumlar_command_replies_through_dispatch(world):
     cfg = _cfg(world)
     sent: list[str] = []
 
@@ -163,13 +159,11 @@ def test_kurulumlar_and_ders_commands_reply_through_dispatch(world):
             sent.append(text)
             return {"ok": True}
 
-    d = T.TelegramDaemon(cfg, Client(), now_fn=lambda: NOW, runner=lambda *a: (0, "{}"), sleep=lambda s: None)
-    assert "/kurulumlar" in T.HELP and "/ders" in T.HELP
+    d = T.TelegramDaemon(cfg, Client(), now_fn=lambda: NOW, sleep=lambda s: None)
+    assert "/kurulumlar" in T.HELP and "/ders" not in T.HELP
     assert d._dispatch_text("/kurulumlar", "x") == "ok"
     assert sent[-1].startswith("🧪 Kurulum karnesi") and "T1@1h: aday 2" in sent[-1]
-    assert d._dispatch_text("/ders", "x") == "ok"
-    assert "Uygulanan değişiklik: 1" in sent[-1] and "AKTİF" in sent[-1]
-    assert "M1@1h" in sent[-1]                                                  # kapali kurulum
+    assert d._dispatch_text("/ders", "x") == "removed" and "kaldirildi" in sent[-1]    # eski komut: tek satir yanit
     assert "/rapor" in T.HELP
 
 
@@ -182,7 +176,7 @@ def test_commands_report_unreadable_data_in_one_line(tmp_path):
             sent.append(text)
             return {"ok": True}
 
-    d = T.TelegramDaemon(cfg, Client(), now_fn=lambda: NOW, runner=lambda *a: (0, "{}"), sleep=lambda s: None)
+    d = T.TelegramDaemon(cfg, Client(), now_fn=lambda: NOW, sleep=lambda s: None)
     assert d._dispatch_text("/kurulumlar", "x") == "unreadable"
     assert sent == ["okunamadı: defter_yok"]                                     # komutta kod; günlük raporda yok
 
@@ -197,10 +191,10 @@ def test_panel_endpoint_and_tab(world, tmp_path):
                              "status_path": str(tmp_path / "status.json")}, tmp_path)
     data = PDATA.PanelData(cfg, clock=lambda: NOW)
     v = data.learning()
-    assert v["ok"] is True and v["scorecard"] and v["lesson"]["brake_active"] is True
+    assert v["ok"] is True and v["scorecard"] and "lesson" not in v
     assert "/api/learning" in SRV.build_api(data)
     html = (STATIC / "index.html").read_text(encoding="utf-8")
-    # 20.11 yeni pano (6 sekme): ders + ML ogrenme sekmesinde, saglik teknik sekmesinde; veri /api/pano'dan
+    # 20.11 yeni pano (6 sekme): ML ogrenme sekmesinde, saglik teknik sekmesinde; veri /api/pano'dan
     assert 'id="sek-ogrenme"' in html and 'id="sek-teknik"' in html
     js = (STATIC / "panel.js").read_text(encoding="utf-8")
     assert "['ogrenme', 'ÖĞRENME']" in js and "/api/pano" in js

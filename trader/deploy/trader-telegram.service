@@ -22,8 +22,8 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
-# user_data DIZIN duzeyinde (lesson.sqlite WAL, budget.sqlite journal, lesson.lock; `lesson_run.py --resolve` alt sureci icin; OPEN-2).
-# var/learner: ders aktivasyonu icin yazma; var/learner: /durdur denetim gunlugu (pause_audit.jsonl) icin yazma.
+# user_data DIZIN duzeyinde (budget.sqlite journal yan dosyalari icin; OPEN-2).
+# var/learner: /durdur denetim gunlugu (pause_audit.jsonl) icin yazma.
 ReadWritePaths=/opt/trader/var/telegram /opt/trader/shared /opt/trader/user_data -/opt/trader/var/learner -/opt/trader/var-live/learner
 # Kurulum: groupadd trader-tg; usermod -aG trader-tg trader; install -d -m 2770 -o trader -g trader-tg /opt/trader/var/telegram/outbox
 

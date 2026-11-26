@@ -1,27 +1,13 @@
-"""Seans disi kapisi ek testleri: ders kirlenmesi (S1), takvim eskimesi + tek uyari (S4), 2027 FOMC (N1), erken kapanis (N2)."""
+"""Seans disi kapisi ek testleri: takvim eskimesi + tek uyari (S4), 2027 FOMC (N1), erken kapanis (N2)."""
 from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta, timezone
-from types import SimpleNamespace
+from datetime import datetime
 
-from trader_core import lesson as LS
 from trader_engine import seans_disi as SD
 
 from test_emtia_hafta_sonu_gate import BTC, KOD, NVDA, ROOT, XAU, _go, _gecer, _kur, env, u  # noqa: F401,E402
-
-
-# ------------------------------------------------------------------------------------------------ S1 ders kirlenmesi
-def test_s1_seans_disi_atlamalari_ders_olcusune_girmez(monkeypatch):
-    """session_closed yazan kapi atlamalari: yalniz `gate:session_closed` (ders parametresi) olcuye girer; gate:seans_disi_* girmez."""
-    monkeypatch.setattr(LS, "would_take", lambda params, d: params["a"] == 1)
-    mk = lambda i, vr: SimpleNamespace(id=i, final_action="skipped", skip_reason="session_closed", veto_reason=vr)  # noqa: E731
-    decs = [mk(1, "gate:session_closed"), mk(2, "gate:seans_disi_hafta_sonu"), mk(3, "gate:seans_disi_tatil"), mk(4, "gate:seans_disi_haber")]
-    t = datetime(2026, 12, 1, tzinfo=timezone.utc)
-    eff = LS.measure_effect(None, SimpleNamespace(shrink_n=10), {"a": 1}, {"a": 2}, t, t + timedelta(days=1),
-                            caps=object(), feats=object(), cf_r={1: 0.5, 2: 0.5, 3: 0.5, 4: 0.5}, trade_rows={}, decisions=decs)
-    assert eff.n == 1 and eff.n_added == 1
 
 
 # ------------------------------------------------------------------------------------------------ S4 takvim eskimesi + tek uyari

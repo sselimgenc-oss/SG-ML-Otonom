@@ -15,7 +15,7 @@ import pytest
 
 from trader_core import budget as B
 from trader_core import haftalik_batch as HB
-from trader_core import lesson as LS
+from trader_core import ortak as LS
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -89,11 +89,9 @@ LP_REL = Path("var") / "learner" / "ledger.sqlite"
 class SahteDefter:
     LIST_CLOSED_MAX = 10
 
-    def list_trade_notes(self):
-        return [{"note_date": "2026-11-29", "tags": ["x"], "text": "not 1", "trade_id": "t1"}]
-
     def list_closed_trades(self, limit=0):
-        return []
+        return [SimpleNamespace(exit_ts=datetime(2026, 11, 29, 1, 0, tzinfo=UTC), exit_reason="stop", r_multiple=-1.0,
+                                setup="T1", pair="BTC/USDT", side="long")]
 
     def close(self):
         pass
@@ -105,7 +103,7 @@ def ozet(tmp_path, monkeypatch):
     (tmp_path / LP_REL).parent.mkdir(parents=True)
 
     def calistir(*extra, client=None, budget=None, now=NOW):
-        return W.main(["--once", "--ledger", str(tmp_path / LP_REL), "--lesson-store", str(tmp_path / "yok.sqlite"), *extra],
+        return W.main(["--once", "--ledger", str(tmp_path / LP_REL), *extra],
                       client=client, budget=budget, now_fn=lambda: now, env={"TRADER_DATA_ROOT": str(tmp_path)}, sleep=lambda s: None)
     md = tmp_path / "var" / "learner" / "weekly_summaries" / "2026-W48.md"
     return calistir, md, md.with_name("2026-W48.batch.json")

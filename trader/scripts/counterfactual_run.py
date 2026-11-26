@@ -5,7 +5,7 @@
 Defteri (var/<bot>/ledger.sqlite) ve var/market.sqlite'i yalnizca SALT OKUNUR acar; yalnizca var/<bot>/counterfactual.sqlite
 ve var/<bot>/arms_off.json'a yazar. Kurulum zaman dilimleri 15dk/1s/4s/1g; kayma seansa gore (config/engine.paper.json
 `cost_overrides`). Kurulum dersi: sonumlu ortalama <= -0,15 R -> kurulum kapanir; >= +0,05 R -> acilir; tek degisikligin
-etkisi <= -3 R -> geri alinir (lesson.arm_lifecycle_step). Motor, kapali kurulumu `arm_disabled` ile atlar (gates.py).
+etkisi <= -3 R -> geri alinir (kol_yasam.arm_lifecycle_step). Motor, kapali kurulumu `arm_disabled` ile atlar (gates.py).
 Cikis kodlari: 0 basarili (hesaplanacak karar yoklugu ve defter yoklugu dahil); 1 kullanim/yapilandirma hatasi;
 3 bozulmus calisma (market/defter/depo okunamadi ya da yazilamadi): systemd icin BASARISIZ => OnFailure.
 """
@@ -26,7 +26,7 @@ sys.path.insert(0, str(_HERE.parent / "src"))
 from trader_core import alinmayan_sonuc as AS  # noqa: E402
 from trader_core import counterfactual as CF  # noqa: E402
 from trader_core import ledger as L  # noqa: E402
-from trader_core import lesson as LS  # noqa: E402
+from trader_core import kol_yasam as KY  # noqa: E402
 from trader_engine import arm_guard as AG  # noqa: E402
 
 EXIT_OK, EXIT_CONFIG, EXIT_DEGRADED = 0, 1, 3
@@ -95,10 +95,10 @@ def _aile_ort(cands: list, arm: str, shrink_n: int) -> float | None:
     tot = n = 0.0
     for c in cands:
         if c["arm_id"] != arm and c["arm_id"].partition("@")[0] == fam and c["r"] is not None:
-            w = 1.0 if c["taken"] else LS.ARM_CF_AGIRLIK
+            w = 1.0 if c["taken"] else KY.ARM_CF_AGIRLIK
             tot += w * c["r"]
             n += w
-    return LS.damped_mean(tot, n, shrink_n) if n > 0 else None
+    return KY.damped_mean(tot, n, shrink_n) if n > 0 else None
 
 
 def _arm_lesson(led, cf_path: str, bot: str, state_path: str, arms: list, asset_of, now: datetime, dry_run: bool) -> dict:
@@ -106,21 +106,20 @@ def _arm_lesson(led, cf_path: str, bot: str, state_path: str, arms: list, asset_
     decisions = led.list_decisions()                          # salt okunur; aday filtresi arm_candidates'ta
     trades = led.list_closed_trades(limit=10000)              # LIST_CLOSED_MAX ust sinirinda; asanlar cozulmemis sayilir
     cands = CF.arm_candidates(decisions=decisions, trades=trades, cf_rows=CF.arm_rows(cf_path, bot), asset_class_of=asset_of)
-    lcfg = LS.load_config()
-    prev = LS.read_arms_state(state_path)
+    prev = KY.read_arms_state(state_path)
     states, events = {}, []
     seen = dict.fromkeys([*arms, *(c["arm_id"] for c in cands)])
     for arm in seen:
         cs = [(c["ts"], c["r"], c["taken"]) for c in cands if c["arm_id"] == arm and c["r"] is not None]
-        st, ev = LS.arm_lifecycle_step(prev.get(arm), cs, now, shrink_n=lcfg.shrink_n,
-                                       rollback_r=lcfg.rollback_effect_r, aile_ort=_aile_ort(cands, arm, lcfg.shrink_n),
-                                       cf_weight=LS.ARM_CF_AGIRLIK)
+        st, ev = KY.arm_lifecycle_step(prev.get(arm), cs, now, shrink_n=KY.SHRINK_N,
+                                       rollback_r=KY.ROLLBACK_EFFECT_R, aile_ort=_aile_ort(cands, arm, KY.SHRINK_N),
+                                       cf_weight=KY.ARM_CF_AGIRLIK)
         states[arm] = st
         if ev:
             events.append({"arm_id": arm, "event": ev})
             log.info("kurulum %s: %s", arm, ev)
     if not dry_run:
-        LS.write_arms_state(state_path, states, now)
+        KY.write_arms_state(state_path, states, now)
     closed = {a for a, s in states.items() if s["state"] == "closed"}
     return {"scorecard": CF.arm_scorecard(cands, arms=arms, closed=closed), "events": events,
             "closed": sorted(closed), "state_written": not dry_run}
@@ -186,7 +185,7 @@ def main(argv=None, *, now_fn=None) -> int:
                     led.close()
             except L.LedgerSchemaError:
                 log.info("kurulum dersi atlandi: defter sema 5 degil")
-    except (CF.CounterfactualError, L.LedgerError, LS.LessonError) as e:
+    except (CF.CounterfactualError, L.LedgerError) as e:
         log.error("bozulmus calisma: %s", getattr(e, "code", type(e).__name__))
         print(json.dumps({"bot": args.bot, "status": "degraded", "code": getattr(e, "code", type(e).__name__)}))
         return EXIT_DEGRADED

@@ -8,7 +8,7 @@ Sahip kararlari:
   * Kurulum karnesi: aday, alinan, ort. R (alinan), ort. R (alinan + alinsaydi), varlik sinifi kirilimi, acik/kapali.
   * Kapali kurulum motor tarafinda atlanir: skip_reason `arm_disabled`.
 
-Gerceklemeye BAKILMADI: yalniz committed sozlesmeler (counterfactual.py, lesson.py, config/*.json, ledger v5 kurali) ve
+Gerceklemeye BAKILMADI: yalniz committed sozlesmeler (counterfactual.py, kol_yasam.py, config/*.json, ledger v5 kurali) ve
 mevcut testlerin fikstur kalibi (tests/test_counterfactual.py) kullanildi. Veri tamamen sentetik; tarihler 2026-12
 (kilitli donem 2026-05-01..2026-11-01 disinda). Isim sabit degilse ilgili test importorskip / kesif ile atlanir.
 """
@@ -62,26 +62,23 @@ def _ref_damped_mean(rs, shrink_n: int) -> float:
 
 
 # ----------------------------------------------------------------------------------------- sahip kararlari: sayilar
-def test_lesson_config_default_shrink_is_zero_and_rollback_is_minus_3r():
-    """Sahip karari: sonumleme varsayilan 0 (tam esiksiz), tek degisiklik geri alma esigi -3 R."""
-    lesson = pytest.importorskip("trader_core.lesson")
-    cfg = json.loads((ROOT / "config" / "lesson.json").read_text(encoding="utf-8"))
-    assert cfg["shrink_n"] == 10          # 24.11 kullanici karari (kod varsayilani 0 kalir)
-    assert cfg["rollback_effect_r"] == 3.0
-    assert lesson.LessonConfig().shrink_n == 0
-    assert lesson.LessonConfig().rollback_effect_r == 3.0
+def test_kol_yasam_sabitleri_shrink_10_ve_geri_alma_3r():
+    """Kurulum yasam dongusu sabitleri: sonum payi 10 (24.11), tek degisiklik geri alma esigi -3 R."""
+    from trader_core import kol_yasam as KY
+    assert KY.SHRINK_N == 10
+    assert KY.ROLLBACK_EFFECT_R == 3.0
 
 
 @pytest.mark.parametrize("shrink_n", [0, 10])
 def test_damped_mean_matches_spec_formula(shrink_n):
-    lesson = pytest.importorskip("trader_core.lesson")
+    lesson = pytest.importorskip("trader_core.kol_yasam")
     rs = [-1.0, 0.5, -0.25]
     assert lesson.damped_mean(sum(rs), len(rs), shrink_n=shrink_n) == pytest.approx(_ref_damped_mean(rs, shrink_n))
 
 
 def test_single_loss_is_not_damped_to_minus_0_09_when_shrink_is_zero():
     """shrink_n = 0: n = 1 bir -1 R kayip ortalamasi -1,0'dir (sonumlu 10'da -0,09 olurdu)."""
-    lesson = pytest.importorskip("trader_core.lesson")
+    lesson = pytest.importorskip("trader_core.kol_yasam")
     assert lesson.damped_mean(-1.0, 1, shrink_n=0) == pytest.approx(-1.0)
     assert lesson.damped_mean(-1.0, 1, shrink_n=10) == pytest.approx(-1.0 / 11.0)
 
@@ -122,7 +119,7 @@ def test_setup_window_is_last_forty_candidates():
 def test_setup_on_off_engine_function_if_present():
     """Kurulum ac/kapa islevi isim sabit degil: bulunursa kapanis esigi ve +0,05 yeniden acilis kurali kontrol edilir."""
     candidates = []
-    import trader_core.lesson as _LZ
+    import trader_core.kol_yasam as _LZ
     if hasattr(_LZ, "arm_lifecycle_step"):            # gercek arayuz (WP-13): durumlu gecelik adim
         now = BASE + timedelta(days=30)
         c = [(BASE + timedelta(days=1), -1.0, True), (BASE + timedelta(days=2), -1.0, True)]
@@ -132,7 +129,7 @@ def test_setup_on_off_engine_function_if_present():
         st2, ev2 = _LZ.arm_lifecycle_step(st, c2, now + timedelta(days=5), shrink_n=0)
         assert st2["state"] == "open" and ev2 in ("reopened", "rolled_back")   # kapanistan sonra +R: kapanis geri alinir
         return
-    for modname in ("trader_core.lesson", "trader_engine.arm_guard"):
+    for modname in ("trader_core.kol_yasam", "trader_engine.arm_guard"):
         mod = pytest.importorskip(modname)
         candidates += [getattr(mod, n) for n in dir(mod) if "setup" in n.lower() and callable(getattr(mod, n))
                        and any(k in n.lower() for k in ("state", "toggle", "enabled", "onoff", "on_off"))]
@@ -236,7 +233,7 @@ def test_disabled_arm_skip_reason_name_is_fixed_string():
 
 # ----------------------------------------------------------------------------------------- karne (scorecard)
 def _scorecard_fn():
-    return _find("trader_core.lesson", ("scorecard",)) or _find("trader_core.counterfactual", ("scorecard",))
+    return _find("trader_core.counterfactual", ("scorecard",))
 
 
 def _ref_card(taken_rs, cf_rs):

@@ -11,7 +11,7 @@ from types import SimpleNamespace
 import pytest
 
 from trader_core import budget as B
-from trader_core import lesson as LS
+from trader_core import ortak as LS
 from trader_reports import yorumcu as Y
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -43,7 +43,7 @@ def ledger():
 
 def tablolar():
     tr, dec = ledger()
-    return Y.tablolari_kur(tr, dec, NOW, haftalik_sabit=["Tutarlılık: eşleşme %98"], dersler=[])
+    return Y.tablolari_kur(tr, dec, NOW, haftalik_sabit=["Tutarlılık: eşleşme %98"])
 
 
 # ------------------------------------------------------------------ tablo kurucu
@@ -133,7 +133,7 @@ def gercek_butce(tmp_path):
 def betik(tmp_path, monkeypatch):
     m = _betik()
     tr, dec = ledger()
-    cfg = SimpleNamespace(lesson_store=str(tmp_path / "yok.sqlite"))
+    cfg = SimpleNamespace()
     monkeypatch.setattr(m, "defteri_oku", lambda root: (cfg, tmp_path / "ledger.sqlite", tr, dec))
     monkeypatch.setattr(m, "data_root", lambda env: tmp_path)
     return m
@@ -216,9 +216,8 @@ def test_motor_yorumcu_dizinini_okumaz_ve_derse_bagli_degil():
             t = p.read_text(encoding="utf-8")
             # budget.py/telegram.py yalniz servis adini tasir (ad haritasi); yorumcu modulunu ice alan/dosya yolunu okuyan yok
             assert not re.search(r"trader_reports\.yorumcu|trader_reports import yorumcu|durum/yorumcu|var/durum.{0,20}yorumcu", t), p.name
-    assert "yorumcu" not in (src / "trader_core" / "lesson.py").read_text(encoding="utf-8").lower()
     mod = (src / "trader_reports" / "yorumcu.py").read_text(encoding="utf-8")
-    assert not re.search(r"^\s*(from|import)\s+.*(lesson|trader_engine)", mod, re.M)
+    assert not re.search(r"^\s*(from|import)\s+.*(trader_engine)", mod, re.M)
     assert "open(" not in mod and "write_text" not in mod and "sqlite3" not in mod       # saf hesap: dosya acmaz
 
 

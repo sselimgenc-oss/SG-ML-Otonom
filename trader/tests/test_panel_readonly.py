@@ -17,7 +17,7 @@ from trader_core import panel_data as P
 
 ENDPOINTS = ["/api/status", "/api/ledger?bot=learner", f"/api/ledger?bot=learner&day={DAY}",
              "/api/curve?bot=learner", "/api/risk?bot=learner", "/api/budget",
-             "/api/lesson", "/api/pano?bot=learner", "/api/kapanan?bot=learner&period=7g", "/api/health", "/api/system", "/healthz", "/", "/static/panel.js"]
+             "/api/pano?bot=learner", "/api/kapanan?bot=learner&period=7g", "/api/health", "/api/system", "/healthz", "/", "/static/panel.js"]
 
 
 def snap(root: Path, skip=(".sqlite-shm",)) -> dict:
@@ -40,9 +40,9 @@ def test_endpoints_do_not_modify_data_files(tmp_path):
     r.stop()
     after = snap(tmp_path)
     changed = {k for k in before if before[k] != after.get(k)}
-    assert not changed, changed                          # ana DB, -wal, butce, ders, status, config: ayni sha ve mtime
+    assert not changed, changed                          # ana DB, -wal, butce, status, config: ayni sha ve mtime
     for p in set(after) - set(before):                                        # yeni dosya yalniz kapali DB'nin SQLite -wal yardimcisi olabilir
-        assert p.endswith("-wal") and "lesson" in p, p
+        assert p.endswith("-wal"), p
     e.close()
 
 

@@ -1,4 +1,4 @@
-"""Panel uc noktalari: durum eslemesi, bayatlik, eksik kaynaklar, defter/egri/risk/butce/ders/saglik."""
+"""Panel uc noktalari: durum eslemesi, bayatlik, eksik kaynaklar, defter/egri/risk/butce/saglik."""
 import dataclasses
 import json
 from datetime import timedelta
@@ -181,7 +181,7 @@ def test_compare_and_twin_endpoints_removed(run):
     assert j["ok"] is False and j["code"] == "gecersiz_bot"
 
 
-# ---------------- /api/budget, lesson, health, system ----------------
+# ---------------- /api/budget, health, system ----------------
 def test_budget_matches_guard(run, env):
     from trader_core import budget as B
     st = B.BudgetGuard(B.load_config(env.root / "config/budget.json")).status()
@@ -192,12 +192,9 @@ def test_budget_matches_guard(run, env):
         assert (j["services"][k]["used_usd"], j["services"][k]["cap_usd"], j["services"][k]["state"]) == (v.used_usd, v.cap_usd, v.state)
 
 
-def test_lesson_matches_store(run):
-    j = run.get("/api/lesson")
-    assert j["open_count"] == 1 and j["open_requests"][0] == {"request_id": "lr-2026-11-16-1", "param": "rr_min",
-                                                              "from": 1.5, "to": 1.25, "scope": "global"}
-    assert j["shadow"]["end"] == "2026-12-08" and j["shadow"]["day"] == 7 and j["shadow"]["total"] == 28
-    assert j["last_run"] == {"day": "2026-11-16", "status": "succeeded", "code": "ok"}
+def test_lesson_ucu_kaldirildi(run):
+    st, _, _ = run.req("/api/lesson")
+    assert st == 404
 
 
 def test_health_and_system(run):
@@ -221,15 +218,14 @@ def test_health_stale_check(tmp_path):
 
 # ---------------- eksik kaynak: yalniz o widget "okunamadi" ----------------
 def test_missing_sources_isolated(tmp_path):
-    e = Env(tmp_path, learner=False, budget=False, lesson=False, health=False)
+    e = Env(tmp_path, learner=False, budget=False, health=False)
     r = Running(e)
     for path, code in (("/api/ledger?bot=learner", "defter_yok"), ("/api/curve?bot=learner", "defter_yok"),
-                       ("/api/budget", "yapilandirma_gecersiz"), ("/api/lesson", "depo_yok"), ("/api/health", "state_yok")):
+                       ("/api/budget", "yapilandirma_gecersiz"), ("/api/health", "state_yok")):
         j = r.get(path)
         assert j["ok"] is False and j["code"] == code, path
     assert r.get("/api/status")["ok"] is True and r.get("/api/system")["ok"] is True
     assert not (e.root / "var/learner/ledger.sqlite").exists()       # okuma dosya olusturmaz
-    assert not (e.root / "user_data/lesson.sqlite").exists()
     r.stop()
     e.close()
 
@@ -237,11 +233,10 @@ def test_missing_sources_isolated(tmp_path):
 def test_corrupt_sources_do_not_crash(tmp_path):
     e = Env(tmp_path)
     (e.root / "var/learner/ledger.sqlite").write_bytes(b"garbage" * 200)
-    (e.root / "user_data/lesson.sqlite").write_bytes(b"garbage" * 200)
     (e.root / "user_data/budget.sqlite").write_bytes(b"garbage" * 200)
     (e.root / "state/state.json").write_text("{bozuk")
     r = Running(e)
-    for p in ("/api/ledger?bot=learner", "/api/curve?bot=learner", "/api/lesson", "/api/budget", "/api/health"):
+    for p in ("/api/ledger?bot=learner", "/api/curve?bot=learner", "/api/budget", "/api/health"):
         j = r.get(p)
         assert j["ok"] is False and j["code"], p
     assert r.get("/healthz")["ok"] is True

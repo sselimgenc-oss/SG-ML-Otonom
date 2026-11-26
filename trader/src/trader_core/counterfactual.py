@@ -472,7 +472,7 @@ def summary(path, bot: str, *, now: datetime, days: int = 7, method: str = "barr
 
 
 def outcomes(path, bot: str, *, now: datetime, days: int = 28, method: str = "barrier") -> list[dict]:
-    """Ders servisi icin ham satirlar (karar zamani `[now-days, now)`, hesaplanmis r_net, deterministik sira). YALNIZ `now`
+    """Ham satirlar (karar zamani `[now-days, now)`, hesaplanmis r_net, deterministik sira). YALNIZ `now`
     itibariyla bilinen sonuclar: `window_end_ts <= now`. `plan` yalnizca version>=2 (48 mumluk ufuk). Alanlar: skip_reason,
     decision_ts, hyp_r_net, side, setup, trigger_tf, planned_entry/stop/target. Salt okunur; depo yoksa CounterfactualError."""
     if method not in METHODS:
@@ -603,7 +603,7 @@ def shadow_outcomes(path, bot: str, *, now: datetime, days: int | None = None, m
 # ------------------------------------------------------------------------------------------------ WP-13: kurulum karnesi
 def arm_rows(path, bot: str, *, method: str | None = None) -> list[dict]:
     """Hesaplanmis karsi-olgu satirlari (kurulum bazinda; `arm_id` yoksa setup@trigger_tf). Salt okunur; depo yoksa [].
-    `method=None` (24.11): karar basina `plan` satiri varsa o, yoksa `barrier` (`lesson._cf_r_by_decision` ile ayni kural);
+    `method=None` (24.11): karar basina `plan` satiri varsa o, yoksa `barrier` (ders sistemindeki eski kuralla ayni);
     belirli yontem verilirse yalniz o."""
     if method is not None and method not in METHODS:
         raise CounterfactualError("gecersiz yontem", "bad_method")

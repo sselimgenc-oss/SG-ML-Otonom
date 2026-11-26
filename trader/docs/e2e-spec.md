@@ -1,5 +1,8 @@
 # Uctan uca test sartnamesi (faz plani madde 20 + 19d)
 
+> 25 Kasım: sahip kararıyla ders sistemi KALDIRILDI (`trader_core/lesson.py`, `lesson_run`, gece notu, onay/ret akışı, panel/Telegram ders bölümleri; öğrenme ML1'e taşındı). Bu belgedeki ders/not/onay (`/ders`, `/onayla`, `/reddet`) bölümleri tarihsel kayıttır, geçerli değildir. Defterin parametre sürümü mekanizması (kullanıcı sürümü, etkinleştirme, `parent_version_id`) ve şeması AYNEN kalır.
+
+
 > 18 Kasım: kullanıcı kararıyla değişti. Uçtan uç akışta veto adımı, ikiz ve gölge kip kaldırıldı (tek düz kâğıt bot, ML/ders ilk işlemden etkin); canlı adımları **[ASKIDA — kullanıcı yeniden belirleyecek]**.
 
 Test: `tests/e2e/test_e2e_chain.py`. Tamamen cevrimdisi: ag yok, gercek anahtar yok, LLM cagrisi yok.

@@ -21,7 +21,6 @@ ENTRIES = {
     "panel": ("module:trader_panel.__main__", ["trader_panel.server", "trader_panel.data", "trader_panel.snapshot"]),
     "health": ("script:scripts/health_run.py", ["trader_core.ledger", "trader_core.market_probe", "trader_core.telegram",
                                                 "health_backup", "requests"]),
-    "lesson": ("script:scripts/lesson_run.py", ["trader_core.lesson", "trader_core.budget", "anthropic"]),
     "telegram": ("script:scripts/telegram_run.py", ["trader_core.telegram", "requests"]),
     "telegram-report": ("script:scripts/telegram_run.py", ["trader_core.telegram"]),
     "counterfactual": ("script:scripts/counterfactual_run.py", ["trader_core.counterfactual", "trader_core.ledger"]),

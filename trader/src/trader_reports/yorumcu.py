@@ -4,7 +4,7 @@ Tum sayilar kodla hesaplanir ve kompakt tablolara konur; model yalniz yorumlar. 
   1. sayi kontrolu: rapordaki her sayi girdi tablolarinda gecmeli; gecmezse rapor "SAYI HATASI" ile baslar;
   2. n < 30 satirlari "yetersiz örnek" tasir (kolu anan satirda yoksa kod ekler);
   3. en cok 3 oneri; her onerinin "Nasıl ölçülür" kismi olmali.
-Motor bu modulu ve cikti dizinini OKUMAZ (kaynak tarama testi). Ders sistemine bagli degildir. Kilitli donem (HOLDOUT) okunmaz:
+Motor bu modulu ve cikti dizinini OKUMAZ (kaynak tarama testi). Kilitli donem (HOLDOUT) okunmaz:
 islemler/kararlar `tur1_olcum.holdout_filtrele` ile elenir. Bu modul ag/sqlite/dosya acmaz; girdiyi cagiran verir.
 """
 from __future__ import annotations
@@ -123,8 +123,7 @@ def arm_conflict_ozeti(doc: dict | None) -> list[dict] | None:
 
 
 def tablolari_kur(trades_raw: list[dict], decisions_raw: list[dict], now: datetime, *, olcum: dict | None = None,
-                  alinmayan: dict | None = None, haftalik_sabit: list[str] | None = None,
-                  dersler: list[str] | None = None) -> dict:
+                  alinmayan: dict | None = None, haftalik_sabit: list[str] | None = None) -> dict:
     """Girdi tablolari. Kilitli donem burada elenir (tek gecit: `tur1_olcum.holdout_filtrele`)."""
     trades, decisions, kilit = T.holdout_filtrele(trades_raw, decisions_raw)
     return {"tarih": now.astimezone(timezone.utc).date().isoformat(), "yetersiz_ornek_esigi_n": YETERSIZ_N,
@@ -132,7 +131,7 @@ def tablolari_kur(trades_raw: list[dict], decisions_raw: list[dict], now: dateti
             "toplam_kapanmis_islem": len(trades), "kollar": kol_tablosu(trades, now), "dun": dun_tablosu(trades, now),
             "kararlar": karar_tablosu(decisions), "olcum": olcum_ozeti(olcum), "alinmayan_sinyal": alinmayan_ozeti(alinmayan),
             "arm_conflict_kayiplari": arm_conflict_ozeti(alinmayan),
-            "haftalik_sabit_bolum": list(haftalik_sabit or []), "aktif_dersler": list(dersler or [])}
+            "haftalik_sabit_bolum": list(haftalik_sabit or [])}
 
 
 def tablo_metni(tablolar: dict) -> str:

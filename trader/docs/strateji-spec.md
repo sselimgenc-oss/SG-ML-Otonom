@@ -1,5 +1,8 @@
 # Strateji v1 — arayüz ve kurallar (spesifikasyon v1, 16 Kasım 2026)
 
+> 25 Kasım: sahip kararıyla ders sistemi KALDIRILDI (`trader_core/lesson.py`, `lesson_run`, gece notu, onay/ret akışı, panel/Telegram ders bölümleri; öğrenme ML1'e taşındı). Bu belgedeki ders/not/onay (`/ders`, `/onayla`, `/reddet`) bölümleri tarihsel kayıttır, geçerli değildir. Defterin parametre sürümü mekanizması (kullanıcı sürümü, etkinleştirme, `parent_version_id`) ve şeması AYNEN kalır.
+
+
 > 18 Kasım: kullanıcı kararıyla değişti. Kâğıtta bütün kurulum aileleri × 15dk/1s/4s/1g, 44 enstrüman; 15 dk/R1 kapatma, seans/hafta sonu yasağı ve gölge etiket kararları kalktı; LLM veto yok.
 
 Kaynak kural: `otonom-trading-arastirma/strateji-v1.md` (Bölüm 2–6; kural kimlikleri PA-TRD-01, PA-FLT-01, PA-MUM-06, PA-STP-01, PA-STP-02a, PA-RSK-02, PA-HDF-06 ve PA-YTY-02, PA-KIR-03, PA-MUM-01, PA-HDF-02, PA-HDF-01, PA-STP-03). Bu belge o kuralları koda dökülebilir hale getirir; sayılar kârlılık kanıtı değildir, backtest ile sınanacak başlangıç değerleridir. Bu belge kod, test ve commit içermez; testler bu belgeden yazılır. Rejim etiketi `rejim-spec.md`, boyutlandırma ve risk `risk-kilidi-spec.md`, kayıt ve parametre sürümleri `defter-spec.md` belgelerindedir; burada tekrarlanmaz, yalnızca bağlanır.

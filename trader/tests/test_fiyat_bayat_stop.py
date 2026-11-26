@@ -245,7 +245,7 @@ def test_islem_mesajlari_ayni_fiyat_bicimini_kullanir():
     assert T._fiyat(8.8712) == "8,87" and T._fiyat(0.123456) == "0,1235"
 
 
-def test_ders_ve_haftalik_telegrama_gitmez():
+def test_haftalik_telegrama_gitmez():
     from types import SimpleNamespace as NS
 
     from trader_core import telegram as T
@@ -254,7 +254,4 @@ def test_ders_ve_haftalik_telegrama_gitmez():
     n.send_text = lambda *a, **k: gonderilen.append(a) or True
     n.kayit = NS(gunde_bir=lambda *a: True)
     n.now = lambda: NOW
-    for code in ("applied", "rolled_back"):
-        assert n.notify(NS(level="INFO", code=code, title="rr_min 1.8 -> 1.5", body="")) is True
-    assert gonderilen == []
     assert T.haftalik_gonder(None, n, datetime(2026, 11, 22, 12, 0, tzinfo=UTC)) is False and gonderilen == []

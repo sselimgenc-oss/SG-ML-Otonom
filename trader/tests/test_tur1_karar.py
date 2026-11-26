@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from trader_core import lesson as LS
+from trader_core import ortak as LS
 from trader_reports import tur1_karar as K
 
 ROOT = Path(__file__).resolve().parent.parent

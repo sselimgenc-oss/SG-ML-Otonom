@@ -34,7 +34,7 @@ HOLDOUT = None if KILIT_ACIK else _HOLDOUT        # 23.11.2026 kullanici karari:
 
 EXIT_OK, EXIT_CONFIG, EXIT_DEGRADED = 0, 1, 3
 log = logging.getLogger("trader.exit_cf.run")
-PARITY_DAYS = 120                      # lesson.LessonConfig.exit_cf_days varsayilani
+PARITY_DAYS = 120                      # eski ders yapilandirmasindaki exit_cf_days varsayilani
 BACKTEST_PARITY_DAYS = 3650
 
 

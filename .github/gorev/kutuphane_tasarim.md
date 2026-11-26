@@ -12,7 +12,7 @@ KAYNAKLAR:
 - Gecmis test (duz dosya olarak acildi): onceki/kosu/ altinda; v3 klasoru: setup_secimi.md, rapor.md, sonuc_v3_*/, yeni_kollar/ (12 setupun dedektorleri,
   ileriye bakissiz pivot, cikis simulasyonu). Onceki turlar da ayni yerde.
 - Motor: trader/src/trader_engine/strategies/arms/ (__init__.py kesif kurali "her kurulum tek dosya", find_arm), strategies/lab.py, engine.py (_entry_order, _pair_entries,
-  limits, arm_max_positions), gates.py, arm_guard.py, trader_core/kol_kucultme.py, trader_core/lesson.py (LESSON_SCOPE), counterfactual / alinmayan_sonuc,
+  limits, arm_max_positions), gates.py, arm_guard.py, trader_core/kol_kucultme.py, trader_core/ledger.py (LESSON_SCOPE), trader_core/kol_yasam.py, counterfactual / alinmayan_sonuc,
   trader/config/engine.paper.json ve engine.live.json (arms listesi, arm_max_positions, PRIORITY), trader_core/indicators.py, panel ve Telegram'da kol listeleri.
 
 GOREV: Sonnet'in AYNEN kodlayacagi uygulama tasarimini yaz.

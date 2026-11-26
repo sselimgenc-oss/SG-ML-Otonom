@@ -26,7 +26,7 @@ Asagida Haiku ajanlarinin buldugu {len(bulgular)} aday bulgu var. Yalniz okuyabi
 
 GOREV: Her bulguyu kodda KENDIN dogrula. Sinifla: DOGRU (kodda gercekten var), YANLIS (ajan yanilmis), KISMEN.
 Yanlislari ayikla. Ayni sorunu tekrarlayanlari birlestir. Kullanici kararlariyla celisen tasarim tercihlerini (kalite kapisiz model yayini,
-onaysiz ders, 5 dk otomatik guncelleme) hata sayma. Taramanin kacirdigi cok onemli bir sey gorursen ekle (en fazla 5).
+5 dk otomatik guncelleme) hata sayma. Taramanin kacirdigi cok onemli bir sey gorursen ekle (en fazla 5).
 
 CIKTI: Son mesajinda YALNIZ Markdown rapor yaz, sade Turkce, kisa cumleler:
 # Derin denetim raporu

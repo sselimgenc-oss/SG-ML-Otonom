@@ -55,7 +55,7 @@ def rig(tmp_path):
     pauses = {b: EntryPause(str(tmp_path / f"PAUSE.{b}"), _Fn(clk), audit_path=str(tmp_path / f"a.{b}.jsonl"))
               for b in ("learner", "twin")}
     d = T.TelegramDaemon(cfg, T.TelegramClient("1:tok", fake, lambda s: None), now_fn=clk,
-                         runner=lambda *a: (0, "{}"), sleep=lambda s: None, random_code=lambda: "0427",
+                         sleep=lambda s: None, random_code=lambda: "0427",
                          killswitch=ks, pauses=pauses)
     d.r = type("R", (), {"clk": clk, "fake": fake, "tmp": tmp_path, "pauses": pauses})
     return d
@@ -161,7 +161,7 @@ def test_status_line_and_legacy_durdur(rig, tmp_path):
     say(d, "/durum", 3)
     t = d.r.fake.texts()[-1]
     assert "⏸️ ana bot: yeni işlemler duraklatıldı — senin /durdur komutun (Telegram'dan, 30.12 13:00)" in t
-    d2 = T.TelegramDaemon(d.cfg, d.client, now_fn=d.r.clk, runner=lambda *a: (0, "{}"), killswitch=d.killswitch)
+    d2 = T.TelegramDaemon(d.cfg, d.client, now_fn=d.r.clk, killswitch=d.killswitch)
     d2.r = d.r
     d2.process_updates([msg(d2, "/durdur", 9)])
     assert "desteklenmiyor" in d.r.fake.texts()[-1]

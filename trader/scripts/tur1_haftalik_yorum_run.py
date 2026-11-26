@@ -4,7 +4,7 @@
 Girdi (SALT OKUNUR): `var/durum/tur1_olcum.md` + son 7 gunun tek satir karari (`var/durum/tur1_karar_son.json`, `gecmis`).
 Cikti: 3-4 maddelik sade Turkce ozet -> Telegram outbox (mevcut `Outbox`). Baska dosya yazmaz (hafta isareti `tur1_haftalik_yorum.json` ve
 batch durumu `tur1_haftalik_batch.json` haric).
-24 Kas 2026'dan beri MESSAGE BATCHES API (`trader_core.haftalik_batch`, `lesson.AnthropicBatchClient`; promosyon kredisi yalniz Batch'i kapsar):
+24 Kas 2026'dan beri MESSAGE BATCHES API (`trader_core.haftalik_batch`, `ortak.AnthropicBatchClient`; promosyon kredisi yalniz Batch'i kapsar):
 GONDER (pazar 06:00 UTC: batch + butce rezervi `tur1_haftalik_batch.json`'a yazilir, `--wait-s` kadar beklenir) ve TOPLA (`--collect`,
 `trader-weekly-collect.timer` 3 saatte bir; her normal kosu da once bekleyeni toplar): bitince Telegram mesaji + hafta isareti; basarisiz/suresi
 dolmus/36 saatte bitmemis batch'te rezerv serbest birakilir ve kisa "atlandi" notu gider. Ayni hafta ikinci gonderim yapilmaz.
@@ -29,7 +29,7 @@ sys.path.insert(0, str(_HERE.parent / "src"))
 
 from trader_core import budget as _budget  # noqa: E402
 from trader_core import haftalik_batch as HB  # noqa: E402
-from trader_core import lesson as LS  # noqa: E402
+from trader_core import ortak as ORT  # noqa: E402
 from trader_engine.fileio import atomic_write_text  # noqa: E402
 
 log = logging.getLogger("trader.tur1_haftalik")
@@ -145,7 +145,7 @@ def main(argv=None, *, client=None, budget=None, now_fn=None, env=None, sleep=ti
         try:
             client = HB.varsayilan_istemci(env, b, SERVICE, timeout_s=300.0)
         except Exception as e:  # noqa: BLE001
-            log.warning("LLM istemcisi kurulamadi: %s", LS.scrub(e))
+            log.warning("LLM istemcisi kurulamadi: %s", ORT.scrub(e))
             client = None
     if bekliyor:                                                # onceki haftanin batch'i de burada toplanir
         sonuc = _bekleyen_isle(client, st, sp, isaret, tg, b, now, bekle_s=0.0, sleep=sleep)
@@ -173,7 +173,7 @@ def main(argv=None, *, client=None, budget=None, now_fn=None, env=None, sleep=ti
     try:                                                        # gonderimden hemen sonra: cokme olsa da ayni hafta ikinci gonderim olmaz
         HB.durum_yaz(sp, yeni)
     except OSError as e:
-        log.error("batch durumu yazilamadi: %s", LS.scrub(e))
+        log.error("batch durumu yazilamadi: %s", ORT.scrub(e))
         print(json.dumps({"status": "error", "reason": "state_write"}))
         return 1
     sonuc = _bekleyen_isle(client, yeni, sp, isaret, tg, b, now, bekle_s=max(0.0, a.wait_s), sleep=sleep)

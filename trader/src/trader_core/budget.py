@@ -27,6 +27,8 @@ from typing import Any, Callable, Literal, Sequence
 
 log = logging.getLogger("trader_core.budget")
 
+# 25.11: ders sistemi kaldirildi; "lesson" servisi EMEKLIDIR (cagiran yok). Adi bilerek kalir: butce deposundaki gecmis harcama/rezerv
+# satirlari ve yapilandirma dogrulamasi (SERVICES kumesi esitligi) bu adla yazilmistir; kaldirmak depo/yapilandirma gocu gerektirir.
 Service = Literal["haftalik_ozet", "lesson", "haber_kolu", "yorumcu"]
 SERVICES: tuple[str, ...] = ("haftalik_ozet", "lesson", "haber_kolu", "yorumcu")
 # Cekirdek servisler yapilandirmada zorunlu; ust lig servisleri (haber_kolu, yorumcu) eksikse

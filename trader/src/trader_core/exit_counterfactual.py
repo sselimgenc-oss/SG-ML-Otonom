@@ -1,13 +1,13 @@
 """Cikis karsi-olgusu gece isi (plan 25c; docs/cikis-karsi-olgu-spec.md): KAPANMIS her T1 islemin giris sonrasi fiyat yolu,
-alternatif `trail_atr` degerleriyle yeniden oynatilir ("o degerle cikseydik net R ne olurdu"). Bir KANIT islemidir: ders menusune
-bilgi olarak girer (lesson.build_exit_counterfactual); hicbir sey bloklamaz, hicbir kurulumu kapatmaz, otomatik uygulanmaz.
+alternatif `trail_atr` degerleriyle yeniden oynatilir ("o degerle cikseydik net R ne olurdu"). Bir KANIT islemidir: panel/rapor
+bilgisidir (ders sistemi 25.11'de kaldirildi); hicbir sey bloklamaz, hicbir kurulumu kapatmaz, otomatik uygulanmaz.
 
 Kapsam v1 (on kayit exitcf-v1): TEK parametre `trail_atr`, TEK adim, iki yon (up = v + adim, down = v - adim) => n_trials = 2.
 Taban = ayni yolun AKTIF degerle yeniden oynatimi; Delta = alternatif - taban (ayni 15 dk izgarasi, ayni maliyet modeli).
 Isleme ozgu kendi degeri (`param_version_id`) aktiften farkliysa ayrica `own` oynatimi yapilir; parite (tani) yalniz o satirda.
 
 Bagimlilik: stdlib + sqlite. pandas/numpy/trader_core.signals|regime|indicators YALNIZCA oynatim aninda (`prepare_h1`, `replay_trail`)
-tembel ice aktarilir: ders servisi bu modulu (deltas/parity_stats okuma API'si) ice aktarirken pandas yuklenmez. trader_engine ice
+tembel ice aktarilir: okuyucular bu modulu (deltas/parity_stats okuma API'si) ice aktarirken pandas yuklenmez. trader_engine ice
 aktarilmaz (08-no-framework-guard): kilitli donem sabiti ve funding formulu KOPYADIR, esitlik tests/test_exit_cf_*.py ile kilitlenir.
 Iz suren stop formulu KOPYALANMAZ: `trader_core.signals.trail_stop_path` aynen cagrilir (tek kaynak).
 """

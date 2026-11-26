@@ -92,11 +92,11 @@ def test_inert_b1_rr_read_is_really_inert():
     assert "B1" not in L.LESSON_SCOPE["rr_min"]
 
 
-def test_unread_params_are_not_in_lesson_menu():
+def test_unread_params_are_not_in_adjustable_params():
     """session_off / post_stop_wait: motor defter parametresini okumaz (gates.py yalniz gate.session_off sozlugu) => lesson=False."""
-    from trader_core import lesson as LS
+    adjustable = tuple(p for p in L.LESSON_PARAMS if L._ALL_SPECS[p]["lesson"])
     for p in ("session_off", "post_stop_wait"):
-        assert p not in LS.LESSON_PARAMS
+        assert p not in adjustable
     eng = ROOT / "src" / "trader_engine"
     for f in eng.rglob("*.py"):
         assert "post_stop_wait" not in f.read_text(encoding="utf-8"), f

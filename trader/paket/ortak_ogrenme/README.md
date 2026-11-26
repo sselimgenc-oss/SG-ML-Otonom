@@ -10,7 +10,7 @@ Paket yalnız puan, rapor ve etiket üretir; hiçbir işlemi engellemez. Spec: `
 2. Kaynak yolu ve commit'i not edin, örnek: `Kaynak: trader/paket/ortak_ogrenme @ <commit>, SURUM 1.2.1`.
 3. Paketi değiştirmeyin. Projeye özgü çeviri yalnız adaptörde yapılır.
 4. Adaptörünüzü yazın (aşağıdaki örnek) ve kendi testinizde ML/başka bir referansla eşdeğerliği doğrulayın.
-   Referans testi: `tests/paket/test_ortak_ogrenme_parity.py`.
+   (25.11: ML'deki `trader_core/trade_notes.py` ve onun parite testi kaldirildi; paket kendi spec testleriyle (`test_ortak_ogrenme_spec.py`) dogrulanir.)
 
 ## Adaptör örneği
 
@@ -48,7 +48,7 @@ def adaya_cevir(islem, karar):
 - `kurulum` değeri ders kimliğinde doğrudan kullanılır (`ders:<kod>:<kurulum>`). Etiket sözlüğü yalnız
   harf, rakam ve `_` kabul eder. `@` içeren bir kurulum (örn. `T1@1h`) kayıpta ders etiketi üretirken `ValueError`
   verir. Adaptörde kurulumu `@` öncesi kısımla verin.
-- `ders_etkisi` varsayılan `shrink_n = 0` (spec). ML kâğıt kararı da 0'dır; ML `trade_notes` modülü ise 10 kullanır.
+- `ders_etkisi` varsayılan `shrink_n = 0` (spec). ML kâğıt kararı da 0'dır.
   Eşdeğerlik testlerinde iki taraf da açıkça aynı değerle çağrılır.
 - Durum dosyası (`gece_adimi`) atomik yazılır; bozuk veya eksik dosya boş durum sayılır.
 

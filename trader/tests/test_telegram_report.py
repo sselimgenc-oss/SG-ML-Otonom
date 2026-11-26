@@ -1,11 +1,10 @@
-"""Günlük rapor bölümleri (Defter/Bütçe/Ders): salt okunur, her biri bağımsız hata verir."""
+"""Günlük rapor bölümleri (Defter/Bütçe): salt okunur, her biri bağımsız hata verir."""
 import json
 import shutil
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from trader_core import ledger as L
-from trader_core import lesson as LS
 from trader_core import telegram as T
 
 UTC = timezone.utc
@@ -27,7 +26,7 @@ def tr_usd(x):
 
 def mkcfg(tmp_path, **kw):
     d = dict(ledger_path=str(tmp_path / "l.sqlite"),
-             budget_config=str(tmp_path / "config" / "budget.json"), lesson_store=str(tmp_path / "lesson.sqlite"))
+             budget_config=str(tmp_path / "config" / "budget.json"))
     d.update(kw)
     return T.TelegramConfig("1:tok", 5, str(tmp_path / "tg"), "", str(tmp_path / "status.json"), **d)
 
@@ -96,7 +95,7 @@ def test_budget_ok_and_corrupt(tmp_path):
     assert (tmp_path / "b.sqlite").exists()
     s = T.section_budget(cfg)
     # 23.11 kullanici karari: ust lig, LLM tavani 20 $
-    assert "/20.00$" in s and "/0.25$" in s and "ders 0.00$/0.10$" in s
+    assert "/20.00$" in s and "/0.25$" in s
     _budget(tmp_path, "{bozuk")
     out = T.build_report(cfg, NOW, DAY, {"Bütçe": lambda: T.rapor_butce(cfg)})
     assert "Bazı bilgiler okunamadı" in out and "yapilandirma" not in out
@@ -106,25 +105,12 @@ def test_budget_ok_and_corrupt(tmp_path):
     assert "Bazı bilgiler okunamadı" in out and "garbage" not in out
 
 
-def test_lesson_pending_listed(tmp_path):
+def test_rapor_bolumlerinde_ders_yok(tmp_path):
     cfg = mkcfg(tmp_path)
-    cfg_l = LS.load_config(ROOT / "config" / "lesson.json")
-    st = LS.LessonStore(cfg.lesson_store)
-    run = st.create_run(cfg_l, "2026-11-16")
-    st.add_event(run.id, "succeeded", "ok", {})
-    st.set_shadow_once("2026-11-10", "2026-12-08")
-    req = LS.ApprovalRequest("lr-2026-11-16-1", 3, 1, "rr_min", 1.5, 1.25, "global", "shadow_period", True, False,
-                             "t", "b", {}, NOW, NOW + timedelta(days=3))
-    st.add_request(run.id, req)
-    st.close()
-    s = T.section_lesson(cfg, NOW)
-    assert "lr-2026-11-16-1: rr_min 1.5→1.25" in s and "/onayla lr-2026-11-16-1" in s
-    assert "gün 7/28" in s and "2026-11-16 succeeded/ok" in s
+    assert "Ders" not in T.default_sections(cfg, NOW, DAY)
     out = T.build_report(cfg, NOW, DAY, T.default_sections(cfg, NOW, DAY))
-    assert len(out) <= 3500
+    assert len(out) <= 3500 and "Dersler:" not in out
 
-
-# ------------------------------------------------------------------ sade Türkçe günlük rapor
 def _status(tmp_path, now=NOW, **kw):
     d = {"mode": "paper", "kill": False, "kill_state": "flat", "entries_open": True, "equity": 1000.0,
          "day_start_equity": 1000.0, "loop_at": now.strftime("%Y-%m-%dT%H:%M:%SZ"), "param_version_id": 1,
@@ -150,7 +136,7 @@ def test_report_paper_is_plain_turkish(tmp_path):
     for want in ("Bugün kapanan işlem yok.", "Kasa: 1.000,00 $ (gün başı 1.000,00 $)",
                  f"Günlük zarar sınırı: 0,00 $ / {tr_usd(limit_orani() * 1000)} $ kullanıldı", "Açık pozisyon yok.", "Yeni işlemler açık."):
         assert want in out, want
-    assert "Dersler: bugün 0 uygulandı, 0 geri alındı · işlemlere etkili" in out and len(lines) <= 12
+    assert "Dersler:" not in out and len(lines) <= 12
     for ham in ("{", "Sayaclar", "PermissionError", "depo_yok", "Spool", "bilgiler okunamadı", "bilinmeyen_kod",
                 "veto_missing", "kip=", "Bütçe", "Öğrenme", "━"):
         assert ham not in out, ham
@@ -203,7 +189,6 @@ def test_report_health_line_only_when_not_ok(tmp_path):
     hs.write_text("{bozuk")
     out = T.build_report(cfg, NOW, DAY, {})
     assert "sistem kontrolü" not in out and "JSONDecodeError" not in out and "bilgiler okunamadı" not in out
-    assert T.rapor_ders(cfg, NOW) == ""                                # depo yok -> bölüm hiç yok
 
 
 def test_report_ignores_failing_sections(tmp_path):

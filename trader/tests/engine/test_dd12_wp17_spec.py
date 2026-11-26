@@ -19,7 +19,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 
 from panel_support import DAY, NOW, Env, Running, free_port  # noqa: E402
 from trader_core import counterfactual as CF  # noqa: E402
-from trader_core import lesson as LS  # noqa: E402
+from trader_core import kol_yasam as LS  # noqa: E402
 from trader_core import telegram as T  # noqa: E402
 from trader_panel.server import build_api  # noqa: E402
 
@@ -81,13 +81,12 @@ def _telegram_cfg(e: Env, status_path: Path | None = None) -> T.TelegramConfig:
     return T.TelegramConfig("1:tok", 5, str(root / "tg"), "",
                             str(status_path or root / "var/learner/status.json"),
                             ledger_path=str(root / "var/learner/ledger.sqlite"),
-                            budget_config=str(root / "config/budget.json"),
-                            lesson_store=str(root / "user_data/lesson.sqlite"))
+                            budget_config=str(root / "config/budget.json"))
 
 
 def _report(cfg: T.TelegramConfig) -> str:
     # gercek uretim yolu: report_run varsayilan bolumlerle cagirir (sections=None en kisa ozet; eski testler buna bagli)
-    # Gunluk ozet artik <=12 satir; ders/model/seans/LLM bolumleri kaldirilmadi, /ders /kurulumlar /rapor komutlariyla ve panelde.
+    # Gunluk ozet artik <=12 satir; model/seans/LLM bolumleri kaldirilmadi, /kurulumlar /rapor komutlariyla ve panelde (ders sistemi 25.11'de kaldirildi).
     # Bolumler tek tek uretilir (okunamayan bolum bos kalir).
     secs = T.default_sections(cfg, NOW, DAY)
     out = [T.build_report(cfg, NOW, DAY, sections=secs)]
@@ -157,13 +156,13 @@ def test_arms_off_yok_iken_taze_sunucu_acik_varsayar_ve_cokmez(tmp_path):
         e.close()
 
 
-# ---------------------------------------------------------------- pano: ders, M1, seans, varlık kırılımı
-def test_pano_ders_freni_ve_m1_alanlari_var(tmp_path):
+# ---------------------------------------------------------------- pano: M1, seans, varlık kırılımı
+def test_pano_m1_alanlari_var_ders_alani_yok(tmp_path):
     e = Env(tmp_path)
     r = Running(e, cache_s=0)
     try:
         api = _api_text(r)
-        assert re.search(r"brake|fren", api, re.IGNORECASE), "ders freni durumu panelde yok"
+        assert not re.search(r"brake|\"ders\"", api, re.IGNORECASE), "ders alani kaldirildi (25.11)"
         assert re.search(r"\bm1\b", api, re.IGNORECASE), "M1 sayilari panelde yok"
     finally:
         r.stop()
@@ -216,20 +215,19 @@ def test_llm_harcama_satiri_10_usd_ile_karsilastirilir(tmp_path):
 
 
 # ---------------------------------------------------------------- Telegram: günlük rapor ve komutlar
-def test_telegram_komutlari_kurulumlar_ve_ders_var():
+def test_telegram_komutlari_kurulumlar_var_ders_yok():
     assert "/kurulumlar" in T.HELP
-    assert "/ders" in T.HELP
+    assert "/ders" not in T.HELP and "/onayla" not in T.HELP and "/reddet" not in T.HELP
     src = (ROOT / "src/trader_core/telegram.py").read_text(encoding="utf-8")   # calisma agaci (commit oncesi de)
     assert '"/kurulumlar"' in src or "/kurulumlar" in src
 
 
-def test_telegram_gunluk_rapor_ders_ml_seans_ve_llm_bolumleri(tmp_path):
+def test_telegram_gunluk_rapor_ml_seans_ve_llm_bolumleri(tmp_path):
     e = Env(tmp_path)
     _write_arms_off(e.root, {ARM_OFF_ID: {"state": "closed"}})
     try:
         rep = _report(_telegram_cfg(e))
         assert isinstance(rep, str) and rep
-        assert re.search(r"ders", rep, re.IGNORECASE), "ders etkisi yok"
         assert re.search(r"ML|Model", rep), "ML etkisi yok"            # sahibe Turkce: "Model"
         assert re.search(r"Seans|hafta sonu|weekend", rep, re.IGNORECASE), "seans kirilimi yok"   # veri yoksa hafta sonu satiri olmaz
         assert re.search(r"kripto|hisse|emtia", rep, re.IGNORECASE), "varlik sinifi kirilimi yok"
@@ -242,8 +240,7 @@ def test_telegram_gunluk_rapor_ders_ml_seans_ve_llm_bolumleri(tmp_path):
 def test_telegram_gunluk_rapor_eksik_dosyalarla_cokmez(tmp_path):
     cfg = T.TelegramConfig("1:tok", 5, str(tmp_path / "tg"), "", str(tmp_path / "yok/status.json"),
                            ledger_path=str(tmp_path / "yok/ledger.sqlite"),
-                           budget_config=str(tmp_path / "yok/budget.json"),
-                           lesson_store=str(tmp_path / "yok/lesson.sqlite"))
+                           budget_config=str(tmp_path / "yok/budget.json"))
     rep = _report(cfg)
     assert isinstance(rep, str)
     assert "Traceback" not in rep
@@ -274,7 +271,7 @@ def test_pano_salt_okunur_veri_degismez(tmp_path):
     try:
         for p in _api_paths(r):
             assert r.req(p)[0] < 500, p
-        for p in ("/api/lesson", "/api/budget", "/"):
+        for p in ("/api/budget", "/"):
             st, _, _ = r.req(p, method="POST")
             assert st == 405, (p, st)
     finally:

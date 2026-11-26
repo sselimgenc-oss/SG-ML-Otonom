@@ -8,7 +8,6 @@ from pathlib import Path
 
 import pytest
 
-from trader_core import lesson as LS
 from trader_core import telegram as T
 
 UTC = timezone.utc
@@ -52,8 +51,7 @@ class FakeTG:
 
 def env_for(tmp_path):
     return {"TELEGRAM_BOT_TOKEN": TOKEN, "TELEGRAM_CHAT_ID": str(CHAT), "TELEGRAM_VAR_DIR": str(tmp_path / "tg"),
-            "KILL_FILE": str(tmp_path / "KILL"), "ENGINE_STATUS_PATH": str(tmp_path / "status.json"),
-            "LESSON_RUN_PATH": "/x/lesson_run.py"}
+            "KILL_FILE": str(tmp_path / "KILL"), "ENGINE_STATUS_PATH": str(tmp_path / "status.json")}
 
 
 class _FnClk:
@@ -75,15 +73,9 @@ def rig(tmp_path):
     env = env_for(tmp_path)
     cfg = T.TelegramConfig.from_env(env)
     client = T.TelegramClient(TOKEN, fake, sleeps.append)
-    calls = []
-
-    def runner(argv, timeout, e):
-        calls.append((argv, dict(e)))
-        return 0, json.dumps({"status": "approved", "code": "ok", "message": "tamam", "request_id": argv[4]})
-
-    d = T.TelegramDaemon(cfg, client, now_fn=clk, runner=runner, sleep=sleeps.append, random_code=lambda: "0427",
+    d = T.TelegramDaemon(cfg, client, now_fn=clk, sleep=sleeps.append, random_code=lambda: "0427",
                          killswitch=_ks(cfg, clk))
-    d.rig = type("R", (), {"clk": clk, "fake": fake, "sleeps": sleeps, "runs": calls, "tmp": tmp_path, "env": env})
+    d.rig = type("R", (), {"clk": clk, "fake": fake, "sleeps": sleeps, "tmp": tmp_path, "env": env})
     return d
 
 
@@ -103,12 +95,8 @@ def set_status(d, **kw):
     Path(d.cfg.status_path).write_text(json.dumps(st))
 
 
-def test_factory_registered_and_none_without_token():
-    assert "telegram" in LS.NOTIFIER_FACTORIES
+def test_notifier_none_without_token():
     assert T.notifier_from_env({}) is None
-    cfg = LS.load_config(None) if hasattr(LS, "load_config") else None
-    assert cfg is not None
-    assert LS.NOTIFIER_FACTORIES["telegram"](cfg, {}) is None
 
 
 def test_send_requires_dedup_and_ok_only(tmp_path):
@@ -149,8 +137,8 @@ def test_token_never_leaks(tmp_path, caplog):
 
 def test_fit_text_pins_command():
     body = "\n".join(f"satir {i}" for i in range(2000))
-    out = T.fit_text(body, "/onayla lr-2026-11-16-1")
-    assert len(out) <= T.MAX_TEXT and out.endswith("/onayla lr-2026-11-16-1") and "kısaltıldı" in out
+    out = T.fit_text(body, "/durum")
+    assert len(out) <= T.MAX_TEXT and out.endswith("/durum") and "kısaltıldı" in out
     assert " /gizli" in T.fit_text("/gizli")
 
 
@@ -247,55 +235,26 @@ def test_devam_unreadable_status_fail_closed(rig):
     assert d.killswitch.active() and not d._pending_p.exists()
 
 
-def test_lesson_command_subprocess_no_token(rig):
+def test_kaldirilan_ders_komutlari_islem_yapmaz(rig):
+    """Ders sistemi kaldirildi (25.11): /ders, /onayla, /reddet tek satirla yanitlanir; alt surec/depo yok."""
     d = rig
-    d.process_updates([msg(d, "/onayla lr-2026-11-16-3", 1), msg(d, "/onayla lr-2026-11-16-3; DROP", 2)])
-    assert len(d.rig.runs) == 1
-    argv, env = d.rig.runs[0]
-    assert "--resolve" in argv and "--approve" in argv and "TELEGRAM_BOT_TOKEN" not in env
-    d.process_updates([msg(d, "/reddet lr-2026-11-16-3", 3)])
-    assert "--reject" in d.rig.runs[-1][0]
+    d.process_updates([msg(d, "/onayla lr-2026-11-16-3", 1), msg(d, "/reddet lr-2026-11-16-3", 2), msg(d, "/ders", 3)])
+    sent = [p["text"] for p in d.rig.fake.sent()]
+    assert len(sent) == 3 and all("kaldirildi" in x for x in sent)
 
 
-def cb(d, data, uid, mid=77, text="Oneri\n/onayla lr-2026-11-16-3"):
+def cb(d, data, uid, mid=77, text="Oneri"):
     return {"update_id": uid, "callback_query": {"id": f"c{uid}", "from": {"id": CHAT}, "data": data,
             "message": {"message_id": mid, "chat": {"id": CHAT, "type": "private"}, "text": text}}}
 
 
-def test_inline_approve_needs_confirm_reject_one_tap(rig):
+def test_eski_ders_dugmeleri_islem_yapmaz(rig):
     d = rig
     exp = int(d.rig.clk().timestamp()) + 600
-    d.process_updates([cb(d, f"ok:lr-2026-11-16-3:{exp}", 1)])
-    assert d.rig.runs == []
-    edits = d.rig.fake.sent("editMessageText")
-    assert "Emin misin" in edits[-1]["text"] and len(d.rig.fake.sent("answerCallbackQuery")) == 1
-    d.process_updates([cb(d, f"ev:lr-2026-11-16-3:{exp}", 2)])
-    assert "--approve" in d.rig.runs[0][0]
-    d.process_updates([cb(d, f"no:lr-2026-11-16-3:{exp}", 3)])
-    assert "--reject" in d.rig.runs[1][0]
-    assert edits[-1]["reply_markup"]["inline_keyboard"]
-    assert d.rig.fake.sent("editMessageText")[-1]["reply_markup"] == {"inline_keyboard": []}
-
-
-def test_callback_expired(rig):
-    d = rig
-    exp = int(d.rig.clk().timestamp()) - 1
-    d.process_updates([cb(d, f"ev:lr-2026-11-16-3:{exp}", 1)])
-    assert d.rig.runs == []
-    assert d.rig.fake.sent("answerCallbackQuery")[-1]["text"] == "suresi doldu"
-
-
-def test_request_approval_message(tmp_path):
-    fake, clk = FakeTG(), Clk()
-    n = T.notifier_from_env(env_for(tmp_path), fake, clk, lambda s: None)
-    req = LS.ApprovalRequest("lr-2026-11-16-3", 3, 1, "trail_atr", 3.0, 3.2, "x", "r1", False, False, "Oneri", "govde",
-                             {"n": 5}, clk(), clk() + timedelta(hours=2))
-    assert n.request_approval(req) is True
-    p = fake.sent()[0]
-    assert p["text"].endswith("/reddet lr-2026-11-16-3")
-    data = [b["callback_data"] for b in p["reply_markup"]["inline_keyboard"][0]]
-    assert all(len(x) <= 64 for x in data) and data[0].startswith("ok:")
-    assert n.request_approval(req) is True and len(fake.sent()) == 1   # request_id ile dedup
+    d.process_updates([cb(d, f"ok:lr-2026-11-16-3:{exp}", 1), cb(d, f"ev:lr-2026-11-16-3:{exp}", 2)])
+    assert d.rig.fake.sent("editMessageText") == []
+    ans = d.rig.fake.sent("answerCallbackQuery")
+    assert len(ans) == 2 and all("kaldirildi" in a["text"] for a in ans)
 
 
 def test_report_schedule():
@@ -329,23 +288,3 @@ def test_script_send_and_report(tmp_path, capsys):
     assert fake.sent()[0]["text"] == "[ML] birim"
     assert TR.main(["send", "--dedup-key", "h:1", "birim"], env={}, http_post=fake) == 1
     assert TOKEN not in capsys.readouterr().out
-
-
-def test_lesson_resolve_cli_lock_busy(tmp_path):
-    sys.path.insert(0, str(ROOT / "scripts"))
-    import lesson_run as LR
-    cfg_json = json.loads((ROOT / "config" / "lesson.json").read_text())
-    store = tmp_path / "lesson.sqlite"
-    env = {"LESSON_STORE_PATH": str(store), "LEDGER_PATH": str(tmp_path / "l.sqlite")}
-    cfg_json = {**cfg_json, "dondurulmus": False}           # 25.11: repo yapilandirmasi dondurulmus; kilit yolu icin cozulen kopya
-    cfg_p = tmp_path / "lesson_cfg.json"
-    cfg_p.write_text(json.dumps(cfg_json), encoding="utf-8")
-    assert LR.main(["--resolve", "bad", "--approve", "--config", str(cfg_p)], env=env) == 1
-    assert LR.main(["--resolve", "lr-2026-11-16-1", "--config", str(cfg_p)], env=env) == 1
-    fl = LS.FileLock(tmp_path / "lesson.lock")
-    assert fl.acquire()
-    try:
-        assert LR.main(["--resolve", "lr-2026-11-16-1", "--approve", "--config", str(cfg_p)], env=env) == 2
-    finally:
-        fl.release()
-    assert cfg_json

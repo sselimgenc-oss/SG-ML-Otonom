@@ -128,10 +128,10 @@ def test_every_unit_handled_by_install():
     assert all(u.name.startswith("trader-") for u in UNITS)
     # etkinlestirme politikasi: her zamanlayici ve servis ya acikca etkinlestirilir ya da bilincli olarak etkinlestirilmez
     enabled = set(re.findall(r"enable_now (trader-[\w@.-]+)", t))
-    deliberately_not = {"trader-health-fail@.service", "trader-health.service", "trader-backup.service", "trader-lesson.service",
+    deliberately_not = {"trader-health-fail@.service", "trader-health.service", "trader-backup.service",
                         "trader-telegram-report.service", "trader-engine@.service",
                         "trader-panel-publish.service", "trader-engine-retry@.service", "trader-counterfactual@.service", "trader-exit-counterfactual@.service",
-                        "trader-oi.service", "trader-haber.service", "trader-piyasa-veri.service", "trader-drift@.service", "trader-notes.service", "trader-weekly-summary.service", "trader-ml-retrain.service", "trader-universe.service",
+                        "trader-oi.service", "trader-haber.service", "trader-piyasa-veri.service", "trader-drift@.service", "trader-weekly-summary.service", "trader-ml-retrain.service", "trader-universe.service",
                         "trader-tutarlilik.service",  # Faz 2a: haftalik tutarlilik raporu (zamanlayici etkinlestirilir; servis tetiklenir)
                         "trader-tur1-olcum.service",  # tur 1 olcum raporu: gunluk zamanlayici etkinlestirilir; servis tetiklenir
                         "trader-weekly-collect.service",  # haftalik YZ batch sonuclarini toplama: zamanlayici etkinlestirilir; servis tetiklenir
@@ -171,12 +171,26 @@ def test_env_examples_installed():
 
 def test_placeholder_gated_timers():
     t = (DEPLOY / "install.sh").read_text(encoding="utf-8")
-    for key in ("ANTHROPIC_API_KEY_LESSON", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"):
+    for key in ("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"):
         assert re.search(rf"has_value \S+ {key}", t), key
     # DD-12 WP-06a: veto zamanlayicisi artik anahtara bagli degil (kagitta veto yok): has_value ile etkinlestirilmez
     assert "ANTHROPIC_API_KEY_VETO" not in t and "enable_now trader-veto" not in t
-    # ders: Anthropic anahtari VE Telegram anahtarlari
-    assert re.search(r'has_value /etc/trader-lesson\.env ANTHROPIC_API_KEY_LESSON && \[ "\$TG_OK" -eq 1 \]', t)
+    # 25.11: ders servisi kaldirildi: ANTHROPIC_API_KEY_LESSON artik hicbir yerde istenmez / etkinlestirme kosulu degil
+    assert "ANTHROPIC_API_KEY_LESSON" not in t and "enable_now trader-lesson" not in t and "enable_now trader-notes" not in t
+
+
+def test_ders_ve_not_birimleri_emekli_dongusunde_idempotent():
+    """25.11 sahip karari: trader-lesson.* ve trader-notes.* birim dosyalari depoda yok; install.sh mevcut emekli birim dongusunde
+    (varlik kontrollu disable --now + dosya silme) eski kopyalari temizler."""
+    t = (DEPLOY / "install.sh").read_text(encoding="utf-8")
+    for u in ("trader-lesson.timer", "trader-lesson.service", "trader-notes.timer", "trader-notes.service"):
+        assert not (DEPLOY / u).exists(), u
+    m = re.search(r"for u in (trader-veto\.timer.*?); do\n(.*?)\n  rm -f \"\$\{UNIT_DIR\}/\$u\"\ndone", t, re.S)
+    assert m, "emekli birim dongusu bulunamadi"
+    for u in ("trader-lesson.timer", "trader-lesson.service", "trader-notes.timer", "trader-notes.service"):
+        assert u in m.group(1), u
+    assert 'systemctl disable --now "$u" >/dev/null 2>&1 || true' in m.group(2)
+    assert not re.search(r"^ANTHROPIC_API_KEY_LESSON=", (DEPLOY / "trader-lesson.env.example").read_text(encoding="utf-8"), re.M)
 
 
 def test_veto_units_removed_and_disabled_on_install():
@@ -410,8 +424,6 @@ def test_exit_counterfactual_units_and_install():
     assert "OnCalendar=*-*-* 23:40:00 UTC" in tm and "Persistent=true" in tm and "RandomizedDelaySec=600" in tm
     cf = (DEPLOY / "trader-counterfactual@.timer").read_text(encoding="utf-8")
     assert "23:10:00 UTC" in cf and "RandomizedDelaySec=900" in cf and "23:10" < "23:40"            # 23:10 isi (+15 dk) 23:40'tan once biter
-    lesson = (DEPLOY / "trader-lesson.timer").read_text(encoding="utf-8")
-    assert "OnCalendar=*-*-* 23:40" not in lesson
     t = (DEPLOY / "install.sh").read_text(encoding="utf-8")
     assert "enable_now trader-exit-counterfactual@learner.timer" in t and "enable_now trader-exit-counterfactual@twin" not in t
     assert (ROOT / "scripts/exit_counterfactual_run.py").exists() and (ROOT / "docs/cikis-karsi-olgu-spec.md").exists()

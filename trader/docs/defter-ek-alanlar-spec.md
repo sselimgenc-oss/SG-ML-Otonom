@@ -1,5 +1,8 @@
 # Defter ve motor ek alanları: emir anı kaydı, çıkıştaki koşul, gölge karar satırları, anlık değerli düşüş (spesifikasyon v1, 17 Kasım 2026)
 
+> 25 Kasım: sahip kararıyla ders sistemi KALDIRILDI (`trader_core/lesson.py`, `lesson_run`, gece notu, onay/ret akışı, panel/Telegram ders bölümleri; öğrenme ML1'e taşındı). Bu belgedeki ders/not/onay (`/ders`, `/onayla`, `/reddet`) bölümleri tarihsel kayıttır, geçerli değildir. Defterin parametre sürümü mekanizması (kullanıcı sürümü, etkinleştirme, `parent_version_id`) ve şeması AYNEN kalır.
+
+
 İş paketi **WP-3** (`otonom-trading-arastirma/tasarim-kararlari.md` 17 Kasım "Repo denetimi onay listesi"). Onay listesi maddeleri: **2** (yalnız kayıt alanları), **7 / A-11** (aday bastıran bloklar için gölge karar satırı), **16** (yalnız `trade_exits.exit_regime`), **18** (C-15, D-12: anlık değerli düşüş). Tek ajan, sırayla (§11), mentor incelemesi zorunlu.
 
 Bu belge kod, test ve commit içermez; testler bu belgeden yazılır (§12). Çelişkide `defter-spec.md` (defter kuralları), `motor/` belgeleri (motor) ve `kagit-degerlendirme-plani.md` (eşikler) geçerlidir; bu belge onlara **ekler**, hiçbir kuralını değiştirmez. Şema **sürüm 3 → 4**.

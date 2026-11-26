@@ -1,5 +1,8 @@
 # Çıkış kipleri: başa-baş ve kısmi kâr alma (plan 25c, iş 1b; 19 Kasım 2026)
 
+> 25 Kasım: sahip kararıyla ders sistemi KALDIRILDI (`trader_core/lesson.py`, `lesson_run`, gece notu, onay/ret akışı, panel/Telegram ders bölümleri; öğrenme ML1'e taşındı). Bu belgedeki ders/not/onay (`/ders`, `/onayla`, `/reddet`) bölümleri tarihsel kayıttır, geçerli değildir. Defterin parametre sürümü mekanizması (kullanıcı sürümü, etkinleştirme, `parent_version_id`) ve şeması AYNEN kalır.
+
+
 Amaç: kâr çıkışlardan geliyor; 1a (`cikis-karsi-olgu-spec.md`) çıkışı yalnız **kanıt** olarak yeniden oynatıyordu. Bu iş iki **gerçek** çıkış kipi ekler: **başa-baş (breakeven)** ve **kısmi kâr alma (partial take-profit)**; ikisi de varsayılan **KAPALI**, kâğıtta ve geri testte **aynı kodla** çalışır, ders menüsünden (kullanıcı onayıyla) açılabilir. Kâğıtta temkin adımı yoktur (deneme süresi, gölge koşu, "N veri bekle"): kural kalıcıdır. Sert limitler (günlük %5, kaldıraç 3-5x, işlem riski) değişmez; kipler yalnız çıkışı etkiler, risk büyütmez.
 Kod: `src/trader_core/exit_modes.py` (saf hesap; motor ve karşı-olgu **aynı işlevleri** çağırır), `trader_engine/position_manager.apply_exit_modes|partial_due`, `trader_engine/engine._exits|_maybe_partial|_partial_fill|_blend_closed`, `trader_core/exit_counterfactual.run_modes_once|deltas_modes`, `trader_core/lesson.py` (Rev. 7).
 

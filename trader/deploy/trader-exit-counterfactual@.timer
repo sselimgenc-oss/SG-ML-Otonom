@@ -1,5 +1,5 @@
 [Unit]
-Description=Trader cikis karsi-olgusu gece isi zamanlayicisi (%i; 23:40 UTC = 02:40 TSI; alinmayan-sinyal 23:10'dan sonra, ders servisinden once)
+Description=Trader cikis karsi-olgusu gece isi zamanlayicisi (%i; 23:40 UTC = 02:40 TSI; alinmayan-sinyal 23:10'dan sonra)
 
 [Timer]
 OnCalendar=*-*-* 23:40:00 UTC

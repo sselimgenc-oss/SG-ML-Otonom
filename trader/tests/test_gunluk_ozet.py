@@ -106,13 +106,8 @@ def test_hesaplar_sanal_kasa_ve_siralama():
 
 
 def test_ogrenme_sayilari():
-    def a(kind, actor, ts):
-        return NS(kind=kind, actor=actor, activated_at=ts)
-    ic = GUN_BASI + timedelta(hours=1)
-    acts = [a("apply", "lesson", ic), a("apply", "lesson", GUN_BASI - timedelta(days=2)), a("apply", "user", ic),
-            a("rollback", "lesson", ic), a("apply", "lesson", GUN_BASI - timedelta(days=5))]
-    d = G.uret(G.Girdi(aktivasyonlar=acts), NOW)
-    assert d["ogrenme"] == {"aktif_ders": 2, "yeni_ders": 1, "emekli_ders": 1, "filtre_aktif": None}   # 24.11: ML filtreleri silindi (sema anahtari hep null)
+    d = G.uret(G.Girdi(), NOW)
+    assert d["ogrenme"] == {"aktif_ders": None, "yeni_ders": None, "emekli_ders": None, "filtre_aktif": None}   # 25.11: ders sistemi kaldirildi; sema anahtarlari korunur, hep null
 
 
 def test_notlar_en_fazla_5_ve_sirsiz():

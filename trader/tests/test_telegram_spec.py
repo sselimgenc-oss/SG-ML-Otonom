@@ -120,24 +120,16 @@ def env(tmp_path, monkeypatch):
     e.fake = FakeTelegram()
     e.clk = Clk()
     e.sleeps = []
-    e.calls = []
-
-    def runner(argv, timeout, env_):
-        e.calls.append((list(argv), timeout, dict(env_)))
-        e.offset_during = e.offset()
-        return e.runner_result
-    e.runner_result = (0, json.dumps({"status": "approved", "code": "ok", "message": "tamam", "request_id": REQ}))
-    e.runner = runner
     e.kill_file = str(tmp_path / "KILL")
     e.status_path = str(tmp_path / "status.json")
     e.cfg = tg.TelegramConfig(token=TOKEN, chat_id=CID, var_dir=str(tmp_path / "var"), kill_file=e.kill_file,
-                              status_path=e.status_path, lesson_run=str(tmp_path / "lesson_run.py"),
+                              status_path=e.status_path,
                               health_state=str(tmp_path / "health.json"))
     (tmp_path / "var").mkdir()
     e.client = tg.TelegramClient(TOKEN, http_post=e.fake.post, sleep=e.sleeps.append)
     e.ks = Killswitch(e.kill_file, SimClock(T0))
     e.new_daemon = lambda **kw: tg.TelegramDaemon(
-        e.cfg, e.client, now_fn=e.clk, runner=kw.pop("runner", e.runner), sleep=e.sleeps.append,
+        e.cfg, e.client, now_fn=e.clk, sleep=e.sleeps.append,
         random_code=kw.pop("random_code", lambda: "4821"),
         killswitch=kw.pop("killswitch", _ks_for(e.cfg, e.clk)), **kw)
     e.offset = lambda: _read_offset(tmp_path)
@@ -215,8 +207,7 @@ def test_foreign_chat_ignored_and_audited(env):
 
 def test_foreign_chat_cannot_execute_commands(env):
     set_kill(env, by="x", reason="manual")
-    env.send("/onayla " + REQ, chat_id=555000999)
-    assert env.calls == []
+    env.send("/durum", chat_id=555000999)
     assert env.fake.of("sendMessage") == []
 
 
@@ -251,7 +242,7 @@ def test_edited_message_ignored(env):
 def test_callback_from_foreign_chat_ignored(env):
     exp = int(env.clk().timestamp()) + 600
     env.d.process_updates([cb(_next(), f"no:{REQ}:{exp}", env.clk(), cid=555000999)])
-    assert env.calls == []
+    assert env.fake.of("answerCallbackQuery") == []
 
 
 def test_allowed_updates_only_message_and_callback(env):
@@ -270,26 +261,19 @@ def test_duplicate_update_id_executes_once(env):
     assert len(env.fake.of("sendMessage")) == n
 
 
-def test_duplicate_update_id_not_executed_twice_approval(env):
-    u = msg(5002, f"/onayla {REQ}", env.clk())
-    env.d.process_updates([u])
-    env.d.process_updates([u])
-    assert len(env.calls) == 1
-
-
 def test_duplicate_after_restart_not_executed_twice(env):
-    u = msg(5003, f"/onayla {REQ}", env.clk())
+    u = msg(5003, "/durum", env.clk())
     env.d.process_updates([u])
+    n = len(env.fake.of("sendMessage"))
     d2 = env.new_daemon()
     d2.process_updates([u])
-    assert len(env.calls) == 1
+    assert len(env.fake.of("sendMessage")) == n
 
 
 def test_offset_advances_after_execution(env):
-    u = msg(6001, f"/onayla {REQ}", env.clk())
+    u = msg(6001, "/durum", env.clk())
     env.d.process_updates([u])
-    assert len(env.calls) == 1
-    assert env.offset_during is None or env.offset_during <= 6001   # yurutme sirasinda ilerlememis
+    assert len(env.fake.of("sendMessage")) == 1
     assert env.offset() == 6002
     assert "6001" in _audit_text(env.tmp)
 
@@ -303,8 +287,8 @@ def test_poll_once_uses_offset_next_poll(env):
 
 
 def test_stale_command_not_executed(env):
-    env.send(f"/onayla {REQ}", date=env.clk() - timedelta(seconds=121))
-    assert env.calls == []
+    env.send("/durum", date=env.clk() - timedelta(seconds=121))
+    assert "kasa" not in env.fake.alltext().lower()
     assert "işlenmedi" in env.fake.alltext().lower() or "islenmedi" in env.fake.alltext().lower()
 
 
@@ -317,16 +301,16 @@ def test_stale_reply_once_per_update(env):
 
 def test_fresh_within_window_executes(env):
     env.clk.advance(200)
-    env.send(f"/onayla {REQ}", date=env.clk() - timedelta(seconds=100))
-    assert len(env.calls) == 1
+    env.send("/durum", date=env.clk() - timedelta(seconds=100))
+    assert len(env.fake.of("sendMessage")) == 1
 
 
 def test_message_older_than_daemon_start_not_executed(env):
     env.clk.advance(60)
     d2 = env.new_daemon()
     env.clk.advance(1)
-    d2.process_updates([msg(_next(), f"/onayla {REQ}", env.clk() - timedelta(seconds=30))])
-    assert env.calls == []
+    d2.process_updates([msg(_next(), "/durum", env.clk() - timedelta(seconds=30))])
+    assert "kasa" not in env.fake.alltext().lower()
 
 
 def test_stale_code_reply_does_not_kill(env):
@@ -344,7 +328,7 @@ def test_hepsini_kapat_sends_4digit_code_no_kill(env):
 
 
 def test_default_code_generator_is_4_digits(env):
-    d = tg.TelegramDaemon(env.cfg, env.client, now_fn=env.clk, runner=env.runner, sleep=env.sleeps.append,
+    d = tg.TelegramDaemon(env.cfg, env.client, now_fn=env.clk, sleep=env.sleeps.append,
                           killswitch=_ks_for(env.cfg, env.clk))
     env.clk.advance(2)
     d.process_updates([msg(_next(), "/hepsini_kapat", env.clk())])
@@ -583,112 +567,23 @@ def test_durdur_without_pause_config_does_not_kill(env):
     assert not kill_active(env)
 
 
-# --------------------------------------------------------------------------- 5.3 ders onayi
-def test_onayla_runs_lesson_run_subprocess(env):
-    env.send(f"/onayla {REQ}")
-    assert len(env.calls) == 1
-    argv, timeout, e_ = env.calls[0]
-    assert "--resolve" in argv and REQ in argv and "--approve" in argv
-    assert any(str(a).endswith("lesson_run.py") for a in argv)
-    assert "TELEGRAM_BOT_TOKEN" not in e_
-    assert timeout <= 60
-    assert TOKEN not in " ".join(map(str, argv))
-
-
-def test_reddet_runs_reject(env):
-    env.send(f"/reddet {REQ}")
-    argv = env.calls[0][0]
-    assert "--reject" in argv and "--approve" not in argv
-
-
-def test_bad_id_format_rejected(env):
-    env.send("/onayla lr-2026-11-16")
-    env.send("/onayla foo")
-    env.send("/onayla")
-    assert env.calls == []
-
-
-def test_injection_rejected(env):
-    env.send(f"/onayla {REQ}; DROP TABLE x")
-    env.send(f"/onayla {REQ} --reject")
-    env.send(f"/onayla ../{REQ}")
-    assert env.calls == [] or all(c[0].count(REQ) == 1 and "--reject" not in c[0] for c in env.calls)
-    for c in env.calls:
-        assert not any(";" in a or " " in a for a in c[0])
-
-
-@pytest.mark.parametrize("status", ["approved", "rejected", "expired", "stale", "unknown", "already_approved"])
-def test_resolve_statuses_replied(env, status):
-    env.runner_result = (0, json.dumps({"status": status, "code": status, "message": "m", "request_id": REQ}))
-    env.send(f"/onayla {REQ}")
-    assert env.fake.of("sendMessage")
-
-
-@pytest.mark.parametrize("rc", [1, 2])
-def test_resolve_failure_exit_codes_do_not_crash(env, rc):
-    env.runner_result = (rc, "")
-    env.send(f"/onayla {REQ}")
-    assert env.fake.of("sendMessage")
-
-
-def test_double_approve_idempotent_no_crash(env):
-    env.send(f"/onayla {REQ}")
-    env.runner_result = (0, json.dumps({"status": "already_approved", "code": "x", "message": "m", "request_id": REQ}))
-    env.send(f"/onayla {REQ}")
-    assert len(env.calls) == 2
-
-
-def test_daemon_never_touches_lesson_store(env):
-    env.send(f"/onayla {REQ}")
-    env.send(f"/reddet {REQ}")
+# --------------------------------------------------------------------------- 5.3 kaldirilan ders komutlari (25.11)
+@pytest.mark.parametrize("cmd", ["/onayla " + REQ, "/reddet " + REQ, "/ders", "/onayla", f"/onayla {REQ}; DROP TABLE x"])
+def test_kaldirilan_komutlar_tek_satir_yanit_islem_yok(env, cmd):
+    env.send(cmd)
+    out = env.fake.of("sendMessage")
+    assert len(out) == 1 and "kaldirildi" in out[0]["text"]
+    assert not kill_active(env)
     names = [p.name for p in env.tmp.rglob("*")]
     assert not any(n.startswith("lesson.sqlite") or n == "lesson.lock" for n in names)
 
 
-def test_callback_ok_requires_second_step(env):
+@pytest.mark.parametrize("pfx", ["ok", "ev", "no", "vz"])
+def test_eski_ders_dugmeleri_islem_yapmaz(env, pfx):
     exp = int(env.clk().timestamp()) + 600
-    env.d.process_updates([cb(_next(), f"ok:{REQ}:{exp}", env.clk())])
-    assert env.calls == []
-    assert env.fake.of("answerCallbackQuery")
-    ed = env.fake.of("editMessageText")
-    assert ed and "Emin misin" in ed[-1]["text"]
-    markup = json.dumps(ed[-1].get("reply_markup", {}))
-    assert "ev:" in markup and "vz:" in markup
-
-
-def test_callback_ev_executes_approve(env):
-    exp = int(env.clk().timestamp()) + 600
-    env.d.process_updates([cb(_next(), f"ev:{REQ}:{exp}", env.clk())])
-    assert len(env.calls) == 1 and "--approve" in env.calls[0][0]
-    assert env.fake.of("answerCallbackQuery")
-    assert env.fake.of("editMessageText")
-
-
-def test_callback_no_single_tap_reject(env):
-    exp = int(env.clk().timestamp()) + 600
-    env.d.process_updates([cb(_next(), f"no:{REQ}:{exp}", env.clk())])
-    assert len(env.calls) == 1 and "--reject" in env.calls[0][0]
-
-
-def test_callback_vz_restores_without_execution(env):
-    exp = int(env.clk().timestamp()) + 600
-    env.d.process_updates([cb(_next(), f"vz:{REQ}:{exp}", env.clk())])
-    assert env.calls == []
-    assert env.fake.of("answerCallbackQuery")
-
-
-def test_callback_expired_rejected(env):
-    exp = int(env.clk().timestamp()) - 10
-    for pfx in ("ok", "ev", "no"):
-        env.d.process_updates([cb(_next(), f"{pfx}:{REQ}:{exp}", env.clk())])
-    assert env.calls == []
-    assert len(env.fake.of("answerCallbackQuery")) == 3
-
-
-def test_callback_old_message_date_still_valid_by_expires_at(env):
-    exp = int(env.clk().timestamp()) + 3600
-    env.d.process_updates([cb(_next(), f"no:{REQ}:{exp}", env.clk() - timedelta(hours=2))])
-    assert len(env.calls) == 1
+    env.d.process_updates([cb(_next(), f"{pfx}:{REQ}:{exp}", env.clk())])
+    assert len(env.fake.of("answerCallbackQuery")) == 1
+    assert env.fake.of("editMessageText") == []
 
 
 # --------------------------------------------------------------------------- Bolum 2: giden
@@ -890,19 +785,6 @@ def test_alert_send_uses_fingerprint_dedup(nt):
     assert len(nt.f.of("sendMessage")) == 1
 
 
-def test_request_approval_contains_commands_and_buttons(nt):
-    from trader_core.lesson import ApprovalRequest
-    req = ApprovalRequest(request_id=REQ, proposal_id=3, base_version_id=1, param="p", from_value=1.0, to_value=2.0,
-                          scope="s", reason_code="rc", shadow_period=False, provisional=False, title="T", body="B",
-                          evidence={"n": 1}, created_at=T0, expires_at=T0 + timedelta(hours=1))
-    assert nt.n.request_approval(req) is True
-    p = nt.f.of("sendMessage")[0]
-    assert f"/onayla {REQ}" in p["text"] and f"/reddet {REQ}" in p["text"]
-    assert "reply_markup" in p
-    for part in re.findall(r'"callback_data":\s*"([^"]+)"', json.dumps(p["reply_markup"])):
-        assert len(part.encode()) <= 64
-
-
 def test_notifier_from_env_none_without_token():
     assert tg.notifier_from_env({}) is None
     assert tg.notifier_from_env({"TELEGRAM_BOT_TOKEN": "x"}) is None
@@ -911,11 +793,6 @@ def test_notifier_from_env_none_without_token():
 
 def test_config_from_env_missing_is_none():
     assert tg.TelegramConfig.from_env({}) is None
-
-
-def test_registered_in_lesson_notifier_factories():
-    from trader_core import lesson
-    assert "telegram" in lesson.NOTIFIER_FACTORIES
 
 
 # --------------------------------------------------------------------------- Bolum 7: sirlar
@@ -940,7 +817,7 @@ def test_token_not_in_daemon_audit_or_logs(env, caplog, capsys):
     caplog.set_level(logging.DEBUG)
     env.send("/hepsini_kapat")
     env.send("4821")
-    env.send(f"/onayla {REQ}")
+    env.send("/durum")
     env.send("/x", chat_id=555000999)
     cap = capsys.readouterr()
     assert TOKEN not in caplog.text and TOKEN not in cap.err
@@ -981,7 +858,7 @@ def _report_env(tmp_path, status=True, stale=False):
     n, ob, client, sleeps, clk = make_notifier(f, tmp_path)
     sp = tmp_path / "status.json"
     cfg = tg.TelegramConfig(token=TOKEN, chat_id=CID, var_dir=str(tmp_path / "var"), kill_file=str(tmp_path / "KILL"),
-                            status_path=str(sp), lesson_run=str(tmp_path / "lr.py"),
+                            status_path=str(sp),
                             health_state=str(tmp_path / "health.json"))
     (tmp_path / "var").mkdir(exist_ok=True)
     return f, n, cfg, sp

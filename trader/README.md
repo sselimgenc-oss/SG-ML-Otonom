@@ -12,15 +12,15 @@ motor sartnameleri: `docs/motor/`.
 ## Klasor yapisi
 
 ```
-config/engine.*.json      motor ayarlari (base + bot/mod ustleri), budget.json, lesson.json, panel.json
+config/engine.*.json      motor ayarlari (base + bot/mod ustleri), budget.json, panel.json
 deploy/                   systemd birimleri ve install.sh (sunucu kurulumu)
 shared/                   ortak dosyalar (KILL)
-src/trader_core/          cekirdek: risk, rejim, sinyal, defter, ders, saglik, telegram
+src/trader_core/          cekirdek: risk, rejim, sinyal, defter, saglik, telegram
 src/trader_engine/        kendi motoru: feed, saat/bar, paper/canli broker, backtester
 research/                 arastirma araclari; research/reference/ degismez referans sonuclari
 scripts/                  fetch_binance_vision.py, download_data.sh, smoke_binance.sh, servis girisleri
 var/                      calisma verisi (gitignore'da): var/history = gecmis feather verisi
-user_data/                bota ozel sqlite dosyalari (ders, butce) (gitignore'da)
+user_data/                bota ozel sqlite dosyalari (butce) (gitignore'da)
 tests/                    pytest testleri
 ```
 

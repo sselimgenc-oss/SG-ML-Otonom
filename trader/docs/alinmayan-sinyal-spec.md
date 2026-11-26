@@ -1,5 +1,8 @@
 # Alınmayan sinyal gece işi (plan 25a)
 
+> 25 Kasım: sahip kararıyla ders sistemi KALDIRILDI (`trader_core/lesson.py`, `lesson_run`, gece notu, onay/ret akışı, panel/Telegram ders bölümleri; öğrenme ML1'e taşındı). Bu belgedeki ders/not/onay (`/ders`, `/onayla`, `/reddet`) bölümleri tarihsel kayıttır, geçerli değildir. Defterin parametre sürümü mekanizması (kullanıcı sürümü, etkinleştirme, `parent_version_id`) ve şeması AYNEN kalır.
+
+
 Amaç: atlanan kararların "alsaydık ne olurdu" sonucunu saklamak; ders kuralları (gevşetme) ve ML derlemi, yalnız aldığımız işlemlerden öğrenip kendi önyargısını büyütmesin (tasarım kararları, 17 Kasım).
 Kod: `src/trader_core/counterfactual.py` (saf hesap + depo), `scripts/counterfactual_run.py` (CLI). Birim: `deploy/trader-counterfactual@.service|.timer`.
 

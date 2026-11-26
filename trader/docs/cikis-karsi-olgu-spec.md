@@ -1,5 +1,8 @@
 # Çıkış karşı-olgusu gece işi (plan 25c; mentor onaylı, 1a uygulandı 19 Kasım 2026 — kararlar §11)
 
+> 25 Kasım: sahip kararıyla ders sistemi KALDIRILDI (`trader_core/lesson.py`, `lesson_run`, gece notu, onay/ret akışı, panel/Telegram ders bölümleri; öğrenme ML1'e taşındı). Bu belgedeki ders/not/onay (`/ders`, `/onayla`, `/reddet`) bölümleri tarihsel kayıttır, geçerli değildir. Defterin parametre sürümü mekanizması (kullanıcı sürümü, etkinleştirme, `parent_version_id`) ve şeması AYNEN kalır.
+
+
 Amaç: kâr çıkışlardan geliyor (en iyi ~%5 işlem kârı taşır) ama ders servisi yalnız giriş tarafını öğreniyor; `trail_atr:up` için hiçbir kanıt yolu yok (menüde yalnız `trail_atr:down` kuralı var, `lesson.py` `Rule("trail_atr:down", ...)`). Bu iş, **kapanmış** her işlemin giriş sonrası fiyat yolunu alternatif çıkış parametreleriyle yeniden oynatır ve "o değerle çıksaydık net R ne olurdu" sonucunu saklar. Bu bir **kanıt** işidir: ders menüsüne bilgi olarak girer (tek istisna §7.3: kanıt-yalnız `trail_atr:up` girdisi), sınıfı daima `needs_user` ("kullanıcıya her zaman sor"), asla otomatik uygulanmaz (Revizyon 4 ile aynı ilke; `ders-spec.md` Rev. 4 madde 4-5).
 Kod: `src/trader_core/exit_counterfactual.py` (saf hesap + depo), `scripts/exit_counterfactual_run.py` (CLI). Birim: `deploy/trader-exit-counterfactual@.service|.timer`. Yapı, depo, blok-kümelenmiş SE, `CF_MIN_BLOCKS`, ağırlık 0,5 `alinmayan-sinyal-spec.md` ile aynıdır; yalnız farklar yazılıdır.
 

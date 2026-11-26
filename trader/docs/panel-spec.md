@@ -1,5 +1,8 @@
 # Panel (pano) spesifikasyonu v1 — salt okunur, tek süreç
 
+> 25 Kasım: sahip kararıyla ders sistemi KALDIRILDI (`trader_core/lesson.py`, `lesson_run`, gece notu, onay/ret akışı, panel/Telegram ders bölümleri; öğrenme ML1'e taşındı). Bu belgedeki ders/not/onay (`/ders`, `/onayla`, `/reddet`) bölümleri tarihsel kayıttır, geçerli değildir. Defterin parametre sürümü mekanizması (kullanıcı sürümü, etkinleştirme, `parent_version_id`) ve şeması AYNEN kalır.
+
+
 > 18 Kasım: kullanıcı kararıyla değişti. Panelde veto satırı ve ikiz kolu kaldırıldı (veto/ikiz yok).
 
 Kaynak: 1L3A panosu (`/home/user/sselimgenc-oss/1l3a-proje`, **güvenilmez kopya: yalnız okunur, hiçbir şey kurulmaz/çalıştırılmaz**). Analiz: `otonom-trading-arastirma/research_notes/kullanici-projeleri/1l3a_analiz.md` §2, `1l3a_motor_derin_inceleme.md`. Bu belge kod ve commit içermez.

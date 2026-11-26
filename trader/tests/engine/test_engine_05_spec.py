@@ -1583,6 +1583,19 @@ class TestStartup:
         assert not any(x.veto_reason == "gate:strategy_mismatch" for x in d)
         e2.close()
 
+    def test_surum_etiketi_ders_sonrasi_kullanici_surumu_zincirinden_okunur(self):
+        """25.11 ders sistemi kaldirildi, defterdeki ders (author=lesson) surumleri kalir: sunucu zinciri v1(etiketli) -> v3(ders, etiketsiz)
+        -> v4(kullanici) icin motor etiketi parent_version_id zincirinden bulur (v4'te de etiket olmasa da)."""
+        from types import SimpleNamespace as NS
+        zincir = {1: NS(reason="strategy:TraderV1b@1.0 paper_start", parent_version_id=None),
+                  3: NS(reason="ders: rr_min +0,25 (kanit 20 islem)", parent_version_id=1),
+                  4: NS(reason="kullanici onayi: ders surumu 3 uzerine", parent_version_id=3)}
+        stub = NS(ledger=NS(get_version=lambda vid: zincir[vid]))
+        assert mod("engine").Engine._surum_etiketi(stub, 4) == zincir[1].reason
+        assert mod("engine").Engine._surum_etiketi(stub, 3) == zincir[1].reason
+        zincir[4] = NS(reason="strategy:TraderV1b@1.0 kullanici", parent_version_id=3)
+        assert mod("engine").Engine._surum_etiketi(stub, 4) == zincir[4].reason     # kendi etiketi varsa o
+
     def test_version_mismatch_blocks_entries_only(self, tmp_path):
         (tmp_path / "x").mkdir()
         Env(tmp_path / "x", strategy=FakeStrategy(version="0.1")).close()     # defter etiketi 0.1 ile acilir

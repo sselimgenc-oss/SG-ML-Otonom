@@ -27,17 +27,6 @@ from trader_engine.killswitch import Killswitch  # noqa: E402
 from trader_engine.pause import EntryPause  # noqa: E402
 
 
-def default_runner(argv: list[str], timeout: float, env) -> tuple[int, str]:
-    """lesson_run.py --resolve alt sureci (trader_core'da surec cagrisi yasak, 08 §4.7)."""
-    import json
-    import subprocess
-    try:
-        r = subprocess.run(argv, capture_output=True, text=True, timeout=timeout, env=dict(env))
-        return r.returncode, r.stdout
-    except Exception as e:  # noqa: BLE001
-        return 2, json.dumps({"status": "unknown", "code": type(e).__name__})
-
-
 class _Clk:
     def __init__(self, fn):
         self._fn = fn
@@ -101,7 +90,7 @@ def build_ladders(env, now_fn, root: Path | None = None) -> dict:
     return out
 
 
-def main(argv=None, *, env=None, http_post=None, now_fn=None, sleep=time.sleep, stop=None, runner=None) -> int:
+def main(argv=None, *, env=None, http_post=None, now_fn=None, sleep=time.sleep, stop=None) -> int:
     ap = argparse.ArgumentParser(prog="telegram_run.py")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("daemon")
@@ -154,7 +143,7 @@ def main(argv=None, *, env=None, http_post=None, now_fn=None, sleep=time.sleep, 
         ks = Killswitch(cfg.kill_file, _Clk(now_fn)) if cfg.kill_file else None
         pauses = build_pauses(env, now_fn)
         ladders = build_ladders(env, now_fn)
-        d = T.TelegramDaemon(cfg, client, now_fn=now_fn, sleep=sleep, runner=runner or default_runner, killswitch=ks, pauses=pauses,
+        d = T.TelegramDaemon(cfg, client, now_fn=now_fn, sleep=sleep, killswitch=ks, pauses=pauses,
                              ladders=ladders, expect_status_mode="live" if LP.live_bots(env) else None,
                              report_fn=lambda: T.build_report(cfg, now_fn(), now_fn().astimezone(T.TR).date().isoformat(),
                                                        T.default_sections(cfg, now_fn(), now_fn().astimezone(T.TR).date().isoformat(), pauses,

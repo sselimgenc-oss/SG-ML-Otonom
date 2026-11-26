@@ -8,11 +8,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 import weekly_summary_run as W  # noqa: E402
-from trader_core import lesson as LS  # noqa: E402
+from trader_core import ortak as LS  # noqa: E402
 from trader_core import telegram as T  # noqa: E402
 
 NOW = datetime(2026, 11, 22, 18, 10, tzinfo=timezone.utc)
 DAY = "2026-11-22"
+
+
+def _islem():
+    from types import SimpleNamespace
+    return SimpleNamespace(exit_ts=datetime(2026, 11, 22, 1, 0, tzinfo=timezone.utc), exit_reason="stop", r_multiple=-1.0,
+                           setup="T1", pair="BTC/USDT", side="long")
 
 
 def _write(p: Path, doc):
@@ -23,7 +29,7 @@ def _write(p: Path, doc):
 def _run(tmp_path, **kw):
     lp = tmp_path / "var" / "learner" / "ledger.sqlite"
     lp.parent.mkdir(parents=True, exist_ok=True)
-    return W.main(["--once", "--day", DAY, "--ledger", str(lp), "--lesson-store", str(tmp_path / "yok.sqlite"), *kw.pop("extra", [])],
+    return W.main(["--once", "--day", DAY, "--ledger", str(lp), *kw.pop("extra", [])],
                   now_fn=lambda: NOW, env={"TRADER_DATA_ROOT": str(tmp_path)}, **kw), lp.parent / "weekly_summaries" / "2026-W47.md"
 
 
@@ -49,12 +55,9 @@ def test_keyed_adds_comment_after_fixed_and_once_per_week(tmp_path, capsys):
         def record(self, *a): pass
         def release(self, g): pass
 
-    monkey_notes = [{"note_date": DAY, "tags": ["x"], "text": "not", "trade_id": "t1"}]
-
     class FakeLed:
         LIST_CLOSED_MAX = 10
-        def list_trade_notes(self): return monkey_notes
-        def list_closed_trades(self, limit=0): return []
+        def list_closed_trades(self, limit=0): return [_islem()]
         def close(self): pass
 
     orig = W.L.open_ledger
@@ -91,8 +94,7 @@ def test_budget_denied_still_writes_fixed(tmp_path, capsys):
 
     class FakeLed:
         LIST_CLOSED_MAX = 10
-        def list_trade_notes(self): return [{"note_date": DAY, "tags": [], "text": "n", "trade_id": "t"}]
-        def list_closed_trades(self, limit=0): return []
+        def list_closed_trades(self, limit=0): return [_islem()]
         def close(self): pass
     W.L.open_ledger = lambda *a, **k: FakeLed()
     try:
@@ -133,4 +135,4 @@ def test_cikis_kaniti_cases(tmp_path):
     db.executemany("INSERT INTO ecf_outcomes VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", rows)
     db.commit(); db.close()
     s = W.cikis_kaniti_satiri({}, lp, NOW)
-    assert s == "Çıkış kanıtı: en büyük olumlu fark M1 trail yukarı +0,70R (n=1); bekleyen ders önerisi 0"
+    assert s == "Çıkış kanıtı: en büyük olumlu fark M1 trail yukarı +0,70R (n=1)"

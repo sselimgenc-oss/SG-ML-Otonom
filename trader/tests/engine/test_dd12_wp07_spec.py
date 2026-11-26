@@ -120,8 +120,8 @@ def test_slice_tavani_aynen():
 
 
 def test_ozel_birimler_ikiz_olmadan_ayni_kaldi_veya_temiz():
-    # telegram/lesson/report birimleri: var/twin ReadOnlyPaths/ReadWritePaths girdisi yok
-    for n in ("trader-telegram.service", "trader-telegram-report.service", "trader-lesson.service"):
+    # telegram/report birimleri: var/twin ReadOnlyPaths/ReadWritePaths girdisi yok
+    for n in ("trader-telegram.service", "trader-telegram-report.service"):
         t = _read(DEPLOY / n)
         for ln in _active_lines(t):
             assert "var/twin" not in ln, (n, ln)
@@ -252,7 +252,7 @@ def _cfg(tmp_path, twin_dir: bool):
     env = {"TELEGRAM_BOT_TOKEN": "1:tok", "TELEGRAM_CHAT_ID": "5", "TELEGRAM_VAR_DIR": str(tmp_path / "tg"),
            "LEDGER_PATH": str(tmp_path / "l.sqlite"), "ENGINE_STATUS_PATH": str(tmp_path / "status.json"),
            "BUDGET_CONFIG_PATH": str(tmp_path / "config/budget.json"),
-           "LESSON_STORE_PATH": str(tmp_path / "lesson.sqlite"), "TRADER_DATA_ROOT": str(tmp_path)}
+           "TRADER_DATA_ROOT": str(tmp_path)}
     if twin_dir:
         env["TWIN_LEDGER_PATH"] = str(tmp_path / "var/twin/ledger.sqlite")
     cfg = T.TelegramConfig.from_env(env)

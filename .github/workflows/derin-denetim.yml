@@ -51,9 +51,9 @@ jobs:
           - id: m1
             ad: "M1: ozellikler, etiketler, gece egitimi, paket, cikarim, kol"
             dosyalar: "trader/src/trader_ml trader/scripts/ml_retrain_run.py trader/src/trader_core/ml_package.py trader/src/trader_engine/strategies/arms trader/deploy/trader-ml-retrain.timer trader/deploy/trader-ml-retrain.service"
-          - id: ders
-            ad: "Gece dersleri ve ogrenme: esikler, uygulama, izleme, geri alma, fren, kapsam, parametre surumu"
-            dosyalar: "trader/src/trader_core/lesson.py trader/src/trader_core/ledger.py trader/config/lesson.json trader/scripts/lesson_run.py trader/docs/ders-spec.md"
+          - id: surum
+            ad: "Parametre surumleri (defter): kullanici surumu, etkinlestirme, ust surum zinciri, strateji etiketi, motor baslangic denetimi"
+            dosyalar: "trader/src/trader_core/ledger.py trader/src/trader_engine/engine.py trader/src/trader_engine/cli.py trader/docs/defter-spec.md"
           - id: alinsaydi
             ad: "Alinsaydi ve karsi-olgu: alinmayan sinyal sonuclari, cikis karsi-olgusu, arm_conflict raporu"
             dosyalar: "trader/src/trader_core/counterfactual.py trader/src/trader_core/exit_counterfactual.py trader/src/trader_core/alinmayan_sonuc.py trader/scripts/counterfactual_run.py trader/scripts/exit_counterfactual_run.py"

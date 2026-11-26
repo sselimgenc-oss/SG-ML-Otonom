@@ -350,13 +350,6 @@
       add(s3, d);
     });
     add(ig, s3);
-    var dd = p.ders || {durum: 'Kapalı', renk: 'gri', son: null, degisen_7g: 0, katki: {olculemedi: 'Henüz ölçülemedi'}};
-    var d = kart('Ders öğrenmesi', link('Ayrıntı', 'ogrenme'));      // iki öğrenme kartı veri yokken de görünür (zorunlu)
-    add(d, add(el('div'), rozetRenk(dd.durum, dd.renk)));
-    add(d, dd.son ? satir('Son öğrendiği', dd.son.tarih) : el('div', 'yok', 'Henüz ders yok'));
-    if (dd.son) add(d, el('div', 'yok', dd.son.metin));
-    add(d, satir('Son 7 günde değiştirdiği işlem', String(dd.degisen_7g)), katkiSatir(dd.katki));
-    add(ig, d);
     if (p.ogrenme) add(ig, ogrenmeOzetKart(p.ogrenme));
     if (p.isik.renk !== 'kirmizi') add(ig, isikKart(p));
     add(root, ig);
@@ -408,7 +401,7 @@
           v: [r.coin, r.kapanis_ts, r.kz, r.buyukluk, r.neden],
           detail: [['Giriş', px(r.giris)], ['Çıkış', px(r.cikis)], ['Süre', r.sure], ['Büyüklük', usd(r.buyukluk)], ['Kaldıraç', r.kaldirac ? r.kaldirac + 'x' : ''],
             ['Marj', num(r.marj) ? usd(r.marj) : ''], ['Komisyon', usd(r.komisyon)], ['Kol', r.kol],
-            ['Açılış', r.acilis], ['Ders', r.ders ? 'Bu işlemde ders etkili oldu' : '', 1]]};
+            ['Açılış', r.acilis]]};
       });
       add(k, tablo(['Sembol', 'Kapanış', 'K/Z', 'Büyüklük', 'Neden'], rows, [2, 3, 4], 'kapanan'));
       if (v.daha_fazla) add(k, el('div', 'yok', 'Daha eski ' + v.daha_fazla + ' işlem listede gösterilmiyor.'));
@@ -451,10 +444,6 @@
   }
 
   /* ÖĞRENME */
-  function katkiSatir(k) {
-    if (k.olculemedi) return satir('Katkı', k.olculemedi.replace('Henüz', 'henüz'));
-    return satir('Katkı', (k.yaklasik ? '≈ ' : '') + usdS(k.usd) + ' (' + k.n + ' sonucu belli karar)', cls(k.usd));
-  }
   /* Öğrenme: kol x zaman dilimi (veri: defter + kademeli küçültme + karantina dosyası) ve model kolları (paket dosyaları) */
   var DURUM_RENK = {acik: 'yesil', kucultulmus: 'sari', karantina: 'kirmizi'}, DURUM_SIRA = {acik: 0, kucultulmus: 1, karantina: 2};
   function kolAd(r) { return r.kol + ' · ' + r.zd; }
@@ -481,8 +470,7 @@
       return {cells: [add(el('div', 'kolad'), el('div', 'n', r.kol), el('div', 'u', r.zd)), el('div', 'n', String(r.n)),
           el('div', 'n ' + cls(r.net_r), netR(r.net_r)), el('div', 'n', num(r.kazanma) ? '%' + trn(r.kazanma, 0) : '—'), dr],
         v: [r.kol + ' ' + r.zd, r.n, num(r.net_r) ? r.net_r : null, num(r.kazanma) ? r.kazanma : null, DURUM_SIRA[r.durum]],
-        detail: [['Kol', r.arm], ['Risk çarpanı', '%' + Math.round(r.carpan * 100)], ['Durum', r.durum_ad],
-          ['Son ders değişikliği', r.son_ders ? r.son_ders + ' tarihli bir işlemde ders etkili oldu' : 'Henüz yok']]};
+        detail: [['Kol', r.arm], ['Risk çarpanı', '%' + Math.round(r.carpan * 100)], ['Durum', r.durum_ad]]};
     });
     var t = kart('Tüm kollar · zaman dilimine göre');
     add(t, el('div', 'yok', 'Kapanan işlem, net R (R = işlemde riske atılan tutar), kazanma yüzdesi ve kolun işlem riski çarpanı. Satıra dokun: ayrıntı.'));
@@ -509,25 +497,6 @@
   function tabOgrenme(root, p) {
     clear(root);
     var ig = el('div', 'ig iki');
-    if (p.ders) {
-      var d = p.ders, k = kart('Ders kartı');
-      add(k, add(el('div'), rozetRenk(d.durum, d.renk)));
-      if (d.son) add(k, satir('Son öğrendiği', d.son.tarih), el('div', 'yok', d.son.metin));
-      add(k, satir('Son 7 günde etkilediği işlem', String(d.degisen_7g)), katkiSatir(d.katki));
-      if (d.ilerleme) {
-        var il = d.ilerleme;
-        add(k, satir('En yakın aday (' + il.ad + ')', il.n + '/' + il.n_hedef + ' işlem, ' + il.gun + '/' + il.gun_hedef + ' gün'));
-      }
-      (d.kol_dersleri || []).forEach(function (r) {
-        add(k, satir('Kol: ' + r.kol, r.metin + ' · ' + r.tarih + (num(r.n) ? ' · ' + r.n + ' aday' : ''), r.olay === 'closed' ? 'kotu' : ''));
-      });
-      add(ig, k);
-      if (d.son5.length) {
-        var l = kart('Son dersler');
-        d.son5.forEach(function (s) { add(l, satir(s.tarih, s.metin, s.geri ? 'kotu' : '')); });
-        add(ig, l);
-      }
-    }
     if (p.kucultme) {
       var kk2 = kart('Kademeli küçültme');
       add(kk2, el('div', 'yok', 'Son işlemleri zararda olan kolların işlem riski küçültüldü (kol kapanmaz; kâra dönünce geri yükselir).'));
@@ -540,7 +509,7 @@
       });
       add(ig, kk2);
     }
-    if (!p.ders && !p.kucultme && !p.ogrenme) add(ig, yokKart('Henüz öğrenme verisi yok.'));
+    if (!p.kucultme && !p.ogrenme) add(ig, yokKart('Henüz öğrenme verisi yok.'));
     add(root, ig);
     if (p.ogrenme) ogrenmeTablolari(root, p.ogrenme);
   }
@@ -580,10 +549,6 @@
     }, true));
     if (t.limitler) add(root, katli('Risk limitleri', '', function (b) {
       t.limitler.forEach(function (r) { add(b, bar(r.ad, r.kullanilan, r.limit, r.yuzde)); });
-      return b;
-    }));
-    if (t.kapilar) add(root, katli('Kalite kapıları', '', function (b) {
-      t.kapilar.forEach(function (r) { add(b, satir(r.ad, r.not, r.ok ? 'iyi' : 'kotu')); });
       return b;
     }));
     if (t.model) add(root, katli('Model ayrıntısı', '', function (b) {

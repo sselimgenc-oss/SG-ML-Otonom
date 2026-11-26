@@ -1,13 +1,12 @@
 """Telegram: bildirim, komut ve gunluk rapor (docs/telegram-spec.md). Yalniz stdlib + `requests`.
 
 Giden: `TelegramNotifier` (spool + dogrudan, `dedup_key` zorunlu). Gelen: `TelegramDaemon` (long polling, tek chat,
-yalniz ozel sohbet, iki adimli kod onayi, ders onayi alt surecle). Motor bu modulu ice aktarmaz; Telegram ticareti
+yalniz ozel sohbet, iki adimli kod onayi). Motor bu modulu ice aktarmaz; Telegram ticareti
 asla bloke etmez. Token hicbir cikti/gunluk/spool/istisna metninde bulunmaz (`mask`).
 HTTP enjekte edilir: `http_post(url, json=..., timeout=...) -> (status_code, body_dict)`; ag hatasi `(0, {})`.
 """
 from __future__ import annotations
 
-import contextlib
 import hashlib
 import hmac
 import json
@@ -15,7 +14,6 @@ import logging
 import os
 import re
 import secrets
-import sys
 import time
 import math
 from collections.abc import Callable, Mapping
@@ -25,7 +23,7 @@ from pathlib import Path
 from typing import Any
 
 
-from . import lesson as LS
+from . import ortak as ORT
 from . import risk_ladder as RL
 from . import tg_sade as TS
 
@@ -61,7 +59,7 @@ _TS_Z_RE = re.compile(r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(\.\d{1,6})?Z$")
 
 def parse_ts_z(s: str) -> datetime:
     """UTC 'YYYY-MM-DDTHH:MM:SSZ' ya da kesirli saniyeli ('.000Z', '.123456Z') zaman. Saat dilimsiz ya da UTC dışı
-    (ofsetli) girdi ValueError: motorun ve panelin yazdığı iki biçim de (fileio.fmt_ts, lesson/panel '.%03dZ') kabul edilir."""
+    (ofsetli) girdi ValueError: motorun ve panelin yazdığı iki biçim de (fileio.fmt_ts, panel '.%03dZ') kabul edilir."""
     m = _TS_Z_RE.match(s) if isinstance(s, str) else None
     if m is None:
         raise ValueError("zaman UTC 'Z' biçiminde olmalı")
@@ -85,8 +83,10 @@ SPOOL_MAX_FILES = 500
 SPOOL_MAX_BYTES = 5 * 1024 * 1024
 INFO_MAX_AGE_S = 24 * 3600
 RATE_PER_MIN = 15
-REQ_ID_RE = re.compile(r"^lr-\d{4}-\d{2}-\d{2}-\d+$")
 CODE_RE = re.compile(r"^\d{4}$")
+# Ders sistemi kaldirildi (25.11): eski komutlar tek satirla yanitlanir, hicbir islem yapilmaz.
+KALDIRILAN_KOMUTLAR = ("/ders", "/onayla", "/reddet")
+KALDIRILDI_METNI = "Bu komut kaldirildi (ders sistemi kapatildi; ogrenme ML1 uzerinden). Ayar degisikligi icin CLI kullanilir."
 SEVERITIES = ("INFO", "WARN", "CRIT")
 _TOKEN_RE = re.compile(r"bot\d+:[A-Za-z0-9_\-]+")
 _CTRL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
@@ -97,7 +97,7 @@ def mask(text: Any, token: str | None = None) -> str:
     if token:
         t = t.replace(token, "<gizli>")
     t = _TOKEN_RE.sub("bot<gizli>", t)
-    return LS.scrub(t)
+    return ORT.scrub(t)
 
 
 def tail3(x: Any) -> str:
@@ -110,7 +110,7 @@ def tail3(x: Any) -> str:
 # ---------------------------------------------------------------------------
 def neutralize(text: str) -> str:
     """Komut gibi gorunen '/' satirlarinin basina bosluk ekler; kontrol karakterlerini atar."""
-    t = _CTRL_RE.sub(" ", LS.scrub(text))
+    t = _CTRL_RE.sub(" ", ORT.scrub(text))
     return "\n".join((" " + ln) if ln.startswith("/") else ln for ln in t.split("\n"))
 
 
@@ -234,14 +234,14 @@ class TelegramClient:
 # ---------------------------------------------------------------------------
 class TelegramConfig:
     def __init__(self, token: str, chat_id: int, var_dir: str, kill_file: str = "", status_path: str = "",
-                 lesson_run: str = "", health_state: str = "", ledger_path: str = "",
-                 budget_config: str = "", lesson_store: str = "", config_dir: str = ""):
+                 health_state: str = "", ledger_path: str = "",
+                 budget_config: str = "", config_dir: str = ""):
         self.config_dir = config_dir                 # gunluk zarar orani (engine.*.json risk blogu); bos -> kilitli deger
         self.ledger_path = ledger_path
-        self.budget_config, self.lesson_store = budget_config, lesson_store
+        self.budget_config = budget_config
         self.token, self.chat_id, self.var_dir = token, chat_id, var_dir
         self.kill_file, self.status_path = kill_file, status_path
-        self.lesson_run, self.health_state = lesson_run, health_state
+        self.health_state = health_state
 
     @classmethod
     def from_env(cls, env: Mapping[str, str]) -> "TelegramConfig | None":
@@ -259,11 +259,9 @@ class TelegramConfig:
             here = Path(dr)
         return cls(tok, chat, env.get("TELEGRAM_VAR_DIR") or str(here / "var" / "telegram"),
                    env.get("KILL_FILE", ""), env.get("ENGINE_STATUS_PATH", ""),
-                   env.get("LESSON_RUN_PATH") or str(here / "scripts" / "lesson_run.py"),
                    env.get("HEALTH_STATE_PATH", ""),
                    _abs_path(here, env.get("LEDGER_PATH") or "user_data/ledger_learner.sqlite"),
                    _abs_path(here, env.get("BUDGET_CONFIG_PATH") or "config/budget.json"),
-                   _abs_path(here, env.get("LESSON_STORE_PATH") or "user_data/lesson.sqlite"),
                    (env.get("ENGINE_CONFIG_DIR") or "").strip() or str(here / "config"))
 
 
@@ -504,30 +502,6 @@ class TelegramNotifier:
         sev = "CRIT" if text.startswith("🔴") else "WARN"
         return self.send_text(text, sev, f"alarm:{key}:{self.now().isoformat()}")
 
-    # lesson.LessonNotifier
-    def notify(self, notice) -> bool:
-        r = TS.ders_mesaji(str(notice.level), str(getattr(notice, "code", "")), str(getattr(notice, "title", "")),
-                           str(getattr(notice, "body", "")))
-        if r is None:
-            return True
-        text, key = r
-        if str(getattr(notice, "code", "")) in DERS_SESSIZ:       # ders uygulandi / geri alindi: Telegram'a gitmez (gunluk + panel)
-            logging.getLogger(__name__).info("ders (Telegram'a gonderilmedi): %s", text.replace("\n", " "))
-            return True
-        if not self.kayit.gunde_bir(key, self.now().astimezone(TR).date().isoformat()):
-            return True                                       # ayni ders icin gunde tek mesaj
-        return self.send_text(text, "INFO" if notice.code == "applied" else "WARN", f"ders:{key}:{self.now().isoformat()}")
-
-    def request_approval(self, req) -> bool:
-        exp = req.expires_at.timestamp()
-        rid = req.request_id
-        text = TS.onay_istegi(str(req.param), req.from_value, req.to_value, str(req.body), LS.fmt_ts(req.expires_at))
-        pinned = f"/onayla {rid}\n/reddet {rid}"
-        kb = {"inline_keyboard": [[{"text": "Onayla", "callback_data": f"ok:{rid}:{int(exp)}"},
-                                   {"text": "Reddet", "callback_data": f"no:{rid}:{int(exp)}"}]]}
-        return self.send_text(text, "WARN", rid, expires_at=exp, reply_markup=kb, pinned=pinned)
-
-
 def notifier_from_env(env: Mapping[str, str], http_post=None, now_fn=None, sleep=time.sleep) -> TelegramNotifier | None:
     cfg = TelegramConfig.from_env(env)
     if cfg is None:
@@ -536,9 +510,6 @@ def notifier_from_env(env: Mapping[str, str], http_post=None, now_fn=None, sleep
     n = TelegramNotifier(TelegramClient(cfg.token, http_post, sleep), cfg.chat_id, Outbox(cfg.var_dir, now_fn), now_fn, sleep)
     n.status_path = cfg.status_path or None
     return n
-
-
-LS.NOTIFIER_FACTORIES["telegram"] = lambda cfg, env: notifier_from_env(env)
 
 
 # ---------------------------------------------------------------------------
@@ -559,7 +530,7 @@ def _norm_cmd_text(s: str) -> str:
     return re.sub(r"\s+", " ", s.strip().lower().replace("ı", "i").replace("İ", "i"))
 
 
-HELP = ("/durum  /rapor  /kurulumlar  /ders  /hepsini_kapat  /durdur  /devam  /kademe  /kademe_devam  /karantina_kaldir <kurulum>  /onayla <id>  /reddet <id>  /yardim\n"
+HELP = ("/durum  /rapor  /kurulumlar  /hepsini_kapat  /durdur  /devam  /kademe  /kademe_devam  /karantina_kaldir <kurulum>  /yardim\n"
         "/durdur: yeni girisleri durdurur, pozisyonlar acik kalir (tam kapatma icin /hepsini_kapat)")
 PAUSE_USER = "user_cmd"
 PAUSE_LATCH = "capital_latch"          # sermaye mandali: /devam + 4 haneli kodla kaldirilir
@@ -693,16 +664,13 @@ def ladder_line(bot: str, v: dict) -> str:
 
 class TelegramDaemon:
     def __init__(self, cfg: TelegramConfig, client: TelegramClient, *, now_fn: Callable[[], datetime] | None = None,
-                 runner: Callable | None = None, killswitch=None, report_fn: Callable[[], str] | None = None,
+                 killswitch=None, report_fn: Callable[[], str] | None = None,
                  sleep: Callable[[float], None] = time.sleep, random_code: Callable[[], str] | None = None,
                  pauses: Mapping[str, Any] | None = None, ladders: Mapping[str, LadderFiles] | None = None,
                  expect_status_mode: str | None = None):
         self.cfg, self.client = cfg, client
         self.expect_status_mode = expect_status_mode     # DD-9 §7: canli bot varken durum dosyasi `live` olmali (kagit dosyada KILL kalkmaz)
         self.now = now_fn or (lambda: datetime.now(UTC))
-        if runner is None:
-            raise ValueError("runner zorunlu (alt surec cagrisi scripts/telegram_run.py'de)")
-        self.runner = runner
         self.report_fn = report_fn
         self.sleep = sleep
         self.base = Path(cfg.var_dir)
@@ -734,7 +702,7 @@ class TelegramDaemon:
         return self.base / "audit.jsonl"
 
     def _audit(self, event: str, **kw) -> None:
-        row = {"ts": LS.fmt_ts(self.now()), "event": event, **kw}
+        row = {"ts": ORT.fmt_ts(self.now()), "event": event, **kw}
         try:
             with open(self._audit_p, "a", encoding="utf-8") as f:
                 f.write(json.dumps(row, ensure_ascii=False) + "\n")
@@ -861,8 +829,6 @@ class TelegramDaemon:
             return "ok"
         if cmd == "/kurulumlar":
             return self._cmd_info(lambda: kurulumlar_metni(self.cfg, self.now()))
-        if cmd == "/ders":
-            return self._cmd_info(lambda: ders_durum_metni(self.cfg, self.now()))
         if cmd == "/hepsini_kapat":
             return self._cmd_kill_start()
         if cmd == "/devam":
@@ -875,13 +841,14 @@ class TelegramDaemon:
             return self._cmd_kademe_devam_start()
         if cmd == "/karantina_kaldir":
             return self._cmd_karantina_start(arg)
-        if cmd in ("/onayla", "/reddet"):
-            return self._lesson(arg, cmd == "/onayla")
+        if cmd in KALDIRILAN_KOMUTLAR:
+            self._reply(KALDIRILDI_METNI, "INFO")
+            return "removed"
         self._reply("bilinmeyen komut. " + HELP)
         return "unknown"
 
     def _cmd_info(self, fn) -> str:
-        """Salt okunur bilgi komutu (/kurulumlar, /ders): okunamayan veri tek satırla bildirilir."""
+        """Salt okunur bilgi komutu (/kurulumlar): okunamayan veri tek satırla bildirilir."""
         try:
             text = fn()
         except SectionError as e:
@@ -1221,7 +1188,7 @@ class TelegramDaemon:
         if p["action"] == "karantina":
             try:                                              # motor ayni dizinde okur (trader_engine.arm_quarantine.RELEASE_FILE)
                 atomic_write_json(Path(self.cfg.status_path).parent / "arm_quarantine_release.json",
-                                  {"hedef": str(p.get("target") or ""), "zaman": LS.fmt_ts(self.now()), "kaynak": f"telegram:{who}"})
+                                  {"hedef": str(p.get("target") or ""), "zaman": ORT.fmt_ts(self.now()), "kaynak": f"telegram:{who}"})
             except Exception as e:  # noqa: BLE001
                 log.error("karantina istegi yazilamadi: %s", type(e).__name__)
                 self._reply(f"karantina kaldirma istegi YAZILAMADI ({type(e).__name__}); sunucuda `arm-quarantine release`", "CRIT")
@@ -1292,88 +1259,22 @@ class TelegramDaemon:
             if st is None or st.get("kill_state") != "flat":
                 self._reply("CRIT kapatma tamamlanmadi (kill_state flat degil)", "CRIT")
 
-    # -- ders onayi (alt surec) ---------------------------------------------
-    def _run_resolve(self, rid: str, approve: bool) -> dict:
-        if not REQ_ID_RE.match(rid or ""):
-            return {"status": "invalid", "message": "gecersiz id"}
-        argv = [sys.executable, "-I", self.cfg.lesson_run, "--resolve", rid,
-                "--approve" if approve else "--reject"]
-        env = {k: v for k, v in os.environ.items() if k != "TELEGRAM_BOT_TOKEN"}
-        rc, out = self.runner(argv, 60, env)
-        try:
-            d = json.loads((out or "").strip().splitlines()[-1])
-            if not isinstance(d, dict):
-                raise ValueError
-        except (ValueError, IndexError):
-            d = {"status": "error", "message": "çıktı okunamadı"}
-        d["rc"] = rc
-        return d
-
-    def _lesson(self, rid: str, approve: bool) -> str:
-        d = self._run_resolve(rid, approve)
-        self._reply(f"ders onayi {rid[:40]}: {d.get('status')} {str(d.get('message', ''))[:200]}")
-        return str(d.get("status"))
-
     def _handle_callback(self, uid: int, cq: dict) -> None:
+        """Eski ders onay dugmeleri (ok/no/ev/vz) artik islem yapmaz: yetkili kullaniciya 'kaldirildi' denir, denetim kaydi yazilir."""
         msg = cq.get("message") or {}
         chat, frm = msg.get("chat") or {}, cq.get("from") or {}
-        cid = cq.get("id", "")
         if not self._authorized(chat, frm):
             return self._unauthorized(uid, chat.get("id"), cq.get("data"))
-        data = str(cq.get("data") or "")
-        parts = data.split(":")
-        mid = msg.get("message_id")
-
-        def ans(t: str = "") -> None:
-            try:
-                self.client.answer_callback_query(cid, t)
-            except Exception as e:  # noqa: BLE001
-                log.warning("answer_callback_query: %s", type(e).__name__)
-
-        def edit(t: str, kb=None) -> None:
-            try:
-                self.client.edit_message_text(chat["id"], mid, fit_text(t), kb)
-            except Exception as e:  # noqa: BLE001
-                log.warning("edit_message_text: %s", type(e).__name__)
-
-        if len(parts) != 3 or parts[0] not in ("ok", "no", "ev", "vz") or not REQ_ID_RE.match(parts[1]):
-            ans("gecersiz")
-            return self._audit("exec", update_id=uid, cmd="cb", sonuc="bad_data")
-        act, rid = parts[0], parts[1]
         try:
-            exp = float(parts[2])
-        except ValueError:
-            ans("gecersiz")
-            return self._audit("exec", update_id=uid, cmd="cb", sonuc="bad_exp")
-        orig = str(msg.get("text") or "")
-        if exp <= self.now().timestamp():
-            ans("suresi doldu")
-            edit(orig.split("\n\nEmin misin?")[0] + "\n(suresi doldu)")
-            return self._audit("exec", update_id=uid, cmd="cb:" + act, sonuc="expired")
-        base = orig.split("\n\nEmin misin?")[0]
-        if act == "ok":
-            ans()
-            kb = {"inline_keyboard": [[{"text": "Evet, onayla", "callback_data": f"ev:{rid}:{int(exp)}"},
-                                       {"text": "Vazgec", "callback_data": f"vz:{rid}:{int(exp)}"}]]}
-            edit(base + "\n\nEmin misin? Onaylarsan degisiklik uygulanir.", kb)
-            res = "confirm_asked"
-        elif act == "vz":
-            ans("vazgecildi")
-            kb = {"inline_keyboard": [[{"text": "Onayla", "callback_data": f"ok:{rid}:{int(exp)}"},
-                                       {"text": "Reddet", "callback_data": f"no:{rid}:{int(exp)}"}]]}
-            edit(base, kb)
-            res = "cancelled"
-        else:
-            ans()
-            d = self._run_resolve(rid, act == "ev")
-            edit(f"{base}\n\nSonuc: {d.get('status')} {str(d.get('message', ''))[:200]}")
-            res = str(d.get("status"))
-        self._audit("exec", update_id=uid, cmd="cb:" + act, sonuc=res)
+            self.client.answer_callback_query(cq.get("id", ""), "bu dugme kaldirildi")
+        except Exception as e:  # noqa: BLE001
+            log.warning("answer_callback_query: %s", type(e).__name__)
+        self._audit("exec", update_id=uid, cmd="cb", sonuc="removed")
 
     # -- dongu --------------------------------------------------------------
     def write_alive(self) -> None:
         try:
-            atomic_write_json(self.base / "alive.json", {"ts": LS.fmt_ts(self.now())})
+            atomic_write_json(self.base / "alive.json", {"ts": ORT.fmt_ts(self.now())})
         except Exception:  # noqa: BLE001
             pass
 
@@ -1480,13 +1381,6 @@ ATLAMA_TR = {
     "paused": "duraklatma vardı", "degraded": "kayıt sistemi hazır değildi", "params_unavailable": "ayarlar yüklenememişti",
     "trigger_tf_changed": "zaman dilimi ayarı değişmişti",
 }
-PARAM_TR = {"rr_min": "en düşük kazanç/risk oranı", "range_width_atr": "aralık genişliği sınırı",
-            "vol_ratio_max": "oynaklık üst sınırı", "edge_zone_atr": "kenar bölgesi genişliği",
-            "pullback_ema": "geri çekilme ortalaması", "stop_buffer_atr": "stop payı", "trail_atr": "iz süren stop mesafesi",
-            "range_target_frac": "hedef oranı", "trigger_tf": "zaman dilimi",
-            "exit_breakeven": "başa-baş stop kipi (0 kapalı, 1 açık)", "exit_partial": "kısmi kâr alma kipi (0 kapalı, 1 açık)"}
-
-
 def tr_sayi(x: float, ondalik: int = 2) -> str:
     """1234.5 -> '1.234,50' (Türkçe gösterim)."""
     return f"{x:,.{ondalik}f}".replace(",", "X").replace(".", ",").replace("X", ".")
@@ -1598,7 +1492,7 @@ def _kasa_satiri(eq: Any, dse: Any) -> str | None:
     return f"💰 Kasa: {tr_sayi(eq)} $" + (f" (gün başı {tr_sayi(dse)} $)" if _num_ok(dse) else "")
 
 
-_BOLUM_SIRASI = ("Davranış", "Risk kademesi", "Bütçe", "Ders", "Öğrenme", "Kurulum karnesi",
+_BOLUM_SIRASI = ("Davranış", "Risk kademesi", "Bütçe", "Öğrenme", "Kurulum karnesi",
                  "Alınmayan sinyaller (son 7 gün)")
 
 
@@ -1616,27 +1510,6 @@ def _durum_satiri(st: Mapping[str, Any] | None, pause_text: str, doldu: bool) ->
     if st.get("entries_open") is True:
         return "Yeni işlemler açık."
     return ""
-
-
-def _ders_gunluk(cfg: TelegramConfig, day: str) -> tuple[int, int] | None:
-    """Istanbul gununde ders tarafindan uygulanan / geri alinan (fren haric) degisiklik sayisi; okunamazsa None."""
-    from . import ledger as L  # noqa: PLC0415
-    if not cfg.ledger_path or not Path(cfg.ledger_path).exists():
-        return None
-    try:
-        a, b = _istanbul_day_bounds_utc(day)
-        led = L.open_ledger(cfg.ledger_path, "learner", create=False, read_only=True, migrate=False)
-        try:
-            acts = [x for x in led.list_activations() if x.actor == "lesson"]
-        finally:
-            led.close()
-        gun = [x for x in acts if a <= LS.fmt_ts(x.activated_at) < b]
-        brake = lambda x: str(x.reason or "").startswith(LS.BRAKE_REASON_PREFIX)  # noqa: E731
-        return (sum(1 for x in gun if x.kind == "apply"),
-                sum(1 for x in gun if x.kind == "rollback" and not brake(x)))
-    except Exception as e:  # noqa: BLE001
-        log.warning("rapor: ders sayisi okunamadı: %s", type(e).__name__)
-        return None
 
 
 def _kucultulen_kollar(cfg: TelegramConfig) -> str:
@@ -1705,9 +1578,6 @@ def build_report(cfg: TelegramConfig, now: datetime, day: str, sections: Mapping
     d = _durum_satiri(st, pause_text, doldu)
     if d and not stale:
         out.append(d)
-    dg = _ders_gunluk(cfg, day)
-    if dg is not None:
-        out.append(f"Dersler: bugün {dg[0]} uygulandı, {dg[1]} geri alındı · işlemlere etkili")
     kk = _kucultulen_kollar(cfg)
     if kk:
         out.append(kk)
@@ -1823,64 +1693,6 @@ def section_budget(cfg: TelegramConfig) -> str:
     return out
 
 
-def section_lesson(cfg: TelegramConfig, now: datetime) -> str:
-    if not cfg.lesson_store or not Path(cfg.lesson_store).exists():
-        raise SectionError("depo_yok")
-    try:
-        store = LS.LessonStore(cfg.lesson_store, read_only=True, create=False)
-    except Exception as e:  # noqa: BLE001
-        raise SectionError(type(e).__name__) from None
-    try:
-        lines = []
-        reqs = store.open_requests()
-        if reqs:
-            lines.append(f"  bekleyen öneri: {len(reqs)}")
-            for r in reqs[:5]:
-                try:
-                    d = json.loads(r["request_json"])
-                    summ = f"{d.get('param')} {d.get('from_value')}→{d.get('to_value')} ({d.get('scope')})"
-                except Exception:  # noqa: BLE001
-                    summ = f"öneri #{r.get('proposal_id')}"
-                lines.append(f"  {r['request_id']}: {summ} -> /onayla {r['request_id']}")
-            if len(reqs) > 5:
-                lines.append(f"  +{len(reqs) - 5}")
-        else:
-            lines.append("  bekleyen öneri yok")
-        sd, ed = store.get_state("shadow_start_day"), store.get_state("shadow_end_day")
-        if sd:
-            today = now.astimezone(TR).date()
-            n = (today - datetime.fromisoformat(sd).date()).days + 1
-            tot = (datetime.fromisoformat(ed).date() - datetime.fromisoformat(sd).date()).days if ed else "?"
-            lines.append(f"  gölge dönem: gün {max(n, 0)}/{tot} (bitiş {ed})")
-        else:
-            lines.append("  gölge dönem: başlamadı")
-        rows = store._q("SELECT id, run_day FROM lesson_runs ORDER BY id DESC LIMIT 1")
-        if rows:
-            ev = store.run_events(rows[0]["id"])
-            last = ev[-1] if ev else None
-            res = f"{last.status}{'/' + last.code if last and last.code else ''}" if last else "olay yok"
-            lines.append(f"  son çalışma: {rows[0]['run_day']} {res}")
-        else:
-            lines.append("  son çalışma: yok")
-        if rows:
-            with contextlib.suppress(Exception):
-                snap = store.get_snapshot(rows[0]["id"])
-                if snap is not None and snap.counterfactual:
-                    lines.append("  " + LS.counterfactual_line(snap.counterfactual))
-                if snap is not None:                       # Revizyon 6: cikis karsi-olgusu (kanit yoksa "henuz hesaplanmadi")
-                    lines.append("  " + LS.exit_cf_line(snap.cf_exit))
-                    mline = LS.exit_modes_cf_line(snap.cf_exit)         # Revizyon 7: yalniz kip kaniti varken
-                    if mline:
-                        lines.append("  " + mline)
-        return "\n" + "\n".join(lines)
-    except SectionError:
-        raise
-    except Exception as e:  # noqa: BLE001
-        raise SectionError(type(e).__name__) from None
-    finally:
-        store.close()
-
-
 def section_counterfactual(cfg: TelegramConfig, now: datetime) -> str:
     """Alınmayan sinyaller (plan 25a): öğrenen için son 7 günde hesaplanmış varsayımsal sonuçlar (salt okunur)."""
     if not cfg.ledger_path:
@@ -1944,34 +1756,6 @@ def rapor_butce(cfg: TelegramConfig) -> str:
     return "\n".join(lines)
 
 
-def rapor_ders(cfg: TelegramConfig, now: datetime) -> str:
-    """Ders: yalnız onay bekleyen gerçek bir öneri varsa görünür (depo yoksa hiç)."""
-    if not cfg.lesson_store or not Path(cfg.lesson_store).exists():
-        return ""
-    try:
-        store = LS.LessonStore(cfg.lesson_store, read_only=True, create=False)
-    except Exception as e:  # noqa: BLE001
-        raise SectionError(type(e).__name__) from None
-    try:
-        reqs = store.open_requests()
-        lines = []
-        for r in reqs[:3]:
-            try:
-                d = json.loads(r["request_json"])
-                ad = PARAM_TR.get(str(d.get("param")), "bir strateji ayarı")
-                lines.append(f"🎓 Öneri onay bekliyor: {ad} {d.get('from_value')} → {d.get('to_value')}"
-                             f" (onay için /onayla {r['request_id']})")
-            except Exception:  # noqa: BLE001
-                lines.append(f"🎓 Bir öneri onay bekliyor (onay için /onayla {r['request_id']})")
-        if len(reqs) > 3:
-            lines.append(f"… ve {len(reqs) - 3} öneri daha")
-        return "\n".join(lines)
-    except Exception as e:  # noqa: BLE001
-        raise SectionError(type(e).__name__) from None
-    finally:
-        store.close()
-
-
 def rapor_kacirilan(cfg: TelegramConfig, now: datetime) -> str:
     """Alınmayan sinyaller (son 7 gün): tek satır; hesap yoksa ya da boşsa görünmez."""
     if not cfg.ledger_path:
@@ -2032,7 +1816,7 @@ def rapor_davranis(cfg: TelegramConfig, now: datetime, ladders: Mapping[str, Lad
         return DAVRANIS_YOK
 
 
-# ---- DD-12 WP-17: öğrenme (kurulum karnesi, ders, ML, seans/varlık kırılımı, harcama) ----
+# ---- DD-12 WP-17: öğrenme (kurulum karnesi, ML, seans/varlık kırılımı, harcama) ----
 _OGR_SINIF = {"kripto": "kripto", "hisse": "hisse senedi", "emtia": "metal / enerji"}
 
 
@@ -2108,32 +1892,6 @@ def _seans_satiri(lv: Mapping[str, Any]) -> str:
     return "🕒 Seans (ort. R, alınan): " + ("; ".join(parcalar) if parcalar else "henüz işlem yok")
 
 
-def _ders_etki_satiri(ders: Mapping[str, Any]) -> str:
-    e = ders.get("effect")
-    if not e:
-        return "Ders etkisi (referanstan beri): ölçülemedi"
-    return f"Ders etkisi (referanstan beri): {tr_isaretli(e['damped_r'])} R ({e['n']} aday)"
-
-
-def ders_durum_metni(cfg: TelegramConfig, now: datetime) -> str:
-    """/ders: ders durumu (uygulanan, geri alma, fren, etki, kapalı kurulumlar), bekleyen öneri, harcama."""
-    lv = _ogr_defter(cfg, now)
-    ders = lv["lesson"]
-    satirlar = ["🎓 Ders durumu",
-                f"Uygulanan değişiklik: {ders['applied']} · geri alınan: {ders['rollbacks']} · "
-                f"−10 R freni: {'AKTİF (referans sürüme dönüldü, otomatik uygulama durdu)' if ders['brake_active'] else 'yok'}",
-                _ders_etki_satiri(ders)]
-    kapali = ders.get("closed_arms") or []
-    satirlar.append("Kapalı kurulumlar: " + (", ".join(kapali) if kapali else "yok"))
-    for e in ders.get("events") or []:
-        satirlar.append(f"  {fmt_tsi_tr(e['at'])} {e['kind']}" + (f" ({e['reason']})" if e.get("reason") else ""))
-    bekleyen = rapor_ders(cfg, now)
-    if bekleyen:
-        satirlar.append(bekleyen)
-    satirlar.append(_harcama_satiri(lv))
-    return "\n".join(satirlar)
-
-
 def fmt_tsi_tr(iso: str | None) -> str:
     try:
         return parse_ts_z(str(iso)).astimezone(TR).strftime("%d.%m %H:%M")
@@ -2142,15 +1900,13 @@ def fmt_tsi_tr(iso: str | None) -> str:
 
 
 def rapor_ogrenme(cfg: TelegramConfig, now: datetime) -> str:
-    """Günlük rapor: ders etkisi, M1, seans kırılımı, açık pozisyonlar, harcama (her zaman), haftalık özet."""
+    """Günlük rapor: M1, seans kırılımı, açık pozisyonlar, harcama (her zaman), haftalık özet."""
     lv = _ogr_view(cfg, now)
     out: list[str] = []
     if lv.get("ledger_error"):
         pass                                  # defter yoksa Defter bölümü genel uyarıyı zaten yazar; yalnız harcama kalır
     else:
-        ders, m1, op = lv["lesson"], lv["m1"], lv["open"]
-        out.append("📚 Ders: uygulanan " + str(ders["applied"]) + " · geri alınan " + str(ders["rollbacks"])
-                   + (" · −10 R freni AKTİF" if ders["brake_active"] else "") + " · " + _ders_etki_satiri(ders))
+        m1, op = lv["m1"], lv["open"]
         out.append(f"🤖 M1: aday {m1['candidates']}, giriş {m1['taken']}")
         out.append(_seans_satiri(lv))
         sinif = [f"{_OGR_SINIF.get(k, k)} {_r_or_dash(b.get('mean_r_taken'))}" for k, b in (lv.get("asset_class") or {}).items()
@@ -2194,7 +1950,7 @@ def default_sections(cfg: TelegramConfig, now: datetime, day: str, pauses: Mappi
             "📶 " + ladder_line(b, ladder_view(lf, now)) for b, lf in ladders.items())
     out["Davranış"] = lambda: rapor_davranis(cfg, now, ladders)
     out.update({"Defter": lambda: rapor_defter(cfg, day), "Bütçe": lambda: rapor_butce(cfg),
-                "Ders": lambda: rapor_ders(cfg, now), "Öğrenme": lambda: rapor_ogrenme(cfg, now),
+                "Öğrenme": lambda: rapor_ogrenme(cfg, now),
                 "Kurulum karnesi": lambda: rapor_kurulum_karnesi(cfg, now),
                 "Alınmayan sinyaller (son 7 gün)": lambda: rapor_kacirilan(cfg, now)})
     return out
@@ -2255,7 +2011,6 @@ def haftalik_metni(cfg: TelegramConfig, now: datetime) -> str:
 
 
 HAFTALIK_TELEGRAM = False                       # haftalik ozet Telegram'a gitmez (panelde/raporda kalir)
-DERS_SESSIZ = frozenset({"applied", "rolled_back"})
 
 
 def haftalik_gonder(cfg: TelegramConfig, notifier: "TelegramNotifier", now: datetime) -> bool:

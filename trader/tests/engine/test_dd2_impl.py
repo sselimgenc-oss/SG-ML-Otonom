@@ -301,19 +301,6 @@ def test_dd2_o14_append_on_clean_spool_unchanged_format(tmp_path):
         lg.close()
 
 
-def test_dd2_o14_lesson_fallback_torn_tail(tmp_path):
-    from trader_core.lesson import FallbackLog
-    fb = FallbackLog(tmp_path / "store.sqlite")
-    fb.append({"type": "blind_since", "run_day": "2026-12-01"})
-    with open(fb.path, "ab") as f:
-        f.write(b'{"type":"blind_cl')                           # yarim satir
-    fb.append({"type": "blind_clear"})
-    raw = Path(fb.path).read_bytes()
-    assert raw.endswith(b'{"type":"blind_clear"}\n') and b'{"type":"blind_cl\n' in raw
-    assert [o["type"] for o in fb.read()] == ["blind_since", "blind_clear"]   # yeni kayit parcaya yapismadi
-    assert fb.blind_since() is None
-
-
 # ============================================================================================ O9: KILL dongusu yalitimi
 def test_dd2_o9_kill_loop_exception_on_first_position_does_not_stop_second(tmp_path):
     e = LiveEnv2(tmp_path).boot()

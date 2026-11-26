@@ -1,5 +1,8 @@
 # Claude API harcama koruması (bütçe) — arayüz ve kurallar (spesifikasyon v1, 16 Kasım 2026)
 
+> 25 Kasım: sahip kararıyla ders sistemi KALDIRILDI (`trader_core/lesson.py`, `lesson_run`, gece notu, onay/ret akışı, panel/Telegram ders bölümleri; öğrenme ML1'e taşındı). Bu belgedeki ders/not/onay (`/ders`, `/onayla`, `/reddet`) bölümleri tarihsel kayıttır, geçerli değildir. Defterin parametre sürümü mekanizması (kullanıcı sürümü, etkinleştirme, `parent_version_id`) ve şeması AYNEN kalır.
+
+
 > 18 Kasım: kullanıcı kararıyla değişti. LLM aylık bütçe **10 USD** (19 Kasım kullanıcı kararı: 30 USD önerisi geri alındı, tavan 10 USD kalır; veto 0,25 $/gün geçersiz); veto payı kaldırıldı (LLM veto yok); LLM aday önerisi açık, günlük adet sınırı yok.
 
 Kaynak kararlar: `otonom-trading-arastirma/tasarim-kararlari.md` ("15–16 Kasım kararları", Claude API bütçesi maddesi ve MVP ek notu: limit dolarsa yeni işlem açılmaz, açık pozisyonlar SL/TP ile yönetilmeye devam eder), `mimari-taslak.md` (parça 5: analist + veto + harcama koruması; dosya yok/bayat/limit dolu → giriş yok), `research_notes/diger-hesap/gorev9_claude_api_maliyet.md` (fiyat tablosu, `usage` alanları, 400/429 davranışı, hata sınıfları).

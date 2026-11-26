@@ -21,7 +21,7 @@ def tcfg(env):
     r = env.root
     return T.TelegramConfig("1:tok", 5, str(r / "tg"), "", str(r / "var/learner/status.json"),
                             ledger_path=str(r / "var/learner/ledger.sqlite"),
-                            budget_config=str(r / "config/budget.json"), lesson_store=str(r / "user_data/lesson.sqlite"))
+                            budget_config=str(r / "config/budget.json"))
 
 
 def test_shared_constants_equal_telegram():
@@ -63,23 +63,10 @@ def test_budget_equals_section_budget(tcfg):
     assert text == want
 
 
-def test_lesson_equals_section_lesson(tcfg):
-    text = T.section_lesson(tcfg, NOW)
-    j = P.lesson_view(tcfg.lesson_store, NOW)
-    assert f"bekleyen öneri: {j['open_count']}" in text
-    q = j["open_requests"][0]
-    assert f"{q['request_id']}: {q['param']} {q['from']}→{q['to']} ({q['scope']})" in text
-    sh = j["shadow"]
-    assert f"gölge dönem: gün {sh['day']}/{sh['total']} (bitiş {sh['end']})" in text
-    lr = j["last_run"]
-    assert f"son çalışma: {lr['day']} {lr['status']}/{lr['code']}" in text
-
-
 def test_section_error_codes_equal(tmp_path):
     cfg = T.TelegramConfig("1:tok", 5, str(tmp_path), "", "", ledger_path=str(tmp_path / "l.sqlite"),
-                           lesson_store=str(tmp_path / "x.sqlite"), budget_config=str(tmp_path / "config" / "budget.json"))
+                           budget_config=str(tmp_path / "config" / "budget.json"))
     for fn_t, fn_p in ((lambda: T.section_ledger(cfg, DAY), lambda: P.ledger_day(cfg.ledger_path, "learner", DAY)),
-                       (lambda: T.section_lesson(cfg, NOW), lambda: P.lesson_view(cfg.lesson_store, NOW)),
                        (lambda: T.section_budget(cfg), lambda: P.budget_view(cfg.budget_config))):
         with pytest.raises(T.SectionError) as te:
             fn_t()

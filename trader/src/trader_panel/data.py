@@ -1,6 +1,6 @@
 """Panel yapilandirmasi ve uc nokta verileri (tum okumalar salt okunur; docs/panel-spec.md §3-§6, §10-§11).
 
-Yalniz `trader_core.panel_data` (ve onun tuttugu ledger/lesson/budget/risk/health) kullanilir; `trader_engine` ve
+Yalniz `trader_core.panel_data` (ve onun tuttugu ledger/budget/risk/health) kullanilir; `trader_engine` ve
 `telegram` ice aktarilmaz. Sir/ortam degiskeni okunmaz.
 """
 from __future__ import annotations
@@ -20,12 +20,13 @@ from trader_core import panel_pano as PP
 
 BOTS = ("learner",)
 DEFAULT_PORT = 8787
-_PATH_KEYS = ("status_path", "ledger_path", "budget_config", "lesson_store",
+_PATH_KEYS = ("status_path", "ledger_path", "budget_config",
               "health_state", "kill_file", "engine_config", "tutarlilik_path", "pbo_path", "muhur_path", "exitcf_path", "alinmayan_sonuc_path")
 _NUM_KEYS = {"health_stale_s": (60, 86400), "cache_s": (0, 60), "request_timeout_s": (0.5, 30),
              "max_concurrent": (1, 16), "max_response_bytes": (1024, 4 * 1024 * 1024),
              "closed_limit": (1, P.CLOSED_MAX), "curve_limit": (1, P.CLOSED_MAX)}
-_ALLOWED = {"schema", "host", "port", *_PATH_KEYS, *_NUM_KEYS}
+_LEGACY_KEYS = ("lesson_store",)         # ders sistemi kaldirildi (25.11); eski panel.json dosyalari bozulmasin diye kabul edilir, yok sayilir
+_ALLOWED = {"schema", "host", "port", *_PATH_KEYS, *_NUM_KEYS, *_LEGACY_KEYS}
 
 
 class ConfigError(Exception):
@@ -68,7 +69,7 @@ def load_config(path: str | os.PathLike) -> PanelConfig:
     if isinstance(port, bool) or not isinstance(port, int) or not 1 <= port <= 65535:
         raise ConfigError("port 1..65535 olmali")
     cfg = PanelConfig(raw, p.parent.parent)
-    for k in ("status_path", "ledger_path", "lesson_store"):
+    for k in ("status_path", "ledger_path"):
         d = os.path.dirname(getattr(cfg, k) or "")
         if d and os.path.isdir(d) and os.access(d, os.W_OK):
             print(f"trader_panel: UYARI: yazilabilir dizin gosteriliyor ({k}); panel hesabina yalniz okuma izni verin",
@@ -217,10 +218,6 @@ class PanelData:
             acik = PP.open_view(ctx, status, now)
             kz = PP.kz_view(ctx, start, now, curve, P.paper_maps()[0])
             try:
-                ders = PP.ders_view(lp, ctx, now, live)
-            except Exception:  # noqa: BLE001 - ders okunamazsa kart gizlenir
-                ders = None
-            try:
                 kucultme = PP.kucultme_view(lp, b, arms=P.paper_maps()[0], now=now)
             except Exception:  # noqa: BLE001 - kucultme karti istege bagli
                 kucultme = None
@@ -242,15 +239,12 @@ class PanelData:
                 except Exception:  # noqa: BLE001
                     safe[k] = None
             teknik = PP.teknik_view(health=safe["health"], risk_rows=safe["risk"], budget=safe["budget"], tut=safe["tut"],
-                                    pbo=safe["pbo"], ctx=ctx, ders=ders, mutabakat=safe["mut"],
+                                    pbo=safe["pbo"], ctx=ctx, mutabakat=safe["mut"],
                                     dayaniklilik=(status or {}).get("dayaniklilik"))
             isik = PP._problem(teknik.get("saglik"), s["state"], serit["risk"], safe["budget"])
-            kismi = PP.kismi_durum(ders)
-            if kismi and isik["renk"] == "yesil":
-                isik = {"renk": "sari", "metin": "Sistem çalışıyor; bazı özellikler kısmen devrede"}
             return {"bot_durum": s["state"], "mod": (status or {}).get("mode"), "serit": serit, "acik": acik, "kz": kz,
-                    "son3": PP.closed_view(lp, b, "tumu", now, 3)["rows"], "ders": ders, "kucultme": kucultme, "ogrenme": ogrenme, "teknik": teknik,
-                    "isik": isik, "yapmali": PP.ne_yapmali(s["state"], serit["risk"], acik["n"], kismi, teknik.get("saglik"))}
+                    "son3": PP.closed_view(lp, b, "tumu", now, 3)["rows"], "kucultme": kucultme, "ogrenme": ogrenme, "teknik": teknik,
+                    "isik": isik, "yapmali": PP.ne_yapmali(s["state"], serit["risk"], acik["n"], None, teknik.get("saglik"))}
         return self._wrap(fn)
 
     def kapanan(self, bot: str | None, period: str | None) -> dict:
@@ -262,11 +256,8 @@ class PanelData:
     def budget(self) -> dict:
         return self._wrap(lambda: P.budget_view(self.cfg.budget_config))
 
-    def lesson(self) -> dict:
-        return self._wrap(lambda: P.lesson_view(self.cfg.lesson_store, self.now(), self.cfg.ledger_path))
-
     def learning(self) -> dict:
-        """DD-12 WP-17: öğrenme sekmesi (kurulum karnesi, ders, ML, seans/varlık kırılımı, açık pozisyonlar, harcama)."""
+        """DD-12 WP-17: öğrenme sekmesi (kurulum karnesi, ML, seans/varlık kırılımı, açık pozisyonlar, harcama)."""
         return self._wrap(lambda: P.learning_view(self.cfg.ledger_path, self.cfg.budget_config, self.now()))
 
     def health(self) -> dict:
@@ -299,13 +290,7 @@ class PanelData:
         return c or (str(Path(self.cfg.ledger_path).parent / "exit_counterfactual.sqlite") if self.cfg.ledger_path else "")
 
     def ciktikaniti(self) -> dict:
-        def fn() -> dict:
-            try:
-                bek = P.exitcf_bekleyen(P.lesson_view(self.cfg.lesson_store, self.now(), self.cfg.ledger_path))
-            except Exception:  # noqa: BLE001 - ders deposu yok/bozuk: etiket yok, kanit yine gosterilir
-                bek = []
-            return P.exitcf_view(self._exitcf_path(), self.now(), bek)
-        return self._wrap(fn)
+        return self._wrap(lambda: P.exitcf_view(self._exitcf_path(), self.now()))
 
     def alinmayansonuc(self) -> dict:
         c = self.cfg.alinmayan_sonuc_path

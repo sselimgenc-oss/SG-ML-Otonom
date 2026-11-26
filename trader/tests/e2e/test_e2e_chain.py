@@ -1,6 +1,6 @@
-"""Madde 20 + 19d: uctan uca zincir (sinyal -> veto -> risk -> emir -> defter -> ders), TAMAMEN cevrimdisi.
+"""Madde 20 + 19d: uctan uca zincir (sinyal -> veto -> risk -> emir -> defter), TAMAMEN cevrimdisi.
 Sartname: docs/e2e-spec.md. Sentetik 15m/1h/4h + fonlama verisi (tmp, 2025; kilitli donem 2026-05..2026-10 OKUNMAZ);
-ag yok, anahtar yok, LLM yok (ders `rule_proxy` kipi, bildirimci LogNotifier)."""
+ag yok, anahtar yok, LLM yok."""
 from __future__ import annotations
 
 import hashlib
@@ -17,7 +17,6 @@ pa = pytest.importorskip("pyarrow")
 import pyarrow.feather as pf  # noqa: E402
 
 from trader_core import ledger as L  # noqa: E402
-from trader_core import lesson as LS  # noqa: E402
 from trader_core import risk as K  # noqa: E402
 from trader_core import signals as S  # noqa: E402
 from trader_core import telegram as T  # noqa: E402
@@ -40,7 +39,6 @@ H_START, H_END = datetime(2025, 1, 1, tzinfo=UTC), datetime(2025, 3, 15, tzinfo=
 START, END = datetime(2025, 3, 1, tzinfo=UTC), datetime(2025, 3, 5, tzinfo=UTC)
 BLOCKED_PAIR = "ETH/USDT"
 BLOCK_REASON = "e2e_test_block"
-LESSON_NOW = datetime(2025, 3, 7, 3, 0, tzinfo=UTC)
 
 
 # ------------------------------------------------------------------------------------------------ sahte veri (fixture)
@@ -287,47 +285,16 @@ def test_veto_result_file_missing_does_not_block_in_paper(tmp_path_factory, hist
     assert all(r["veto_status"] == "not_evaluated" for r in dec)
 
 
-# ------------------------------------------------------------------------------------------------ ders + Telegram raporu
-def _lesson_cfg_file(tmp: Path, c: Chain) -> Path:
-    raw = json.loads((ROOT / "config" / "lesson.json").read_text())
-    raw.update(mode="rule_proxy", dondurulmus=False, twin_enabled=False, notifier=None, ledger_path=c.cfg.ledger_path,
-               store_path=str(tmp / "lesson.sqlite"), twin_ledger_path=str(tmp / "no_twin.sqlite"))
-    p = tmp / "lesson.json"
-    p.write_text(json.dumps(raw))
-    return p
-
-
-def _load_lesson_run():
-    import importlib.util
-    spec = importlib.util.spec_from_file_location("lesson_run_e2e", ROOT / "scripts" / "lesson_run.py")
-    m = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(m)
-    return m
-
-
-def test_lesson_runs_on_produced_ledger_offline(off, tmp_path, capsys):
-    LR = _load_lesson_run()
-    cfgp = _lesson_cfg_file(tmp_path, off)
-    env = {"LEDGER_PATH": off.cfg.ledger_path, "LESSON_STORE_PATH": str(tmp_path / "lesson.sqlite")}
-    # LLM istemcisi/bildirimci enjekte: rule_proxy kipinde LLM zaten yok; API anahtari ortamda YOK
-    rc = LR.main(["--once", "--config", str(cfgp), "--mode", "rule_proxy", "--allow-log-notifier"],
-                 env=env, now_fn=lambda: LESSON_NOW, sleep_fn=lambda s: None)
-    out = capsys.readouterr().out
-    assert rc == 0, out
-    res = json.loads(out.strip().splitlines()[-1])
-    assert res["status"] in ("skipped_no_data", "skipped_gate", "no_change", "idle", "needs_user", "applied") and res["run_day"]
-    # DD-12 WP-08: esiksiz ders; tiny ledger'da hicbir aday checkpoint'te degil -> skipped_gate/no_candidates
-    if res["status"] == "skipped_gate":
-        assert res["code"] == "no_candidates"
-    con = sqlite3.connect(str(tmp_path / "lesson.sqlite"))
+# ------------------------------------------------------------------------------------------------ defter sonu + Telegram raporu
+def test_ledger_schema_and_param_version_intact_after_chain(off):
+    """Ders sistemi kaldirildi (25.11): zincir sonunda defter semasi ve etkin parametre surumu (motorun baslangic okumasi) saglam."""
+    assert off.q("PRAGMA user_version")[0]["user_version"] == 8
+    led = L.open_ledger(off.cfg.ledger_path, "learner", create=False, read_only=True, migrate=False)
     try:
-        runs = con.execute("SELECT run_day FROM lesson_runs").fetchall()
-        ev = con.execute("SELECT status FROM lesson_run_events").fetchall()
+        act = led.get_active_params()
+        assert act is not None and act.version_id >= 1 and act.params
     finally:
-        con.close()
-    assert runs and ev, "ders calisma kaydi yazilmali"
-    # ders defteri DEGISTIRMEDI: sema hala v3, karar/islem sayilari ayni (az islem -> veri yetersiz)
-    assert off.q("PRAGMA user_version")[0]["user_version"] == 8   # DD-12 WP-08: sema 6
+        led.close()
 
 
 def test_telegram_daily_report_renders_from_ledger(off, tmp_path):
@@ -337,7 +304,7 @@ def test_telegram_daily_report_renders_from_ledger(off, tmp_path):
     day = exit_tr.strftime("%Y-%m-%d")
     cfg = T.TelegramConfig("1:tok", 5, str(tmp_path / "tg"), "", str(tmp_path / "status.json"),
                            ledger_path=off.cfg.ledger_path,
-                           budget_config=str(tmp_path / "b.json"), lesson_store=str(tmp_path / "l.sqlite"))
+                           budget_config=str(tmp_path / "b.json"))
     now = datetime.fromisoformat(day).replace(tzinfo=UTC) + timedelta(hours=18)      # 21:00 TR
     out = T.build_report(cfg, now, day, {"Defter": lambda: T.rapor_defter(cfg, day)})
     n_closed = sum(1 for t in off.trades() if t["exit_ts"]

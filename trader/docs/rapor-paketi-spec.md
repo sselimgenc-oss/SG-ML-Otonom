@@ -1,5 +1,8 @@
 # Rapor paketi: çıkış karnesi, kapı/veto karnesi, piyasa koşulu tabloları, "varsayım" etiketi, küçük hesap kontrolü (spesifikasyon v1.1, 17 Kasım 2026)
 
+> 25 Kasım: sahip kararıyla ders sistemi KALDIRILDI (`trader_core/lesson.py`, `lesson_run`, gece notu, onay/ret akışı, panel/Telegram ders bölümleri; öğrenme ML1'e taşındı). Bu belgedeki ders/not/onay (`/ders`, `/onayla`, `/reddet`) bölümleri tarihsel kayıttır, geçerli değildir. Defterin parametre sürümü mekanizması (kullanıcı sürümü, etkinleştirme, `parent_version_id`) ve şeması AYNEN kalır.
+
+
 > 18 Kasım: kullanıcı kararıyla değişti. İkiz kıyası ve veto raporları kaldırıldı; gerçek para ile ilgili ölçütler **[ASKIDA — kullanıcı yeniden belirleyecek]**.
 
 İş paketi **WP-4** (`tasarim-kararlari.md` 17 Kasım "Repo denetimi onay listesi"). Onay listesi maddeleri: **4, 7 (yalnız karne), 16 (yalnız tablolar), 17, 19**. Denetim kimlikleri: B-01, B-02 (1. adım), C-01, A-10, B-03, A-09, B-27 · B-07, D-17, A-16 · A-14, D-05, B-18 · A-13 · A-19.

@@ -14,13 +14,13 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from . import kol_yasam as KY
 from . import ledger as L
 from . import panel_data as P
 from . import tg_sade as TS
 
 TR = P.TR
 MIN_ORAN = 5            # kazanma orani / ort. kazanc-kayip icin asgari kapanan islem
-MIN_ETKI = 10           # ders katkisi icin asgari sonuclu karar
 
 REJIM_TR = {"range": "yatay piyasa", "trend": "trend", "trending": "trend", "ranging": "yatay piyasa"}
 # giris kapisi / duraklatma kodu -> kisa sade neden (ham kod gosterilmez)
@@ -134,7 +134,6 @@ def _px(x: Any) -> float | None:
 
 
 def closed_row(t: L.TradeRecord, ctx: Ctx) -> dict:
-    d = ctx.dec.get(t.decision_id)
     notional = (t.entry_price or 0) * (t.qty or 0)
     pnl = t.realized_pnl or 0.0
     return {"id": t.trade_id, "coin": TS.coin(t.pair), "yon": TS.yon(t.side), "kol": ctx.kol(t),
@@ -145,8 +144,7 @@ def closed_row(t: L.TradeRecord, ctx: Ctx) -> dict:
             "komisyon": (t.fee_entry or 0.0) + (t.fee_exit or 0.0), "fonlama": t.funding_paid or 0.0,
             "buyukluk": notional, "kaldirac": t.leverage,
             "marj": (notional / t.leverage) if (notional and t.leverage) else None,
-            "kapanis_ts": t.exit_ts.timestamp() if t.exit_ts else None, "acilis_ts": t.entry_ts.timestamp() if t.entry_ts else None,
-            "ders": bool(d is not None and d.lesson_ids)}
+            "kapanis_ts": t.exit_ts.timestamp() if t.exit_ts else None, "acilis_ts": t.entry_ts.timestamp() if t.entry_ts else None}
 
 
 def closed_view(path: str, bot: str, period: str, now: datetime, limit: int = 200) -> dict:
@@ -308,7 +306,7 @@ def kz_view(ctx: Ctx, start: float | None, now: datetime, curve: Mapping | None,
             "masraf": {"30g": maliyet(d30), "tumu": maliyet(None)} if cl else None}
 
 
-# ----------------------------------------------------------------------------- ogrenme (ders + ML)
+# ----------------------------------------------------------------------------- ogrenme (ML)
 
 
 # ----- ortak durum sozlugu (OZET / OGRENME / Telegram ayni metni kullanir)
@@ -327,132 +325,6 @@ def ogrenme_durumu(calisiyor: bool, etkili: bool, x: int = 0, y: int | None = No
     if etkili:
         return DURUM_ETKILIYOR, "yesil"
     return durum_veri_birikiyor(x, y), "sari"
-
-
-def katki_olculemedi(n: int) -> dict:
-    """Katki icin kendi sayisi: sonucu belli karar sayisi (onay/ret sayisindan farkli olabilir)."""
-    return {"olculemedi": f"Henüz ölçülemedi (sonucu belli {n} karar, en az {MIN_ETKI})"}
-
-
-def _usd_per_r(trades: list) -> float | None:
-    v = [t.planned_risk for t in trades if t.planned_risk]
-    return math.fsum(v) / len(v) if v else None
-
-
-_BIRIM = {"stop_buffer_atr": "ATR", "trail_atr": "ATR", "range_width_atr": "ATR", "edge_zone_atr": "ATR",
-          "rr_min": "R", "vol_ratio_max": "kat", "pullback_ema": "bar", "post_stop_wait": "bar"}
-
-
-def _deger(v: Any) -> str:
-    return tr_sayi(v, 2).rstrip("0").rstrip(",") if isinstance(v, float) else str(v)
-
-
-def _param_farki(old: Mapping | None, new: Mapping | None) -> str:
-    """Iki param surumu farki -> tek sade cumle (LLM metni degil)."""
-    if not isinstance(new, Mapping):
-        return "Bir ayar güncellendi"
-    old = old if isinstance(old, Mapping) else {}
-    parts = []
-    for k in sorted(new):
-        if k in old and old[k] != new[k] and not isinstance(new[k], (dict, list)):
-            birim = _BIRIM.get(k)
-            parts.append(f"{TS.PARAM_AD.get(k, k)} {_deger(old[k])} → {_deger(new[k])}" + (f" {birim}" if birim else ""))
-    return ", ".join(parts[:2]) if parts else "Bir ayar güncellendi"
-
-
-def ders_view(path: str, ctx: Ctx, now: datetime, status_live: bool) -> dict | None:
-    from . import lesson as LS  # noqa: PLC0415
-    led = P.open_ledger_ro(path, "learner")
-    try:
-        acts = [a for a in led.list_activations(200) if a.actor == "lesson"]
-        brake = bool(LS.brake_active(led))
-        try:
-            eff = LS.evaluate_brake(led, LS.load_config(), now).effect
-        except Exception:  # noqa: BLE001
-            eff = None
-        satirlar = []
-        for a in acts[:5]:
-            try:
-                new = led.get_version(a.version_id).params
-                old = led.get_version(a.prev_version_id).params if a.prev_version_id else None
-            except Exception:  # noqa: BLE001
-                new = old = None
-            ne = _param_farki(old, new)
-            satirlar.append({"tarih": tsi_gun(a.activated_at), "metin": ("Geri alındı: " if a.kind == "rollback" else "") + ne,
-                             "geri": a.kind == "rollback"})
-    finally:
-        led.close()
-    uygulanan = [a for a in acts if a.kind == "apply"]
-    d7 = now - timedelta(days=7)
-    degisen = sum(1 for d in ctx.decisions if d.final_action == "entered" and d.lesson_ids and d.bar_close_ts >= d7)
-    sonra = (sum(1 for d in ctx.decisions if d.final_action == "entered" and d.bar_close_ts >= uygulanan[0].activated_at)
-             if uygulanan else 0)
-    if brake:
-        durum, renk = "Kapalı (ders freni devrede)", "gri"
-    elif uygulanan and degisen > 0:
-        durum, renk = ogrenme_durumu(True, True)
-    elif uygulanan:
-        durum, renk = ogrenme_durumu(True, False, min(eff.n if eff is not None else 0, MIN_ETKI), MIN_ETKI)
-    else:
-        durum, renk = ogrenme_durumu(bool(status_live), False, min(eff.n if eff is not None else 0, MIN_ETKI), MIN_ETKI)
-    ilerleme = _ders_ilerleme()
-    if renk == "sari":              # 24.11: "0/10" etki sayaci yaniltiyordu; yerine en yakin adayin gercek ilerlemesi
-        durum = (durum_veri_birikiyor(0).split(" (")[0] if ilerleme is None else
-                 f"Açık, veri birikiyor (en yakın aday {ilerleme['n']}/{ilerleme['n_hedef']} işlem, "
-                 f"{ilerleme['gun']}/{ilerleme['gun_hedef']} gün)")
-    son = next((s for s in satirlar if not s["geri"]), satirlar[0] if satirlar else None)
-    if eff is not None and eff.n >= MIN_ETKI:
-        r2usd = _usd_per_r(ctx.closed)
-        katki = ({"usd": eff.damped * r2usd, "yaklasik": True, "n": eff.n} if r2usd else katki_olculemedi(eff.n))
-    else:
-        katki = katki_olculemedi(eff.n if eff is not None else 0)
-    return {"durum": durum, "renk": renk, "son": son, "degisen_7g": degisen, "katki": katki,
-            "son5": satirlar if len(satirlar) > 1 else [],           # tek ders: "Son dersler" listesi tekrar olur
-            "ilerleme": ilerleme, "kol_dersleri": kol_dersleri(path)}
-
-
-def _ders_ilerleme() -> dict | None:
-    """Parametre dersinin en yakin adayinin gercek ilerlemesi (lesson store kontrol noktalari; salt okunur). Okunamazsa None."""
-    from . import lesson as LS  # noqa: PLC0415
-    try:
-        cfg = LS.load_config()
-        sp = Path(cfg.store_path)
-        sp = sp if sp.is_absolute() else _REPO / sp
-        if not sp.exists():
-            return None
-        store = LS.LessonStore(str(sp), read_only=True, create=False)
-        try:
-            r = LS.lesson_progress(store.checkpoints(), cfg)
-        finally:
-            store.close()
-    except Exception:  # noqa: BLE001 - istege bagli kart satiri
-        return None
-    if r is not None:
-        r["ad"] = TS.PARAM_AD.get(r["param"], r["param"])
-    return r
-
-
-_KOL_OLAY = {"closed": "kapatıldı", "reopened": "yeniden açıldı", "rolled_back": "geri alındı (kapatma yanlıştı)"}
-
-
-def kol_dersleri(ledger_path: str) -> list[dict]:
-    """`arms_off.json` kol dersleri: kapatilan kollar ve yeniden acilan/geri alinan kollar (en yeni once). Dosya yoksa []."""
-    from . import lesson as LS  # noqa: PLC0415
-    out = []
-    for a, st in LS.read_arms_state(Path(ledger_path).parent / "arms_off.json").items():
-        ev = st.get("last_event")
-        if st.get("state") != "closed" and ev not in ("reopened", "rolled_back"):
-            continue
-        olay = "closed" if st.get("state") == "closed" else ev
-        try:
-            dt = datetime.fromisoformat(str(st.get("epoch_start")).replace("Z", "+00:00"))
-            dt = dt if dt.tzinfo else dt.replace(tzinfo=P.UTC)
-        except (TypeError, ValueError):
-            dt = None
-        out.append({"kol": a, "olay": olay, "metin": _KOL_OLAY.get(olay, str(olay)), "tarih": tsi_gun(dt),
-                    "ts": dt.timestamp() if dt else 0.0, "n": st.get("n"), "ort_r": st.get("mean_r")})
-    out.sort(key=lambda r: (-r["ts"], r["kol"]))
-    return out
 
 
 def kucultme_view(ledger_path: str, bot: str, arms=None, now: datetime | None = None) -> dict | None:
@@ -524,21 +396,14 @@ def ogrenme_view(ledger_path: str, ctx: Ctx, now: datetime, *, arms: list[str] |
     kollari) icin kol x zaman dilimi satirlari; model kollari icin son egitim / paket yasi / bugun aday-giris. Hepsi defterden,
     `arms_off.json`dan ve paket dosyalarindan aynen okunur; bulunamayan alan None (arayuzde 'bilinmiyor')."""
     from . import kol_kucultme as KK  # noqa: PLC0415
-    from . import lesson as LS  # noqa: PLC0415
     import os  # noqa: PLC0415
     sonuc: dict[str, list[float]] = {}            # arm -> net R (yeniden eskiye)
-    son_ders: dict[str, datetime] = {}
     for t in ctx.closed:
         d = ctx.dec.get(t.decision_id)
         r = _f(t.r_multiple)
         if d is not None and r is not None:
             sonuc.setdefault(_arm_kimlik(d), []).append(r)
-    for d in ctx.decisions:
-        if d.final_action == "entered" and d.lesson_ids:
-            a = _arm_kimlik(d)
-            if a not in son_ders or d.bar_close_ts > son_ders[a]:
-                son_ders[a] = d.bar_close_ts
-    kapali = {a for a, st in LS.read_arms_state(Path(ledger_path).parent / "arms_off.json").items()
+    kapali = {a for a, st in KY.read_arms_state(Path(ledger_path).parent / "arms_off.json").items()
               if st.get("state") == "closed"}
     gun0 = gun_basi(now)
     bugun: dict[str, list[int]] = {}
@@ -547,7 +412,7 @@ def ogrenme_view(ledger_path: str, ctx: Ctx, now: datetime, *, arms: list[str] |
             b = bugun.setdefault(_arm_kimlik(d), [0, 0])
             b[0] += 1
             b[1] += 1 if d.final_action == "entered" else 0
-    tum = set(arms or []) | set(sonuc) | set(son_ders) | set(bugun) | kapali
+    tum = set(arms or []) | set(sonuc) | set(bugun) | kapali
     tum |= {f"M1@{tf}" for tf in MODEL_ZD} if any(a.startswith("M1@") for a in tum) else set()
     kollar = []
     for a in sorted(tum, key=lambda x: (x.partition("@")[0], MODEL_ZD.index(x.partition("@")[2]) if x.partition("@")[2] in MODEL_ZD else 9, x)):
@@ -560,9 +425,7 @@ def ogrenme_view(ledger_path: str, ctx: Ctx, now: datetime, *, arms: list[str] |
         kollar.append({"arm": a, "kol": TS.kurulum_adi(kur), "zd": TS.kol_adi(a).partition(" · ")[2] or (zd or "—"),
                        "n": n, "net_r": round(math.fsum(vals), 4) if n else None,
                        "kazanma": round(100.0 * sum(1 for v in vals if v > 0) / n, 1) if n else None,
-                       "carpan": k.carpan, "durum": durum, "durum_ad": _DURUM_AD[durum],
-                       "son_ders": tsi_gun(son_ders[a]) if a in son_ders else None,
-                       "son_ders_ts": son_ders[a].timestamp() if a in son_ders else None})
+                       "carpan": k.carpan, "durum": durum, "durum_ad": _DURUM_AD[durum]})
     olcu = [r for r in kollar if r["n"]]
     iyi = sorted(olcu, key=lambda r: (-r["net_r"], r["arm"]))[:3]
     kotu = sorted((r for r in olcu if r not in iyi), key=lambda r: (r["net_r"], r["arm"]))[:3]
@@ -631,7 +494,7 @@ def mutabakat_view(path: str) -> dict | None:
 
 
 def teknik_view(*, health: Mapping | None, risk_rows: list | None, budget: Mapping | None, tut: Mapping | None,
-                pbo: Mapping | None, ctx: Ctx | None, ders: Mapping | None,
+                pbo: Mapping | None, ctx: Ctx | None,
                 mutabakat: Mapping | None = None, dayaniklilik: Mapping | None = None) -> dict:
     out: dict[str, Any] = {}
     if isinstance(dayaniklilik, Mapping):
@@ -663,11 +526,6 @@ def teknik_view(*, health: Mapping | None, risk_rows: list | None, budget: Mappi
                          "diger_botlar": diger[:4]}
     if risk_rows:
         out["limitler"] = [{"ad": r["label"], "kullanilan": r["used"], "limit": r["limit"], "yuzde": r["pct"]} for r in risk_rows]
-    kap = []
-    if ders:
-        kap.append({"ad": "Ders freni", "ok": "freni" not in str(ders.get("durum")), "not": str(ders.get("durum"))})
-    if kap:
-        out["kapilar"] = kap
     if budget:
         sv = budget.get("services") or {}
         out["model"] = [{"ad": "Yapay zekâ", "cagri_bugun": sum(int(v.get("calls_today") or 0) for v in sv.values()),
@@ -711,14 +569,6 @@ def _problem(saglik: Mapping | None, state: str, risk: Mapping, budget: Mapping 
     if saglik and saglik.get("renk") == "sari":
         return {"renk": "sari", "metin": "Sağlık uyarısı: " + _ilk_sorun(saglik)}
     return {"renk": "yesil", "metin": "Sistem sağlıklı"}
-
-
-def kismi_durum(ders: Mapping | None) -> list[str]:
-    """Sistem calisiyor ama tam degil: sade cumleler (bos = her sey tam)."""
-    out = []
-    if ders and ders.get("renk") == "kirmizi":
-        out.append("ders işlemleri etkilemiyor")
-    return out
 
 
 def saglik_yapmali(saglik: Mapping | None) -> str | None:

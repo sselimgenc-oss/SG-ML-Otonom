@@ -1,10 +1,10 @@
 """Panel (pano) icin yapisal, salt okunur veri yardimcilari (docs/panel-spec.md §3, §10, §11).
 
-Telegram bolum ureticilerinin (`section_ledger/budget/lesson`) yapisal karsiliklari: ayni formuller, ayni hata
+Telegram bolum ureticilerinin (`section_ledger/budget`) yapisal karsiliklari: ayni formuller, ayni hata
 kodlari, ama metin yerine dict doner. `telegram.py` ice aktarilmaz (o modul `trader_engine`i ceker; panel yalniz
 dosya/DB sozlesmelerine bagli). Esdegerlik `tests/test_panel_equivalence.py` ile sinanir.
 
-Panel yeni hesap yapmaz: sayilar defter/butce/ders/saglik ciktisindan aynen gelir; yalniz toplama, siralama,
+Panel yeni hesap yapmaz: sayilar defter/butce/saglik ciktisindan aynen gelir; yalniz toplama, siralama,
 ilk-N kesme, zaman farki (bayatlik) ve cizim icin kumulatif seri yapilir. Hicbir kaynaga yazilmaz.
 """
 from __future__ import annotations
@@ -21,7 +21,7 @@ from typing import Any
 
 from . import budget as B
 from . import ledger as L
-from . import lesson as LS
+from . import kol_yasam as KY
 from .health import DEFAULT_CFG as HEALTH_CFG
 from .arm_time import arm_id_of
 
@@ -280,7 +280,7 @@ def risk_usage(path: str, bot: str, equity: Any, day_start_equity: Any, day: str
 
 
 # ---------------------------------------------------------------------------------------------
-# butce / ders / saglik / sistem
+# butce / saglik / sistem
 # ---------------------------------------------------------------------------------------------
 def budget_view(budget_config: str) -> dict:
     """telegram.section_budget ile ayni cozum: yapilandirma -> db yolu (goreli ise config/'un ust dizinine gore)."""
@@ -304,63 +304,6 @@ def budget_view(budget_config: str) -> dict:
             "provider_blocked_until": st.provider_blocked_until, "prices_verified": st.prices_verified,
             "services": {k: {"used_usd": v.used_usd, "cap_usd": v.cap_usd, "pct": v.pct, "state": v.state,
                              "calls_today": v.calls_today} for k, v in st.services.items()}}
-
-
-def _req_summary(r: Mapping) -> dict:
-    try:
-        d = json.loads(r["request_json"])
-        return {"request_id": r["request_id"], "param": d.get("param"), "from": d.get("from_value"),
-                "to": d.get("to_value"), "scope": d.get("scope")}
-    except Exception:  # noqa: BLE001
-        return {"request_id": r.get("request_id"), "param": None, "from": None, "to": None, "scope": None,
-                "proposal_id": r.get("proposal_id")}
-
-
-def lesson_view(store_path: str, now: datetime, ledger_path: str = "") -> dict:
-    if not store_path or not Path(store_path).exists():
-        raise SectionError("depo_yok")
-    try:
-        store = LS.LessonStore(store_path, read_only=True, create=False)
-    except Exception as e:  # noqa: BLE001
-        raise SectionError(type(e).__name__) from None
-    try:
-        reqs = store.open_requests()
-        out: dict[str, Any] = {"open_requests": [_req_summary(r) for r in reqs[:20]], "open_count": len(reqs)}
-        sd, ed = store.get_state("shadow_start_day"), store.get_state("shadow_end_day")
-        if sd:
-            today = now.astimezone(TR).date()
-            n = (today - datetime.fromisoformat(sd).date()).days + 1
-            tot = (datetime.fromisoformat(ed).date() - datetime.fromisoformat(sd).date()).days if ed else None
-            out["shadow"] = {"start": sd, "end": ed, "day": max(n, 0), "total": tot}
-        else:
-            out["shadow"] = None
-        rows = store._q("SELECT id, run_day FROM lesson_runs ORDER BY id DESC LIMIT 1")
-        if rows:
-            ev = store.run_events(rows[0]["id"])
-            last = ev[-1] if ev else None
-            out["last_run"] = {"day": rows[0]["run_day"], "status": last.status if last else None,
-                               "code": last.code if last else None}
-        else:
-            out["last_run"] = None
-    except Exception as e:  # noqa: BLE001
-        raise SectionError(type(e).__name__) from None
-    finally:
-        store.close()
-    out["proposals"] = None
-    if ledger_path:
-        try:
-            led = open_ledger_ro(ledger_path, "learner")
-            try:
-                ps = led.list_proposals(status="proposed", limit=20) + led.list_proposals(status="needs_user", limit=20)
-                out["proposals"] = [{"id": p.id, "status": p.status, "changes": dict(p.changes),
-                                     "created_at": fmt_z(p.created_at)} for p in ps]
-            finally:
-                led.close()
-        except SectionError as e:
-            out["proposals"] = {"code": e.code}
-        except Exception as e:  # noqa: BLE001
-            out["proposals"] = {"code": type(e).__name__}
-    return out
 
 
 def health_view(state_path: str, now: datetime, stale_s: float) -> dict:
@@ -429,7 +372,7 @@ def system_view(disk_path: str) -> dict:
             "disk_level": None if free is None else lvl(free < c.disk_warn_bytes, free < c.disk_crit_bytes)}
 
 
-# ---- DD-12 WP-17: öğrenme görünümü (kurulum karnesi, ders, ML, seans/varlık kırılımı, haftalık özet, harcama) ----
+# ---- DD-12 WP-17: öğrenme görünümü (kurulum karnesi, ML, seans/varlık kırılımı, haftalık özet, harcama) ----
 LEARNER_BOT = "learner"
 PAPER_CONFIG = Path(__file__).resolve().parents[2] / "config" / "engine.paper.json"   # kâğıt yapılandırması (kümeler, kurulumlar)
 WEEKLY_DIR = "weekly_summaries"
@@ -489,7 +432,6 @@ def _latest_weekly(ledger_path: str) -> dict | None:
 def _ledger_learning(ledger_path: str, now: datetime, paper_config=None) -> dict:
     """Defterden öğrenme özeti (salt okunur). Okunamazsa SectionError; çağıran bölümü tek satırla bildirir."""
     from . import counterfactual as CF
-    from . import lesson as LS
     arms, asset_of = paper_maps(paper_config)
     base = Path(ledger_path).parent
     led = open_ledger_ro(ledger_path, LEARNER_BOT)
@@ -497,15 +439,6 @@ def _ledger_learning(ledger_path: str, now: datetime, paper_config=None) -> dict
         decisions = led.list_decisions()
         trades = led.list_closed_trades(limit=10000)
         open_trades = led.list_open_trades()
-        acts = led.list_activations()
-        brake = LS.brake_active(led)
-        try:                                                  # ders etkisi: referanstan beri (ölçüm yalnız okur)
-            bv = LS.evaluate_brake(led, LS.load_config(), now)
-            eff = bv.effect
-            effect = None if eff is None else {"damped_r": round(eff.damped, 4), "n": eff.n,
-                                              "n_unresolved": eff.n_unresolved}
-        except Exception:  # noqa: BLE001 - etki okunamazsa sayılar yine gösterilir
-            effect = None
     except SectionError:
         raise
     except Exception as e:  # noqa: BLE001
@@ -517,7 +450,7 @@ def _ledger_learning(ledger_path: str, now: datetime, paper_config=None) -> dict
         cf_rows = CF.arm_rows(cf_path, LEARNER_BOT) if cf_path.exists() else []
     except CF.CounterfactualError as e:
         raise SectionError(e.code) from None
-    closed = {a for a, s in LS.read_arms_state(base / "arms_off.json").items() if s.get("state") == "closed"}
+    closed = {a for a, s in KY.read_arms_state(base / "arms_off.json").items() if s.get("state") == "closed"}
     cands = CF.arm_candidates(decisions=decisions, trades=trades, cf_rows=cf_rows, asset_class_of=asset_of)
     by_id = {d.id: d for d in decisions}
     for c in cands:
@@ -528,13 +461,6 @@ def _ledger_learning(ledger_path: str, now: datetime, paper_config=None) -> dict
     scorecard = [{"arm": a, "candidates": b["candidates"], "taken": b["taken"], "resolved": b["resolved"],
                   "mean_r_taken": b["mean_r_taken"], "mean_r_taken_cf": b["mean_r_taken_cf"], "state": b["state"],
                   "by_class": b["by_class"], "kasa": b["kasa"]} for a, b in sc.items()]
-    les = [a for a in acts if a.actor == "lesson"]
-    brake_ev = [a for a in les if a.kind == "rollback" and str(a.reason or "").startswith(LS.BRAKE_REASON_PREFIX)]
-    lesson = {"applied": sum(1 for a in les if a.kind == "apply"),
-              "rollbacks": sum(1 for a in les if a.kind == "rollback" and a not in brake_ev),
-              "brake_events": len(brake_ev), "brake_active": bool(brake), "effect": effect,
-              "closed_arms": sorted(closed),
-              "events": [{"at": fmt_z(a.activated_at), "kind": a.kind, "reason": a.reason} for a in les[:10]]}
     m1_c = [c for c in cands if str(c["arm_id"]).startswith("M1@")]
     m1 = {"candidates": len(m1_c), "taken": sum(1 for c in m1_c if c["taken"])}
     sessions: dict[str, dict] = {}
@@ -552,7 +478,7 @@ def _ledger_learning(ledger_path: str, now: datetime, paper_config=None) -> dict
         open_arm[a] = open_arm.get(a, 0) + 1
         for k in clusters_of_pair(t.pair, paper_config):
             open_cluster[k] = open_cluster.get(k, 0) + 1
-    return {"scorecard": scorecard, "lesson": lesson, "m1": m1, "sessions": sessions, "asset_class": asset_cls,
+    return {"scorecard": scorecard, "m1": m1, "sessions": sessions, "asset_class": asset_cls,
             "open": {"total": len(open_trades), "by_arm": dict(sorted(open_arm.items())),
                      "by_cluster": dict(sorted(open_cluster.items()))},
             "trades_closed": len(trades), "decisions": len(decisions)}
@@ -562,9 +488,7 @@ def learning_view(ledger_path: str, budget_config: str, now: datetime, *, paper_
     """Öğrenme sekmesi ve günlük rapor için tek kaynak (salt okunur). Her bölüm bağımsız: defter okunamazsa
     `ledger_error` kodu döner, harcama ve haftalık özet yine gelir (sayılar yok, çökme yok)."""
     out: dict[str, Any] = {"ledger_error": None}
-    empty = {"scorecard": [], "lesson": {"applied": 0, "rollbacks": 0, "brake_events": 0, "brake_active": False,
-                                         "effect": None, "closed_arms": [], "events": []},
-             "m1": {"candidates": 0, "taken": 0},
+    empty = {"scorecard": [], "m1": {"candidates": 0, "taken": 0},
              "sessions": {}, "asset_class": {}, "open": {"total": 0, "by_arm": {}, "by_cluster": {}},
              "trades_closed": 0, "decisions": 0}
     try:
@@ -674,32 +598,8 @@ def pbo_view(pbo_path: str, muhur_path: str) -> dict:
 
 
 # ---- cikis kaniti (cikis karsi-olgusu gece isi): salt okunur, eksik/bozuk kaynak paneli bozmaz ----
-EXITCF_DAYS = 4 * 30                       # ders kanit penceresi ile ayni (exit_counterfactual.deltas varsayilani)
+EXITCF_DAYS = 4 * 30                       # kanit penceresi (exit_counterfactual.deltas varsayilani)
 _EXITCF_SOURCES = ("paper", "testnet")   # hukum yalniz kendi bot defterinden (exit_counterfactual.SOURCES_VERDICT)
-_PEND_PARAMS = {"exit_breakeven": "exit:breakeven", "exit_partial": "exit:partial"}
-
-
-def exitcf_bekleyen(lesson: Mapping | None) -> list[str]:
-    """Ders gorunumunden (`lesson_view` ciktisi) bekleyen cikis onerileri: trail_atr:up / exit:breakeven / exit:partial."""
-    out: set[str] = set()
-    try:
-        for r in (lesson or {}).get("open_requests") or []:
-            p = r.get("param")
-            if p in _PEND_PARAMS:
-                out.add(_PEND_PARAMS[p])
-            elif p == "trail_atr" and _fnum(r.get("from")) is not None and _fnum(r.get("to")) is not None and r["to"] > r["from"]:
-                out.add("trail_atr:up")
-        props = (lesson or {}).get("proposals")
-        for pr in props if isinstance(props, list) else []:
-            ch = pr.get("changes") if isinstance(pr, Mapping) else None
-            for k, v in (ch.items() if isinstance(ch, Mapping) else []):
-                if k in _PEND_PARAMS:
-                    out.add(_PEND_PARAMS[k])
-                elif k == "trail_atr":
-                    out.add("trail_atr:up")          # yon bilgisi yoksa ders menusu yalniz yukari yonu kanit-yalniz acar
-    except Exception:  # noqa: BLE001
-        pass
-    return sorted(out)
 
 
 def _ro_connect(path: str):
@@ -708,11 +608,10 @@ def _ro_connect(path: str):
     return sqlite3.connect("file:" + quote(os.path.abspath(path)) + "?mode=ro", uri=True, timeout=2.0)
 
 
-def exitcf_view(path: str, now: datetime, bekleyen: list[str] | None = None) -> dict:
+def exitcf_view(path: str, now: datetime) -> dict:
     """`var/<bot>/exit_counterfactual.sqlite` ozeti (ecf_outcomes = exitcf-v1, ecf_modes = exitcf-v2), kurulum (setup) basina.
     Yok/bozuk/bos -> {"var": False, "neden": kod}; asla istisna atmaz. Delta = alternatif net R - mevcut cikis (ayni yol, ayni maliyet)."""
     import sqlite3
-    bekleyen = list(bekleyen or [])
     if not path:
         return {"var": False, "neden": "yapilandirma_yok"}
     if not os.path.exists(path):
@@ -789,8 +688,6 @@ def exitcf_view(path: str, now: datetime, bekleyen: list[str] | None = None) -> 
         db.close()
     if not groups:
         return {"var": False, "neden": "kayit_yok"}
-    pend_for = {"up": "trail_atr:up", "breakeven": "exit:breakeven", "partial": "exit:partial"}
-
     def part(g: dict, key: str) -> dict:
         n, s = g.get(key, [0, None])
         return {"n": n, "delta_r": round(s, 4) if s is not None and math.isfinite(s) else None}
@@ -801,9 +698,8 @@ def exitcf_view(path: str, now: datetime, bekleyen: list[str] | None = None) -> 
         r = {"kurulum": ad, "islem": max(g.get("islem_v1", 0), g.get("islem_v2", 0)),
              "trail_yukari": part(g, "up"), "trail_asagi": part(g, "down"),
              "basabas": part(g, "breakeven"), "kismi": part(g, "partial")}
-        r["bekleyen"] = [pend_for[k] for k in ("up", "breakeven", "partial") if g.get(k) and pend_for[k] in bekleyen]
         kurulumlar.append(r)
-    return {"var": True, "pencere_gun": EXITCF_DAYS, "kurulumlar": kurulumlar, "bekleyen": [b for b in bekleyen if b in pend_for.values()],
+    return {"var": True, "pencere_gun": EXITCF_DAYS, "kurulumlar": kurulumlar,
             "son_kosu_v1": last["v1"], "son_kosu_v2": last["v2"]}
 
 

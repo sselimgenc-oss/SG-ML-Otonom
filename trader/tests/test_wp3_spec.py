@@ -1917,7 +1917,7 @@ def test_T3_static_name_isolation():
             if any(n in text for n in names):
                 hits.add(str(p.relative_to(TRADER)))
     assert hits <= allowed, sorted(hits - allowed)
-    forbidden = ["src/trader_core/lesson.py", "src/trader_core/drift_monitor.py", "src/trader_core/health.py"]
+    forbidden = ["src/trader_core/drift_monitor.py", "src/trader_core/health.py"]
     forbidden += [str(p.relative_to(TRADER)) for p in (TRADER / "src" / "trader_ml").rglob("*.py")]
     assert not (set(forbidden) & hits)
 

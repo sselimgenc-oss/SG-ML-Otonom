@@ -1,4 +1,4 @@
-"""Kodla yazilan islem notu (spec bolum 2). ML trader_core/trade_notes.py mantiginin Aday uzerindeki hali.
+"""Kodla yazilan islem notu (spec bolum 2). Eski ML trader_core/trade_notes.py (25.11'de kaldirildi) mantiginin Aday uzerindeki hali.
 
 Ag yok, rastgelelik yok. Etiketler islem SONRASI bilgidir (hedef/olcum), ozellik degildir.
 """

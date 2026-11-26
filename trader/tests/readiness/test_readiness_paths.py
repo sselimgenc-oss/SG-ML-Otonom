@@ -56,14 +56,12 @@ def test_engine_config_loads_and_twin_is_rejected_and_pairs_agree_everywhere():
 
 
 def test_other_configs_load():
-    from trader_core import budget, lesson
+    from trader_core import budget
     from trader_panel.data import load_config
     pc = load_config(ROOT / "config/panel.json")
     assert pc.host == "127.0.0.1"
     bc = budget.load_config(ROOT / "config/budget.json")
     assert bc is not None
-    lc = lesson.load_config(ROOT / "config/lesson.json", budget_config_path=ROOT / "config/budget.json")
-    assert lc.twin_enabled is False
 
 
 def test_learner_alone_shares_feed_and_twin_not_installed():
@@ -127,10 +125,10 @@ def test_kill_file_same_path_in_engine_telegram_panel(envs, units):
 def test_telegram_outbox_dir_is_writable_for_every_writer(envs, units):
     out = envs["trader-telegram.env"]["TELEGRAM_VAR_DIR"]
     assert out == f"{T}/var/telegram"
-    for u in ("trader-telegram.service", "trader-telegram-report.service", "trader-lesson.service", "trader-health-fail@.service"):
+    for u in ("trader-telegram.service", "trader-telegram-report.service", "trader-health-fail@.service"):
         assert _covered(out, _rw(units, u)), u
     assert re.search(r'install -d -m 2770 -o "\$TRADER_USER" -g "\$TG_GROUP" "\$TRADER_DIR/var/telegram/outbox"', install_text())
-    for u in ("trader-telegram.service", "trader-telegram-report.service", "trader-lesson.service", "trader-health-fail@.service"):
+    for u in ("trader-telegram.service", "trader-telegram-report.service", "trader-health-fail@.service"):
         assert "SupplementaryGroups=trader-tg" in units[u], u
 
 
@@ -167,22 +165,16 @@ def test_OPEN_engine_units_have_no_veto_env():
     assert not (DEPLOY / "trader-veto-hmac.env.example").exists() and not (DEPLOY / "trader-veto.service").exists()
 
 
-def test_OPEN_lesson_and_telegram_ledger_path_is_the_engine_ledger(envs):
+def test_OPEN_ortak_env_and_telegram_ledger_path_is_the_engine_ledger(envs):
+    """`trader-lesson.env` tarihsel ad: yorumcu/haftalik ozet/veri servislerinin ortak env dosyasi (ders servisi kaldirildi)."""
     want = _abs(_cfg("learner").ledger_path)
     assert envs["trader-lesson.env"]["LEDGER_PATH"] == want
     assert envs["trader-telegram.env"]["LEDGER_PATH"] == want
-    lc = json.loads((ROOT / "config/lesson.json").read_text())
-    assert _abs(lc["ledger_path"]) == want
 
 
-def test_OPEN_lesson_and_telegram_can_create_sqlite_sidecars(units):
-    for u in ("trader-lesson.service", "trader-telegram.service"):
+def test_OPEN_telegram_can_create_sqlite_sidecars(units):
+    for u in ("trader-telegram.service",):
         assert any(p.rstrip("/") == f"{T}/user_data" for p in _rw(units, u)), u
-
-
-
-def test_OPEN_lesson_config_has_a_notifier():
-    assert json.loads((ROOT / "config/lesson.json").read_text())["notifier"] == "telegram"
 
 
 def test_health_unit_can_notify_telegram_and_write_outbox(envs, units):
@@ -201,10 +193,10 @@ def test_health_env_has_bots_and_no_veto_freshness(envs):
     assert "VETO_FILE" not in h and "VETO_MAX_AGE_S" not in h              # DD-12 WP-06a: veto belgesi denetimi yok
 
 
-def test_lesson_and_telegram_sandbox_ledger_access(units):
-    for u in ("trader-lesson.service", "trader-telegram.service"):
+def test_telegram_sandbox_ledger_access(units):
+    for u in ("trader-telegram.service",):
         assert f"-{T}/var/learner" in _rw(units, u), u
-    for u, paths in (("trader-lesson.service", _ro), ("trader-telegram.service", _rw), ("trader-telegram-report.service", _ro)):
+    for u, paths in (("trader-telegram.service", _rw), ("trader-telegram-report.service", _ro)):
         assert f"-{T}/var/twin" not in paths(units, u), u                                 # DD-12: ikiz yollari yok
     assert _covered(f"{T}/var", _rw(units, "trader-backup.service"))                  # OPEN-10
 

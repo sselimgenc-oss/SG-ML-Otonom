@@ -632,7 +632,7 @@ def test_e_05_trader_removed_from_tg_group_under_membership_check():
 
 
 def test_e_06_telegram_group_bridge_units_keep_supplementary_group():
-    for name in ("trader-telegram.service", "trader-health.service", "trader-health-fail@.service", "trader-lesson.service",
+    for name in ("trader-telegram.service", "trader-health.service", "trader-health-fail@.service",
                  "trader-telegram-report.service", "trader-engine-env-retry@.service"):
         assert "SupplementaryGroups=trader-tg" in read(DEPLOY / name), name
 
@@ -810,12 +810,10 @@ def test_r_09_run_calls_proc_guard_only_for_testnet_and_live(tmp_path, monkeypat
 
 
 def _no_http_main_args(name, tmp_path):
-    if name == "lesson_run":
-        return ["--once", "--dry-run"], {"env": {"LEDGER_PATH": str(tmp_path / "l.sqlite"), "LESSON_STORE_PATH": str(tmp_path / "s.sqlite")}}
     return ["daemon"], {"env": {}}
 
 
-@pytest.mark.parametrize("name", ["lesson_run", "telegram_run"])     # 24.11: veto_run silindi
+@pytest.mark.parametrize("name", ["telegram_run"])     # 24.11: veto_run silindi; 25.11: lesson_run silindi
 def test_r_10_script_mains_call_set_nondumpable_exactly_once(tmp_path, monkeypatch, name):
     mod = load_script(name)
     argv, kw = _no_http_main_args(name, tmp_path)
@@ -1479,7 +1477,7 @@ def test_y_11_live_preflight_consistent_then_each_break_fails_its_check(tmp_path
     v = _verdicts(out)
     assert rc == 0 and v and set(v.values()) == {"OK"}, out
     assert {"env_perms", "live_env_complete", "live_confirm_matches", "keys_not_testnet", "telegram_paths", "health_paths",
-            "lesson_paths", "trader_not_in_tg", "release_pinned"} <= set(v)
+            "ortak_env_paths", "trader_not_in_tg", "release_pinned"} <= set(v)
     secrets = [sec["key"], sec["secret"], sec["tkey"], sec["tsecret"], sec["tag"], sec["token"]]
 
     def check(name, mutate, **kw):
@@ -1572,13 +1570,12 @@ def make_tg(tmp_path, **daemon_kw):
     e.tmp, e.fake, e.clk, e.sleeps = tmp_path, TS.FakeTelegram(), TS.Clk(), []
     e.kill_file, e.status_path = str(tmp_path / "KILL"), str(tmp_path / "status.json")
     e.cfg = tgm.TelegramConfig(token=TS.TOKEN, chat_id=TS.CID, var_dir=str(tmp_path / "var"), kill_file=e.kill_file,
-                               status_path=e.status_path, lesson_run=str(tmp_path / "lesson_run.py"),
+                               status_path=e.status_path,
                                health_state=str(tmp_path / "health.json"))
     (tmp_path / "var").mkdir()
     e.client = tgm.TelegramClient(TS.TOKEN, http_post=e.fake.post, sleep=e.sleeps.append)
     e.ks = Killswitch(e.kill_file, SimClock(TS.T0))
-    runner = lambda argv, timeout, env_: (0, json.dumps({"status": "approved", "code": "ok", "message": "tamam", "request_id": TS.REQ}))  # noqa: E731
-    e.d = tgm.TelegramDaemon(e.cfg, e.client, now_fn=e.clk, runner=runner, sleep=e.sleeps.append, random_code=lambda: "4821",
+    e.d = tgm.TelegramDaemon(e.cfg, e.client, now_fn=e.clk, sleep=e.sleeps.append, random_code=lambda: "4821",
                              killswitch=TS._ks_for(e.cfg, e.clk), **daemon_kw)
     e.clk.advance(2)
     e.send = lambda text, uid=None, **kw: e.d.process_updates([TS.msg(uid or TS._next(), text, kw.pop("date", e.clk()), **kw)])
@@ -2152,6 +2149,6 @@ def test_d4_05_paper_engine_never_calls_peek_meta_and_golden_backtest_unchanged(
 #    sorgusu icin `git tag|for-each-ref|describe|show-ref|--points-at|--contains` herhangi biri kabul edilir.
 # 5. E-3: env adimi bolgesi `copy_env() {` ile son `copy_env "` cagrisindan sonraki ilk `# ---- ` basligina kadar alinir.
 # 6. H-13: LIVE_BOTS'un `evaluate`e nasil ulastigi adlandirilmamis; collect + make_cfg + evaluate uctan uca denendi.
-# 7. Y-11 lesson_paths: lesson env tek basina LIVE_BOTS tasimadigindan bozulma senaryosu yok (yalniz OK yolu denendi).
+# 7. Y-11 ortak_env_paths: ortak env tek basina LIVE_BOTS tasimadigindan bozulma senaryosu yok (yalniz OK yolu denendi).
 # 8. T-7 (duzenek guncellemesi) dogrudan ifade edilemez; mevcut Telegram test paketlerinin gecmesi aranir.
 # 9. R-9: testnet'te proc_guard basarisizlik WARNING'inin metni adlandirilmamis; anahtar sozcuk (proc_guard/dump/environ/ortam) aranir.

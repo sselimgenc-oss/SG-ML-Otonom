@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """YZ yorumcu (ust lig §3; gunluk 05:40 UTC): dunun islemlerini/kararlarini/olcum raporunu sade Turkce yorumlar.
 
-YETKISI YOK: yalniz `var/durum/yorumcu/YYYY-MM-DD.md` yazar (+ Telegram outbox'a kisa ozet). Motor bu dizini okumaz; ders sistemine bagli degil.
+YETKISI YOK: yalniz `var/durum/yorumcu/YYYY-MM-DD.md` yazar (+ Telegram outbox'a kisa ozet). Motor bu dizini okumaz.
 Girdi (hepsi SALT OKUNUR): kagit defteri (kapanmis islemler, kararlar), `var/durum/tur1_olcum_v1.json`, `alinmayan_sonuc_v1.json`,
-haftalik ozetin sabit bolumu, bekleyen ders onerileri. Tum sayilar kodla hesaplanir (`trader_reports.yorumcu`); model yalniz yorumlar.
-Model: claude-sonnet-5-5, MEVCUT `lesson.AnthropicBatchClient` (Batch API) + `budget` servisi `yorumcu` (anahtar: ANTHROPIC_API_KEY_YORUMCU).
+haftalik ozetin sabit bolumu. Tum sayilar kodla hesaplanir (`trader_reports.yorumcu`); model yalniz yorumlar.
+Model: claude-sonnet-5-5, MEVCUT `ortak.AnthropicBatchClient` (Batch API) + `budget` servisi `yorumcu` (anahtar: ANTHROPIC_API_KEY_YORUMCU).
 Butce bitti / anahtar yok / API hatasi / defter yok: "bugün rapor yok: <neden>" dosyasi yazilir, cikis 0. Kilitli donem okunmaz.
 Test: `main(argv, client=, budget=, now_fn=, env=, sleep=)`; `client.submit(bundle, custom_id)` / `client.poll(batch_id)`.
 """
@@ -24,7 +24,7 @@ _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE.parent / "src"))
 
 from trader_core import budget as _budget  # noqa: E402
-from trader_core import lesson as LS  # noqa: E402
+from trader_core import ortak as ORT  # noqa: E402
 from trader_core import panel_data as P  # noqa: E402
 from trader_engine import arm_guard as AG  # noqa: E402
 from trader_engine.fileio import atomic_write_text  # noqa: E402
@@ -80,16 +80,6 @@ def haftalik_sabit(ledger_path: Path) -> list[str]:
         return []
 
 
-def dersler(cfg, now: datetime) -> list[str]:
-    """Bekleyen/acik ders onerileri (kisa metin); ders deposu yoksa bos. Ders sistemine YAZMAZ."""
-    try:
-        store = getattr(cfg, "lesson_store", None) or "user_data/lesson.sqlite"
-        v = P.lesson_view(str(store), now, "")
-        return [json.dumps(r, ensure_ascii=False, sort_keys=True)[:300] for r in (v.get("open_requests") or [])[:5]]
-    except Exception:  # noqa: BLE001
-        return []
-
-
 def defteri_oku(root: Path):
     cfg = load_config(root / "config" / "panel.json")
     led_path = Path(cfg.ledger_path)
@@ -117,7 +107,7 @@ def varsayilan_istemci(env, b):
     if not key:
         return None
     import anthropic  # noqa: PLC0415  (mevcut SDK; yeni bagimlilik yok)
-    return LS.AnthropicBatchClient(client=anthropic.Anthropic(api_key=key, max_retries=0, timeout=60.0))
+    return ORT.AnthropicBatchClient(client=anthropic.Anthropic(api_key=key, max_retries=0, timeout=60.0))
 
 
 def telegram_gonder(root: Path, env, tarih: str, metin: str, now: datetime) -> bool:
@@ -141,13 +131,13 @@ def _batch_calistir(client, params: dict, sleep, sure_azami: float):
     try:
         bid = client.submit(SimpleNamespace(params=params), CUSTOM_ID)
     except Exception as e:  # noqa: BLE001
-        return None, f"API hatası ({LS.scrub(type(e).__name__)})"
+        return None, f"API hatası ({ORT.scrub(type(e).__name__)})"
     gecen = 0.0
     while True:
         try:
             pr = client.poll(bid)
         except Exception as e:  # noqa: BLE001
-            return None, f"API hatası ({LS.scrub(type(e).__name__)})"
+            return None, f"API hatası ({ORT.scrub(type(e).__name__)})"
         if pr.status == "ended":
             for r in pr.results:
                 if r.custom_id == CUSTOM_ID and r.result_type == "succeeded" and (r.text or "").strip():
@@ -179,7 +169,7 @@ def kos(root: Path, now: datetime, env, *, client=None, budget=None, sleep=time.
         try:
             client = varsayilan_istemci(env, b)
         except Exception as e:  # noqa: BLE001
-            log.warning("LLM istemcisi kurulamadi: %s", LS.scrub(e))
+            log.warning("LLM istemcisi kurulamadi: %s", ORT.scrub(e))
             client = None
     if client is None:
         return yok("API anahtarı yok")
@@ -192,7 +182,7 @@ def kos(root: Path, now: datetime, env, *, client=None, budget=None, sleep=time.
     durum = root / "var" / "durum"
     tablolar = Y.tablolari_kur(trades, decisions, now, olcum=_json(durum / "tur1_olcum_v1.json"),
                                alinmayan=_json(durum / "alinmayan_sonuc_v1.json"),
-                               haftalik_sabit=haftalik_sabit(led_path), dersler=dersler(cfg, now))
+                               haftalik_sabit=haftalik_sabit(led_path))
     params = Y.parametreler(tablolar)
     est = b.estimate_cost(Y.MODEL, max(1, (len(Y.SYSTEM) + len(params["messages"][0]["content"])) // 3), Y.MAX_OUT, batch=True)
     grant = b.authorize(Y.SERVICE, est)
@@ -203,13 +193,13 @@ def kos(root: Path, now: datetime, env, *, client=None, budget=None, sleep=time.
         try:
             b.release(grant)
         except Exception as e:  # noqa: BLE001
-            log.error("butce serbest birakilamadi: %s", LS.scrub(e))
+            log.error("butce serbest birakilamadi: %s", ORT.scrub(e))
         return yok(neden)
     metin, usage = sonuc
     try:
-        b.record(Y.SERVICE, grant, LS.budget_usage(usage), Y.MODEL, True)
+        b.record(Y.SERVICE, grant, ORT.budget_usage(usage), Y.MODEL, True)
     except Exception as e:  # noqa: BLE001
-        log.error("butce kaydi yazilamadi: %s", LS.scrub(e))
+        log.error("butce kaydi yazilamadi: %s", ORT.scrub(e))
     rapor, denetim = Y.raporu_denetle(metin, tablolar)
     yol = yaz(dizin, tarih, rapor)
     telegram_gonder(root, env, tarih, rapor, now)
@@ -230,7 +220,7 @@ def main(argv=None, *, client=None, budget=None, now_fn=None, env=None, sleep=ti
     try:
         out = kos(data_root(env), now, env, client=client, budget=budget, sleep=sleep, force=a.force)
     except Exception as e:  # noqa: BLE001  (yorumcu hicbir seyi bozmaz: sessiz cik)
-        print(json.dumps({"status": "error", "error": LS.scrub(type(e).__name__)}), file=sys.stderr)
+        print(json.dumps({"status": "error", "error": ORT.scrub(type(e).__name__)}), file=sys.stderr)
         return 0
     print(json.dumps(out, ensure_ascii=False))
     return 0

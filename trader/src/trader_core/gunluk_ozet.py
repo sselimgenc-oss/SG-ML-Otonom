@@ -43,7 +43,6 @@ class Girdi:
     adaylar: Sequence[Mapping] | None = None    # counterfactual.arm_candidates ciktisi (arm_id, taken, ts, r)
     kurulumlar: Sequence[str] = ()              # yapilandirilmis kurulum kimlikleri (arm_id)
     alinmayan_sinyal: int | None = None         # gunluk sayi (zaten gun icin hesaplanmis)
-    aktivasyonlar: Sequence[Any] | None = None  # ActivationEvent benzeri: kind, actor, activated_at
     rejim: str | None = None
     drift_uyari: bool | None = None
     gunluk_kayip_yuzde: float | None = None
@@ -148,14 +147,7 @@ def uret(g: Girdi, now: datetime) -> dict[str, Any]:
         if iyi:
             notlar.append(f"en iyi kurulum: {iyi[0]['ad']}")
 
-    aktif = yeni = emekli = None
-    if g.aktivasyonlar is not None:
-        les = [x for x in g.aktivasyonlar if getattr(x, "actor", None) == "lesson"]
-        ap = [x for x in les if x.kind == "apply"]
-        rb = [x for x in les if x.kind == "rollback"]
-        aktif = max(0, len(ap) - len(rb))
-        yeni = sum(1 for x in ap if _icinde(x.activated_at, a, b))
-        emekli = sum(1 for x in rb if _icinde(x.activated_at, a, b))
+    aktif = yeni = emekli = None      # ders sistemi kaldirildi (25.11): v1 sema anahtarlari korunur, kaynak yok => hep null
 
     doc = {
         "sema": SEMA,
@@ -343,7 +335,6 @@ def girdi_oku(config_dir: str | os.PathLike, env: str, environ: Mapping[str, str
         try:
             g.kapanan = led.list_closed_trades(limit=P.CLOSED_MAX)
             g.acik = led.list_open_trades()
-            g.aktivasyonlar = led.list_activations()
             decisions = led.list_decisions()
         finally:
             led.close()

@@ -432,15 +432,13 @@ def ml12(kap: Sequence[Mapping], tutarlilik: Mapping | None, tut_veri: datetime 
             "tut_uyari": (tutarlilik or {}).get("uyari"), "tut_not": (tutarlilik or {}).get("not")}
 
 
-def mekanizmalar(kollar: Sequence[str], arms_off: Mapping[str, Mapping] | None, fren: bool | None,
+def mekanizmalar(kollar: Sequence[str], arms_off: Mapping[str, Mapping] | None,
                  kapali_kolu_zarar: Sequence[str]) -> list[dict]:
     """Kaybeden kollar icin mevcut mekanizmalar (kod/yapilandirmadan) ve tetiklenip tetiklenmedigi (okunabilen durum dosyasindan)."""
     kapali = sorted(a for a, s in (arms_off or {}).items() if str(s.get("state")) == "closed")
     return [
-        {"ad": "Ders: kol kapatma (arms_off)", "var": "var", "etki": "yalnız karne/rapor bilgisi; giriş ENGELLENMEZ (sahip kararı, 19 Kasım; gates.py `arm_would_close` sayacı)",
+        {"ad": "Kol kapatma kaydı (arms_off)", "var": "var", "etki": "yalnız karne/rapor bilgisi; giriş ENGELLENMEZ (sahip kararı, 19 Kasım; gates.py `arm_would_close` sayacı)",
          "tetik": ("tetiklendi: " + ", ".join(kapali)) if kapali else "tetiklenmedi (arms_off kaydı yok/boş)"},
-        {"ad": "Ders: 10 R freni (lesson_brake)", "var": "var", "etki": "ders ayarlarını referansa döndürür, otomatik uygulamayı durdurur; kolu kapatmaz",
-         "tetik": "tetiklendi" if fren else ("tetiklenmedi" if fren is not None else "durum okunamadı")},
         {"ad": "Kol başına açık pozisyon tavanı (arm_max_positions) ve küme/hesap tavanı", "var": "var",
          "etki": "kayıptan bağımsız konum sınırı; zarardaki kolu özel olarak ayırmaz", "tetik": "kayıp temelli tetik değil"},
         {"ad": "Risk kademe denetimi (risk_ladder, hesap düzeyi küçültme)", "var": "var (hesap düzeyi; kol düzeyi değil)",
@@ -454,7 +452,7 @@ def mekanizmalar(kollar: Sequence[str], arms_off: Mapping[str, Mapping] | None, 
 # ------------------------------------------------------------------------------------------------ rapor
 def hesapla(*, kollar: Sequence[str], islemler: Sequence[Mapping], kararlar: Sequence[Mapping], simdi: datetime,
             tutarlilik: Mapping | None = None, tut_veri: datetime | None = None, arms_off: Mapping | None = None,
-            fren: bool | None = None, atlanan: int = 0) -> dict:
+            atlanan: int = 0) -> dict:
     kap = [t for t in islemler if t["kapali"]]
     baslangic = min([t["giris"] for t in islemler] + [d["ts"] for d in kararlar], default=None)
     kesit = _son([t["cikis"] for t in kap] + [t["giris"] for t in islemler] + [d["ts"] for d in kararlar])
@@ -464,7 +462,7 @@ def hesapla(*, kollar: Sequence[str], islemler: Sequence[Mapping], kararlar: Seq
             "o1": ortak1(kap), "o2": ortak2(kap), "o3": ortak3(kap), "o6": ortak6(kap),
             "o7": ortak7(kap, islemler, baslangic, kesit, kollar), "m8": ml8(kollar, islemler, kararlar, kesit),
             "sw": stop_genislik(kollar, kararlar, kesit), "m10": o10,
-            "mek": mekanizmalar(kollar, arms_off, fren, [r["arm"] for r in o10 if r["zarar"]]),
+            "mek": mekanizmalar(kollar, arms_off, [r["arm"] for r in o10 if r["zarar"]]),
             "yon": yon_ozet(kap, kararlar), "m11": ml11(kararlar, kollar), "m12": ml12(kap, tutarlilik, tut_veri)}
 
 

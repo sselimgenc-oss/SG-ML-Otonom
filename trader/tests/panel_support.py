@@ -1,4 +1,4 @@
-"""Panel testleri icin ortak fiksturler (ag yok): defter/butce/ders/saglik/status dosyalari + sunucu yardimcilari."""
+"""Panel testleri icin ortak fiksturler (ag yok): defter/butce/saglik/status dosyalari + sunucu yardimcilari."""
 from __future__ import annotations
 
 import http.client
@@ -10,7 +10,6 @@ from pathlib import Path
 
 from trader_core import budget as B
 from trader_core import ledger as L
-from trader_core import lesson as LS
 from trader_panel.data import PanelData, load_config
 from trader_panel.server import make_server
 
@@ -74,7 +73,7 @@ def status_doc(loop_at: datetime, **kw) -> dict:
 class Env:
     """Gecici veri dizini + yapilandirma. Panel yolu: root/var/<bot>/{status.json,ledger.sqlite} ..."""
 
-    def __init__(self, root: Path, *, learner=True, twin=False, budget=True, lesson=True, health=True, status_age_s=5,
+    def __init__(self, root: Path, *, learner=True, twin=False, budget=True, health=True, status_age_s=5,
                  keep_open=False):
         self.root = root                       # `twin` kabul edilir ama yok sayilir (DD-12: ikiz kaldirildi)
         for d in ("var/learner", "var/twin", "config", "user_data", "shared", "state"):
@@ -91,8 +90,6 @@ class Env:
             bj["db_path"] = str(root / "user_data/budget.sqlite")
             (root / "config/budget.json").write_text(json.dumps(bj))
             B.BudgetGuard(B.load_config(root / "config/budget.json")).authorize("haftalik_ozet", 0.01)
-        if lesson:
-            self._lesson(root / "user_data/lesson.sqlite")
         if health:
             (root / "state/state.json").write_text(json.dumps({
                 "schema": 1, "restart_counts": {"engine": 1},
@@ -104,25 +101,13 @@ class Env:
             "schema": "panel/1", "host": "127.0.0.1", "port": free_port(),
             "status_path": "var/learner/status.json",
             "ledger_path": "var/learner/ledger.sqlite",
-            "budget_config": "config/budget.json", "lesson_store": "user_data/lesson.sqlite",
+            "budget_config": "config/budget.json",
             "health_state": str(root / "state/state.json"), "kill_file": "shared/KILL",
             "engine_config": "config/engine.base.json"}))
 
     def write_status(self, bot, age_s, **kw):
         doc = status_doc(NOW - timedelta(seconds=age_s), bot=bot, **kw)
         (self.root / f"var/{bot}/status.json").write_text(json.dumps(doc))
-
-    @staticmethod
-    def _lesson(path):
-        cfg_l = LS.load_config(ROOT / "config/lesson.json")
-        st = LS.LessonStore(path)
-        run = st.create_run(cfg_l, "2026-11-16")
-        st.add_event(run.id, "succeeded", "ok", {})
-        st.set_shadow_once("2026-11-10", "2026-12-08")
-        req = LS.ApprovalRequest("lr-2026-11-16-1", 3, 1, "rr_min", 1.5, 1.25, "global", "shadow_period", True, False,
-                                 "t", "b", {}, NOW, NOW + timedelta(days=3))
-        st.add_request(run.id, req)
-        st.close()
 
     def close(self):
         for w in self.writers:

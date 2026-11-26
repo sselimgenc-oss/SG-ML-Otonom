@@ -1,5 +1,8 @@
 # Telegram: bildirim, komut ve günlük rapor — arayüz ve kurallar (spesifikasyon v2, 16 Kasım 2026 — mentor kararları işlendi)
 
+> 25 Kasım: sahip kararıyla ders sistemi KALDIRILDI (`trader_core/lesson.py`, `lesson_run`, gece notu, onay/ret akışı, panel/Telegram ders bölümleri; öğrenme ML1'e taşındı). Bu belgedeki ders/not/onay (`/ders`, `/onayla`, `/reddet`) bölümleri tarihsel kayıttır, geçerli değildir. Defterin parametre sürümü mekanizması (kullanıcı sürümü, etkinleştirme, `parent_version_id`) ve şeması AYNEN kalır.
+
+
 > 18 Kasım: kullanıcı kararıyla değişti. Veto ve ikiz ile ilgili bildirimler/komutlar kaldırıldı (LLM veto yok, ikiz yok); ders/ML bildirimleri ilk işlemden etkin.
 
 Plan maddesi 18. Bu belge kod, test ve commit içermez; testler bu belgeden yazılır. Gerçekleme: `src/trader_core/telegram.py`, `scripts/telegram_run.py`, `deploy/trader-telegram*`. Biçim `saglik-spec.md` ile aynıdır; çelişkide `ders-spec.md`, `saglik-spec.md`, `motor/05-engine-runner.md` §8 geçerlidir. Her belirsizlikte **fail-closed** (yetki, onay, kod doğrulaması) ama **ticareti asla bloke etmez**: Telegram modülü ne motor ne defter ne risk yoluna girer.

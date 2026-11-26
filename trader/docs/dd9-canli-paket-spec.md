@@ -1,5 +1,8 @@
 # DD-9 — Canlı paket ve kurulum sertleştirme (uygulama şartnamesi v1, 18 Kasım 2026)
 
+> 25 Kasım: sahip kararıyla ders sistemi KALDIRILDI (`trader_core/lesson.py`, `lesson_run`, gece notu, onay/ret akışı, panel/Telegram ders bölümleri; öğrenme ML1'e taşındı). Bu belgedeki ders/not/onay (`/ders`, `/onayla`, `/reddet`) bölümleri tarihsel kayıttır, geçerli değildir. Defterin parametre sürümü mekanizması (kullanıcı sürümü, etkinleştirme, `parent_version_id`) ve şeması AYNEN kalır.
+
+
 > **[ASKIDA — kullanıcı yeniden belirleyecek]** 18 Kasım: kullanıcı kararıyla gerçek para kararları (1000 USD, 1500 USD tavan, canlı tarihi) askıya alındı; canlı yapılandırma değerleri uygulanmaz.
 
 **Hazırlayan:** mentor · **Taban:** `claude/charming-hawking-ab5w5q` @ `0f2ef52` (DD-2, DD-7, DD-8 birleşmiş)
@@ -292,7 +295,7 @@ def check_against_config(env, config_dir) -> tuple[str, ...]   # uyuşmazlık ko
 - `live_env_complete`: `trader-live.env` içinde üç alan dolu; anahtar ve gizli anahtar en az 32 karakter, boşluksuz.
 - `live_confirm_matches`: `LIVE_CONFIRM` = `expected_from_config(...)["account_tag"]`.
 - `keys_not_testnet`: `trader-live.env` `BINANCE_API_KEY` değeri `trader-testnet.env`deki dolu değerle **aynı değil** (testnet dosyası yok/boşsa `OK`).
-- `telegram_paths`, `health_paths`, `lesson_paths`: ilgili env dosyası tek başına ayrıştırılıp `check_against_config` boş; ayrıca Telegram ve sağlık dosyalarında `LIVE_BOTS == "learner"`.
+- `telegram_paths`, `health_paths`, `ortak_env_paths`: ilgili env dosyası tek başına ayrıştırılıp `check_against_config` boş; ayrıca Telegram ve sağlık dosyalarında `LIVE_BOTS == "learner"`.
 - `trader_not_in_tg`: `trader` kullanıcısının grupları arasında `trader-tg` yok (`id_groups` enjekte edilebilir; varsayılan `grp`/`pwd` ile).
 - `release_pinned`: `etc_dir/trader-release` var ve `COMMIT=` 40 onaltılık.
 
