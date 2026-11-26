@@ -1,4 +1,5 @@
-"""25.11 kullanici karari (denetim EK): aile tavani giris kapisinda uctan uca (EntryGate.decide), kagit ve canli ayar degerleriyle."""
+"""25.11 sadelestirme: kol/aile basina acik pozisyon tavani YOK; ayni ailenin acik pozisyonu ne olursa olsun giris kapisi tavan reddi uretmez
+(EntryGate.decide, kagit ve canli ayar degerleriyle). Hesap/kume/korelasyon tavanlari bu testin konusu degil."""
 from __future__ import annotations
 
 from datetime import timedelta
@@ -46,24 +47,12 @@ def _go(g, row):
 
 
 @pytest.mark.parametrize("env", ["paper", "live"])
-def test_aile_tavani_dolu_ayni_aile_reddedilir_baska_aile_girer(tmp_path, env):
+def test_ayni_ailede_alti_acik_pozisyon_varken_giris_reddedilmez(tmp_path, env):
     cfg, g, led, state = _kur(tmp_path, env, 6)
     try:
-        assert cfg.arm_family_max_positions["MF1"] == cfg.arm_family_max_positions["GF1"] == 6
-        red = _go(g, _row(pair="AVAX/USDT", setup="MF1-ZZZ", arm_id="MF1-ZZZ@1h", tf="1h"))
-        assert red.action == "skip" and red.code == "max_positions"
-        assert red.event.skip_reason == "max_positions" and red.event.veto_reason == "gate:arm_cap:MF1"
-        ok = _go(g, _row(pair="SUI/USDT", setup="GF1-ABC", arm_id="GF1-ABC@1h", tf="1h"))
+        assert not hasattr(cfg, "arm_family_max_positions") and not hasattr(cfg, "arm_max_positions")
+        ok = _go(g, _row(pair="AVAX/USDT", setup="MF1-ZZZ", arm_id="MF1-ZZZ@1h", tf="1h"))
         assert ok.action == "enter", (ok.code, ok.event.veto_reason if ok.event else None)
-    finally:
-        state.close()
-        led.close()
-
-
-def test_aile_tavani_dolmamisken_ayni_aile_girer(tmp_path):
-    cfg, g, led, state = _kur(tmp_path, "paper", 5)
-    try:
-        assert _go(g, _row(pair="AVAX/USDT", setup="MF1-ZZZ", arm_id="MF1-ZZZ@1h", tf="1h")).action == "enter"
     finally:
         state.close()
         led.close()

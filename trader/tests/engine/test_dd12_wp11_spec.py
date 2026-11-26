@@ -300,7 +300,7 @@ def test_neutrality_compat_equity_unchanged():
 
 
 def test_neutrality_old_strategy_configs_still_load():
-    """arms/arm_max_positions yokken (eski yapilandirmalar) hicbir sey degismez: yukleme + varsayilan strateji."""
+    """arms yokken (eski yapilandirmalar) hicbir sey degismez: yukleme + varsayilan strateji."""
     from trader_engine.config import load_cli_config
     for env in (None, "testnet"):
         c = load_cli_config(ROOT / "config", "learner", env)
@@ -313,22 +313,15 @@ def _paper_raw():
     return json.loads((ROOT / "config" / "engine.paper.json").read_text(encoding="utf-8"))
 
 
-def test_paper_config_uses_lab_with_arms_and_caps():
+def test_paper_config_uses_lab_with_arms():
     raw = _paper_raw()
     assert raw["strategy"] == "price_action_lab_ml"
     arms = raw["arms"]
     names = list(arms.keys()) if isinstance(arms, dict) else list(arms)
     flat = {str(n).upper() for n in names}
     assert any(a.startswith("T1") for a in flat) and any(a.startswith("R1") for a in flat), flat
-    cap = raw["arm_max_positions"]
-    if isinstance(cap, int):
-        assert cap == 6
-    else:
-        assert isinstance(cap, dict) and cap
-        for k, v in cap.items():
-            setup = str(k).split("@")[0].upper()
-            assert v == {"M1": 4, "MF1-*": 3, **{f"{a}-*": 3 for a in ("T1", "R1", "TF1", "B1", "H2", "S1", "F1")}, "GF1-*": 3, "IN1-*": 3, "PA2-*": 3}.get(setup, 6), (k, v)  # 24.11 kullanici karari: formasyon kutuphanesi   # 20 Kasim: tavanlar 6 / 4; 23.11: HB1 3; 24.11: DL1 toplam 4
-        assert setup != "C1", k          # CT/ML ayriligi: C1 kolu kaldirildi
+    assert "arm_max_positions" not in raw and "arm_family_max_positions" not in raw       # 25.11: kol/aile basina tavan kalkti
+    assert not [a for a in flat if a.startswith("M1@") or a.startswith("C1@")]            # M1/C1 kollari kaldirildi
 
 
 def test_paper_config_loads_and_arms_parse():
@@ -336,19 +329,18 @@ def test_paper_config_loads_and_arms_parse():
     c = load_cli_config(ROOT / "config", "learner", "paper")
     assert c.strategy == "price_action_lab_ml"
     assert getattr(c, "arms", None)
-    assert getattr(c, "arm_max_positions", None) is not None
 
 
 def test_new_keys_rejected_outside_paper(tmp_path):
-    for mode in ("testnet",):        # 23.11 kullanici karari: canli = kagit (canli arms/arm_max_positions kabul eder)
-        for key, val in (("arms", ["T1@1h"]), ("arm_max_positions", 4)):
+    for mode in ("testnet",):        # 23.11 kullanici karari: canli = kagit (canli arms kabul eder)
+        for key, val in (("arms", ["T1@1h"]),):
             (tmp_path / mode).mkdir(exist_ok=True)
             with pytest.raises(ConfigError):
                 T5.make_cfg(tmp_path / mode, "learner", mode, T5.PAIRS, **{key: val})
 
 
 def test_arm_config_validation_rejects_garbage(tmp_path):
-    for over in ({"arms": ["T1@2h"]}, {"arms": ["nope"]}, {"arm_max_positions": 0}, {"arm_max_positions": -1}):
+    for over in ({"arms": ["T1@2h"]}, {"arms": ["nope"]}):
         d = tmp_path / ("c%d" % abs(hash(json.dumps(over))))
         d.mkdir()
         with pytest.raises(ConfigError):
@@ -461,7 +453,7 @@ def test_causality_unclosed_4h_bar_never_used_for_1d():
     pd.testing.assert_frame_equal(d_before, d_after)
 
 
-# ============================================================================================= motor: arm_id, tavan, 15 dk adim
+# ============================================================================================= motor: arm_id, 15 dk adim
 def _engine_over(pairs, **extra):
     big = {"kripto_buyuk": {"pairs": [p for p in pairs], "max_positions": 12}}
     base = dict(strategy="price_action_lab_ml", clusters=big, max_positions=16, optional_pairs=[], cost_overrides={},
@@ -470,24 +462,10 @@ def _engine_over(pairs, **extra):
     return base
 
 
-def _mk_engine(tmp, pairs, start, caps=2):
-    """arms/arm_max_positions bicimi sartnamede acik degil: birkac bicim dene."""
-    variants = [{"arm_max_positions": {"T1": caps, "R1": caps}},
-                {"arm_max_positions": {"T1@1h": caps, "R1@1h": caps}},
-                {"arm_max_positions": caps},
-                {"arm_max_positions": {"default": caps}}]
-    err = None
-    for i, v in enumerate(variants):
-        for arms in (["T1@1h", "R1@1h"], {"T1@1h": {}, "R1@1h": {}}):
-            d = Path(tmp) / f"v{i}{type(arms).__name__}"
-            d.mkdir(parents=True, exist_ok=True)
-            try:
-                over = _engine_over(pairs, arms=arms, **v)
-                e = _E(d, pairs, start, over)
-                return e
-            except (ConfigError, TypeError, KeyError) as ex:           # bicim reddedildi: siradaki
-                err = ex
-    pytest.skip(f"arms/arm_max_positions bicimi kabul edilmedi: {err!r}")
+def _mk_engine(tmp, pairs, start):
+    d = Path(tmp) / "v0"
+    d.mkdir(parents=True, exist_ok=True)
+    return _E(d, pairs, start, _engine_over(pairs, arms=["T1@1h", "R1@1h"]))
 
 
 class _E(W5.E):
@@ -550,47 +528,6 @@ def test_engine_arm_id_default_is_setup_at_tf_for_1h(tmp_path):
         e.decide(D_E)
         rows = _ledger_rows(e, "SELECT arm_id FROM decision_events WHERE pair='ETH/USDT'")
         assert rows and all(a and ARM_RE.match(a) for (a,) in rows), rows
-    finally:
-        e.close()
-
-
-def test_engine_per_arm_cap(tmp_path):
-    """Kurulum basina tavan (test: 2): ucuncu T1 girisi reddedilir; baska kurulum etkilenmez."""
-    e = _mk_engine(tmp_path, PAIRS5, D_E - H, caps=2)
-    try:
-        D = D_E
-        for p in PAIRS5[:3]:
-            _signal_arm(e, D, p, "T1@1h")
-        e.decide(D)
-        e.step(D)
-        opened = [p for p in PAIRS5[:3] if e.state.position_for_pair(p) is not None]
-        assert len(opened) == 2, f"tavan 2 iken {len(opened)} T1 acildi"
-        third = [p for p in PAIRS5[:3] if p not in opened][0]
-        rows = _ledger_rows(e, f"SELECT final_action, skip_reason FROM decision_events WHERE pair='{third}'")
-        assert rows and rows[-1][0] == "skipped" and rows[-1][1], rows
-    finally:
-        e.close()
-
-
-def test_engine_arm_cap_counts_per_arm_not_global(tmp_path):
-    """T1 tavani dolu iken farkli bir kurulumun (R1) adayi hala girer."""
-    e = _mk_engine(tmp_path, PAIRS5, D_E - H, caps=2)
-    try:
-        D = D_E
-        for p in PAIRS5[:2]:
-            _signal_arm(e, D, p, "T1@1h")
-        e.decide(D)
-        e.step(D)
-        assert sum(e.state.position_for_pair(p) is not None for p in PAIRS5[:2]) == 2
-        D2 = D + H
-        # kisa yon: ayni-yon risk siniri (iki long) kurulum tavanindan bagimsiz bir red nedenidir; test yalniz kurulum tavanini olcer
-        _signal_arm(e, D2, "SOL/USDT", "R1@1h", setup="R1", side="short", planned_stop=102.0, planned_target=96.0,
-                    regime="range", rh=104.0, rl=96.0,
-                    features={"atr_tf": 1.0, "stop_dist_atr": 2.0, "atr_4h": 2.0, "rh_touches": 2, "rl_touches": 2,
-                              "wick_ratio": 0.6, "rr": 2.0, "edge_dist_atr": 0.2})   # defter R1 ozellik sarti
-        e.decide(D2)
-        e.step(D2)
-        assert e.state.position_for_pair("SOL/USDT") is not None, "R1 tavani T1 doluluguyla paylasilmamali"
     finally:
         e.close()
 

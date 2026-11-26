@@ -131,7 +131,7 @@ def test_every_unit_handled_by_install():
     deliberately_not = {"trader-health-fail@.service", "trader-health.service", "trader-backup.service",
                         "trader-telegram-report.service", "trader-engine@.service",
                         "trader-panel-publish.service", "trader-engine-retry@.service", "trader-counterfactual@.service", "trader-exit-counterfactual@.service",
-                        "trader-oi.service", "trader-haber.service", "trader-piyasa-veri.service", "trader-drift@.service", "trader-weekly-summary.service", "trader-ml-retrain.service", "trader-universe.service",
+                        "trader-oi.service", "trader-haber.service", "trader-piyasa-veri.service", "trader-drift@.service", "trader-weekly-summary.service", "trader-universe.service",
                         "trader-tutarlilik.service",  # Faz 2a: haftalik tutarlilik raporu (zamanlayici etkinlestirilir; servis tetiklenir)
                         "trader-tur1-olcum.service",  # tur 1 olcum raporu: gunluk zamanlayici etkinlestirilir; servis tetiklenir
                         "trader-weekly-collect.service",  # haftalik YZ batch sonuclarini toplama: zamanlayici etkinlestirilir; servis tetiklenir

@@ -459,7 +459,7 @@ def test_hiz_5000_mum_42_formasyon():
                       index=pd.date_range("2026-01-01", periods=5000, freq="1h", tz="UTC"))
     ad = [f"MF1-{k}" for k in mf1.FORMASYONLAR] + [f"GF1-{k}" for k in gf1.FORMASYONLAR] + [f"IN1-{k}" for k in in1.FORMASYONLAR]
     assert len(ad) == 42
-    from trader_engine.strategies.arms import m1 as M1MOD
+    import bos_cekirdek as M1MOD
     core = M1MOD.empty_output(df.index)                    # motorda ortak tablo lab'da bir kez hesaplanir (burada da tek kopya)
     mk = lambda d, p: arms.ArmInput(pair=p, tf="1h", D=d.index[-1].to_pydatetime(), trig=d, h4=None, params=None, core_fn=lambda: core)  # noqa: E731
     for s in ad:
@@ -482,17 +482,14 @@ def _cfg(ad):
 
 def test_kagit_canli_ayni_ve_in1_66_kimlik_toplam_203():
     p, l = _cfg("engine.paper.json"), _cfg("engine.live.json")
-    for k in ("arms", "arm_max_positions", "arm_family_max_positions"):
+    for k in ("arms",):
         assert p[k] == l[k], k
-    assert p["arm_family_max_positions"]["MF1"] == p["arm_family_max_positions"]["GF1"] == p["arm_family_max_positions"]["IN1"] == 6   # birlesik: PA2 ve varyant aileleri de var
-    assert p["arm_max_positions"]["IN1-*"] == 3 and p["arm_max_positions"]["GF1-*"] == 3 and p["arm_max_positions"]["MF1-*"] == 3
     lib = [a for a in p["arms"] if a.startswith("IN1-")]
     beklenen = [f"{s}@{tf}" for s in sorted(a for a in arms.list_arms() if a.startswith("IN1-")) for tf in arms.find_arm(s).TIMEFRAMES]
-    assert sorted(lib) == sorted(beklenen) and len(lib) == 66 and len(set(p["arms"])) == len(p["arms"]) == 283   # birlesik: + PA2 29 + PA varyantlari 56
+    assert sorted(lib) == sorted(beklenen) and len(lib) == 66 and len(set(p["arms"])) == len(p["arms"]) == 279   # birlesik: + PA2 29 + PA varyantlari 56
     assert "IN1-VWAP@4h" not in lib and "IN1-VWAP@15m" in lib and "IN1-VWAP@1h" in lib
     for ad in ("engine.paper.json", "engine.live.json"):
         cfg = C.load_cli_config(ROOT / "config", "learner", ad.split(".")[1])
-        assert cfg.arm_family_max_positions["IN1"] == 6 and cfg.arm_max_positions["IN1-*"] == 3
         assert all(a in cfg.arms for a in beklenen)
 
 

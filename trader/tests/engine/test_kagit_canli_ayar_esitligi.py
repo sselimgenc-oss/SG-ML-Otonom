@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 CONFIG = Path(__file__).resolve().parents[2] / "config"
-ORTAK = ("arms", "arm_max_positions", "arm_family_max_positions", "clusters", "risk", "exit_modes", "cost_overrides", "max_positions")
+ORTAK = ("arms", "clusters", "risk", "exit_modes", "cost_overrides", "max_positions")
 
 
 def _oku(ad):

@@ -245,8 +245,8 @@ def _snap(**over):
 
 @pytest.fixture(autouse=True)
 def _ek_uyarilar_kapali(monkeypatch):
-    """Sunucuya/diske bagli ek uyarilar (disk doluluk, tutarlilik, M1) bu testlerin konusu degil."""
-    for n in ("pa_proposer_alerts", "tutarlilik_alerts", "disk_alerts"):
+    """Sunucuya/diske bagli ek uyarilar (disk doluluk, tutarlilik) bu testlerin konusu degil."""
+    for n in ("tutarlilik_alerts", "disk_alerts"):
         monkeypatch.setattr(HR, n, lambda *a, **k: [])
 
 

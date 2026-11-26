@@ -459,7 +459,7 @@ def saglik_cumlesi(name: Any, code: Any) -> tuple[str, str | None]:
 # bu kodlar/adlar kullaniciya hic gitmez (yapabilecegi bir sey yok ya da isleme etkisi yok)
 _SUSTUR = frozenset({
     "drift_missing", "drift_stale", "drift_unreadable", "drift_monitor", "drift_unknown",
-    "heartbeat_send_failed", "pa_proposer_stale", "pa_proposer_missing", "tutarlilik_sapma",
+    "heartbeat_send_failed", "tutarlilik_sapma",
     "state_reset", "rules_age", "rules_coverage", "rules_missing", "swap", "memory", "ledger_write_age", "ledger_gate",
     "pause_audit", "risk_ladder", "exchange_ban_file_corrupt", "account_mode_unverified", "account_mode_unknown",
     "live_paths_mismatch", "spool_corrupt", "budget_status", "multiple"})

@@ -26,7 +26,7 @@ ALLOWED_MODULES_B = ALLOWED_MODULES_A | {"exchange/binance_rest.py", "pause.py",
                                          "uzun_yon.py",                  # 23.11 fikir 7: uzun donem (1d) yon filtresi, giris kapisi
                                          "seans_disi.py",                # 23.11 fikir 9 a: seans disi (hafta sonu/tatil/haber) giris kapisi, saf stdlib
                                          "arm_guard.py",                 # DD-12 WP-04: saf kume/seans/tatil yardimcilari
-                                         "arm_quarantine.py", "tur_koruyucu.py", "sembol_izleme.py",   # 1L3A dayaniklilik portu: kurulum karantinasi, tur koruyucusu, sembol izleyici
+                                         "tur_koruyucu.py", "sembol_izleme.py",   # 1L3A dayaniklilik portu: tur koruyucusu, sembol izleyici
                                          "strategies/lab.py", "strategies/arms/__init__.py",   # DD-12 WP-11: bilesik strateji ve kurulum paketi
                                          "strategies/arms/t1.py", "strategies/arms/r1.py",
                                          "strategies/arms/tf1.py", "strategies/arms/b1.py",   # DD-12 WP-12a: yeni kurulumlar
@@ -36,8 +36,7 @@ ALLOWED_MODULES_B = ALLOWED_MODULES_A | {"exchange/binance_rest.py", "pause.py",
                                          "strategies/arms/_kutuphane.py", "strategies/arms/mf1.py", "strategies/arms/gf1.py", "strategies/arms/in1.py", "strategies/arms/pa2.py",   # 24.11 kullanici karari: formasyon kutuphanesi
                                          "strategies/arms/_varyant.py", "strategies/arms/t1v.py", "strategies/arms/r1v.py",   # 24.11 kullanici karari: PA varyantlari ayri kimlik
                                          "strategies/arms/tf1v.py", "strategies/arms/b1v.py", "strategies/arms/f1v.py",
-                                         "strategies/arms/s1v.py", "strategies/arms/h2v.py",
-                                         "strategies/arms/m1.py"}   # DD-12 WP-14: M1 (ML'in kendi adayi)
+                                         "strategies/arms/s1v.py", "strategies/arms/h2v.py"}
 PHASE_B_FILES = ["brokers/binance_futures.py", "exchange/binance_rest.py", "marketdata/ws.py", "reconcile_live.py"]
 FORBIDDEN_TEXT_B = ["listen" + "Key", "web" + "sockets"]   # Faz B: algo metni serbest, kullanıcı veri akışı ertelendi (11 §2)
 FORBIDDEN_TEXT = ["listen" + "Key", "userData" + "Stream", "algo" + "Order", "web" + "sockets"]

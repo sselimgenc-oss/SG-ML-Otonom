@@ -30,7 +30,7 @@ EQ = BT.EQ_FIELDS
 
 
 S_START, S_END = datetime(2026, 4, 5, tzinfo=UTC), datetime(2026, 11, 6, 14, tzinfo=UTC)      # sentetik magaza kapsami
-ARMS = ["T1@1h", "T1@4h", "S1@1h", "M1@1h", "F1@15m", "H2@1h"]
+ARMS = ["T1@1h", "T1@4h", "S1@1h", "R1@1h", "F1@15m", "H2@1h"]
 
 
 def _write_store(db: Path) -> None:
@@ -81,7 +81,7 @@ def _write_store(db: Path) -> None:
 
 
 def make_config_dir(dst: Path) -> Path:
-    """Gercek `engine.paper.json` katmaninin kucultulmusu (4 cift; arms alt kumesi; ayni arm_max_positions/cost_overrides/risk/maliyet)."""
+    """Gercek `engine.paper.json` katmaninin kucultulmusu (4 cift; arms alt kumesi; ayni cost_overrides/risk/maliyet)."""
     cfgdir = dst / "cfgx"
     cfgdir.mkdir(parents=True)
     for n in ("engine.base.json", "engine.learner.json"):
@@ -187,7 +187,7 @@ def test_env_flag_uses_paper_signal_class_and_paper_overlay():
     # engine.paper.json katmani: kagit kipinde yuklenir ve arms/kume/maliyet tasir
     cfg = BT.BacktestRunner(BT.BacktestSpec(id="x", start=START, end=END, env="paper",
                                             config_dir=str(ROOT / "config"))).build_config(Path("/nonexistent-out"))
-    assert cfg.mode == "paper" and cfg.strategy == "price_action_lab_ml" and "M1@1h" in cfg.arms and cfg.cost_overrides
+    assert cfg.mode == "paper" and cfg.strategy == "price_action_lab_ml" and "R1@1h" in cfg.arms and cfg.cost_overrides
     assert cfg.var_dir == "/nonexistent-out" and cfg.target_trade_risk == 0.01 and cfg.mtm_marks is False
 
 

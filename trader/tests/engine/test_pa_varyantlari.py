@@ -21,7 +21,7 @@ from trader_engine.strategies.arms import b1 as B1M
 from trader_engine.strategies.arms import b1v, f1v, h2v, r1v, s1v, t1v, tf1v
 from trader_engine.strategies.arms import f1 as F1M
 from trader_engine.strategies.arms import h2 as H2M
-from trader_engine.strategies.arms import m1 as M1MOD
+import bos_cekirdek as M1MOD
 from trader_engine.strategies.arms import r1 as R1M
 from trader_engine.strategies.arms import s1 as S1M
 from trader_engine.strategies.arms import tf1 as TF1M
@@ -508,30 +508,15 @@ def _cfg(ad):
     return json.loads((ROOT / "config" / ad).read_text(encoding="utf-8"))
 
 
-def test_kapasite_aile_6_varyant_zd_3():
-    caps = {"default": 6, "M1": 4, "MF1-*": 3, **{f"{a}-*": 3 for a in ANA}}
-    fc = {a: 6 for a in ANA}
-    assert AG.arm_cap(caps, "TF1-HACIM@1h", "TF1-HACIM") == 3 and AG.arm_cap(caps, "TF1@1h", "TF1") == 6
-    held = ["TF1-HACIM@1h"] * 3
-    assert AG.arm_full(held, "TF1-HACIM@1h", 3) and not AG.arm_full(held, "TF1-HACIM@4h", 3) and not AG.arm_full(held, "TF1-FITIL@1h", 3)
-    setups = ["T1"] * 4 + ["T1-GERI3"] * 3 + ["T1-SEVIYE"] * 2 + [None]
-    assert AG.family_count(setups, "T1") == 5 and AG.family_full(setups, "T1-GERI3", fc) is None   # ana kol aileye sayilmaz
-    assert AG.family_full(setups + ["T1-GERI3"], "T1-SEVIYE", fc) == "T1"
-    assert AG.family_full(setups + ["T1-GERI3"], "T1", fc) is None
-
-
 def test_kagit_canli_ayni_ve_56_kol():
     p, l = _cfg("engine.paper.json"), _cfg("engine.live.json")
-    for k in ("arms", "arm_max_positions", "arm_family_max_positions", "exit_modes"):
+    for k in ("arms", "exit_modes"):
         assert p[k] == l[k], k
-    for a in ANA:
-        assert p["arm_family_max_positions"][a] == 6 and p["arm_max_positions"][f"{a}-*"] == 3, a
     beklenen = [f"{s}@{tf}" for s in VARYANTLAR for tf in TFS]
     assert all(a in p["arms"] for a in beklenen) and len(beklenen) == 56 and len(set(p["arms"])) == len(p["arms"])
     for ad in ("engine.paper.json", "engine.live.json"):
         cfg = C.load_cli_config(ROOT / "config", "learner", ad.split(".")[1])
         assert all(a in cfg.arms for a in beklenen)
-        assert cfg.arm_family_max_positions["T1"] == 6 and cfg.arm_max_positions["TF1-*"] == 3
         assert "H2-YARI" in cfg.exit_modes
 
 

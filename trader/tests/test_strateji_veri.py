@@ -76,11 +76,11 @@ def mk(path, extra=None):
         _dec(led, n + 1 + j, "R1@4h", "short", "range", False, D0 + timedelta(days=2, hours=j), "ml_filter")
     _dec(led, n + 4, "R1@4h", "short", "range", False, D0 + timedelta(days=2, hours=5), "max_positions")
     _dec(led, n + 5, "T1@1h", "long", "trend_up", False, D0 + timedelta(days=3, hours=1), "max_positions")
-    # risk_denied / arm_conflict / arm_cap ornekleri: eski (tum kayit) ve yeni (son 12 saat) pencereler
+    # risk_denied / arm_conflict / max_positions ornekleri: eski (tum kayit) ve yeni (son 12 saat) pencereler
     _dec(led, n + 6, "R1@4h", "short", "range", False, D0 + timedelta(days=1), "risk_denied", "toplam açık risk sınırı aşılır")
     _dec(led, n + 7, "R1@4h", "short", "range", False, D0 + timedelta(days=3, hours=2), "risk_denied", "aynı yön (short) risk sınırı aşılır")
     _dec(led, n + 8, "R1@4h", "short", "range", False, D0 + timedelta(days=3, hours=2), "arm_conflict", veto_reason="gate:arm_conflict:T1@1h")
-    _dec(led, n + 9, "R1@4h", "short", "range", False, D0 + timedelta(days=3, hours=3), "max_positions", veto_reason="gate:arm_cap:R1@4h")
+    _dec(led, n + 9, "R1@4h", "short", "range", False, D0 + timedelta(days=3, hours=3), "max_positions", veto_reason="gate:max_positions")
     led.close()
 
 
@@ -174,7 +174,7 @@ def test_ml8_per_arm_skip_breakdown_and_windows(root):
     row = [x for x in sec.split("### Kol bazında")[1].splitlines() if x.startswith("| R1@4h |")][0]
     cells = [c.strip() for c in row.strip("|").split("|")]
     assert "risk_denied=2 (max_open_risk=1, max_same_dir_risk=1)" in cells[3]       # tum kayit
-    assert "arm_conflict=1 (T1@1h=1)" in cells[3] and "max_positions=2 (max_positions=1, arm_max_positions=1)" in cells[3]
+    assert "arm_conflict=1 (T1@1h=1)" in cells[3] and "max_positions=2 (max_positions=2)" in cells[3]
     assert "ml_filter=3" in cells[3]
     assert "risk_denied=1 (max_same_dir_risk=1)" in cells[6] and "ml_filter" not in cells[6] and "max_open_risk" not in cells[6]   # son 12 saat
     assert cells[4] == "3" and cells[1] == "8"

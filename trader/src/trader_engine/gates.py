@@ -14,7 +14,6 @@ from typing import Literal, Protocol
 
 from trader_core import etiket_kurallari as EK
 from trader_core import kayip_freni as KF
-from trader_core import kol_kucultme as KK
 from trader_core import ledger as L
 from trader_core import risk as K
 
@@ -141,8 +140,6 @@ def aday_ozgu_red(out) -> bool:
     if code in ADAY_OZGU_RED_KODLARI:
         return True
     ev = getattr(out, "event", None)
-    if code == "max_positions":
-        return str(getattr(ev, "veto_reason", "") or "").startswith("gate:arm_cap:")
     if code == "risk_denied":
         hd = getattr(out, "hesap_duzeyi", None)
         if hd is None:                                       # yapisal alan yoksa eski metin siniflamasi (yedek)
@@ -294,23 +291,6 @@ class EntryGate:
             return self._skip(row, tf, kod, skip_reason=kod, veto_reason=f"gate:{kod}:{detay}", **tk)
         except Exception as e:  # noqa: BLE001 - etiket hatasi giris engellemez
             log.warning("etiket kurallari hatasi, giris serbest: %s: %s", type(e).__name__, e)
-            return None
-
-    def _kol_karari(self, aid: str, D: datetime | None = None) -> KK.KolKarar | None:
-        """Kademeli kucultme (kagit): kolun son kapanan islemlerinin net R'sinden carpan. Okunamazsa None (carpan yok = yapilandirma boyutu;
-        hata yalniz kucultmeyi atlar, hicbir seyi arttirmaz/engellemez)."""
-        fn = getattr(self.ledger, "arm_recent_results", None)
-        if fn is None:
-            return None
-        try:
-            fam = getattr(self.ledger, "arm_family_mean_r", None)
-            aile = fam(aid, D) if fam is not None else None          # fikir 8: az islemli kol aile ortalamasina cekilir (buzulme)
-            if aile is None and "-" in aid:                          # 24.11: kutuphane kolu, gercek aile verisi yok -> on deger (bos dosya = tam boy)
-                from trader_core import formasyon_on_deger as FOD
-                aile = FOD.r_of(aid)
-            return KK.karar(fn(aid, KK.KAYIT_SAYISI), aile)
-        except Exception as e:  # noqa: BLE001
-            log.warning("kol kucultme okunamadi, tam boyut: %s: %s", type(e).__name__, e)
             return None
 
     # ------------------------------------------------------------------ 23.11 kullanici karari: asama B esikleri (yalniz giris)
@@ -520,21 +500,6 @@ class EntryGate:
             if cname is not None:
                 return self._skip(row, tf, "cluster_cap", skip_reason="cluster_cap",
                                   veto_reason=f"gate:cluster_cap:{cname}", **tk)
-            if self.cfg.arm_max_positions:                                               # WP-11: kurulum basina tavan
-                aid = row.arm_id or AG.arm_id_of(row.setup, tf)
-                cap = AG.arm_cap(self.cfg.arm_max_positions, aid, row.setup)
-                held_arms = [AG.arm_id_of(p.setup, p.trigger_tf) for p in self.state.open_positions()
-                             if getattr(p, "setup", None) and getattr(p, "trigger_tf", None)]
-                tot = AG.arm_cap_is_setup_total(self.cfg.arm_max_positions, aid, row.setup)   # "M1": 4 => tum tf toplami
-                if AG.arm_full(held_arms, aid, cap, tot):
-                    return self._skip(row, tf, "max_positions", skip_reason="max_positions",
-                                      veto_reason=f"gate:arm_cap:{aid}", **tk)
-            if self.cfg.arm_family_max_positions:                                        # 24.11 kullanici karari: aile tavani (kutuphane)
-                fam = AG.family_full([getattr(p, "setup", None) for p in self.state.open_positions()], row.setup,
-                                     self.cfg.arm_family_max_positions)
-                if fam is not None:
-                    return self._skip(row, tf, "max_positions", skip_reason="max_positions",
-                                      veto_reason=f"gate:arm_cap:{fam}", **tk)
             if AG.account_full(len(held), self.cfg.max_positions):
                 return self._skip(row, tf, "max_positions", skip_reason="max_positions",
                                   veto_reason="gate:max_positions", **tk)
@@ -564,32 +529,20 @@ class EntryGate:
                            rules.step, rules.min_notional)
         src = self.ladder if self.ladder is not None else self.cfg
         dec = None
-        if paper:                                                                       # 20 Kasim: kademeli kucultme (yalniz kagit, yalniz kucultur)
-            kk = self._kol_karari(aid, D)
-            kol_mult = 1.0
-            if kk is not None:
-                tk["features"] = {**(tk.get("features") or _features(row)), **KK.ozellikler(kk)}
-                kol_mult = float(kk.carpan)
+        if paper:                                                                       # kayip freni (yalniz kagit, yalniz kucultur)
             fren = self._fren_karari(acct, D)                                              # 23.11 asama B: kayip freni (yalniz kucultur)
             if fren is None:                                                               # okunamadi: fail-closed
                 return self._skip(row, tf, "fren_okunamadi", skip_reason="risk_denied", veto_status=vs, veto_reason="gate:fren_okunamadi",
                                   risk_allowed=False, risk_reason="kayıp freni okunamadı: giriş yok", **tk)
             fren_mult = KF.goreli_carpan(fren, self.cfg.risk_config.target_trade_risk, src.risk_config.target_trade_risk)
-            mult = min(kol_mult, fren_mult)                                             # asgari; kademe/mandal zaten src.risk_config icinde
             if fren.aktif:
                 tk["features"] = {**(tk.get("features") or _features(row)), "kayip_freni": fren.neden, "kayip_freni_carpani": float(fren_mult)}
-            if mult < 1.0:
-                dec = K.check_entry_scaled(acct, cand, src.risk_config, mult)
+            if fren_mult < 1.0:                                                         # kademe/mandal zaten src.risk_config icinde
+                dec = K.check_entry_scaled(acct, cand, src.risk_config, fren_mult)
                 if dec.allowed:
-                    if kol_mult < 1.0 and kol_mult <= fren_mult:
-                        self.counters[f"kol_kucultme:{aid}"] += 1
-                    if fren_mult < 1.0:
-                        self.counters["kayip_freni_yarim:" + str(fren.neden)] += 1
-                elif fren_mult < 1.0:                                                   # fren aktif: tam boyuta GERI DONULMEZ (asla artirmaz)
+                    self.counters["kayip_freni_yarim:" + str(fren.neden)] += 1
+                else:                                                                   # fren aktif: tam boyuta GERI DONULMEZ (asla artirmaz)
                     self.counters["kayip_freni_boyut_reddi"] += 1
-                else:                                                                   # asgari boyut bile emir alt sinirinin altinda: kol kapanmaz, tam boyut denenir
-                    dec = None
-                    tk["features"] = {**tk["features"], "kol_boyut_carpani": 1.0, "kol_boyut_geri": 1}
         if dec is None:
             dec = K.check_entry(acct, cand, src.risk_config)
         if not dec.allowed:

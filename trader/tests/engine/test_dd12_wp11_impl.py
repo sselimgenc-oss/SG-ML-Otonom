@@ -30,7 +30,7 @@ UTC = timezone.utc
 VARYANT_KODLARI = tuple(sorted(("B1-BOLGE", "B1-MUM", "F1-IKINCI", "H2-MINI", "H2-YARI", "R1-ALT", "R1-ERKEN", "R1-HA", "S1-HACIM", "S1-OLCULU", "T1-GERI3", "T1-SEVIYE", "TF1-FITIL", "TF1-HACIM")))   # 24.11 kullanici karari: PA varyantlari
 PAPER = load_cli_config(ROOT / "config", "learner", "paper")
 ALL_ARMS = tuple(f"{s_}@{tf}" for s_ in ("T1", "R1", "TF1", "B1", "H2", "S1", "F1") for tf in ("15m", "1h", "4h", "1d"))   # WP-12a: TF1/B1; WP-12b: H2/S1/F1
-PAPER_ARMS = ALL_ARMS + ("M1@1h", "M1@4h", "M1@15m", "M1@1d") + tuple(f"MF1-{k}@{tf}" for k in ("YILDIZ", "UCASKER", "DELICI", "ICSAHTE", "DISBAR", "YUTAN", "HARAMI", "TERSCEKIC", "CIMBIZ", "PINBAR", "ICCUBUK", "MARUBOZU") for tf in ("15m", "1h", "4h", "1d")) + tuple(f"{s_}@{tf}" for s_ in VARYANT_KODLARI for tf in ("15m", "1h", "4h", "1d"))   # 24.11 kullanici karari: PA varyantlari (14 x 4 = 56 kol); formasyon kutuphanesi (MF1 48 kol); 24.11: DL1 dort zaman dilimi; 23.11: HB1 haber kolu; 20 Kasim: M1 15dk/1g kagitta acik; DD-12 WP-14: M1 (ML'in kendi adayi) config/engine.paper.json'a eklendi
+PAPER_ARMS = ALL_ARMS + tuple(f"MF1-{k}@{tf}" for k in ("YILDIZ", "UCASKER", "DELICI", "ICSAHTE", "DISBAR", "YUTAN", "HARAMI", "TERSCEKIC", "CIMBIZ", "PINBAR", "ICCUBUK", "MARUBOZU") for tf in ("15m", "1h", "4h", "1d")) + tuple(f"{s_}@{tf}" for s_ in VARYANT_KODLARI for tf in ("15m", "1h", "4h", "1d"))   # 24.11 kullanici karari: PA varyantlari (14 x 4 = 56 kol); formasyon kutuphanesi (MF1 48 kol); 24.11: DL1 dort zaman dilimi; 23.11: HB1 haber kolu; 25.11: M1 kolu kaldirildi
 from trader_engine.strategies import arms as _kutuphane_arms   # 24.11 kullanici karari: formasyon kutuphanesi (GF1 52 + IN1 66 kol; sirali kod, ZD sirasi)
 PAPER_ARMS = PAPER_ARMS + tuple(f"{s}@{tf}" for fam in ("GF1-", "IN1-") for s in sorted(a for a in _kutuphane_arms.list_arms() if a.startswith(fam))
                                 for tf in _kutuphane_arms.find_arm(s).TIMEFRAMES)
@@ -128,30 +128,18 @@ def test_arm_tf_helpers_and_old_contract_untouched():
 
 
 # --------------------------------------------------------------------------- yapilandirma
-def test_config_arms_and_caps():
+def test_config_arms():
     assert PAPER.strategy == NAME and PAPER.arms == PAPER_ARMS
-    assert PAPER.arm_max_positions == {"default": 6, "M1": 4, "MF1-*": 3, **{f"{a}-*": 3 for a in ("T1", "R1", "TF1", "B1", "H2", "S1", "F1")}, "GF1-*": 3, "IN1-*": 3, "PA2-*": 3}  # 24.11 kullanici karari: formasyon kutuphanesi
-    assert PAPER.arm_family_max_positions == {"MF1": 6, **{a: 6 for a in ("T1", "R1", "TF1", "B1", "H2", "S1", "F1")}, "GF1": 6, "IN1": 6, "PA2": 6}   # 24.11 kullanici karari: formasyon kutuphanesi (aile 6)
-      # 25.11: HB1 ve DL1 kaldirildi; C1 kaldirildi (CT/ML ayriligi); 20 Kasim: kagit tavanlari gevsetildi
-    c = apply_overrides(PAPER, arms={"T1": ["1h", "4h"]}, arm_max_positions=2)
-    assert c.arms == ("T1@1h", "T1@4h") and c.arm_max_positions == {"default": 2}
-    for kw in ({"arms": ["T1@5m"]}, {"arms": ["T1@1h", "T1@1h"]}, {"arms": "T1@1h"}, {"arm_max_positions": 0},
-               {"arm_max_positions": {"t1": 2}}, {"arm_max_positions": True}):
+    assert not hasattr(PAPER, "arm_max_positions") and not hasattr(PAPER, "arm_family_max_positions")   # 25.11: kol/aile tavani kalkti
+    c = apply_overrides(PAPER, arms={"T1": ["1h", "4h"]})
+    assert c.arms == ("T1@1h", "T1@4h")
+    for kw in ({"arms": ["T1@5m"]}, {"arms": ["T1@1h", "T1@1h"]}, {"arms": "T1@1h"}, {"arm_max_positions": 4}):
         with pytest.raises(ConfigError):
             apply_overrides(PAPER, **kw)
     with pytest.raises(ConfigError):                                    # yalniz kagit
         apply_overrides(PAPER, mode="backtest", arms=["T1@1h"], optional_pairs=(),
                         max_positions=None, risk={}, clusters={}, cost_overrides={}, contract_types=None,
-                        flat_bar_guard=False, arm_max_positions={})
-
-
-def test_arm_cap_helpers():
-    from trader_engine import arm_guard as AG
-    caps = {"default": 4, "M1": 3, "T1@15m": 1}
-    assert AG.arm_cap(caps, "T1@15m", "T1") == 1 and AG.arm_cap(caps, "M1@1h", "M1") == 3 and AG.arm_cap(caps, "R1@1h", "R1") == 4
-    assert AG.arm_cap({}, "R1@1h", "R1") is None
-    assert AG.arm_full(["T1@1h"] * 4, "T1@1h", 4) and not AG.arm_full(["T1@1h"] * 3 + ["R1@1h"], "T1@1h", 4)
-    assert not AG.arm_full(["T1@1h"] * 9, "T1@1h", None)
+                        flat_bar_guard=False)
 
 
 # --------------------------------------------------------------------------- sentetik veri
@@ -211,8 +199,8 @@ def _forced(lab):
     """compute_tf'i sarar: her cagrida son satiri gecerli T1 long sinyaline cevirir (oncelik testi icin)."""
     orig = lab.compute_tf
 
-    def fn(ctx, force_core=False):
-        out = orig(ctx, force_core=force_core)
+    def fn(ctx, force_core=False, **kw):
+        out = orig(ctx, force_core=force_core, **kw)
         t = out["core"].copy()
         px = float(ctx.bars[ctx.tf]["close"].iloc[-1])
         for c, v in (("setup", "T1"), ("side", "long"), ("signal", True), ("planned_entry", px), ("planned_stop", px * 0.99),
@@ -324,21 +312,14 @@ def _rows(eng, sql):
         con.close()
 
 
-def test_end_to_end_multi_arm_paper_with_caps(tmp_path, hist):
-    eng, cfg = _run(tmp_path, hist, arm_max_positions={"default": 1})
+def test_end_to_end_multi_arm_paper(tmp_path, hist):
+    eng, cfg = _run(tmp_path, hist)
     assert eng.step_tf == "15m" and eng.tf == "1h" and eng.strategy.arm_ids == PAPER_ARMS
-    # kurulum tavani her adimda gecerli (parca parca ilerleyerek denetlenir)
-    t = START
-    seen_open = 0
-    while t < END:
-        t = min(t + timedelta(hours=6), END)
-        eng.run_range(eng.clock.now(), t) if False else None
-        break
     eng.run_range(START, END)
     c = eng.counters()
     assert c["decisions"] > 300 and c.get("callback_errors", 0) == 0
-    arms = eng.cluster_counts()["arms"]
-    assert set(arms) >= set(ALL_ARMS) and all(v["open"] <= 1 and v["max"] == 1 for v in arms.values())
+    cc = eng.cluster_counts()
+    assert "arms" not in cc and "families" not in cc                             # 25.11: kol/aile basina tavan ve sayac kalkti
     # defter: arm_id her satirda; tetik zaman dilimleri 15m/1h/4h/1d arasindan; entered satirlari setup@tf ile tutarli
     rows = _rows(eng, "SELECT pair, trigger_tf, setup, arm_id, final_action, skip_reason, veto_reason, session_tag, ml_score FROM v_decisions")
     assert rows and all(r["arm_id"] == f"{r['setup']}@{r['trigger_tf']}" for r in rows)
@@ -350,10 +331,7 @@ def test_end_to_end_multi_arm_paper_with_caps(tmp_path, hist):
                     "FROM trade_entries e JOIN decision_events d ON d.id = e.decision_id WHERE e.supersedes_id IS NULL")
     assert te and all(r["arm_id"] == f"{r['setup']}@{r['tf']}" for r in te)
     assert all(r["skip_reason"] != "ml_filter" for r in rows)                    # 24.11: ML filtreleri silindi
-    # tavan atlamasi gerekce taşır
-    caps = [r for r in rows if r["veto_reason"] and str(r["veto_reason"]).startswith("gate:arm_cap:")]
-    for r in caps:
-        assert r["skip_reason"] == "max_positions" and r["veto_reason"] in (f"gate:arm_cap:{r['arm_id']}", f"gate:arm_cap:{r['setup'].split('-')[0]}")   # 24.11: aile tavani
+    assert not [r for r in rows if str(r["veto_reason"] or "").startswith("gate:arm_cap:")]   # 25.11: kol/aile tavani artik uretilmez
     # arm_conflict satirlari yalniz bir kazananla birlikte (ayni cift/bar), kazananin tf'si daha buyuk
     byk = {"15m": 0, "1h": 1, "4h": 2, "1d": 3}
     for r in (r for r in rows if r["skip_reason"] == "arm_conflict"):

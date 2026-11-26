@@ -63,7 +63,7 @@ def test_esit_tfte_ofset_buyuk_tfyi_bozmaz():
 
 def _acilanlar(tmp, D):
     pairs = W.PAIRS5[:4]
-    over = W._engine_over(pairs, arms=["T1@1h"], arm_max_positions={"default": 6})
+    over = W._engine_over(pairs, arms=["T1@1h"])
     over["max_positions"] = 2                                   # hesap tavani: yalniz 2 giris
     e = W._E(tmp, pairs, D - timedelta(hours=1), over)
     try:

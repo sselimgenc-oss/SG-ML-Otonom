@@ -15,7 +15,7 @@ import pytest
 from trader_engine import config as C
 from trader_engine.strategies import arms
 from trader_engine.strategies.arms import _kutuphane as K
-from trader_engine.strategies.arms import m1 as M1MOD
+import bos_cekirdek as M1MOD
 from trader_engine.strategies.arms import pa2
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -423,26 +423,14 @@ def _cfg(ad):
 
 def test_kagit_canli_ayni_ve_pa2_29_kimlik():
     p, l = _cfg("engine.paper.json"), _cfg("engine.live.json")
-    for k in ("arms", "arm_max_positions", "arm_family_max_positions"):
+    for k in ("arms",):
         assert p[k] == l[k], k
-    assert p["arm_family_max_positions"]["MF1"] == p["arm_family_max_positions"]["PA2"] == 6
-    assert p["arm_max_positions"]["PA2-*"] == 3
     lib = [a for a in p["arms"] if a.startswith("PA2-")]
     beklenen_ids = [f"PA2-{k}@{tf}" for k in KODLAR for tf in TFS[k]]
     assert sorted(lib) == sorted(beklenen_ids) and len(lib) == 29 and len(set(p["arms"])) == len(p["arms"])
     for ad in ("engine.paper.json", "engine.live.json"):
         cfg = C.load_cli_config(ROOT / "config", "learner", ad.split(".")[1])
-        assert cfg.arm_family_max_positions["MF1"] == cfg.arm_family_max_positions["PA2"] == 6 and cfg.arm_max_positions["PA2-*"] == 3
         assert all(a in cfg.arms for a in beklenen_ids)
-
-
-def test_aile_ve_joker_tavani():
-    from trader_engine import arm_guard as AG
-    caps = {"default": 6, "PA2-*": 3}
-    assert AG.arm_cap(caps, "PA2-BOLGE@1h", "PA2-BOLGE") == 3
-    assert AG.family_full(["PA2-BOLGE"] * 5, "PA2-FVG", {"PA2": 6}) is None
-    assert AG.family_full(["PA2-BOLGE"] * 3 + ["PA2-FVG"] * 3, "PA2-FVG", {"PA2": 6}) == "PA2"
-    assert AG.family_full(["PA2-BOLGE"] * 6, "MF1-YUTAN", {"PA2": 6}) is None
 
 
 def test_telegram_adlari():

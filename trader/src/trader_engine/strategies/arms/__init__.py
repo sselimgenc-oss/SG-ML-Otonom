@@ -12,7 +12,7 @@ Kurulum dosyasi sozlesmesi (modul seviyesi):
   EXIT_MODE: str               "trail" (iz suren stop + rejim cikisi; T1 yolu) | "target" (hedef + zaman durdurma; R1 yolu);
                                position_manager cikisi bu kipe gore secer (kurulum adina gore degil) (DD-12 WP-12a, K-7 madde 1)
   FEATURES: dict[str, str]     defter ozellik anahtari -> tasiyici sutun (CARRIERS); en fazla 6; gates._features okur (WP-12a, K-7 madde 2)
-  PRIORITY: int                ayni zaman dilimindeki cakismada kucuk olan kazanir (T1 10, R1 20, TF1 30, B1 40, H2 50, S1 60, F1 70; M1 90)
+  PRIORITY: int                ayni zaman dilimindeki cakismada kucuk olan kazanir (T1 10, R1 20, TF1 30, B1 40, H2 50, S1 60, F1 70)
 Kurulum kimligi `arm_id = <KURULUM>@<zaman dilimi>`.
 24.11 kullanici karari: formasyon kutuphanesi. Her kurulum tek dosya; kutuphane dosyasi (`mf1.py`) birden cok kurulum kaydeder:
 modulde `FORMASYONLAR` varsa aile kodu (`MF1`) kol olmaz, her formasyon sanal kurulum (`MF1-YUTAN`) olarak kaydedilir

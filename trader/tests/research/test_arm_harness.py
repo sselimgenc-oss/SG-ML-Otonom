@@ -191,42 +191,6 @@ def test_run_pair_on_synthetic_history(tmp_path, monkeypatch):
     r = H.run_pair(("TF1", "BTC/USDT", str(tmp_path)))
     assert sum(v[2] for v in r["series"].values()) > 0                        # sentetik trendli yuruyusle islem uretildi
 
-
-# ------------------------------------------------------------------------------------------ M1 (egitim-disi donem)
-def test_m1_oos_end_applies_embargo():
-    ts = pd.Timestamp("2023-06-01 00:00", tz="UTC")
-    from trader_core import pa_features as PF
-    last = H.m1_oos_end(ts, "1h")
-    assert last + (PF.HORIZON + 1) * pd.Timedelta(hours=1) < ts
-
-
-def test_m1_series_only_before_train_window(tmp_path):
-    from trader_ml.pa_proposer import labels as LB
-    from trader_ml.pa_proposer import package as PK
-    from trader_ml.pa_proposer import train as TR
-    df = _walk(5200, seed=21, start="2021-03-01", freq="1h", vol=0.01)
-    ts = list(df.index)
-    rows = LB.label_rows(df["open"].to_numpy(), df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy(), ts)
-    cut_i = 3500
-    train_rows = [r for r in rows if r["ts"] >= ts[cut_i]]
-    pkg = TR.train_tf(train_rows, arm_id="M1@1h")
-    assert pkg is not None
-    pkg["threshold"] = float(pkg["threshold"])
-    path = PK.save_package(pkg, tmp_path / "pk")
-    _write_feather(tmp_path, "BTC_USDT_USDT", "1h", df)
-    train_start = pd.Timestamp(pkg["meta"]["train_window"]["start"])
-    assert train_start == ts[cut_i]
-    last_ok = H.m1_oos_end(train_start, "1h")
-    r = H.run_m1_pair(("BTC/USDT", str(tmp_path), str(path), str(last_ok)))
-    ser = r["series"]
-    assert len(ser) == len(H.M1_GRID["thr_mult"]) * len(H.COSTS)
-    for k, (dns, rr, _) in ser.items():
-        if len(dns):
-            # son cikis: son sinyal mumu + ufuk; egitim baslangicini asmaz
-            assert pd.Timestamp(dns.max(), tz="UTC") <= train_start
-    assert any(len(v[0]) for v in ser.values())
-
-
 def test_no_holdout_literals_in_harness_use():
     src = (ROOT / "research" / "arm_harness.py").read_text(encoding="utf-8")
     assert "check_holdout" in src and "HOLDOUT" in src

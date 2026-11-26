@@ -2634,50 +2634,6 @@ class Ledger:
             rows = c.execute(sql, args).fetchall()
         return [self._trade_from(r) for r in rows]
 
-    def arm_recent_results(self, arm_id: str, limit: int = 10) -> list[float]:
-        """Kolun son kapanan islemlerinin net R degerleri (r_multiple = komisyon/funding dusulmus), EN YENIDEN ESKIYE
-        (exit_ts, trade_id azalan), en cok `limit` (kademeli kucultme, docs/motor/kademeli-kucultme-spec.md). Salt okunur."""
-        lim = _int(limit, "limit", minimum=0)
-        with self._read() as c:
-            rows = c.execute("SELECT r_multiple FROM v_closed_trades WHERE bot=? AND arm_id=? "
-                             "ORDER BY exit_ts DESC, trade_id DESC LIMIT ?", (self.bot, str(arm_id), lim)).fetchall()
-        return [float(r["r_multiple"]) for r in rows]
-
-    FAMILY_WINDOW_DAYS = 90
-    FAMILY_KILIT_ACIK = True                 # trader_engine.holdout.KILIT_ACIK kopyasi (23.11.2026 kullanici karari; parite testi)
-    FAMILY_HOLDOUT = (datetime(2026, 5, 1, tzinfo=timezone.utc), datetime(2026, 11, 1, tzinfo=timezone.utc))   # trader_engine.holdout.HOLDOUT kopyasi (parite testi)
-
-    def arm_family_mean_r(self, arm_id: str, until: datetime | None = None) -> float | None:
-        """Kolun AILESININ (ayni kurulum, tum TF'ler: arm_id '@' oncesi) kolun KENDISI HARIC kapanmis islemlerinin ortalama net R'si
-        (kol buzulmesi, kol_kucultme.buzulme): `until - 90 gun <= exit_ts < until` (until karar zamani; None ise tum zaman); HOLDOUT [2026-05-01, 2026-11-01) cikis zamanlari yalniz kilit KAPALIYKEN dislanir (23.11.2026: kilit acik).
-        Islem yoksa None. Salt okunur."""
-        fam = str(arm_id).split("@")[0]
-        esc = fam.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-        where = ["bot=?", "(arm_id=? OR arm_id LIKE ? ESCAPE '\\')", "arm_id<>?"]
-        args: list[Any] = [self.bot, fam, esc + "@%", str(arm_id)]
-        if not self.FAMILY_KILIT_ACIK:
-            where.append("(exit_ts<? OR exit_ts>=?)")
-            args += [_ts(self.FAMILY_HOLDOUT[0], "holdout"), _ts(self.FAMILY_HOLDOUT[1], "holdout")]
-        if until is not None:
-            where += ["exit_ts>=?", "exit_ts<?"]
-            args += [_ts(until - timedelta(days=self.FAMILY_WINDOW_DAYS), "since"), _ts(until, "until")]
-        with self._read() as c:
-            row = c.execute("SELECT AVG(r_multiple) AS m, COUNT(*) AS n FROM v_closed_trades WHERE " + " AND ".join(where), args).fetchone()
-        return float(row["m"]) if row is not None and row["n"] else None
-
-    def arm_results_all(self, limit: int = 10) -> dict[str, list[float]]:
-        """{arm_id: son `limit` kapanan islemin net R'si (yeniden eskiye)} (rapor/panel; salt okunur)."""
-        lim = _int(limit, "limit", minimum=0)
-        out: dict[str, list[float]] = {}
-        with self._read() as c:
-            rows = c.execute("SELECT arm_id, r_multiple FROM v_closed_trades WHERE bot=? AND arm_id IS NOT NULL "
-                             "ORDER BY exit_ts DESC, trade_id DESC", (self.bot,)).fetchall()
-        for r in rows:
-            lst = out.setdefault(r["arm_id"], [])
-            if len(lst) < lim:
-                lst.append(float(r["r_multiple"]))
-        return out
-
     def _since_where(self, c, version_id: int, exact: bool):
         if exact:
             return "param_version_id=?", [version_id]

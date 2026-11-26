@@ -9,7 +9,6 @@ import pytest
 
 from test_telegram_ladder_impl import CHAT, Rig
 from trader_core import telegram as T
-from trader_engine import arm_quarantine as AQ
 from trader_engine import errors as E
 from trader_engine import tur_koruyucu as TK
 from trader_engine.engine import Engine
@@ -33,76 +32,19 @@ def test_error_classification():
     assert not E.is_strategy_error(ExchangeError("net"))
 
 
-# ------------------------------------------------------------------------------------------------ 4b
-def test_quarantine_threshold_reset_release_persist(tmp_path):
-    q = AQ.ArmQuarantine(now_fn=lambda: T0)
-    for _ in range(4):
-        assert q.error("T1@1h", ["T1@1h"], TypeError("x")) is False
-    q.ok("T1@1h")                                              # basari sayaci sifirlar
-    for _ in range(4):
-        assert q.error("T1@1h", ["T1@1h"], TypeError("x")) is False
-    assert not q.blocked("T1@1h")
-    assert q.error("T1@1h", ["T1@1h"], TypeError("x")) is True
-    assert q.blocked("T1@1h") and q.blocked_arms() == ["T1@1h"]
-    q2 = AQ.ArmQuarantine(now_fn=lambda: T0)
-    q2.load(json.loads(json.dumps(q.dump())))                  # kalici kayit gidis-donus
-    assert q2.blocked("T1@1h")
-    assert q2.release("t1@1h") == ["T1@1h"] and not q2.blocked("T1@1h")
-    assert q2.error("T1@1h", ["T1@1h"], KeyError("k")) is True  # deneme: ilk hata hemen tekrar karantina
-    q2.release("hepsi")
-    q2.ok("T1@1h")
-    assert q2.dump() == {} and ("duzeldi", "T1@1h", "") in q2.events
-
-
-def test_release_request_file(tmp_path):
-    assert AQ.take_release_request(tmp_path) is None
-    AQ.request_release(tmp_path, "T1@1h", "cli", T0)
-    assert AQ.take_release_request(tmp_path) == "T1@1h"
-    assert AQ.take_release_request(tmp_path) is None
-    (tmp_path / AQ.RELEASE_FILE).write_text("{bozuk")
-    assert AQ.take_release_request(tmp_path) is None and not (tmp_path / AQ.RELEASE_FILE).exists()
-
-
+# ------------------------------------------------------------------------------------------------ 4b: kod hatasi yalitimi
 def test_lab_compute_tf_hooks():
     lab = PriceActionLab(("T1@1h", "R1@1h"))
     ctx = types.SimpleNamespace(tf="1h")
     lab.compute = lambda c: (_ for _ in ()).throw(TypeError("bozuk"))
-    errs, oks = [], []
-    out = lab.compute_tf(ctx, on_error=lambda k, e: errs.append(k), on_ok=oks.append)
-    assert out == {} and errs == ["core"]                      # kod hatasi karantina kancasina gider, tur dusmez
+    errs = []
+    out = lab.compute_tf(ctx, on_error=lambda k, e: errs.append(k))
+    assert out == {} and errs == ["core"]                      # kod hatasi kancaya gider, tur dusmez
     with pytest.raises(TypeError):
         lab.compute_tf(ctx)                                    # kanca yoksa eski davranis
-    assert lab.compute_tf(ctx, skip={"core"}, on_error=lambda k, e: errs.append("x")) == {}   # karantinada hesaplanmaz
     lab.compute = lambda c: (_ for _ in ()).throw(ExchangeError("net"))
     with pytest.raises(ExchangeError):
-        lab.compute_tf(ctx, on_error=lambda k, e: None)        # gecici hata asla karantinaya girmez
-    calls = []
-    lab.compute = lambda c: calls.append(1) or "tablo"
-    assert lab.compute_tf(ctx, force_core=True, skip={"core"}) == {"core": "tablo"}   # acik pozisyon icin cekirdek tablo yine hesaplanir
-    assert lab.compute_tf(ctx, skip={"core"}) == {} and len(calls) == 1
-
-
-def _engine_stub(tmp_path, q):
-    cfg = types.SimpleNamespace(path=lambda n: str(tmp_path / "bot" / n))
-    st = {}
-    state = types.SimpleNamespace(kv_get=lambda k, d=None: st.get(k, d),
-                                  kv_set=lambda k, v: st.__setitem__(k, v) if v is not None else st.pop(k, None),
-                                  tx=lambda: __import__("contextlib").nullcontext())
-    return types.SimpleNamespace(quarantine=q, sembol_izleyici=None, cfg=cfg, state=state, st=st,
-                                 _karantina_kaydet=lambda: Engine._karantina_kaydet(eng))
-
-
-def test_engine_release_tick_and_persist(tmp_path):
-    q = AQ.ArmQuarantine(now_fn=lambda: T0)
-    global eng
-    eng = _engine_stub(tmp_path, q)
-    for _ in range(5):
-        q.error("core@1h", ["R1@1h", "T1@1h"], TypeError("x"))
-    Engine._karantina_kaydet(eng)
-    assert "core@1h" in eng.st[AQ.KV_KEY]
-    AQ.request_release(tmp_path / "bot", "T1@1h", "telegram:u", T0)        # uye kurulum kimligiyle de eslesir
-    Engine._dayaniklilik_tick(eng, T0)
-    assert not q.blocked("core@1h") and eng.st[AQ.KV_KEY]["core@1h"]["state"] == AQ.TRIAL
+        lab.compute_tf(ctx, on_error=lambda k, e: None)        # gecici hata asla yutulmaz
 
 
 # ------------------------------------------------------------------------------------------------ 4c
@@ -208,24 +150,6 @@ def test_gate_symbol_blocked_hook_exists():
 
 
 # ------------------------------------------------------------------------------------------------ Telegram
-def _status(r, rows):
-    r.status_path.write_text(json.dumps({"loop_at": r.clk().strftime("%Y-%m-%dT%H:%M:%SZ"), "mode": "paper",
-                                         "dayaniklilik": {"karantina": rows, "sembol": []}}))
-
-
-def test_telegram_karantina_kaldir_two_step(tmp_path):
-    r = Rig(tmp_path, build=lambda x: None, with_ladders=False)
-    assert "karantinada kurulum yok" in r.say("/karantina_kaldir T1@1h")
-    _status(r, [{"birim": "core@1h", "kollar": ["R1@1h", "T1@1h"], "durum": "aktif", "hata": "TypeError: x"}])
-    assert "eslesen karantina yok" in r.say("/karantina_kaldir S1@4h")
-    assert "4 haneli" in r.say("/karantina_kaldir T1@1h")
-    assert not (tmp_path / AQ.RELEASE_FILE).exists()            # kod girilmeden uygulanmaz
-    assert "yazildi" in r.say("0427")
-    assert AQ.take_release_request(tmp_path) == "t1@1h"
-    r.say("/karantina_kaldir hepsi")
-    assert "yanlis kod" in r.say("1111") and not (tmp_path / AQ.RELEASE_FILE).exists()
-
-
 def test_telegram_dayaniklilik_tick_alerts_once(tmp_path):
     r = Rig(tmp_path, build=lambda x: None, with_ladders=False)
     sent = []
@@ -236,13 +160,12 @@ def test_telegram_dayaniklilik_tick_alerts_once(tmp_path):
         def send_text(self, text, sev, key, **k):
             sent.append((sev, text))
             return True
-    row = {"birim": "core@1h", "kollar": ["T1@1h"], "durum": "aktif", "hata": "TypeError: x"}
-    r.status_path.write_text(json.dumps({"dayaniklilik": {"karantina": [row], "sembol": [
+    r.status_path.write_text(json.dumps({"dayaniklilik": {"sembol": [
         {"cift": "ETH/USDT", "alert": "CRIT", "open": True}]}}))
-    assert T.dayaniklilik_tick(r.cfg, N(), T0) == 2
+    assert T.dayaniklilik_tick(r.cfg, N(), T0) == 1
     assert T.dayaniklilik_tick(r.cfg, N(), T0) == 0              # ayni durum tekrar bildirilmez
-    r.status_path.write_text(json.dumps({"dayaniklilik": {"karantina": [], "sembol": []}}))
-    assert T.dayaniklilik_tick(r.cfg, N(), T0) == 2 and [s for s, _ in sent][2:] == ["INFO", "INFO"]
+    r.status_path.write_text(json.dumps({"dayaniklilik": {"sembol": []}}))
+    assert T.dayaniklilik_tick(r.cfg, N(), T0) == 1 and [s for s, _ in sent][1:] == ["INFO"]
 
 
 def test_symbol_watcher_background_does_not_block_loop():

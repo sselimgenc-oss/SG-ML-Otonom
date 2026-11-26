@@ -266,14 +266,14 @@ def _kol_taniyor(kazanan: str, kollar: Sequence[str] | None) -> bool:
 
 
 def skip_detay(d: Mapping, kollar: Sequence[str] | None = None) -> tuple[str, str | None]:
-    """(skip_reason, ayrinti): risk_denied -> risk limiti adi; max_positions -> arm_max_positions|max_positions; cluster_cap -> kume;
+    """(skip_reason, ayrinti): risk_denied -> risk limiti adi; cluster_cap -> kume;
     arm_conflict -> kazanan kol (veto_reason `gate:arm_conflict:<kazanan>`); digerleri ayrintisiz."""
     sk = d.get("skip") or "?"
     veto = str(d.get("veto") or "")
     if sk == "risk_denied":
         return sk, risk_limiti(d.get("risk"))
     if sk == "max_positions":
-        return sk, "arm_max_positions" if veto.startswith("gate:arm_cap:") else "max_positions"
+        return sk, "max_positions"
     if sk == "cluster_cap":
         return sk, veto.split(":", 2)[2] if veto.count(":") >= 2 else "cluster"
     if sk == "arm_conflict":
@@ -439,12 +439,12 @@ def mekanizmalar(kollar: Sequence[str], arms_off: Mapping[str, Mapping] | None,
     return [
         {"ad": "Kol kapatma kaydı (arms_off)", "var": "var", "etki": "yalnız karne/rapor bilgisi; giriş ENGELLENMEZ (sahip kararı, 19 Kasım; gates.py `arm_would_close` sayacı)",
          "tetik": ("tetiklendi: " + ", ".join(kapali)) if kapali else "tetiklenmedi (arms_off kaydı yok/boş)"},
-        {"ad": "Kol başına açık pozisyon tavanı (arm_max_positions) ve küme/hesap tavanı", "var": "var",
+        {"ad": "Küme/hesap açık pozisyon tavanı", "var": "var",
          "etki": "kayıptan bağımsız konum sınırı; zarardaki kolu özel olarak ayırmaz", "tetik": "kayıp temelli tetik değil"},
         {"ad": "Risk kademe denetimi (risk_ladder, hesap düzeyi küçültme)", "var": "var (hesap düzeyi; kol düzeyi değil)",
          "etki": "tepe-denge düşüşünde hedef işlem riskini kademeli düşürür / durdurur; motor zorunlu yalnız canlı modda",
          "tetik": "kâğıt ayarında LADDER_BOTS boş; kâğıtta kademe izlenmez"},
-        {"ad": "Kol bazında otomatik karantina / boyut küçültme", "var": "yok",
+        {"ad": "Kol bazında otomatik karantina / boyut küçültme", "var": "yok (kaldırıldı; adayları ML1 kapısı seçer)",
          "etki": f"zararda kol: {', '.join(kapali_kolu_zarar) if kapali_kolu_zarar else 'yok'}; bu kolları kendiliğinden kısan kural yok", "tetik": "-"},
     ]
 

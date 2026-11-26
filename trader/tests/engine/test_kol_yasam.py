@@ -140,19 +140,3 @@ def test_arms_state_yaz_oku(tmp_path):
     LS.write_arms_state(tmp_path / "arms_off.json", {"R1@1h": {"state": "closed"}}, NOW)
     assert LS.read_arms_state(tmp_path / "arms_off.json") == {"R1@1h": {"state": "closed"}}
     assert LS.read_arms_state(tmp_path / "yok.json") == {}
-
-
-# ---- madde 5: kartlar ---------------------------------------------------------------------------------------------------
-def test_kucultme_karti_aile_nedeni_ve_sifir_islemli_kol(tmp_path):
-    from panel_support import mkledger
-    t0 = datetime(2026, 11, 1, tzinfo=UTC)
-    mkledger(str(tmp_path / "l.sqlite"), "learner", [(False, True, t0 + timedelta(hours=2 * i)) for i in range(5)])
-    v = PP.kucultme_view(str(tmp_path / "l.sqlite"), "learner", arms=["R1@1h", "R1@4h", "T1@1h"], now=NOW)
-    by = {r["kol"]: r for r in v["kollar"]}
-    assert set(by) == {"R1@1h", "R1@4h"}                           # T1@1h ailesiz/islemsiz: kucultulmez
-    assert by["R1@1h"]["aile"] is None and by["R1@1h"]["aile_nedeni"] is False and by["R1@1h"]["n"] == 5
-    z = by["R1@4h"]                                                # hic islemi yok, aile (R1@1h) ekside
-    assert z["n"] == 0 and z["aile"] < 0 and z["aile_nedeni"] is True and z["carpan"] == 0.5
-    # motorla ayni pencere: aile 90 gunden eskiyse karta girmez
-    v2 = PP.kucultme_view(str(tmp_path / "l.sqlite"), "learner", arms=["R1@4h"], now=NOW + timedelta(days=120))
-    assert v2 is None or "R1@4h" not in {r["kol"] for r in v2["kollar"]}

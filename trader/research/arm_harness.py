@@ -76,7 +76,6 @@ GRID: dict[str, dict] = {
     "F1": {"tfs": TFS, "oat": {"mod:SWEEP_ATR": (0.05, 0.1, 0.2), "mod:REJ_MIN": (0.5, 0.6, 0.7), "sig:rr_min": (1.25, 1.5, 1.75)}},
 }
 # OAT'ta "varsayilan" ortadaki degerdir (T1 pullback_ema'da 50 = varsayilan, ucuncu deger tekrar: dusuk 20 / varsayilan 50 -> 2 varyant)
-M1_GRID = {"tf": "1h", "thr_mult": (0.95, 1.00, 1.05), "costs": COSTS}
 
 
 def variants(setup: str) -> list[dict]:
@@ -97,7 +96,7 @@ def variants(setup: str) -> list[dict]:
 
 
 def declared_grid() -> dict:
-    g = {"costs_fee_mult_slip_bp": [list(c) for c in COSTS], "kurulumlar": {}, "M1": {"tf": M1_GRID["tf"], "esik_carpani": list(M1_GRID["thr_mult"])}}
+    g = {"costs_fee_mult_slip_bp": [list(c) for c in COSTS], "kurulumlar": {}}
     for s in GRID:
         g["kurulumlar"][s] = {"tfs": list(GRID[s]["tfs"]), "parametre_varyantlari": [v["tag"] for v in variants(s)]}
     return g
@@ -328,64 +327,6 @@ def run_pair(task: tuple) -> dict:
     return {"series": out, "stats": stats}
 
 
-# ----------------------------------------------------------------------------------------- M1 (egitim penceresi disi)
-def m1_oos_end(train_start: pd.Timestamp, tf: str) -> pd.Timestamp:
-    """Egitim penceresinden ONCE kalan donemin son sinyal mumu: egitim baslangicindan WINDOW + HORIZON + 2 bar once (embargo)."""
-    from trader_core import pa_features as PF
-    return train_start - (PF.WINDOW + PF.HORIZON + 2) * arm_tf_delta(tf)
-
-
-def run_m1_pair(task: tuple) -> dict:
-    pair, history_dir, pkg_path, last_ok_iso = task
-    from trader_core import pa_features as PF
-    from trader_core.ml_live_v2 import setup_feature_vector
-    from trader_core.ml_package import load_package, view_from_package
-    mod = find_arm("M1")
-    view = view_from_package(load_package(pkg_path, check_expiry=False))
-    tf = M1_GRID["tf"]
-    trig = load_pre_holdout(Path(history_dir), pair, tf)
-    if trig is None or len(trig) < PF.WINDOW + 100:
-        return {"series": {}, "stats": {"no_data": [tf]}}
-    last_ok = pd.Timestamp(last_ok_iso)
-    trig = trig[trig.index <= last_ok + (PF.HORIZON + 2) * arm_tf_delta(tf)]      # yalniz etiket ufku icin; sinyaller last_ok'a kadar
-    n = len(trig)
-    bars = Bars(trig, np.full(n, None, dtype=object), tf)
-    o, h, l, c = bars.o, bars.h, bars.l, bars.c
-    idx = np.flatnonzero(trig.index <= last_ok)
-    idx = idx[idx >= PF.WINDOW - 1]
-    best_score = np.full(n, -np.inf)
-    best_side = np.zeros(n)
-    for side, sg in (("long", 1.0), ("short", -1.0)):
-        X, mask = PF.feature_matrix(o, h, l, c, idx, side)
-        ii = idx[mask]
-        if len(ii) == 0:
-            continue
-        F = np.vstack([setup_feature_vector(view.features, dict(zip(PF.FEATURE_NAMES, x.tolist()))) for x in X])
-        sc = view.score(F)
-        better = np.isfinite(sc) & (sc > best_score[ii])
-        best_score[ii[better]] = sc[better]
-        best_side[ii[better]] = sg
-    out: dict[str, tuple] = {}
-    ncand: dict[str, int] = {}
-    for mult in M1_GRID["thr_mult"]:
-        thr = view.threshold * mult
-        sel = np.flatnonzero(best_score >= thr)
-        rows = []
-        for t in sel:
-            if bars.run[t] < MIN_CONTIG_ARM["trigger"]:
-                continue
-            a = PF.atr_at(h, l, c, int(t))
-            if not (math.isfinite(a) and a > 0):
-                continue
-            sg = best_side[t]
-            rows.append((int(t), sg, float(c[t] - sg * PF.STOP_ATR * a), float(c[t] + sg * PF.TARGET_ATR * a)))
-        ncand[f"thr x{mult:g}"] = len(rows)
-        for fm, sl in COSTS:
-            s = day_sums(simulate(bars, rows, mod.EXIT_MODE, TAKER_FEE * fm, sl, S.SignalParams().trail_atr))
-            out[f"M1@{tf}|thr_x{mult:g}|f{fm:g}|s{sl:g}"] = (s.index.as_unit("ns").asi8, s.to_numpy(float), 0)
-    return {"series": out, "stats": {"n_cand": ncand, "threshold": view.threshold}}
-
-
 # ----------------------------------------------------------------------------------------- toplama / yazma
 def _merge(parts: list[dict], days: pd.DatetimeIndex) -> tuple[pd.DataFrame, dict[str, int]]:
     acc: dict[str, np.ndarray] = {}
@@ -443,35 +384,10 @@ def main(argv=None) -> int:
                 meta["referans_cfg_maliyet"][k[4:]] = {"n_islem": ntr[k], "toplam_r": float(v.sum()), "ort_r_islem": float(v.sum() / ntr[k]) if ntr[k] else None}
             meta["sure_sn"][setup] = round(time.time() - ts, 1)
             print(f"{setup}: {df.shape[1]} kolon, {time.time() - ts:.0f} sn", flush=True)
-        # M1@1h: egitim penceresi disi (geriye dogru) donem
-        pkg_path = ROOT / "models" / "pa_proposer" / "M1@1h.json"
-        pkg = json.loads(pkg_path.read_text(encoding="utf-8"))["meta"]
-        tw = pkg["train_window"]
-        train_start = pd.Timestamp(tw["start"])
-        last_ok = m1_oos_end(train_start, "1h")
-        ts = time.time()
-        parts = pool.map(run_m1_pair, [(p, str(HISTORY), str(pkg_path), str(last_ok)) for p in pairs])
-        sub = days[days < train_start.floor("D")]
-        df, _ = _merge(parts, sub)
-        df.astype("float32").to_parquet(OUT_DIR / "M1.parquet")
-        for c in df.columns:
-            meta["kolonlar"][c] = {"kurulum": "M1", "tf": "1h", "n_islem": None}
-        meta["m1"] = {"egitim_penceresi": tw, "degerlendirme_gunleri": [str(sub[0].date()), str(sub[-1].date())],
-                      "son_sinyal_mumu": str(last_ok), "esik": pkg_threshold(pkg_path),
-                      "aday_sayilari": {p: pp["stats"].get("n_cand") for p, pp in zip(pairs, parts)}}
-        meta["sure_sn"]["M1"] = round(time.time() - ts, 1)
-        print(f"M1@1h: {df.shape[1]} kolon, {time.time() - ts:.0f} sn", flush=True)
-    meta["dislanan"] = {
-        "M1@4h": f"gonderilen paket egitim penceresi {json.loads((ROOT / 'models' / 'pa_proposer' / 'M1@4h.json').read_text())['meta']['train_window']} tum holdout oncesi tarihsel veriyi kapsar; egitim-disi donem yok (sizinti olurdu)",
-    }
     meta["toplam_sure_sn"] = round(time.time() - t0, 1)
     (OUT_DIR / "meta.json").write_text(json.dumps(meta, indent=1, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
     print(f"bitti: {meta['toplam_sure_sn']} sn")
     return 0
-
-
-def pkg_threshold(p: Path) -> float:
-    return float(json.loads(Path(p).read_text(encoding="utf-8"))["threshold"])
 
 
 if __name__ == "__main__":

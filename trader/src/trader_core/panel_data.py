@@ -461,8 +461,6 @@ def _ledger_learning(ledger_path: str, now: datetime, paper_config=None) -> dict
     scorecard = [{"arm": a, "candidates": b["candidates"], "taken": b["taken"], "resolved": b["resolved"],
                   "mean_r_taken": b["mean_r_taken"], "mean_r_taken_cf": b["mean_r_taken_cf"], "state": b["state"],
                   "by_class": b["by_class"], "kasa": b["kasa"]} for a, b in sc.items()]
-    m1_c = [c for c in cands if str(c["arm_id"]).startswith("M1@")]
-    m1 = {"candidates": len(m1_c), "taken": sum(1 for c in m1_c if c["taken"])}
     sessions: dict[str, dict] = {}
     for s_ in ("open", "closed", "weekend"):
         cs_s = [c for c in cands if c["session"] == s_]
@@ -478,7 +476,7 @@ def _ledger_learning(ledger_path: str, now: datetime, paper_config=None) -> dict
         open_arm[a] = open_arm.get(a, 0) + 1
         for k in clusters_of_pair(t.pair, paper_config):
             open_cluster[k] = open_cluster.get(k, 0) + 1
-    return {"scorecard": scorecard, "m1": m1, "sessions": sessions, "asset_class": asset_cls,
+    return {"scorecard": scorecard, "sessions": sessions, "asset_class": asset_cls,
             "open": {"total": len(open_trades), "by_arm": dict(sorted(open_arm.items())),
                      "by_cluster": dict(sorted(open_cluster.items()))},
             "trades_closed": len(trades), "decisions": len(decisions)}
@@ -488,7 +486,7 @@ def learning_view(ledger_path: str, budget_config: str, now: datetime, *, paper_
     """Öğrenme sekmesi ve günlük rapor için tek kaynak (salt okunur). Her bölüm bağımsız: defter okunamazsa
     `ledger_error` kodu döner, harcama ve haftalık özet yine gelir (sayılar yok, çökme yok)."""
     out: dict[str, Any] = {"ledger_error": None}
-    empty = {"scorecard": [], "m1": {"candidates": 0, "taken": 0},
+    empty = {"scorecard": [],
              "sessions": {}, "asset_class": {}, "open": {"total": 0, "by_arm": {}, "by_cluster": {}},
              "trades_closed": 0, "decisions": 0}
     try:

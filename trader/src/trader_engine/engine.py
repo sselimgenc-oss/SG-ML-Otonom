@@ -43,7 +43,6 @@ from .state import OrderRow, StateStore, iso_z
 from .status import StatusWriter
 from .strategies.base import Strategy, StrategyError
 from .strategies.registry import check_param_keys, get_strategy, make_label, parse_label
-from .arm_quarantine import ArmQuarantine, KV_KEY as QUARANTINE_KV, take_release_request
 from .tur_koruyucu import TurKoruyucu
 from .strategy_runner import MultiArmSignalSource, SignalFrame, SignalSource, WindowedSignalSource
 from .types import BrokerEvent, Fill, Intent, OrderRequest, Position, order_side_for
@@ -54,7 +53,7 @@ _PARTIAL_TRANSIENT = ("exchange_ban", "rate_limited", "order_rate_cap", "exchang
                       "rules_stale", "rules_missing")           # emir borsada YOK; kalici ret (miktar/min notional/kural) degil
 
 ENGINE_VERSION = "05.1"
-KALDIRILAN_KOLLAR = ("C1", "DL1", "HB1")          # CT/C1 ayriligi: kullanici karariyla kaldirilan kurulumlar (acik pozisyonlari baslangicta kapatilir)
+KALDIRILAN_KOLLAR = ("C1", "DL1", "HB1", "M1")         # CT/C1 ayriligi: kullanici karariyla kaldirilan kurulumlar (acik pozisyonlari baslangicta kapatilir)
 _REASONS = ("stop", "target", "trail_stop", "regime_flip", "time_stop", "manual", "force_exit", "liquidation", "other")
 _STATUS_COUNTERS = ("callback_errors", "data_gaps", "ledger_errors", "outbox_failed", "unknown_orders", "mark_fallbacks",
                     "minute_gaps", "funding_missing", "exit_data_gap")
@@ -219,7 +218,6 @@ class Engine:
         self._last_reconcile: datetime | None = None
         self._entry_events: dict[int, object] = {}
         self._started = False
-        self.quarantine: ArmQuarantine | None = getattr(signals, "quarantine", None)   # 4b: kurulum kod hatasi karantinasi
         self.sembol_izleyici = None                             # 4f: sembol_izleme.SembolIzleyici (cli kurar); None = kapali
         self._tur_koruyucu = TurKoruyucu(self)                  # 4c
         self._ban_until: datetime | None = None
@@ -566,22 +564,6 @@ class Engine:
                for name, spec in self.cfg.clusters.items()}
         res = {"account": {"open": len(held), "max": self.cfg.max_positions}, "clusters": out,
                "optional_waiting": int(self._c.get("optional_waiting", 0))}
-        if self.cfg.arms or self.cfg.arm_max_positions:            # WP-11: kurulum basina acik pozisyon ve tavan
-            from . import arm_guard as AG
-            held_arms = [AG.arm_id_of(p.setup, p.trigger_tf) for p in self.state.open_positions()]
-            ids = list(self.cfg.arms) or list(getattr(self.strategy, "arm_ids", ()))
-            ids += [a for a in dict.fromkeys(held_arms) if a not in ids]
-            def _arm_row(a: str) -> dict:
-                setup = a.split("@")[0]
-                tot = AG.arm_cap_is_setup_total(self.cfg.arm_max_positions, a, setup)
-                n_open = (sum(1 for h in held_arms if h.split("@")[0] == setup) if tot
-                          else sum(1 for h in held_arms if h == a))       # `M1: 4` gibi anahtar: acik sayisi kurulum toplami
-                return {"open": n_open, "max": AG.arm_cap(self.cfg.arm_max_positions, a, setup),
-                        "scope": "setup_total" if tot else "arm"}
-            res["arms"] = {a: _arm_row(a) for a in ids}
-            if self.cfg.arm_family_max_positions:                  # 24.11: aile basina acik pozisyon ve tavan
-                res["families"] = {f: {"open": AG.family_count([p.setup for p in self.state.open_positions()], f), "max": int(n)}
-                                   for f, n in self.cfg.arm_family_max_positions.items()}
         return res
 
     def summary(self) -> RunSummary:
@@ -884,8 +866,6 @@ class Engine:
         self._init_tf_and_strategy()
         if self.ml1 is not None:
             self.ml1.warm(self.ledger, now)                       # 25.11 ML1: konfluans tamponu + olay penceresi defterden (firlatmaz)
-        if self.quarantine is not None:
-            self.quarantine.load(self.state.kv_get(QUARANTINE_KV))
         if self.is_paper:
             snap = self.state.kv_get("broker_snapshot")
             if snap:
@@ -1435,7 +1415,6 @@ class Engine:
     def decision_step(self, D: datetime) -> None:
         self._exit_retry = None                                 # DD-6 D11: yeni karar adimi eski bekleyen denemeyi gecersiz kilar
         ok = self._guard("decision", lambda: self._decision_step(D))
-        self._karantina_kaydet()                                # 4b: tx geri alinsa bile karantina kaydi kalici
         if not ok:
             if not self.is_paper and self.cfg.mode in ("testnet", "live"):
                 self._schedule_exit_retry(D)
@@ -2332,30 +2311,10 @@ class Engine:
             self.status.write(self)
         self.clock.sleep(self.cfg.loop_sleep_s)
 
-    # ------------------------------------------------------------------ 4b / 4f: karantina ve sembol izleyici
-    def _karantina_kaydet(self) -> None:
-        q = self.quarantine
-        if q is None or not q.dirty:
-            return
-        try:
-            with self.state.tx():
-                self.state.kv_set(QUARANTINE_KV, q.dump() or None)
-            q.dirty = False
-        except StateError:
-            raise
-        except Exception as e:  # noqa: BLE001
-            log.error("karantina kaydi yazilamadi: %r", e)
-
+    # ------------------------------------------------------------------ 4f: sembol izleyici
     def _dayaniklilik_tick(self, now: datetime) -> None:
-        """Dakikada bir: karantina kaldirma istegi + saatlik sembol kontrolu. Hicbir istisna sizmaz."""
+        """Dakikada bir: saatlik sembol kontrolu. Hicbir istisna sizmaz."""
         try:
-            q = self.quarantine
-            if q is not None:
-                req = take_release_request(os.path.dirname(self.cfg.path("x")))
-                if req:
-                    rel = q.release(req)
-                    log.warning("karantina kaldirma istegi (%s): %s", req, rel or "eslesen yok")
-                self._karantina_kaydet()
             iz = self.sembol_izleyici
             if iz is not None:
                 iz.check(now)
@@ -2365,9 +2324,8 @@ class Engine:
             log.error("dayaniklilik kontrolu hatasi: %r", e)
 
     def _dayaniklilik_status(self) -> dict:
-        q, iz = self.quarantine, self.sembol_izleyici
-        return {"karantina": q.status() if q is not None else [],
-                "sembol": iz.status() if iz is not None else [],
+        iz = self.sembol_izleyici
+        return {"sembol": iz.status() if iz is not None else [],
                 "tur_hatalari": {"toplam": self._tur_koruyucu.total, "son": self._tur_koruyucu.last_error}}
 
     def _periodic_input_check(self, now: datetime) -> None:
@@ -2832,8 +2790,7 @@ def _assemble_engine(cfg: EngineConfig, clock: Clock, view: MarketView, broker: 
     status = StatusWriter(cfg.status_path, clock, cfg)
     ladder = _build_ladder(cfg, clock, pause, broker, led)
     sig_cls = signal_source_class(strategy)
-    extra = {"quarantine": ArmQuarantine(now_fn=clock.now)} if sig_cls is MultiArmSignalSource else {}
-    signals = sig_cls(view, strategy, strict=False, **extra)
+    signals = sig_cls(view, strategy, strict=False)
     if live_broker_new:
         _check_rules_drift(broker, view, cfg)
     return Engine(cfg, clock=clock, view=view, broker=broker, ledger=led, state=state, signals=signals,

@@ -1,7 +1,7 @@
 """24.11 kullanici karari: formasyon kutuphanesi ortak altyapisi (kurulum dosyasi DEGIL; `_` onekli, `discover` yok sayar).
 
 Kutuphane dosyasi (`mf1.py`) `SETUP` (aile), `PRIORITY` (taban), `TIMEFRAMES` ve `FORMASYONLAR = {kod: Formasyon}` verir;
-`discover` her formasyonu sanal kurulum (`MF1-YUTAN`) olarak kaydeder: tavan, karantina, kol kucultme, `arm_conflict`,
+`discover` her formasyonu sanal kurulum (`MF1-YUTAN`) olarak kaydeder: `arm_conflict`,
 alinsaydi ve ogrenme kayitlari boylece formasyon x zaman dilimi bazinda calisir.
 
 Kurallar: karar yalniz kapanmis son mumda (`t`); `planned_entry = c[t]`; short, long'un fiyat aynasi (o,h,l,c -> -o,-l,-h,-c);

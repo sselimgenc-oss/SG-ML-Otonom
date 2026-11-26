@@ -327,35 +327,8 @@ def ogrenme_durumu(calisiyor: bool, etkili: bool, x: int = 0, y: int | None = No
     return durum_veri_birikiyor(x, y), "sari"
 
 
-def kucultme_view(ledger_path: str, bot: str, arms=None, now: datetime | None = None) -> dict | None:
-    """OGRENME sekmesi 'Kademeli kucultme' karti (docs/motor/kademeli-kucultme-spec.md): boyutu kucultulen kollar (carpan, kolun
-    KENDI islem sayisi, aile ortalamasi, aile nedeniyle mi). 24.11: aile ortalamasi motorla AYNI hesap (`arm_family_mean_r`,
-    son 90 gun, kolun kendisi haric) ve hic islemi olmayan ama aile yuzunden kucultulen kollar da (`arms` + defterdeki) listelenir.
-    Kucultulen kol yoksa ya da okunamazsa None (kart gizlenir)."""
-    from . import kol_kucultme as KK  # noqa: PLC0415
-    now = now or datetime.now(P.UTC)
-    led = P.open_ledger_ro(ledger_path, bot)
-    try:
-        sonuc = led.arm_results_all(10**6)
-        out = []
-        for a in sorted(set(sonuc) | {str(x) for x in (arms or [])}):
-            vals = sonuc.get(a, [])
-            aile = led.arm_family_mean_r(a, now)
-            k = KK.karar(vals, aile)
-            if k.carpan < 1.0:
-                ham = KK.karar(vals, None)
-                out.append({"kol": a, "carpan": k.carpan, "n": len(vals[:KK.KAYIT_SAYISI]), "net_5": k.net_5, "net_10": k.net_10,
-                            "aile": aile, "aile_nedeni": ham.carpan > k.carpan})
-    finally:
-        led.close()
-    return {"kollar": out} if out else None
-
-
-# ----------------------------------------------------------------------------- ogrenme (kol x zaman dilimi, model kollari)
-_REPO = Path(__file__).resolve().parents[2]
-MODEL_KURULUMLARI = ("M1",)                 # paketle calisan (egitilen) kollar
-MODEL_ZD = ("15m", "1h", "4h", "1d")        # model kolu: dort zaman dilimi, her biri kendi paketi
-_DURUM_AD = {"acik": "Açık", "kucultulmus": "Küçültülmüş", "karantina": "Karantinada"}
+# ----------------------------------------------------------------------------- ogrenme (kol x zaman dilimi)
+_DURUM_AD = {"acik": "Açık", "kapali": "Ders kapattı"}   # kapali: ders kaydi (arms_off.json); giris ENGELLENMEZ, yalniz bilgi
 
 
 def _arm_kimlik(d: Any) -> str:
@@ -363,40 +336,9 @@ def _arm_kimlik(d: Any) -> str:
     return getattr(d, "arm_id", None) or arm_id_of(d.setup, d.trigger_tf)
 
 
-def _paket_zamani(yol: Path, alan: tuple[str, ...]) -> tuple[str, datetime | None]:
-    """Paket dosyasindan egitim (olusturma) zamani: ('var', dt) | ('yok', None) | ('okunamadi', None). Uydurma yok."""
-    try:
-        doc = json.loads(yol.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        return "yok", None
-    except (OSError, ValueError):
-        return "okunamadi", None
-    cur: Any = doc
-    for k in alan:
-        cur = cur.get(k) if isinstance(cur, dict) else None
-    try:
-        dt = datetime.fromisoformat(str(cur).replace("Z", "+00:00"))
-    except (TypeError, ValueError):
-        return "okunamadi", None
-    return "var", (dt if dt.tzinfo else dt.replace(tzinfo=P.UTC))
-
-
-def _model_paketi(arm: str, m1_dizinleri: list[Path]) -> tuple[str, datetime | None]:
-    son: tuple[str, datetime | None] = ("yok", None)
-    for d in m1_dizinleri:                    # calisma zamani paketi once, sonra depodaki tohum (m1.py ile ayni sira)
-        son = _paket_zamani(d / f"{arm}.json", ("meta", "created_at"))
-        if son[0] != "yok":
-            return son
-    return son
-
-
-def ogrenme_view(ledger_path: str, ctx: Ctx, now: datetime, *, arms: list[str] | None = None,
-                 m1_dizinleri: list[Path] | None = None) -> dict:
-    """OZET 'Ogrenme' karti + OGRENME sekmesi tablolari. Tum kollar (ayar `arms` + defterde gorulen + karantina dosyasi + model
-    kollari) icin kol x zaman dilimi satirlari; model kollari icin son egitim / paket yasi / bugun aday-giris. Hepsi defterden,
-    `arms_off.json`dan ve paket dosyalarindan aynen okunur; bulunamayan alan None (arayuzde 'bilinmiyor')."""
-    from . import kol_kucultme as KK  # noqa: PLC0415
-    import os  # noqa: PLC0415
+def ogrenme_view(ledger_path: str, ctx: Ctx, now: datetime, *, arms: list[str] | None = None) -> dict:
+    """OZET 'Ogrenme' karti + OGRENME sekmesi tablolari. Tum kollar (ayar `arms` + defterde gorulen + ders kapanis dosyasi) icin
+    kol x zaman dilimi satirlari; defterden ve `arms_off.json`dan aynen okunur."""
     sonuc: dict[str, list[float]] = {}            # arm -> net R (yeniden eskiye)
     for t in ctx.closed:
         d = ctx.dec.get(t.decision_id)
@@ -413,19 +355,16 @@ def ogrenme_view(ledger_path: str, ctx: Ctx, now: datetime, *, arms: list[str] |
             b[0] += 1
             b[1] += 1 if d.final_action == "entered" else 0
     tum = set(arms or []) | set(sonuc) | set(bugun) | kapali
-    tum |= {f"M1@{tf}" for tf in MODEL_ZD} if any(a.startswith("M1@") for a in tum) else set()
     kollar = []
-    for a in sorted(tum, key=lambda x: (x.partition("@")[0], MODEL_ZD.index(x.partition("@")[2]) if x.partition("@")[2] in MODEL_ZD else 9, x)):
+    for a in sorted(tum, key=lambda x: (x.partition("@")[0], x)):
         vals = sonuc.get(a, [])
-        aile = KK.aile_ortalamasi(sonuc, haric=a).get(a.partition("@")[0])
-        k = KK.karar(vals, aile)
         n = len(vals)
-        durum = "karantina" if a in kapali else ("kucultulmus" if k.carpan < 1.0 else "acik")
+        durum = "kapali" if a in kapali else "acik"
         kur, _, zd = a.partition("@")
         kollar.append({"arm": a, "kol": TS.kurulum_adi(kur), "zd": TS.kol_adi(a).partition(" · ")[2] or (zd or "—"),
                        "n": n, "net_r": round(math.fsum(vals), 4) if n else None,
                        "kazanma": round(100.0 * sum(1 for v in vals if v > 0) / n, 1) if n else None,
-                       "carpan": k.carpan, "durum": durum, "durum_ad": _DURUM_AD[durum]})
+                       "durum": durum, "durum_ad": _DURUM_AD[durum]})
     olcu = [r for r in kollar if r["n"]]
     iyi = sorted(olcu, key=lambda r: (-r["net_r"], r["arm"]))[:3]
     kotu = sorted((r for r in olcu if r not in iyi), key=lambda r: (r["net_r"], r["arm"]))[:3]
@@ -433,20 +372,7 @@ def ogrenme_view(ledger_path: str, ctx: Ctx, now: datetime, *, arms: list[str] |
     ozet = {"toplam": len(kollar), **{d: sum(1 for r in kollar if r["durum"] == d) for d in _DURUM_AD},
             "en_iyi": [kisa(r) for r in iyi], "en_kotu": [kisa(r) for r in kotu],
             "kapanan": sum(r["n"] for r in kollar)}
-    m1_d = m1_dizinleri if m1_dizinleri is not None else [
-        Path(os.environ.get("TRADER_ML_RUNTIME_DIR") or (_REPO / "var" / "learner" / "models")) / "pa_proposer",
-        _REPO / "models" / "pa_proposer"]
-    modeller = []
-    for r in kollar:
-        if r["arm"].partition("@")[0] not in MODEL_KURULUMLARI:
-            continue
-        durum, dt = _model_paketi(r["arm"], m1_d)
-        b = bugun.get(r["arm"], [0, 0])
-        modeller.append({"arm": r["arm"], "kol": r["kol"], "zd": r["zd"], "paket": durum,
-                         "egitim": tsi_kisa(dt) if dt else None, "egitim_ts": dt.timestamp() if dt else None,
-                         "yas_gun": round(max((now - dt).total_seconds(), 0.0) / 86400.0, 1) if dt else None,
-                         "bugun_aday": b[0], "bugun_giris": b[1]})
-    return {"ozet": ozet, "kollar": kollar, "modeller": modeller}
+    return {"ozet": ozet, "kollar": kollar}
 
 
 # ----------------------------------------------------------------------------- teknik
@@ -498,12 +424,10 @@ def teknik_view(*, health: Mapping | None, risk_rows: list | None, budget: Mappi
                 mutabakat: Mapping | None = None, dayaniklilik: Mapping | None = None) -> dict:
     out: dict[str, Any] = {}
     if isinstance(dayaniklilik, Mapping):
-        kar = [f"{r.get('birim')}: art arda kod hatası, yeni işlem açmıyor (açık pozisyonlar sürüyor)"
-               for r in dayaniklilik.get("karantina") or [] if isinstance(r, Mapping) and r.get("durum") == "aktif"]
         sem = [f"{r.get('cift')}: borsada işlem dışı, yeni giriş yok" + (" (açık pozisyon var)" if r.get("open") else "")
                for r in dayaniklilik.get("sembol") or [] if isinstance(r, Mapping)]
-        if kar or sem:
-            out["dayaniklilik"] = {"karantina": kar, "sembol": sem}
+        if sem:
+            out["dayaniklilik"] = {"sembol": sem}
     if mutabakat:
         out["mutabakat"] = dict(mutabakat)
     if health:

@@ -55,7 +55,7 @@ def test_canli_ml_stratejisi_ve_43_cift_yuklenir():
     assert len(live.optional_pairs) == 24 and set(live.optional_pairs) <= set(live.pairs)   # eski hisse verisi acilisi bloklamaz
     assert live.contract_types == ("PERPETUAL", "TRADIFI_PERPETUAL")
     assert live.max_positions == 36 and live.flat_bar_guard is True   # 24.11 kullanici karari: max_positions 24 -> 36 (kagit = canli)
-    assert live.arms == paper.arms and live.arm_max_positions == paper.arm_max_positions
+    assert live.arms == paper.arms
     assert live.clusters == paper.clusters and live.cost_overrides == paper.cost_overrides
     assert live.etiket_kurallari == paper.etiket_kurallari
     assert live.exit_modes == paper.exit_modes          # canli kagitla ayni cikis kiplerini kullanir (istisna yok)
@@ -189,7 +189,7 @@ def _live_engine(tmp_path, **over):
     paper = load_cli_config(CONFIG, "learner", "paper")
     base_over = dict(strategy="price_action_lab_ml", target_trade_risk=0.01,
                      risk={"max_open_risk": 0.24, "max_same_dir_risk": 0.16, "daily_max_loss": 0.08},
-                     arms=list(paper.arms), arm_max_positions=dict(paper.arm_max_positions), max_positions=24,
+                     arms=list(paper.arms), max_positions=24,
                      flat_bar_guard=True, contract_types=["PERPETUAL", "TRADIFI_PERPETUAL"],
                      etiket_kurallari={"rejim": {"acik": True}},
                      exit_modes={"default": {"breakeven": True, "partial": True}})

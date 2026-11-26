@@ -112,7 +112,7 @@ def test_learning_view_scorecard_m1_sessions_open(world):
     assert (f1["candidates"], f1["state"]) == (0, "open")                     # yapilandirilmis, adayi yok
     assert "lesson" not in lv                                                  # 25.11: ders sistemi kaldirildi
     assert "ml" not in lv                                                      # 24.11: ML filtre sayilari (elenen/gecen/etki) silindi
-    assert (lv["m1"]["candidates"], lv["m1"]["taken"]) == (2, 2)
+    assert "m1" not in lv                                                      # 25.11: M1 kolu kaldirildi, ozel sayac yok
     assert lv["sessions"]["open"]["kripto"]["taken"] == 2
     assert lv["sessions"]["open"]["emtia"]["mean_r_taken"] == -0.5
     assert lv["sessions"]["closed"]["hisse"]["taken"] == 0
@@ -138,14 +138,13 @@ def _cfg(world):
 def test_daily_sections_show_learning_and_scorecard(world):
     cfg = _cfg(world)
     ogr = T.rapor_ogrenme(cfg, NOW)
-    assert "Ders:" not in ogr and "elenen" not in ogr and "M1: aday 2, giriş 2" in ogr
+    assert "Ders:" not in ogr and "elenen" not in ogr and "M1:" not in ogr
     assert "Haftalık özet (2026-W47)" in ogr
     karne = T.rapor_kurulum_karnesi(cfg, NOW)
     assert "T1@1h: aday 2 · alınan 1" in karne and "M1@1h: aday 2 · alınan 2" in karne and "KAPALI" in karne
     assert "F1@1h" not in karne                                                 # adayi olmayan kurulum satiri yok
     out = T.build_report(cfg, NOW, "2026-11-19", {"Öğrenme": lambda: ogr, "Kurulum karnesi": lambda: karne})
     assert "📚" not in out and "🧪" not in out and len(out.splitlines()) <= 12     # gunluk ozet kisa; bolumler komutlarda
-    assert ogr.index("M1: aday") < ogr.index("Haftalık özet")
     for banned in ("ikiz", "twin", "veto"):
         assert banned not in (ogr + karne).lower()
 

@@ -6,6 +6,7 @@ import dataclasses
 import functools
 import hashlib
 import json
+import logging
 import math
 import os
 import re
@@ -114,8 +115,6 @@ class EngineConfig:
     cost_overrides: Mapping[str, Mapping[str, Mapping[str, float]]] = dataclasses.field(default_factory=dict)  # cift -> seans -> kayma bps (4.3)
     # --- DD-12 WP-11 (yalniz mode="paper"; varsayilan bos = onceki davranis) ---
     arms: tuple[str, ...] = ()                                # bilesik strateji kurulumlari: arm_id ("T1@1h") listesi; bos = stratejinin varsayilani
-    arm_family_max_positions: Mapping[str, int] = dataclasses.field(default_factory=dict)   # 24.11: aile tavani {"MF1": 6}; bos = yok
-    arm_max_positions: Mapping[str, int] = dataclasses.field(default_factory=dict)  # kurulum tavani: {"default": 4, "M1": 3, "T1@15m": 2}; bos = tavan yok
     etiket_kurallari: Mapping[str, Any] = dataclasses.field(default_factory=dict)    # 20 Kasim: etiket kurallari (yalniz paper; bos = kapali; docs/etiket-kurallari-spec.md)
     # --- 23.11 kullanici karari: asama B esikleri (yalniz paper/live giris kapisi; bos/None = kapali) ---
     korelasyon: Mapping[str, float] = dataclasses.field(default_factory=dict)       # {esik, pencere_gun, yon_basina_max}
@@ -160,11 +159,13 @@ _STR = ("var_dir", "market_db", "history_dir", "kill_file")
 _OPTIONAL_KEYS = {"strategy", "target_trade_risk", "startup_wait_s", "pause_file",
                   "leverage", "live", "ladder_follow", "shadow_blocks", "mtm_marks",
                   "optional_pairs", "retired_pairs", "max_positions", "risk", "clusters", "flat_bar_guard", "contract_types",
-                  "cost_overrides", "arms", "arm_max_positions", "arm_family_max_positions", "exit_modes", "etiket_kurallari",
+                  "cost_overrides", "arms", "exit_modes", "etiket_kurallari",
                   "korelasyon", "kayip_freni", "toplam_buyukluk_kat", "uzun_yon", "ml1"}
 _ML1_KEYS = {"aktif": bool, "paket_yolu": str, "tohum_yolu": str}
 _PAPER_ONLY_KEYS = ("optional_pairs", "max_positions", "risk", "clusters", "flat_bar_guard", "contract_types",
-                    "cost_overrides", "arms", "arm_max_positions", "arm_family_max_positions", "korelasyon", "kayip_freni", "toplam_buyukluk_kat", "uzun_yon")
+                    "cost_overrides", "arms", "korelasyon", "kayip_freni", "toplam_buyukluk_kat", "uzun_yon")
+# 25.11 sadelestirme: ML1 kapisi secer; kol basina/aile basina acik pozisyon tavani kaldirildi (hesap/kume/korelasyon tavanlari duruyor)
+_KALDIRILAN_ANAHTARLAR = ("arm_max_positions", "arm_family_max_positions")
 _LIVE_KEYS = {f.name for f in dataclasses.fields(LiveSettings)}
 _STRATEGY_RE = re.compile(r"[a-z][a-z0-9_]{0,39}")
 
@@ -279,9 +280,6 @@ def _pair_subset(name: str, v: Any, pairs: tuple[str, ...]) -> tuple[str, ...]:
 
 
 _ARM_ID_RE = re.compile(r"[A-Z][A-Z0-9]{1,7}(-[A-Z0-9]{2,10})?@(15m|1h|4h|1d)")   # 24.11 kullanici karari: formasyon kutuphanesi (MF1-YUTAN@1h)
-_ARM_SETUP_RE = re.compile(r"[A-Z][A-Z0-9]{1,7}(-[A-Z0-9]{2,10})?")
-_ARM_WILD_RE = re.compile(r"[A-Z][A-Z0-9]{1,7}-\*")      # aile jokeri: "MF1-*"
-_FAMILY_RE = re.compile(r"[A-Z][A-Z0-9]{1,7}")
 
 
 def _build_arms(v: Any) -> tuple[str, ...]:
@@ -298,36 +296,6 @@ def _build_arms(v: Any) -> tuple[str, ...]:
     if len(set(v)) != len(v):
         raise ConfigError("arms yinelenen oge iceriyor")
     return tuple(v)
-
-
-def _build_arm_caps(v: Any) -> dict[str, int]:
-    """`arm_max_positions`: tam sayi (hepsi icin tavan) ya da {"default": n, "<KURULUM>": n, "<arm_id>": n}."""
-    if isinstance(v, bool):
-        raise ConfigError("arm_max_positions tam sayi ya da sozluk olmali")
-    if isinstance(v, int):
-        v = {"default": v}
-    if not isinstance(v, Mapping):
-        raise ConfigError(f"arm_max_positions tam sayi ya da sozluk olmali: {v!r}")
-    out: dict[str, int] = {}
-    for k, n in v.items():
-        if not (k == "default" or (isinstance(k, str) and (_ARM_SETUP_RE.fullmatch(k) or _ARM_ID_RE.fullmatch(k) or _ARM_WILD_RE.fullmatch(k)))):
-            raise ConfigError(f"arm_max_positions anahtari gecersiz: {k!r}")
-        out[k] = _int(f"arm_max_positions.{k}", n, 1, 1000)
-    return out
-
-
-def _build_arm_family_caps(v: Any) -> dict[str, int]:
-    """24.11 kullanici karari: `arm_family_max_positions`: {"MF1": 6, ...}; aile = kurulum kodunun `-` oncesi."""
-    if v in (None, {}):
-        return {}
-    if not isinstance(v, Mapping):
-        raise ConfigError(f"arm_family_max_positions sozluk olmali: {v!r}")
-    out: dict[str, int] = {}
-    for k, n in v.items():
-        if not (isinstance(k, str) and _FAMILY_RE.fullmatch(k)):
-            raise ConfigError(f"arm_family_max_positions anahtari gecersiz: {k!r}")
-        out[k] = _int(f"arm_family_max_positions.{k}", n, 1, 1000)
-    return out
 
 
 def _build_clusters(v: Any, pairs: tuple[str, ...]) -> dict[str, ClusterSpec]:
@@ -588,8 +556,6 @@ def _validate(raw: Mapping[str, Any]) -> EngineConfig:
     clusters = _build_clusters(raw.get("clusters", {}), pairs_set)
     cost_overrides = _build_cost_overrides(raw.get("cost_overrides", {}), pairs_set)
     arms = _build_arms(raw.get("arms", ()))
-    arm_caps = _build_arm_caps(raw.get("arm_max_positions", {}))
-    arm_family_caps = _build_arm_family_caps(raw.get("arm_family_max_positions", {}))
     try:
         exit_modes = _xm.build_config(raw.get("exit_modes", {}))
     except _xm.ExitModeError as e:
@@ -614,8 +580,8 @@ def _validate(raw: Mapping[str, Any]) -> EngineConfig:
     if mode not in ("paper", "live"):                         # 23.11 kullanici karari: canli = kagit
         given = {"optional_pairs": optional_pairs, "max_positions": max_positions, "risk": risk_raw,
                  "clusters": clusters, "flat_bar_guard": flat_bar_guard, "cost_overrides": cost_overrides,
-                 "contract_types": contract_types, "arms": arms, "arm_max_positions": arm_caps,
-                 "arm_family_max_positions": arm_family_caps, "korelasyon": korelasyon, "kayip_freni": kayip_freni, "toplam_buyukluk_kat": toplam_buyukluk_kat,
+                 "contract_types": contract_types, "arms": arms,
+                 "korelasyon": korelasyon, "kayip_freni": kayip_freni, "toplam_buyukluk_kat": toplam_buyukluk_kat,
                  "uzun_yon": uzun_yon, "ml1": ml1}
         bad = sorted(k for k, x in given.items() if x not in ((), {}, None, False))
         if bad:
@@ -657,7 +623,7 @@ def _validate(raw: Mapping[str, Any]) -> EngineConfig:
         optional_pairs=optional_pairs, retired_pairs=retired_pairs, max_positions=max_positions,
         risk=risk_raw, clusters=clusters,
         flat_bar_guard=flat_bar_guard, contract_types=contract_types, cost_overrides=cost_overrides,
-        arms=arms, arm_max_positions=arm_caps, arm_family_max_positions=arm_family_caps, exit_modes=exit_modes, etiket_kurallari=etiket_kurallari,
+        arms=arms, exit_modes=exit_modes, etiket_kurallari=etiket_kurallari,
         korelasyon=korelasyon, kayip_freni=kayip_freni, toplam_buyukluk_kat=toplam_buyukluk_kat, uzun_yon=uzun_yon, ml1=ml1,
         **{n: raw[n] for n in _STR},
     )
@@ -738,6 +704,9 @@ def load_engine_config(base_path: Any, bot_path: Any = None, *,
         merged = deep_merge(merged, _read(bot_path))
     if overlay_path is not None:
         merged = deep_merge(merged, _read(overlay_path))
+    for k in _KALDIRILAN_ANAHTARLAR:                  # eski sunucu kaplamasi kalmis olabilir: bot acilisi bozulmasin (yok sayilir)
+        if merged.pop(k, None) is not None:
+            logging.getLogger("engine.config").warning("kaldirilan yapilandirma anahtari yok sayildi: %s", k)
     merged = apply_universe_overlay(merged, universe_path)
     cfg = _validate(merged)
     if env is not None:

@@ -58,13 +58,6 @@ def kilitli_donem(monkeypatch):
 
 
 @pytest.fixture
-def egitim_kilitli(monkeypatch):
-    """23.11.2026: kilit ACIK (varsayilan). Bu fixture M1 egitimindeki kilit mekanizmasini KAPALI bayrakla (eski davranis) sinamak icindir."""
-    from trader_ml.pa_proposer import train
-    monkeypatch.setattr(train, "KILIT_ACIK", False)
-
-
-@pytest.fixture
 def kilitli_motor(monkeypatch):
     """23.11.2026: kilit ACIK (varsayilan). Bu fixture motor/backtest kilidini (holdout.check_holdout) KAPALI bayrakla (eski davranis) sinamak icindir.
     Yalniz ayni surecteki cagrilar icindir; alt surec testleri acik davranisi sinar."""

@@ -30,6 +30,20 @@ def _mk_state():
     return st
 
 
+def test_m1_pozisyonu_da_kapanir():
+    st = StateStore(":memory:", bot="learner")
+    put_pos(st, mkpos(trade_id=1, pair="BTC/USDT", setup="M1", trigger_tf="1h"))
+    put_pos(st, mkpos(trade_id=2, pair="ETH/USDT", setup="T1", trigger_tf="1h"))
+    gonderilen = []
+
+    def submit(pos, reason, at, quote=False):
+        gonderilen.append((pos.trade_id, reason))
+        with st.tx():
+            st.update_position(pos.trade_id, status="closing", exit_reason=reason)
+        return type("Out", (), {"status": "submitted"})()
+    assert _engine(st, submit)._kaldirilan_kollari_kapat(None) == 1 and gonderilen == [(1, "force_exit")]
+
+
 def test_yalniz_kaldirilan_kol_kapanir_ve_ikinci_calisma_no_op():
     st = _mk_state()
     gonderilen = []
@@ -41,7 +55,7 @@ def test_yalniz_kaldirilan_kol_kapanir_ve_ikinci_calisma_no_op():
         return type("Out", (), {"status": "submitted"})()
 
     eng = _engine(st, submit)
-    assert E.KALDIRILAN_KOLLAR == ("C1", "DL1", "HB1")
+    assert E.KALDIRILAN_KOLLAR == ("C1", "DL1", "HB1", "M1")
     assert eng._kaldirilan_kollari_kapat(None) == 2
     assert gonderilen == [(1, "force_exit"), (3, "force_exit")]               # T1 dokunulmaz; neden defterin kabul ettigi 'force_exit'
     assert E.EngineExit is not None and "force_exit" in E._REASONS
@@ -186,3 +200,5 @@ def test_ayardaki_her_kol_kimligi_arm_id_of_ile_geri_uretilir():
         assert arms
         bozuk = [a for a in arms if arm_id_of(a.rsplit("@", 1)[0], a.rsplit("@", 1)[1]) != a]
         assert bozuk == [], (ad, bozuk)
+        kalan = [a for a in arms if a.rsplit("@", 1)[0] in E.KALDIRILAN_KOLLAR]       # kaldirilan kol (C1/DL1/HB1/M1) ayarda kalmaz
+        assert kalan == [], (ad, kalan)

@@ -15,10 +15,10 @@ import pytest
 
 from trader_core import universe as U
 from trader_engine.config import load_engine_config
-from trader_ml.pa_proposer.train import LOCK_END, LOCK_START
 
 ROOT = Path(__file__).resolve().parents[2]
 UTC = timezone.utc
+LOCK_START = datetime(2026, 5, 1, tzinfo=UTC)          # holdout kilit baslangici (eski M1 egitim modulu kaldirildi)
 SCRIPTS = ROOT / "scripts"
 DEPLOY = ROOT / "deploy"
 sys.path.insert(0, str(SCRIPTS))
@@ -37,16 +37,15 @@ def _mem(text: str, key: str) -> int | None:
 
 # ---- D-T14: bellek butcesi ----------------------------------------------------------------------------------------
 def test_soft_cap_sum_fits_slice_hard_cap():
-    """Yumusak tavan toplami feed 200 + ogrenen 600 + testnet 250 + egitim 250 = 1300 <= slice MemoryMax (1300)."""
+    """Yumusak tavan toplami feed 200 + ogrenen 600 + testnet 250 = 1050 <= slice MemoryMax (1300)."""
     slice_max = _mem((DEPLOY / "trader.slice").read_text(encoding="utf-8"), "MemoryMax")
     soft = {
         "feed": _mem(_unit("trader-feed.service"), "MemoryHigh"),
         "learner": _mem(_unit("trader-engine@.service"), "MemoryHigh"),
         "testnet": _mem(_unit("trader-engine-testnet.service"), "MemoryHigh"),
-        "ml_retrain": _mem(_unit("trader-ml-retrain.service"), "MemoryHigh"),
     }
-    assert soft == {"feed": 200, "learner": 600, "testnet": 250, "ml_retrain": 250}
-    assert sum(soft.values()) == 1300 and sum(soft.values()) <= slice_max == 1300
+    assert soft == {"feed": 200, "learner": 600, "testnet": 250}
+    assert sum(soft.values()) == 1050 and sum(soft.values()) <= slice_max == 1300
 
 
 def test_every_trader_service_is_in_trader_slice():
@@ -54,13 +53,6 @@ def test_every_trader_service_is_in_trader_slice():
                if "Slice=trader.slice" not in p.read_text(encoding="utf-8")
                and p.name != "trader-oto-guncelle.service"]   # kurulum isi: slice disinda, kendi MemoryMax'i ile (birim yorumu)
     assert missing == [], f"trader.slice disinda servis: {missing}"
-
-
-def test_ml_retrain_unit_limits_and_command():
-    txt = _unit("trader-ml-retrain.service")
-    assert _mem(txt, "MemoryHigh") == 250 and _mem(txt, "MemoryMax") == 350       # WP-18 olcumu: tepe ~263 MB
-    assert "Slice=trader.slice" in txt and "ml_retrain_run.py --once" in txt and "TimeoutStartSec=900" in txt
-    assert "OnFailure=trader-health-fail@%n.service" in txt
 
 
 def test_slice_hard_cap_is_unchanged():
@@ -122,7 +114,7 @@ FROZEN_SHA256 = {
     "config/engine.base.json": "26f5664f630f44bf594eb58e4efa881b2e71890ecb6d11ec80ad9fe2b3b8b361",   # 25.11 kullanici karari: denetim kalan maddeler (start_delay_s kalkti); 24.11 kullanici karari: veto ve C1 artiklari silindi;   # 24.11 kullanici karari: ML filtreleri silindi (ml_mode/ml_model_path anahtarlari kalkti)
     "config/engine.learner.json": "30ca2842c40cacafbf6cdd90c9e6f1f54fc62b9a9ec913476d1399ac5352cb12",
     "config/engine.testnet.json": "eff9eb61dcd9018bf86c195a02f7f25f08960473e705cbd114e104c26a956c9c",
-    "config/engine.live.json": "afc41b6f427d052365791f429f8e4c875f30262b120dd0c76905cf1ca4b8b3bd",   # 25.11: HB1 + DL1 kolu kaldirildi (283 kol); 24.11 kullanici karari: formasyon kutuphanesi birlesik (MF1 48 + GF1 52 + IN1 66 + PA2 29 + PA varyantlari 56 kol; max_positions 36)
+    "config/engine.live.json": "05f1bfc2dc8ba2c5705e6fab9b5c40c722bc349c99425c8af9ea313cc20bd59b",   # 25.11: M1 kolu ve kol/aile basina pozisyon tavani kaldirildi (279 kol); HB1 + DL1 kolu kaldirildi; 24.11 kullanici karari: formasyon kutuphanesi birlesik (MF1 48 + GF1 52 + IN1 66 + PA2 29 + PA varyantlari 56 kol; max_positions 36)
     #   # 24.11 kullanici karari: DL1 dort zaman dilimi acik; onceki 24.11 ML filtreleri silindi; onceki 23.11 asama B + uzun_yon + HB1 (canli = kagit)
     "src/trader_engine/order_manager.py": "7bd0ff0ca3173c7e8baf0ab05dde04a8b1c472d4510c4922d142220d4ae02538",   # 24.11 kullanici kararlari: hedef emir + risk 0.12/DL1 4 + veto/C1 silme (birlesik pin)
     "research/s2_run.py": "66710418f9be36225b757f9d4a1158b1e9093db5f7df131572c639e3958b21a7",
@@ -190,92 +182,8 @@ def test_skip_reason_has_no_new_ledger_value():
     assert "universe_retired" not in L._NEW_SKIP and "arm_disabled" in L._NEW_SKIP
 
 
-# ---- (b) M1 gece egitimi -------------------------------------------------------------------------------------------
-def _write_1h(hist: Path, base: str, start: datetime, n: int, seed: int) -> None:
-    import numpy as np
-    import pyarrow as pa
-    import pyarrow.feather as pf
-    rng = np.random.default_rng(seed)
-    idx = [start + timedelta(hours=k) for k in range(n)]
-    close = 100 + np.cumsum(rng.normal(0, 0.5, n))
-    op = np.concatenate([[close[0]], close[:-1]])
-    hi = np.maximum(op, close) + np.abs(rng.normal(0, 0.2, n))
-    lo = np.minimum(op, close) - np.abs(rng.normal(0, 0.2, n))
-    tbl = pa.table({"date": pa.array([t for t in idx], type=pa.timestamp("ms", tz="UTC")),
-                    "open": op, "high": hi, "low": lo, "close": close, "volume": np.ones(n)})
-    pf.write_feather(tbl, str(hist / f"{base}_USDT_USDT-1h-futures.feather"), compression="uncompressed")
-
-
-class _StubLedger:
-    LIST_CLOSED_MAX = 10
-
-    def list_closed_trades(self, limit=10):
-        return []
-
-    def list_decisions(self):
-        return []
-
-
-@pytest.fixture()
-def hist_dir(tmp_path):
-    h = tmp_path / "history"
-    h.mkdir()
-    start = datetime(2025, 6, 1, tzinfo=UTC)                                     # kilit (2026-05-01..11-01) dahil bars
-    for k, base in enumerate(("BTC", "ETH")):
-        _write_1h(h, base, start, 24 * 420, seed=7 + k)                          # ~14 ay
-    return h
-
-
-def test_m1_history_tail_excludes_lock_window(hist_dir, monkeypatch):
-    import ml_retrain_run as R
-    monkeypatch.setattr(R, "KILIT_ACIK", False)                                  # 24.11 kullanici karari: denetim duzeltmeleri (kesim yalniz kilit kapaliyken)
-    bars = R._load_bars(str(hist_dir), "BTC", "1h")
-    rows = R._hist_tail(bars, "BTC/USDT", cap=400, cutoff=LOCK_START)
-    assert rows and len(rows) <= 400
-    assert max(r["ts_end"] for r in rows) < LOCK_START                          # etiket ufku da kilit oncesinde
-    assert all(not (r["ts"] < LOCK_END and r["ts_end"] >= LOCK_START) for r in rows)
-
-
-def test_m1_nightly_writes_package_and_csv_row(hist_dir, tmp_path):
-    import ml_retrain_run as R
-    now = datetime(2026, 11, 19, 3, 10, tzinfo=UTC)
-    csv_rows: list = []
-    out = R.m1_nightly(_StubLedger(), None, history_dir=str(hist_dir), tfs=["1h"], models_dir=str(tmp_path / "m1"),
-                       now=now, max_rows=400, csv_rows=csv_rows)
-    assert out["1h"]["status"] == "ok" and out["1h"]["lock_dropped"] == 0
-    assert (tmp_path / "m1" / "M1@1h.json").exists()
-    pkg = json.loads((tmp_path / "m1" / "M1@1h.json").read_text(encoding="utf-8"))
-    assert pkg["meta"]["arm_id"] == "M1@1h" and pkg["meta"]["paper_only"] is True
-    assert len(csv_rows) == 1 and csv_rows[0][1] == "nightly_m1" and "lock_dropped=0" in csv_rows[0][3]
-
-
-@pytest.mark.usefixtures("egitim_kilitli")
-def test_paper_records_in_lock_window_are_dropped():
-    import export_paper_records as EPR
-    rows = [
-        {"bar_close_ts": "2026-06-01T00:00:00+00:00", "outcome_ts": "2026-06-02T00:00:00+00:00", "r": 1.0},   # kilit ici
-        {"bar_close_ts": "2026-02-01T00:00:00+00:00", "outcome_ts": "2026-02-02T00:00:00+00:00", "r": -1.0},  # kilit oncesi
-        {"bar_close_ts": None, "outcome_ts": None, "r": 0.5},                                                  # dogrulanamaz
-    ]
-    kept, dropped = EPR.drop_locked_rows(rows)
-    assert len(kept) == 1 and dropped == 2 and kept[0]["r"] == -1.0
-
-
-def test_m1_nightly_hatasinda_cikis_3_ve_csv_yazilir(tmp_path, monkeypatch):
-    """M1 hatasi paper_models.csv dosyasini yine olusturur; cikis 3 (saglik gorunurlugu)."""
-    import ml_retrain_run as R
-    from trader_core import ledger as L
-    monkeypatch.setattr(R, "m1_nightly", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("m1 boom")))
-    monkeypatch.setattr(L, "open_ledger", lambda *a, **k: SimpleNamespace(close=lambda: None))
-    rc = R.main(["--once", "--ledger", str(tmp_path / "x.sqlite"),
-                 "--m1-models-dir", str(tmp_path / "m1"), "--paper-models-csv", str(tmp_path / "p.csv")],
-                now_fn=lambda: datetime(2026, 11, 19, tzinfo=UTC))
-    assert rc == 3
-    assert (tmp_path / "p.csv").read_text(encoding="utf-8").splitlines() == ["ad,sinif,tarif,veri_penceresi,commit,sha256,tarih"]
-
-
 # ---- (d) kurulum, birimler, sunucu belgesi --------------------------------------------------------------------------
-DD12_TIMERS = ("trader-weekly-summary.timer", "trader-ml-retrain.timer", "trader-universe.timer",
+DD12_TIMERS = ("trader-weekly-summary.timer", "trader-universe.timer",
                "trader-counterfactual@learner.timer", "trader-exit-counterfactual@learner.timer")
 
 
@@ -301,5 +209,5 @@ def test_dd12_timer_units_exist_in_deploy():
 def test_owner_guide_covers_steps():
     guide = (ROOT / "docs/motor/dd12-sunucu-adimlari.md").read_text(encoding="utf-8")
     for needle in ("COMMIT=", "install.sh", "outbox-quarantine", "--dry-run", "--apply", "init-ledger", "strategy_update",
-                   "price_action_lab_ml", "trader-ml-retrain", "trader-universe", "8787", "--env testnet"):
+                   "price_action_lab_ml", "trader-universe", "8787", "--env testnet"):
         assert needle in guide, f"sunucu belgesinde eksik: {needle}"

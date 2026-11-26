@@ -18,7 +18,6 @@ from trader_core import ledger as L
 from trader_core.signals import SignalParams
 
 from . import arm_guard as AG
-from .arm_quarantine import unit_for
 from .errors import is_strategy_error
 from .bars import (ARM_TFS, BARS_PER_DAY_4H, MIN_CONTIG_ARM, STARTUP_BARS_ARM, WINDOW_ARM, aggregate_4h_to_1d, arm_closing_tfs,
                    arm_tf_delta, tf_delta)
@@ -314,9 +313,8 @@ class MultiArmSignalSource(WindowedSignalSource):
     baglami (kendi zaman dilimi kapandiginda) kucuk bir gorunum olarak tutulur. Bellek: adimlar arasi yalniz cift basina
     rejim tablosu (lab._reg_cache); tablolar adim sonunda atilir."""
 
-    def __init__(self, *a, position_fn=None, quarantine=None, **k) -> None:
+    def __init__(self, *a, position_fn=None, **k) -> None:
         super().__init__(*a, **k)
-        self.quarantine = quarantine                    # arm_quarantine.ArmQuarantine | None (kurulum kod hatasi karantinasi)
         self.ml1 = None                                 # 25.11 ml1_gate.Ml1Gate | None (motor baglar; kapaliyken hicbir davranis degismez)
         self.position_fn = position_fn                  # cift -> (trigger_tf, entry_bar_open | None) | None (motor tedarik eder)
         self._exit_views: dict[tuple[str, datetime], tuple[str, ExitContext]] = {}
@@ -429,30 +427,18 @@ class MultiArmSignalSource(WindowedSignalSource):
                 rule_in = (trig, ctx)
             fctx = StrategyContext(pair=pair, D=D, tf=tf, params=params, bars=bars, last_exit=le)
             info = lab.info
-            q = self.quarantine
-            hooks = {}
-            if q is not None:
-                units = {k: unit_for(lab, tf, k) for k in ["core"] + [m.SETUP for m in lab.arms_at(tf)]}
-                hooks = {"skip": {k for k, (u, _a) in units.items() if q.blocked(u)},
-                         "on_error": lambda k, e, units=units: q.error(units[k][0], units[k][1], e),
-                         "on_ok": lambda k, units=units: q.ok(units[k][0])}
-            for key, sig in lab.compute_tf(ctx, force_core=(tf == pos_tf), **hooks).items():
+            def _kod_hatasi(k, e, tf=tf):                # kod hatasi yalitimi: yakala, logla, say, bu tur o kolu atla
+                self.counters[f"arm_kod_hatasi:{k}@{tf}"] += 1
+                log.error("kurulum kod hatasi (%s@%s), bu tur atlandi: %s: %s", k, tf, type(e).__name__, e)
+            for key, sig in lab.compute_tf(ctx, force_core=(tf == pos_tf), on_error=_kod_hatasi).items():
                 validate_table(sig, info, trig.index)
-                if q is not None and q.blocked(units[key][0]):
-                    # karantinada: yeni aday YOK; acik pozisyonun cikis baglami yine kurulur (stop/hedef yonetimi surer)
-                    if tf == pos_tf and (key == "core" or exit_view is None):
-                        exit_view = self._exit_view(sig, trig, sig.iloc[-1], pos, D)
-                    continue
-                if q is not None:
-                    try:
-                        last_row = lab.filter_row(key, sig.iloc[-1], fctx)
-                    except Exception as e:  # noqa: BLE001
-                        if not is_strategy_error(e):
-                            raise
-                        q.error(units[key][0], units[key][1], e)
-                        continue
-                else:
+                try:
                     last_row = lab.filter_row(key, sig.iloc[-1], fctx)
+                except Exception as e:  # noqa: BLE001
+                    if not is_strategy_error(e):
+                        raise
+                    _kod_hatasi(key, e)
+                    continue
                 validate_row(last_row, info)
                 if bool(last_row["signal"]) and not bool(sig.iloc[-1]["signal"]):
                     raise StrategyError("bad_table", "post_filter aday ekleyemez")

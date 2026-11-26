@@ -81,7 +81,7 @@ def make_cfg(tmp: Path, ml1: dict | None, arms=ARMS, pairs=PAIRS, **kw):
     base = dict(pairs=tuple(pairs), optional_pairs=(), clusters=clusters, cost_overrides={}, arms=tuple(arms), var_dir=str(tmp / "var"),
                 kill_file=str(tmp / "KILL"), pause_file=str(tmp / "PAUSE"), market_db=str(tmp / "m.sqlite"), history_dir=str(tmp / "h"),
                 cost=dict(fill_model="native", granularity="15m", trigger_source="last"), ml1=ml1 or {},
-                arm_max_positions={"default": 6}, arm_family_max_positions={}, max_positions=36)
+                max_positions=36)
     base.update(kw)
     return apply_overrides(PAPER, **base)
 

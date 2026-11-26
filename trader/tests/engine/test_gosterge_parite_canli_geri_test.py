@@ -29,7 +29,7 @@ from trader_engine.strategy_runner import MultiArmSignalSource, SignalRow, Windo
 
 UTC = timezone.utc
 START = datetime(2026, 1, 5, tzinfo=UTC)          # Pazartesi
-FAMILIES = ("T1", "R1", "TF1", "B1", "H2", "S1", "F1", "M1")
+FAMILIES = ("T1", "R1", "TF1", "B1", "H2", "S1", "F1")
 TFS = ("15m", "1h", "4h", "1d")
 ARMS = [f"{s}@{t}" for s in FAMILIES for t in TFS]
 WARM = {"15m": 4800, "1h": 1200, "4h": 300, "1d": 50}      # tetik tf barinda: 4s isinma (300 x 4s) en siki kosul
@@ -206,10 +206,7 @@ def _check_pair_tf(h, pair, tf, tol, n_cand=6, n_rand=3):
         fr, rows = _live_rows(src, pair, D, params)
         if fr.status != "ok":
             pytest.fail(f"{pair} {tf} {D}: canli {fr.status} {fr.detail}")
-        # M1 yalniz son barda puanlar: tum gecmis tablosunda yalniz son satirda anlamli (D == end)
         for key, t in tabs.items():
-            if key == "M1" and D != end:
-                continue
             rec = t.iloc[i]
             has = rec["setup"] is not None and pd.notna(rec["setup"])
             lr = rows.get((tf, f"{rec['setup']}@{tf}")) if has else None
@@ -231,7 +228,7 @@ def _to_signal_row(pair, open_ts, D, rec):
 @pytest.mark.parametrize("tf", ("15m", "1h", "4h"))
 @pytest.mark.parametrize("pair", CRYPTO + SESSION_FLAT)
 def test_kurulumlar_canli_pencere_eq_tum_gecmis_uzun(uzun, pair, tf):
-    """8 kurulum ailesi (T1,R1,TF1,B1,H2,S1,F1,M1): canli pencere kesiti == tum gecmis tablosu (1e-9). 15m/1s/4s pencereleri asilir.
+    """7 kurulum ailesi (T1,R1,TF1,B1,H2,S1,F1): canli pencere kesiti == tum gecmis tablosu (1e-9). 15m/1s/4s pencereleri asilir.
     Ayrik alanlar (signal/setup/side/skip_reason/regime/dokunus/neden) her durumda BIREBIR ayni olmak zorunda."""
     _check_pair_tf(uzun, pair, tf, TOL)
 

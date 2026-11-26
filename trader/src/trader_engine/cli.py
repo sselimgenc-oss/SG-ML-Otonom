@@ -124,39 +124,6 @@ def _attach_symbol_watch(eng, cfg) -> None:
         logging.getLogger("engine.cli").error("sembol izleyici kurulamadi: %r", e)
 
 
-def _cmd_arm_quarantine(a) -> int:
-    """4b: kurulum karantinasi. `list` status.json'dan okur; `release <kurulum|hepsi>` istek dosyasi yazar (motor dakikada
-    bir isler; motor durukken bir sonraki acilista)."""
-    import json
-
-    from .arm_quarantine import request_release
-    from .clock import SystemClock
-    from .errors import ConfigError
-    try:
-        cfg = _load_cfg(a)
-    except ConfigError as e:
-        print(f"yapilandirma hatasi: {e}", file=sys.stderr)
-        return EXIT_FAZ_B
-    if a.action == "release":
-        if not a.target:
-            print("release icin kurulum (ya da 'hepsi') gerekli", file=sys.stderr)
-            return EXIT_FAZ_B
-        p = request_release(Path(cfg.path("x")).parent, a.target, "cli", SystemClock().now())
-        print(f"karantina kaldirma istegi yazildi: {p}")
-        return EXIT_OK
-    try:
-        doc = json.loads(Path(cfg.status_path).read_text(encoding="utf-8"))
-        rows = (doc.get("dayaniklilik") or {}).get("karantina") or []
-    except (OSError, ValueError):
-        print("status.json okunamadi", file=sys.stderr)
-        return EXIT_ENGINE
-    for r in rows:
-        print(f"{r.get('birim')}\t{r.get('durum')}\t{','.join(r.get('kollar') or [])}\t{r.get('hata')}")
-    if not rows:
-        print("karantinada kurulum yok")
-    return EXIT_OK
-
-
 def _cmd_init_ledger(a) -> int:
     from .errors import ConfigError
     try:
@@ -942,12 +909,6 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("--apply", action="store_true", help="gecersiz satirlari ledger_outbox_quarantine'a tasir")
     env_arg(p)
     p.set_defaults(fn=_cmd_outbox_quarantine)
-    p = sub.add_parser("arm-quarantine")                # 4b: kurulum kod hatasi karantinasi (list | release)
-    bot_args(p)
-    p.add_argument("action", choices=("list", "release"))
-    p.add_argument("target", nargs="?", default=None, help="release: kurulum kimligi (T1@1h) ya da 'hepsi'")
-    env_arg(p)
-    p.set_defaults(fn=_cmd_arm_quarantine)
     p = sub.add_parser("pause")
     bot_args(p)
     p.add_argument("--clear", action="store_true")

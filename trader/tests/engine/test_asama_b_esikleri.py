@@ -108,8 +108,8 @@ def mk(tmp_path):
         e.led.close()
 
 
-# yalniz ilgili kuralin denendigi yalin yapilandirma: baska tavan (kume/kol/hesap) araya girmez
-BOS = dict(korelasyon={}, kayip_freni={}, toplam_buyukluk_kat=None, clusters={}, arm_max_positions={}, max_positions=None,
+# yalniz ilgili kuralin denendigi yalin yapilandirma: baska tavan (kume/hesap) araya girmez
+BOS = dict(korelasyon={}, kayip_freni={}, toplam_buyukluk_kat=None, clusters={}, max_positions=None,
            etiket_kurallari={})
 
 
@@ -357,22 +357,17 @@ def test_fren_gunluk_yuzde4_ve_ertesi_gun_kalkar(mk):
     assert "kayip_freni" not in (o2.event.features or {}) and _risk(o2) == pytest.approx(temel * 0.96, rel=0.02)
 
 
-def test_fren_kademe_ve_kol_ile_asgari_alir_asla_artirmaz(mk):
+def test_fren_kademe_ile_asgari_alir_asla_artirmaz(mk):
     kw = {**BOS, "kayip_freni": {"ardisik": 5, "gunluk_oran": 0.04, "carpan": 0.5}}
     e = mk(PAPER, **kw)
     temel = _risk(_go(e))
     _kapat(e.led, [False] * 5)
-    # 1) kol kucultme 0.3 < fren 0.5 -> min = 0.3 (carpilmaz, 0.15 degil)
-    e.led.arm_recent_results = lambda aid, n: [-1.0] * 10                          # type: ignore[method-assign]
-    assert _risk(_go(e, "ETH/USDT")) == pytest.approx(temel * 0.3, rel=0.03)
-    # 2) kol 0.5 ile fren 0.5 -> 0.5
-    e.led.arm_recent_results = lambda aid, n: [-1.0] * 5                           # type: ignore[method-assign]
-    assert _risk(_go(e, "SOL/USDT")) == pytest.approx(temel * 0.5, rel=0.02)
-    e.led.arm_recent_results = lambda aid, n: []                                   # type: ignore[method-assign]
-    # 3) kademe (ladder) hedefi 0.0035 < fren hedefi 0.005: fren artirmaz, kademe hedefi korunur
+    # 1) fren aktif: risk temelin 0.5 kati
+    assert _risk(_go(e, "ETH/USDT")) == pytest.approx(temel * 0.5, rel=0.02)
+    # 2) kademe (ladder) hedefi 0.0035 < fren hedefi 0.005: fren artirmaz, kademe hedefi korunur
     e.g.ladder = SimpleNamespace(risk_config=K.tightened(PAPER.risk_config, target_trade_risk=0.0035), gate_code=lambda: None)
     assert _risk(_go(e, "XRP/USDT")) == pytest.approx(temel * 0.35, rel=0.03)
-    # 4) kademe 0.005 (basamak 0) ile fren: 0.005 (0.0025 degil)
+    # 3) kademe 0.005 (basamak 0) ile fren: 0.005 (0.0025 degil)
     e.g.ladder = SimpleNamespace(risk_config=K.tightened(PAPER.risk_config, target_trade_risk=0.005), gate_code=lambda: None)
     assert _risk(_go(e, "BNB/USDT")) == pytest.approx(temel * 0.5, rel=0.02)
 

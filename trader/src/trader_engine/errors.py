@@ -44,8 +44,8 @@ class EngineExit(Exception):
 
 # ---------------------------------------------------------------------------------------------------------------------
 # Hata siniflandirma: KOD hatasi (programlama) - GECICI hata (ag/veri/borsa). 1L3A motor/canli/paper_veri.py'den uyarlandi.
-# Programlama hatalari gecici sayilip gizlenmez; gecici hatalar kod hatasi sayilip karantina/durus tetiklemez. Tek yer: tur
-# koruyucusu (tur_koruyucu.py), kurulum karantinasi (arm_quarantine.py) ve sinyal kaynagi bu iki yardimciyi kullanir.
+# Programlama hatalari gecici sayilip gizlenmez; gecici hatalar kod hatasi sayilip kol atlama/durus tetiklemez. Tek yer: tur
+# koruyucusu (tur_koruyucu.py) ve sinyal kaynagi (kol kod hatasi yalitimi: yakala, logla, say, o kolu bu tur atla) bu iki yardimciyi kullanir.
 import json as _json
 
 CODE_ERRORS: tuple[type[BaseException], ...] = (
@@ -56,7 +56,7 @@ CODE_ERRORS: tuple[type[BaseException], ...] = (
 # kaynaklidir. ConfigError bir ValueError'dur; EngineError oldugu icin burada gecici sayilir (kod hatasi degil).
 TRANSIENT_ERRORS: tuple[type[BaseException], ...] = (EngineError, OSError, _json.JSONDecodeError, UnicodeError)
 
-# Strateji KARAR kodunda ayrica ValueError de kod hatasidir (1L3A karari): o kurulum karantinaya girer, tur surer. Veri cekme /
+# Strateji KARAR kodunda ayrica ValueError de kod hatasidir (1L3A karari): o kol bu tur atlanir, tur surer. Veri cekme /
 # yeniden deneme yolunda ValueError gecici kalir (`is_code_error` degismez).
 STRATEGY_CODE_ERRORS: tuple[type[BaseException], ...] = CODE_ERRORS + (ValueError,)
 
@@ -74,5 +74,5 @@ def is_code_error(e: BaseException) -> bool:
 
 
 def is_strategy_error(e: BaseException) -> bool:
-    """Strateji karar kodundaki hata karantina gerektirir mi: kod hatasi + ValueError; gecici hatalar HARIC."""
+    """Strateji karar kodundaki hata atlanmasi gerekir mi: kod hatasi + ValueError; gecici hatalar HARIC."""
     return isinstance(e, STRATEGY_CODE_ERRORS) and not _is_transient(e)

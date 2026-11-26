@@ -248,9 +248,7 @@ def render_md(res: dict) -> str:
           f"- Hafif donanim serisi olan kurulumlar ({len(hs)}): {', '.join(hs) or '-'}.",
           f"- Seri / defter **olmayan** {len(miss)} kurulum: {', '.join(a['kurulum'] for a in miss) or '-'}. Bunlar icin PBO hesaplanmadi; deneme uydurulmadi."]
     L += [f"  - `{a['kurulum']}`: {a.get('neden', 'deneme kaydi / defter yok')}" for a in miss if a.get("neden")]
-    L += ["- M1 (LightGBM/ridge onerici) adaylari: `research/paper_models.csv` ve `research/pa_proposer_build.py` yalniz egitim kaydi tutar "
-          "(model sha256, satir sayisi); gonderilen paketin kendi egitim penceresi icinde degerlendirme sizinti olur, bu yuzden yalniz egitim-disi "
-          "donem kullanilir (asagida bolum 5).",
+    L += [
           "- Defter ailelerinde yalniz `T1` ve `R1` var; `T1` defterlerinin bir kismi (`ml_cand_v1b_native`, `s2_base_v1b`) farkli strateji surumu "
           "(`price_action_v1`) ve 10 ciftlik evrenle kosulmustur."]
     H = res.get("harness") or {}

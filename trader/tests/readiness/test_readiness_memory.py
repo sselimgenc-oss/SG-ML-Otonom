@@ -48,7 +48,7 @@ def test_memory_budget_sums():
 
 def test_tutarlilik_weekly_oneshot_is_bounded_and_fits_slice():
     """Faz 2a: haftalik kagit-geri test tutarlilik birimi (pazartesi 00:30 UTC; kisa omurlu, `backtest --env paper`). Tavan olcume dayanir
-    (docs/motor/tutarlilik-raporu-spec.md notu); gece isleri (counterfactual 23:10, ml-retrain 00:40) ile cakismaz; toplam butceye girer."""
+    (docs/motor/tutarlilik-raporu-spec.md notu); gece isleri (counterfactual 23:10) ile cakismaz; toplam butceye girer."""
     m = _mem("trader-tutarlilik.service")
     assert m == 300                                                      # olculen tepe ~135 MB (44 cift, 7 gun, store) x ~2,2
     kv = _kv("trader-tutarlilik.service")
@@ -194,7 +194,7 @@ def test_install_uninstall_handle_slice_and_publish_stays_gated():
 def test_exit_counterfactual_oneshot_is_bounded_and_fits_slice():
     """Cikis karsi-olgusu (25c): gece isi 23:40 UTC; pandas/numpy ice aktarilir (kacinilmaz) -> 256 MB (soft 192 MB). Alinmayan-sinyal isi (23:10, 128 MB)
     ile cakismaz (kisa omurlu, siradan biter); toplam butceye
-    bir 'gece isi' payi olarak girer (ONESHOTS listesinde degil: ml-retrain/counterfactual gibi gece isleri sirayla calisir)."""
+    bir 'gece isi' payi olarak girer (ONESHOTS listesinde degil: counterfactual gibi gece isleri sirayla calisir)."""
     m = _mem("trader-exit-counterfactual@.service")
     kv = dict(unit_kv((DEPLOY / "trader-exit-counterfactual@.service").read_text(encoding="utf-8")))
     assert m == 256 and kv["MemoryHigh"] == "192M" and int(kv["MemoryHigh"][:-1]) < m

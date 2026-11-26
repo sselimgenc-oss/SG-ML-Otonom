@@ -1,7 +1,7 @@
 """ML1: kurulum (setup) -> fikir grubu eslemesi (plan bolum 6: 71 kurulum, 20 grup) ve kural kolu listesi.
 
 `family` ve `tf` ayri sutunlar olarak tutulur; grup yalniz fikir (ornek: PULLBACK_1LEG) sinifidir.
-M1 (ML kolu), DL1 ve HB1 kural kolu degildir: aday tablosuna girmez."""
+M1 (ML kolu), DL1 ve HB1 kaldirildi (25.11); kural kolu degildir: aday tablosuna girmez."""
 from __future__ import annotations
 
 import json

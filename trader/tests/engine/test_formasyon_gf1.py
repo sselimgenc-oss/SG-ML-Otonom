@@ -273,7 +273,7 @@ def test_kesif_13_formasyon_sanal_kurulum():
     assert sorted(gf1.FORMASYONLAR[k].sira for k in KODLAR) == list(range(1, 14))
     assert [k for k in sorted(KODLAR, key=lambda k: gf1.FORMASYONLAR[k].sira)] == [
         "OBO", "UCLU", "KUPA", "IKILI", "KAMA", "UCGEN", "BAYRAK", "FLAMA", "RETEST", "SAHTE", "TREND", "KANAL", "YATAY"]
-    for s in ("M1", "T1", "R1", "TF1", "B1", "H2", "S1", "F1"):
+    for s in ("T1", "R1", "TF1", "B1", "H2", "S1", "F1"):
         assert arms.priority_of(s) < 200
 
 
@@ -300,15 +300,13 @@ def _cfg(ad):
 
 def test_kagit_canli_ayni_ve_gf1_52_kimlik():
     p, l = _cfg("engine.paper.json"), _cfg("engine.live.json")
-    for k in ("arms", "arm_max_positions", "arm_family_max_positions"):
+    for k in ("arms",):
         assert p[k] == l[k], k
-    assert p["arm_family_max_positions"]["GF1"] == 6 and p["arm_max_positions"]["GF1-*"] == 3
     lib = [a for a in p["arms"] if a.startswith("GF1-")]
     beklenen = [f"{s}@{tf}" for s in sorted(a for a in arms.list_arms() if a.startswith("GF1-")) for tf in TFS]
     assert sorted(lib) == sorted(beklenen) and len(lib) == 52 and len(set(p["arms"])) == len(p["arms"])
     for ad in ("engine.paper.json", "engine.live.json"):
         cfg = C.load_cli_config(ROOT / "config", "learner", ad.split(".")[1])
-        assert cfg.arm_family_max_positions["GF1"] == 6 and cfg.arm_max_positions["GF1-*"] == 3
         assert all(a in cfg.arms for a in beklenen)
 
 

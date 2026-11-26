@@ -572,53 +572,10 @@ def _parse_dt_utc(s):
     return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
 
 
-PA_PROPOSER_MAX_AGE_DAYS = 8     # DD-12 WP-14 (spec 5.3): M1 paketi 8 gunden eskiyse uyar (sonra expiry 21 gun)
-
-
-def pa_proposer_alerts(env: dict, now: datetime, models_dir: str | None = None) -> list:
-    """M1 (pa_proposer) paket tazeligi: models/pa_proposer/*.json (.prev.json yok sayilir). Paket yok -> WARN; created_at 8 gunden
-    eski ya da okunamayan -> WARN. Motor etkilenmez (M1 aday uretmez); yalniz bilgi amacli uyari."""
-    root = data_root(env)                # 19 Kasim: kod kopyasi (releases/<commit>) models/ ve var/ icermez; veri koku (TRADER_DATA_ROOT)
-    if models_dir:                       # acik dizin (test/elle): yalniz o dizin
-        dirs = [Path(models_dir)]
-    else:                                # calisma zamani (gece egitimi) once; depodaki tohum yalniz eksik dosyayi tamamlar
-        dirs = [Path(env.get("PA_PROPOSER_MODELS_DIR") or (root / "var" / "learner" / "models" / "pa_proposer")),
-                root / "models" / "pa_proposer"]
-    seen: dict[str, Path] = {}
-    for d in dirs:
-        if d.is_dir():
-            for p in sorted(d.glob("*.json")):
-                if not p.name.endswith(".prev.json"):
-                    seen.setdefault(p.name, p)
-    files = [seen[k] for k in sorted(seen)]
-    d = dirs[0]
-    if not files:
-        return [H.Alert(H.Status.WARN, "pa_proposer_missing", "M1 paketi yok",
-                        f"{d} ve tohum dizini altinda M1 paketi bulunamadi; M1 aday uretmiyor.", "pa_proposer|missing", now)]
-    stale = []
-    for p in files:
-        try:
-            created = _parse_dt_utc(json.loads(p.read_text(encoding="utf-8"))["meta"]["created_at"])
-            if created is None or (now - created) > timedelta(days=PA_PROPOSER_MAX_AGE_DAYS):
-                stale.append(f"{p.stem} ({'bilinmiyor' if created is None else (now - created).days} gun)")
-        except (OSError, ValueError, KeyError, TypeError):
-            stale.append(f"{p.stem} (okunamadi)")
-    if not stale:
-        return []
-    return [H.Alert(H.Status.WARN, "pa_proposer_stale", "M1 paketi eski",
-                    f"{PA_PROPOSER_MAX_AGE_DAYS} gunden eski ya da okunamayan M1 paketi: {', '.join(stale)}. "
-                    "Nightly degil, sunucu disi egitim (research/pa_proposer_build.py) yeniden calistirilmali.",
-                    "pa_proposer|stale", now)]
-
-
 # Ek (bilgi amacli) uyarilar: sade Turkce metin; dosya/servis adi yok. Ayni uyari bir kez gider, sorun surerse en fazla
 # EK_HATIRLATMA_SAAT'te bir hatirlatma, kapaninca tek "Duzeldi" (uyarilar her turda tekrarlanmasin).
 EK_HATIRLATMA_SAAT = 6
 EK_METIN = {   # parmak izi -> (baslik, anlami, duzeldi)
-    "pa_proposer|stale": ("M1 modeli eskidi", "M1 önerici modeli 8 günden eski; yeniden eğitilmesi gerekiyor. İşlemler etkilenmez.",
-                          "M1 modeli yeniden güncel"),
-    "pa_proposer|missing": ("M1 modeli bulunamadı", "M1 kurulumu şu an aday üretmiyor; diğer kurulumlar etkilenmez.",
-                            "M1 modeli yeniden yüklendi"),
     "tutarlilik|sapma": ("Kâğıt ile geri test arasında fark var",
                          "Haftalık tutarlılık raporu bir sapma buldu; ayrıntı panoda Doğrulama sekmesinde. İşlemler etkilenmez.",
                          "Kâğıt ile geri test yeniden uyumlu"),
@@ -874,7 +831,7 @@ def run_once(env: dict, *, now: datetime | None = None, state_path=None, notifie
     if quiet_until is not None:   # ek uyarilar (disk/...) olumcul degil: pencere boyunca tutulur, durum aynen kalir
         new_state["ek_uyarilar"] = state.get("ek_uyarilar") or {}
     else:
-        ek = pa_proposer_alerts(env, now) + tutarlilik_alerts(env, now) + disk_alerts(env, now)
+        ek = tutarlilik_alerts(env, now) + disk_alerts(env, now)
         ek_gonder, new_state["ek_uyarilar"] = ek_uyari_plani(ek, state.get("ek_uyarilar"), now)
         alerts.extend(ek_gonder)
     # sessizlik ozeti: pencerede tutulan uyari basliklari state'te birikir; pencere bitince TEK ozet gider

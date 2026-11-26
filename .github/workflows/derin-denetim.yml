@@ -50,7 +50,7 @@ jobs:
             dosyalar: "trader/src/trader_engine/strategies trader/src/trader_core/signals.py trader/src/trader_core/regime.py trader/src/trader_core/indicators.py"
           - id: m1
             ad: "M1: ozellikler, etiketler, gece egitimi, paket, cikarim, kol"
-            dosyalar: "trader/src/trader_ml trader/scripts/ml_retrain_run.py trader/src/trader_core/ml_package.py trader/src/trader_engine/strategies/arms trader/deploy/trader-ml-retrain.timer trader/deploy/trader-ml-retrain.service"
+            dosyalar: "trader/src/trader_ml trader/src/trader_core/ml_package.py trader/src/trader_engine/strategies/arms trader/deploy/trader-ml-retrain.timer trader/deploy/trader-ml-retrain.service"
           - id: surum
             ad: "Parametre surumleri (defter): kullanici surumu, etkinlestirme, ust surum zinciri, strateji etiketi, motor baslangic denetimi"
             dosyalar: "trader/src/trader_core/ledger.py trader/src/trader_engine/engine.py trader/src/trader_engine/cli.py trader/docs/defter-spec.md"

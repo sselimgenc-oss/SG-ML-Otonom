@@ -1,4 +1,4 @@
-"""Ek saglik uyarilari (CT verisi, M1 paketi, tutarlilik): bir kez gider, en fazla 6 saatte bir hatirlatilir, kapaninca
+"""Ek saglik uyarilari (CT verisi, tutarlilik): bir kez gider, en fazla 6 saatte bir hatirlatilir, kapaninca
 tek 'Duzeldi'; metin sade Turkce, dosya/servis adi yok (19 Kasim: CT uyarisi her turda tekrarlaniyordu)."""
 import sys
 from datetime import datetime, timedelta, timezone
@@ -15,8 +15,8 @@ T0 = datetime(2026, 11, 19, 17, 20, tzinfo=timezone.utc)
 
 
 def _ct(now):
-    return H.Alert(H.Status.WARN, "pa_proposer_stale", "M1 modeli eski",
-                   "M1 modeli eski; pa_proposer paketini yenileyin.", "pa_proposer|stale", now)
+    return H.Alert(H.Status.WARN, "tutarlilik_sapma", "Tutarlilik sapmasi",
+                   "Kagit ile geri test arasinda fark var.", "tutarlilik|sapma", now)
 
 
 def test_bir_kez_sonra_6_saatte_bir_sonra_tek_duzeldi():
@@ -28,13 +28,13 @@ def test_bir_kez_sonra_6_saatte_bir_sonra_tek_duzeldi():
     assert len(gonderilen) == 2                          # ilk + 6. saatte hatirlatma
     assert gonderilen[1].created_at - gonderilen[0].created_at == timedelta(hours=6)
     m = gonderilen[0]
-    assert m.title == "⚠️ Dikkat: M1 modeli eskidi"
+    assert m.title == "⚠️ Dikkat: Kâğıt ile geri test arasında fark var"
     for yasak in ("timer", "var/", ".json", "trader-", "durum.json"):
         assert yasak not in m.title and yasak not in m.body
     assert gonderilen[0].fingerprint != gonderilen[1].fingerprint     # hatirlatma Outbox tekrar onleyicisine takilmaz
     now = T0 + timedelta(hours=7, minutes=5)
     out, durum = HR.ek_uyari_plani([], durum, now)       # sorun kapandi
-    assert [a.title for a in out] == ["✅ Düzeldi: M1 modeli yeniden güncel"] and out[0].level is H.Status.OK
+    assert [a.title for a in out] == ["✅ Düzeldi: Kâğıt ile geri test yeniden uyumlu"] and out[0].level is H.Status.OK
     out, durum = HR.ek_uyari_plani([], durum, now + timedelta(minutes=5))
     assert out == [] and durum == {}                     # duzeldi yalniz bir kez
 
@@ -44,7 +44,7 @@ def test_ct_uyarisi_kaldirildi():
 
 
 def test_tum_ek_uyarilarin_sade_metni_var():
-    for fp in ("pa_proposer|stale", "pa_proposer|missing", "tutarlilik|sapma"):
+    for fp in ("tutarlilik|sapma",):
         baslik, anlam, duzeldi = HR.EK_METIN[fp]
         for t in (baslik, anlam, duzeldi):
             assert "/" not in t and ".py" not in t and "timer" not in t and t.strip()
@@ -107,7 +107,7 @@ def test_ek_uyari_geri_al_saf():
     onceki = yeni
     now2 = now + timedelta(hours=7)
     out2, yeni2 = HR.ek_uyari_plani([_ct(now2)], onceki, now2)
-    assert len(out2) == 1 and yeni2["pa_proposer|stale"]["son"] != onceki["pa_proposer|stale"]["son"]
+    assert len(out2) == 1 and yeni2["tutarlilik|sapma"]["son"] != onceki["tutarlilik|sapma"]["son"]
     assert HR.ek_uyari_geri_al(yeni2, onceki, out2) == onceki              # hatirlatma gitmedi -> eski `son` korunur
     out3, yeni3 = HR.ek_uyari_plani([], onceki, now2)                      # duzeldi
     assert yeni3 == {} and HR.ek_uyari_geri_al(yeni3, onceki, out3) == onceki
@@ -128,7 +128,6 @@ def test_run_once_ek_uyari_gonderilemezse_durum_ilerlemez(tmp_path, monkeypatch)
             self.sent.append(a)
             return self.ok_send
 
-    monkeypatch.setattr(HR, "pa_proposer_alerts", lambda *a, **k: [])
     monkeypatch.setattr(HR, "tutarlilik_alerts", lambda *a, **k: [])
     monkeypatch.setattr(HR, "disk_alerts", lambda *a, **k: [ek])
     sp = tmp_path / "state.json"

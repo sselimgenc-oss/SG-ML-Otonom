@@ -144,13 +144,11 @@ class PriceActionLab:
         setups = tuple(m.SETUP for m in self.arms_at(ctx.tf) if getattr(m, "CORE", False))
         return mask_to_setups(self._core(ctx), setups)
 
-    def compute_tf(self, ctx: StrategyContext, *, force_core: bool = False, skip=(), on_error=None,
-                   on_ok=None) -> dict[str, pd.DataFrame]:
+    def compute_tf(self, ctx: StrategyContext, *, force_core: bool = False, on_error=None) -> dict[str, pd.DataFrame]:
         """ctx.tf kapandi: {anahtar: aday tablosu}. `core` = CORE kurulumlarin birlesik tablosu (1s'de ML puani dahil);
         digerleri kurulum koduyla. `force_core`: acik pozisyonun cikis baglami icin tablo gerekir (kurulum olmasa da).
-        Karantina kancalari (arm_quarantine.py): `skip` anahtarlar hesaplanmaz (acik pozisyon icin zorunlu `core` HARIC: tablo
-        yine hesaplanir, aday uretimini cagiran keser); `on_error(key, exc)` yalniz strateji kod hatasinda (errors.is_strategy_error)
-        cagrilir ve anahtar atlanir, diger hatalar yukselir; `on_ok(key)` basarili hesapta. Kanca yoksa eski davranis."""
+        Kod hatasi yalitimi: `on_error(key, exc)` yalniz strateji kod hatasinda (errors.is_strategy_error) cagrilir ve o anahtar
+        bu tur atlanir (tur dusmez); diger hatalar yukselir. Kanca yoksa eski davranis (hata yukselir)."""
         from ..errors import is_strategy_error
         out: dict[str, pd.DataFrame] = {}
         arms = self.arms_at(ctx.tf)
@@ -162,13 +160,10 @@ class PriceActionLab:
                 if on_error is None or not is_strategy_error(e):
                     raise
                 on_error(key, e)
-                return
-            if on_ok is not None:
-                on_ok(key)
 
-        if (force_core or any(getattr(m, "CORE", False) for m in arms)) and (CORE_KEY not in skip or force_core):
+        if force_core or any(getattr(m, "CORE", False) for m in arms):
             run(CORE_KEY, lambda: self.compute(ctx))
-        setups = [m for m in arms if not getattr(m, "CORE", False) and m.SETUP not in skip]
+        setups = [m for m in arms if not getattr(m, "CORE", False)]
         if not setups:                                           # kurulum yoksa barlara dokunma (eski davranis)
             return out
         full = ctx.bars[ctx.tf]
@@ -181,7 +176,7 @@ class PriceActionLab:
                 run(m.SETUP, lambda m=m, inp=inp: m.compute(inp))
             else:
                 # kurulum yalniz dolu mumlarda calisir, tablo tam izgaraya genisler (olu satirlarda aday yok: karar mumu oluysa
-                # son satir aday degildir; yalniz-son-bar kurulumlarinin (M1) bayat dolu bardaki adayi gecmis satirda kalir)
+                # son satir aday degildir; yalniz-son-bar kurulumlarinin bayat dolu bardaki adayi gecmis satirda kalir)
                 run(m.SETUP, lambda m=m, inp=inp: AG.expand_rows(m.compute(inp), full.index, keep, AG.CARRY_SIGNAL))
         return out
 

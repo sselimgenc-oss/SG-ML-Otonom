@@ -15,14 +15,13 @@ import pandas as pd
 import pytest
 
 from trader_core import exit_modes as EM
-from trader_core import formasyon_on_deger as FOD
 from trader_core import ledger as L
 from trader_engine import arm_guard as AG
 from trader_engine import config as C
 from trader_engine.position_manager import ExitContext, evaluate_exit
 from trader_engine.strategies import arms
 from trader_engine.strategies.arms import _kutuphane as K
-from trader_engine.strategies.arms import m1 as M1MOD
+import bos_cekirdek as M1MOD
 from trader_engine.strategies.arms import mf1
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -335,94 +334,15 @@ def test_tireli_kod_yollari():
     assert C._build_arms(["MF1-YUTAN@1h"]) == ("MF1-YUTAN@1h",)
     with pytest.raises(C.ConfigError):
         C._build_arms(["MF1-@1h"])
-    assert C._build_arm_caps({"MF1-*": 3, "MF1-YUTAN": 2, "MF1-YUTAN@1h": 1, "default": 6})["MF1-*"] == 3
-    with pytest.raises(C.ConfigError):
-        C._build_arm_caps({"MF1-": 3})
-    assert C._build_arm_family_caps({"MF1": 6}) == {"MF1": 6}
-    for kotu in ({"mf1": 6}, {"MF1-YUTAN": 6}, {"MF1": 0}, [6]):
-        with pytest.raises(C.ConfigError):
-            C._build_arm_family_caps(kotu)
 
 
-def test_arms_off_ve_karantina_tireli_kimlik(tmp_path):
+def test_arms_off_tireli_kimlik(tmp_path):
     p = tmp_path / "arms_off.json"
     p.write_text(json.dumps({"arms": {"MF1-YUTAN@1h": {"state": "closed"}, "T1@1h": {"state": "open"}}}), encoding="utf-8")
     assert AG.load_arms_off(p) == frozenset({"MF1-YUTAN@1h"})
-    from trader_engine.arm_quarantine import unit_for
     from trader_engine.strategies.lab import PriceActionLab
     lab = PriceActionLab(("MF1-YUTAN@1h", "MF1-PINBAR@1h"))
-    assert unit_for(lab, "1h", "MF1-YUTAN") == ("MF1-YUTAN@1h", ["MF1-YUTAN@1h"])
     assert lab.info.setups == ("MF1-YUTAN", "MF1-PINBAR")
-
-
-# ------------------------------------------------------------------------------------------------ tavanlar
-def test_joker_formasyon_zd_tavani_ve_aile_tavani():
-    caps = {"default": 6, "M1": 4, "MF1-*": 3}
-    assert AG.arm_cap(caps, "MF1-YUTAN@1h", "MF1-YUTAN") == 3
-    assert AG.arm_cap({**caps, "MF1-YUTAN": 2}, "MF1-YUTAN@1h", "MF1-YUTAN") == 2          # kurulum anahtari jokeri gecer
-    assert AG.arm_cap({**caps, "MF1-YUTAN@1h": 1}, "MF1-YUTAN@1h", "MF1-YUTAN") == 1
-    assert AG.arm_cap(caps, "T1@1h", "T1") == 6 and AG.arm_cap(caps, "M1@1h", "M1") == 4
-    held = ["MF1-YUTAN@1h"] * 3
-    assert AG.arm_full(held, "MF1-YUTAN@1h", 3)
-    assert not AG.arm_full(held, "MF1-YUTAN@4h", 3)                                         # formasyon x ZD bazinda
-    assert not AG.arm_full(held, "MF1-PINBAR@1h", 3)
-    # aile tavani 6: formasyon ve ZD'lerden bagimsiz toplam
-    setups = ["MF1-YUTAN"] * 3 + ["MF1-PINBAR"] * 2 + ["T1"] * 4 + [None]
-    fc = {"MF1": 6}
-    assert AG.family_count(setups, "MF1") == 5 and AG.family_full(setups, "MF1-DISBAR", fc) is None
-    assert AG.family_full(setups + ["MF1-DELICI"], "MF1-DISBAR", fc) == "MF1"
-    assert AG.family_full(setups + ["MF1-DELICI"], "T1", fc) is None and AG.family_full([], "MF1-X1", {}) is None
-
-
-def test_aile_tavani_kapida_siradaki_aday_denenir():
-    from trader_engine import gates as G
-    from types import SimpleNamespace as NS
-    out = NS(code="max_positions", event=NS(veto_reason="gate:arm_cap:MF1"))
-    assert G.aday_ozgu_red(out) is True                      # aile tavani adaya ozgu: siradaki aday denenir
-
-
-# ------------------------------------------------------------------------------------------------ on deger
-def test_on_deger_dosyasi_bos_ve_mekanizma(tmp_path):
-    """Kullanici karari: dosya bos (hepsi tam boy). Mekanizma: dosya doluysa yalniz kutuphane kolunda aile ortalamasi yerine."""
-    assert json.loads((ROOT / "config" / "formasyon_on_deger.json").read_text(encoding="utf-8")) == {}
-    assert FOD.yukle() == {} and FOD.r_of("MF1-YUTAN@1h") is None
-    p = tmp_path / "od.json"
-    p.write_text(json.dumps({"MF1-YUTAN@1h": {"r": -0.2, "n": 100}, "kotu": 1, "MF1-X@1h": {"r": "a"}}), encoding="utf-8")
-    assert FOD.r_of("MF1-YUTAN@1h", p) == -0.2 and FOD.r_of("MF1-PINBAR@1h", p) is None and FOD.r_of("MF1-X@1h", p) is None
-    assert FOD.yukle(tmp_path / "yok.json") == {}
-
-
-def _kapi(ledger):
-    from trader_engine.gates import EntryGate
-    g = EntryGate.__new__(EntryGate)
-    g.ledger = ledger
-    return g
-
-
-class _Def:
-    def __init__(self, sonuc, aile):
-        self.sonuc, self.aile = sonuc, aile
-
-    def arm_recent_results(self, aid, n):
-        return list(self.sonuc)
-
-    def arm_family_mean_r(self, aid, D=None):
-        return self.aile
-
-
-def test_on_deger_kol_karari_bagli(tmp_path, monkeypatch):
-    p = tmp_path / "od.json"
-    p.write_text(json.dumps({"MF1-YUTAN@1h": {"r": -0.3, "n": 100}}), encoding="utf-8")
-    monkeypatch.setattr(FOD, "DOSYA", p)
-    bos = _kapi(_Def([], None))._kol_karari("MF1-YUTAN@1h")
-    ref = _kapi(_Def([], -0.3))._kol_karari("MF1-YUTAN@1h")
-    assert bos is not None and ref is not None and bos.carpan == ref.carpan < 1.0         # on deger eksi: kucuk baslar
-    assert _kapi(_Def([], None))._kol_karari("MF1-PINBAR@1h").carpan == 1.0                 # on degersiz: tam boy
-    assert _kapi(_Def([], 0.5))._kol_karari("MF1-YUTAN@1h").carpan == _kapi(_Def([], 0.5))._kol_karari("MF1-YUTAN@1h").carpan
-    gercek = _kapi(_Def([], 0.5))._kol_karari("MF1-YUTAN@1h")                              # gercek aile verisi varsa on deger yok
-    assert gercek.carpan == 1.0
-    monkeypatch.setattr(FOD, "DOSYA", ROOT / "config" / "formasyon_on_deger.json")
-    assert _kapi(_Def([], None))._kol_karari("MF1-YUTAN@1h").carpan == 1.0                 # gercek dosya bos: tam boy
 
 
 # ------------------------------------------------------------------------------------------------ cikis
@@ -494,15 +414,13 @@ def _cfg(ad):
 
 def test_kagit_canli_ayni_ve_mf1_48_kimlik():
     p, l = _cfg("engine.paper.json"), _cfg("engine.live.json")
-    for k in ("arms", "arm_max_positions", "arm_family_max_positions"):
+    for k in ("arms",):
         assert p[k] == l[k], k
-    assert p["arm_family_max_positions"]["MF1"] == p["arm_family_max_positions"]["PA2"] == 6 and p["arm_max_positions"]["MF1-*"] == 3   # 24.11 kullanici karari: formasyon kutuphanesi (PA2 aile 6)
     lib = [a for a in p["arms"] if a.startswith("MF1-")]
     beklenen = [f"{s}@{tf}" for s in sorted(a for a in arms.list_arms() if a.startswith("MF1-")) for tf in TFS]
     assert sorted(lib) == sorted(beklenen) and len(lib) == 48 and len(set(p["arms"])) == len(p["arms"])
     for ad in ("engine.paper.json", "engine.live.json"):
         cfg = C.load_cli_config(ROOT / "config", "learner", ad.split(".")[1])
-        assert cfg.arm_family_max_positions["MF1"] == cfg.arm_family_max_positions["PA2"] == 6 and cfg.arm_max_positions["MF1-*"] == 3   # 24.11 kullanici karari: formasyon kutuphanesi
         assert all(a in cfg.arms for a in beklenen)
 
 

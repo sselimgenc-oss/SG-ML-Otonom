@@ -218,10 +218,6 @@ class PanelData:
             acik = PP.open_view(ctx, status, now)
             kz = PP.kz_view(ctx, start, now, curve, P.paper_maps()[0])
             try:
-                kucultme = PP.kucultme_view(lp, b, arms=P.paper_maps()[0], now=now)
-            except Exception:  # noqa: BLE001 - kucultme karti istege bagli
-                kucultme = None
-            try:
                 ogrenme = PP.ogrenme_view(lp, ctx, now, arms=P.paper_maps()[0])
             except Exception:  # noqa: BLE001 - ogrenme karti istege bagli; okunamazsa gizlenir
                 ogrenme = None
@@ -243,7 +239,7 @@ class PanelData:
                                     dayaniklilik=(status or {}).get("dayaniklilik"))
             isik = PP._problem(teknik.get("saglik"), s["state"], serit["risk"], safe["budget"])
             return {"bot_durum": s["state"], "mod": (status or {}).get("mode"), "serit": serit, "acik": acik, "kz": kz,
-                    "son3": PP.closed_view(lp, b, "tumu", now, 3)["rows"], "kucultme": kucultme, "ogrenme": ogrenme, "teknik": teknik,
+                    "son3": PP.closed_view(lp, b, "tumu", now, 3)["rows"], "ogrenme": ogrenme, "teknik": teknik,
                     "isik": isik, "yapmali": PP.ne_yapmali(s["state"], serit["risk"], acik["n"], None, teknik.get("saglik"))}
         return self._wrap(fn)
 

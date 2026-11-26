@@ -11,7 +11,7 @@ import pandas as pd
 
 from trader_core import indicators as I
 from trader_engine.strategies import arms
-from trader_engine.strategies.arms import m1 as M1MOD
+import bos_cekirdek as M1MOD
 
 ROOT = Path(__file__).resolve().parents[2]
 KAL = 200.0            # short aynasi: gercek fiyat = KAL - long fiyati (pozitif kalsin)

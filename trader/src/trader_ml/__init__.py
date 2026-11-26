@@ -1,5 +1,4 @@
-"""M1 gece egitimi yardimcilari (motordan `trader_engine` ve cekirdekten `trader_core` AYRI paket).
+"""ML yardimcilari (motordan `trader_engine` ve cekirdekten `trader_core` AYRI paket).
 
-`pa_proposer`: M1 onerici egitimi (numpy ridge lojistik; kilit donemi yapisal reddi). `walkforward`: purged walk-forward izgarasi
-(M1 egitimi). Kilitli donem (2026-05 -> 2026-10) kilit kapaliyken hicbir kod yolunda okunmaz (`guards`).
+`ml1`: ML1 kural kolu aday puanlayicisi. `walkforward`: purged walk-forward izgarasi. Kilitli donem (2026-05 -> 2026-10) kilit kapaliyken hicbir kod yolunda okunmaz (`guards`).
 """

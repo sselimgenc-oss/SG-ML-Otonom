@@ -156,14 +156,13 @@ def test_arms_off_yok_iken_taze_sunucu_acik_varsayar_ve_cokmez(tmp_path):
         e.close()
 
 
-# ---------------------------------------------------------------- pano: M1, seans, varlık kırılımı
-def test_pano_m1_alanlari_var_ders_alani_yok(tmp_path):
+# ---------------------------------------------------------------- pano: seans, varlık kırılımı
+def test_pano_ders_alani_yok(tmp_path):
     e = Env(tmp_path)
     r = Running(e, cache_s=0)
     try:
         api = _api_text(r)
         assert not re.search(r"brake|\"ders\"", api, re.IGNORECASE), "ders alani kaldirildi (25.11)"
-        assert re.search(r"\bm1\b", api, re.IGNORECASE), "M1 sayilari panelde yok"
     finally:
         r.stop()
         e.close()

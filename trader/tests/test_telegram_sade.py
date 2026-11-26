@@ -228,7 +228,7 @@ def test_limit_doldu_acik_pozisyonlarin_akibetini_soyler(rig):
 
 
 # ------------------------------------------------------------------ susturulan turler
-@pytest.mark.parametrize("kod", ["pa_proposer_stale", "tutarlilik_sapma", "heartbeat_send_failed",
+@pytest.mark.parametrize("kod", ["tutarlilik_sapma", "heartbeat_send_failed",
                                  "ml_expiring_7d", "ml_expiring_3d", "ml_shadow_down", "drift_stale", "bilinmeyen_kod"])
 def test_teknik_uyarilar_susar(rig, kod):
     assert rig.n.send(alert(kod)) is True

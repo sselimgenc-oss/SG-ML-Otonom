@@ -154,9 +154,6 @@ class Env:
     def __init__(self, tmp, D, mode_cfg=None):
         self.D = D
         self.cfg = mode_cfg or _paper_cfg()   # 23.11 kullanici karari: asama B esikleri (korelasyon kapali; bkz. _paper_cfg)
-        if mode_cfg is None and getattr(self.cfg, "arm_max_positions", None):     # WP-11 kurulum tavani bu dosyanin konusu degil
-            import dataclasses as _dc
-            self.cfg = _dc.replace(self.cfg, arm_max_positions=None)
         self.clock = SimClock(D + timedelta(seconds=5))
         self.led = L.open_ledger(str(tmp / "l.sqlite"), "learner", create=True, clock=self.clock.now)
         self.led.init_params(_params(), reason="strategy:test")
@@ -401,7 +398,7 @@ def test_metal_one_open_other_member_enters(mk):
 def test_account_cap_24(mk):
     import dataclasses as _dc
     assert _paper_cfg().max_positions == 36          # 24.11 kullanici karari: max_positions 36 (kume tavanlari toplami 29 < 36: hesap tavani kumelerle dolmaz)
-    e = mk(mode_cfg=_dc.replace(_paper_cfg(), arm_max_positions=None, max_positions=24))   # mekanizma testi: tavan 24 ile
+    e = mk(mode_cfg=_dc.replace(_paper_cfg(), max_positions=24))   # mekanizma testi: tavan 24 ile
     # 24 pozisyonu kume tavanlarini asmadan doldur: buyuk 5 + diger 9 + hisse 8 (tech 2 + nontech 6) + metal 2
     e.fill(BUYUK[:5] + DIGER[:9] + NONTEK[:6] + TEK[:2] + METAL)
     assert len(e.state.open_positions()) == 24
