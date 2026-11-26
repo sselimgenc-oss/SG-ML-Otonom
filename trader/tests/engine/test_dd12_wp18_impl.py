@@ -114,7 +114,7 @@ FROZEN_SHA256 = {
     "config/engine.base.json": "26f5664f630f44bf594eb58e4efa881b2e71890ecb6d11ec80ad9fe2b3b8b361",   # 25.11 kullanici karari: denetim kalan maddeler (start_delay_s kalkti); 24.11 kullanici karari: veto ve C1 artiklari silindi;   # 24.11 kullanici karari: ML filtreleri silindi (ml_mode/ml_model_path anahtarlari kalkti)
     "config/engine.learner.json": "30ca2842c40cacafbf6cdd90c9e6f1f54fc62b9a9ec913476d1399ac5352cb12",
     "config/engine.testnet.json": "eff9eb61dcd9018bf86c195a02f7f25f08960473e705cbd114e104c26a956c9c",
-    "config/engine.live.json": "05f1bfc2dc8ba2c5705e6fab9b5c40c722bc349c99425c8af9ea313cc20bd59b",   # 25.11: M1 kolu ve kol/aile basina pozisyon tavani kaldirildi (279 kol); HB1 + DL1 kolu kaldirildi; 24.11 kullanici karari: formasyon kutuphanesi birlesik (MF1 48 + GF1 52 + IN1 66 + PA2 29 + PA varyantlari 56 kol; max_positions 36)
+    "config/engine.live.json": "1dcdc78cae2e1961383db7f02871c6f5ade8978d8df092b8af77468c2db0cb03",   # 25.11 sadelestirme 3/4: korelasyon/kayip_freni/toplam_buyukluk_kat/uzun_yon ve kume max_positions kaldirildi; 25.11: M1 kolu ve kol/aile basina pozisyon tavani kaldirildi (279 kol); HB1 + DL1 kolu kaldirildi; 24.11 kullanici karari: formasyon kutuphanesi birlesik (MF1 48 + GF1 52 + IN1 66 + PA2 29 + PA varyantlari 56 kol; max_positions 36)
     #   # 24.11 kullanici karari: DL1 dort zaman dilimi acik; onceki 24.11 ML filtreleri silindi; onceki 23.11 asama B + uzun_yon + HB1 (canli = kagit)
     "src/trader_engine/order_manager.py": "7bd0ff0ca3173c7e8baf0ab05dde04a8b1c472d4510c4922d142220d4ae02538",   # 24.11 kullanici kararlari: hedef emir + risk 0.12/DL1 4 + veto/C1 silme (birlesik pin)
     "research/s2_run.py": "66710418f9be36225b757f9d4a1158b1e9093db5f7df131572c639e3958b21a7",

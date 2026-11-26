@@ -32,10 +32,10 @@ jobs:
         alan:
           - id: giris
             ad: "Motor giris akisi: aday toplama, sira, cift ici yedek aday, kapilar"
-            dosyalar: "trader/src/trader_engine/engine.py trader/src/trader_engine/gates.py trader/src/trader_engine/strategy_runner.py trader/src/trader_engine/arm_guard.py trader/src/trader_engine/uzun_yon.py trader/src/trader_engine/korelasyon_grubu.py trader/src/trader_engine/seans_disi.py"
+            dosyalar: "trader/src/trader_engine/engine.py trader/src/trader_engine/gates.py trader/src/trader_engine/strategy_runner.py trader/src/trader_engine/arm_guard.py trader/src/trader_engine/seans_disi.py"
           - id: risk
             ad: "Risk ve buyukluk: %1 risk, yon/toplam risk, 3x buyukluk, kayip freni, kol kucultme, sermaye kilidi, gunluk kayip, kaldirac, tasfiye"
-            dosyalar: "trader/src/trader_core/risk.py trader/src/trader_core/risk_ladder.py trader/src/trader_engine/ladder.py trader/src/trader_core/kayip_freni.py trader/src/trader_core/kol_kucultme.py trader/src/trader_engine/gates.py"
+            dosyalar: "trader/src/trader_core/risk.py trader/src/trader_core/risk_ladder.py trader/src/trader_engine/ladder.py trader/src/trader_engine/gates.py"
           - id: cikis
             ad: "Cikislar: stop, hedef (bekleyen emir), basa-bas, kismi kar, iz suren stop, zaman stopu, rejim donusu"
             dosyalar: "trader/src/trader_engine/position_manager.py trader/src/trader_core/exit_modes.py trader/src/trader_core/signals.py trader/src/trader_engine/engine.py trader/src/trader_engine/order_manager.py"

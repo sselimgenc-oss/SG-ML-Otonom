@@ -13,7 +13,6 @@ from datetime import datetime
 from typing import Literal, Protocol
 
 from trader_core import etiket_kurallari as EK
-from trader_core import kayip_freni as KF
 from trader_core import ledger as L
 from trader_core import risk as K
 
@@ -24,8 +23,6 @@ from .clock import Clock
 from .config import EngineConfig
 from .errors import DataError
 from .killswitch import Killswitch
-from .korelasyon_grubu import KorelasyonGruplari
-from .uzun_yon import UzunYon, reddeder as _uy_reddeder
 from .pause import EntryPause
 from . import seans_disi as SD
 from .state import StateStore, parse_iso_z
@@ -121,11 +118,11 @@ def _features(row: SignalRow) -> dict:
 
 
 # 24.11 (cift ici yedek aday): bir adayin reddi YALNIZ aday-ozgu nedenlerle ise siradaki aday denenir; cift/hesap duzeyindeki
-# nedenlerde (kapi kapali, cluster_cap, hesap tavani, etiket_*, gunluk zarar, ...) ayni cift icin durulur ve kalan sinyal adaylari
+# nedenlerde (kapi kapali, hesap tavani, etiket_*, gunluk zarar, ...) ayni cift icin durulur ve kalan sinyal adaylari
 # `arm_conflict` yazilir. TEK TANIM: bilinmeyen kod cift duzeyi sayilir (guvenli taraf: ek satir/deneme yok).
-ADAY_OZGU_RED_KODLARI = frozenset({"flat_bar", "uzun_yon", "ml1_esik_alti", "ml1_ayni_olay", "ml1_paket_yok",
-                                   "korelasyon_grubu", "tasfiye_mesafesi", "tasfiye_okunamadi", "toplam_buyukluk"})   # 25.11: buyukluk_okunamadi hesap duzeyi (cift icin durulur)
-_HESAP_RISK_IZLERI = ("günlük", "toplam açık risk", "toplam teminat", "zaten açık pozisyon", "kayıp freni", "iç hata")
+ADAY_OZGU_RED_KODLARI = frozenset({"flat_bar", "ml1_esik_alti", "ml1_ayni_olay", "ml1_paket_yok",
+                                   "tasfiye_mesafesi", "tasfiye_okunamadi"})
+_HESAP_RISK_IZLERI = ("günlük", "toplam açık risk", "toplam teminat", "zaten açık pozisyon", "iç hata")
 
 
 def hesap_duzeyi_risk(neden: str) -> bool:
@@ -134,8 +131,8 @@ def hesap_duzeyi_risk(neden: str) -> bool:
 
 
 def aday_ozgu_red(out) -> bool:
-    """True: red yalniz bu adaya ozgu (kurulum tavani, yon/korelasyon, boyut/tasfiye ...): siradaki aday denenebilir.
-    False: cift/hesap duzeyi (kapi, cluster_cap, hesap max_positions, etiket_*, seans, gunluk zarar ...): durulur."""
+    """True: red yalniz bu adaya ozgu (boyut/tasfiye ...): siradaki aday denenebilir.
+    False: cift/hesap duzeyi (kapi, hesap max_positions, etiket_*, seans, gunluk zarar ...): durulur."""
     code = getattr(out, "code", None)
     if code in ADAY_OZGU_RED_KODLARI:
         return True
@@ -200,14 +197,6 @@ class EntryGate:
         self._takvim = _YUKLENMEDI
         self.seans_disi_aktif: bool = True                     # uretimde hep True; yalniz eski testler hafta sonu girisi icin kapatir
         self.arms_off: Collection[str] | Callable[[], Collection[str]] | None = None  # DD-12 WP-13: ders kapattigi kurulumlar (arm_id); yok = hepsi acik
-        # 23.11 kullanici karari: asama B esikleri (yalniz paper/live; ENTRY-only). Korelasyon grubu: matris kaynagini engine baglar
-        # (yoksa sabit kume yedegi); kayip freni + toplam buyukluk tavani cfg'den okunur.
-        kc = getattr(cfg, "korelasyon", None)
-        self.korelasyon: KorelasyonGruplari | None = None
-        if kc and cfg.mode in ("paper", "live"):
-            self.korelasyon = KorelasyonGruplari(None, cfg.pairs, cfg.clusters, kc["esik"], int(kc["pencere_gun"]))
-        uc = getattr(cfg, "uzun_yon", None)                      # fikir 7: uzun donem yon filtresi (bos = kapali); bars_fn'i engine baglar
-        self.uzun_yon: UzunYon | None = UzunYon(uc) if uc and cfg.mode in ("paper", "live") else None
         self.memory_lock: str | None = None       # DD-8 O4: dosya tutusu yazilamadiysa bellek kilidi (kapi kodu); None = yok
 
     # ------------------------------------------------------------------ cift-bagimsiz kapilar (4-8)
@@ -294,49 +283,6 @@ class EntryGate:
             return None
 
     # ------------------------------------------------------------------ 23.11 kullanici karari: asama B esikleri (yalniz giris)
-    def _korelasyon_karari(self, row: SignalRow, tf: str, D: datetime, tk: dict) -> EntryOutcome | None:
-        """Adayin korelasyon grubunda (30 gun 1s getiri korelasyonu >= esik; veri yoksa sabit kume) AYNI yonde acik pozisyon sayisi
-        `yon_basina_max`e ulasmissa giris `korelasyon_grubu` ile atlanir. Hata => engellemez (sayilir); cikislara dokunmaz."""
-        kg, kc = self.korelasyon, getattr(self.cfg, "korelasyon", None)
-        if kg is None or not kc:
-            return None
-        try:
-            n = kg.grup_sayisi(row.pair, row.side, self.state.open_positions(), self.clock.now())
-            mx = int(kc["yon_basina_max"])
-            if n < mx:
-                return None
-            self.counters["korelasyon_grubu_blok"] += 1
-            return self._skip(row, tf, "korelasyon_grubu", skip_reason="risk_denied", veto_status="not_evaluated",
-                              veto_reason="gate:korelasyon_grubu", risk_allowed=False,
-                              risk_reason=f"korelasyon grubu sınırı: aynı yönde ({row.side}) {n} açık pozisyon var, en fazla {mx}", **tk)
-        except Exception as e:  # noqa: BLE001
-            self.counters["korelasyon_grubu_hata"] += 1
-            log.warning("korelasyon grubu hatasi, giris serbest: %s: %s", type(e).__name__, e)
-            return None
-
-    def _uzun_yon_karari(self, row: SignalRow, tf: str, D: datetime, tk: dict) -> EntryOutcome | None:
-        """Fikir 7: 1d rejimi boga ise short, ayi ise long girisi `uzun_yon` ile atlanir; yatay/veri yok serbest (veri yok sayilir).
-        Rejim karar olayi features["uzun_yon"] alanina yazilir. Hata => engellemez (sayilir)."""
-        uy = self.uzun_yon
-        if uy is None:
-            return None
-        try:
-            r = uy.rejim(row.pair, self.clock.now())
-        except Exception as e:  # noqa: BLE001
-            self.counters["uzun_yon_hata"] += 1
-            log.warning("uzun yon hesabi hatasi, giris serbest: %s: %s", type(e).__name__, e)
-            return None
-        tk["features"] = {**(tk.get("features") or _features(row)), "uzun_yon": r}
-        if r == "veri_yok":
-            self.counters["uzun_yon_veri_yok"] += 1
-            return None
-        if not _uy_reddeder(r, row.side):
-            return None
-        self.counters["uzun_yon_blok"] += 1
-        return self._skip(row, tf, "uzun_yon", skip_reason="risk_denied", veto_status="not_evaluated",
-                          veto_reason="gate:uzun_yon", risk_allowed=False,
-                          risk_reason=f"uzun dönem yön filtresi: 1d rejimi {r}, {row.side} girişi reddedildi", **tk)
-
     def _seans_disi_karari(self, row: SignalRow, tf: str, D: datetime, cls: str, tk: dict) -> EntryOutcome | None:
         """Hafta sonu / tatil / buyuk haber penceresinde hisse+emtia icin YENI giris yok (seans_disi.py). Acik pozisyon ve kripto etkilenmez.
         Takvim eksik/bozuk -> tatil+haber engellemez, sayac `seans_disi_takvim_yok` (hafta sonu takvimsiz calisir). Kagit ve canli ayni kod."""
@@ -353,48 +299,6 @@ class EntryGate:
             return None
         self.counters[kod] += 1
         return self._skip(row, tf, kod, skip_reason="session_closed", veto_reason="gate:" + kod, **tk)
-
-    def _fren_karari(self, acct: K.AccountState, D: datetime) -> KF.FrenKarari | None:
-        """Kayip freni: defterden (son kapananlar) + state gun basi kasadan TURETILIR (dosya yok). Hata => None (cagiran girisi atlar: fail-closed)."""
-        fc = getattr(self.cfg, "kayip_freni", None)
-        if not fc:
-            return KF.YOK
-        try:
-            son = self.ledger.list_closed_trades(limit=max(50, int(fc["ardisik"]) * 10))
-            return KF.karar(fc, son, acct.equity, acct.day_start_equity, D.replace(hour=0, minute=0, second=0, microsecond=0))
-        except Exception as e:  # noqa: BLE001
-            self.counters["kayip_freni_hata"] += 1
-            log.error("kayip freni okunamadi, GIRIS YOK (fail-closed): %s: %s", type(e).__name__, e)
-            return None
-
-    def _toplam_buyukluk_karari(self, row: SignalRow, tf: str, acct: K.AccountState, size: K.SizeResult, vs: str,
-                                veto_reason: str | None, tk: dict) -> EntryOutcome | None:
-        """Acik pozisyonlarin nominali + aday <= toplam_buyukluk_kat x kasa; degilse `toplam_buyukluk`. Hata => engellemez."""
-        kat = getattr(self.cfg, "toplam_buyukluk_kat", None)
-        if not kat:
-            return None
-        try:
-            acik = 0.0
-            marks: dict = {}
-            try:                                                                        # mark fiyat varsa o, yoksa giris fiyati
-                marks = {bp.pair: float(bp.mark_price) for bp in self.broker.positions() if _fin(getattr(bp, "mark_price", None))}
-            except Exception:  # noqa: BLE001
-                marks = {}
-            for p in self.state.open_positions():
-                q, px = getattr(p, "qty", None), marks.get(p.pair, getattr(p, "entry_price", None))
-                acik += float(q) * float(px) if _fin(q) and _fin(px) else float(p.margin) * float(p.leverage)
-            tavan = float(kat) * float(acct.equity)
-            if acik + float(size.notional) <= tavan:
-                return None
-            self.counters["toplam_buyukluk_blok"] += 1
-            return self._skip(row, tf, "toplam_buyukluk", skip_reason="risk_denied", veto_status=vs, veto_reason=veto_reason,
-                              risk_allowed=False,
-                              risk_reason=f"toplam büyüklük tavanı: açık {acik:.2f} + aday {float(size.notional):.2f} > {kat:g} x kasa {tavan:.2f}", **tk)
-        except Exception as e:  # noqa: BLE001
-            self.counters["toplam_buyukluk_hata"] += 1
-            log.error("toplam buyukluk tavani okunamadi, GIRIS YOK (fail-closed): %s: %s", type(e).__name__, e)
-            return self._skip(row, tf, "buyukluk_okunamadi", skip_reason="risk_denied", veto_status=vs, veto_reason="gate:buyukluk_okunamadi",
-                              risk_allowed=False, risk_reason="toplam büyüklük okunamadı: giriş yok", **tk)
 
     def _tasfiye_mesafesi_karari(self, row: SignalRow, tf: str, cand: K.Candidate, lev: int, vs: str,
                                  veto_reason: str | None, tk: dict) -> EntryOutcome | None:
@@ -496,19 +400,9 @@ class EntryGate:
             if sd is not None:
                 return sd
             held = [p.pair for p in self.state.open_positions()]
-            cname = AG.full_cluster(pair, held, self.cfg.clusters)
-            if cname is not None:
-                return self._skip(row, tf, "cluster_cap", skip_reason="cluster_cap",
-                                  veto_reason=f"gate:cluster_cap:{cname}", **tk)
             if AG.account_full(len(held), self.cfg.max_positions):
                 return self._skip(row, tf, "max_positions", skip_reason="max_positions",
                                   veto_reason="gate:max_positions", **tk)
-            uy = self._uzun_yon_karari(row, tf, D, tk)                                   # fikir 7: 1d rejimi (boga: short yok, ayi: long yok)
-            if uy is not None:
-                return uy
-            kg = self._korelasyon_karari(row, tf, D, tk)                                 # 23.11 asama B: korelasyon grubu yon tavani
-            if kg is not None:
-                return kg
             et_skip = self._etiket_karari(row, tf, tk)                                   # rejim etiketi kurali (risk'ten once)
             if et_skip is not None:
                 return et_skip
@@ -528,23 +422,7 @@ class EntryGate:
         cand = K.Candidate(pair, row.side, float(ref), float(row.planned_stop), float(lev),
                            rules.step, rules.min_notional)
         src = self.ladder if self.ladder is not None else self.cfg
-        dec = None
-        if paper:                                                                       # kayip freni (yalniz kagit, yalniz kucultur)
-            fren = self._fren_karari(acct, D)                                              # 23.11 asama B: kayip freni (yalniz kucultur)
-            if fren is None:                                                               # okunamadi: fail-closed
-                return self._skip(row, tf, "fren_okunamadi", skip_reason="risk_denied", veto_status=vs, veto_reason="gate:fren_okunamadi",
-                                  risk_allowed=False, risk_reason="kayıp freni okunamadı: giriş yok", **tk)
-            fren_mult = KF.goreli_carpan(fren, self.cfg.risk_config.target_trade_risk, src.risk_config.target_trade_risk)
-            if fren.aktif:
-                tk["features"] = {**(tk.get("features") or _features(row)), "kayip_freni": fren.neden, "kayip_freni_carpani": float(fren_mult)}
-            if fren_mult < 1.0:                                                         # kademe/mandal zaten src.risk_config icinde
-                dec = K.check_entry_scaled(acct, cand, src.risk_config, fren_mult)
-                if dec.allowed:
-                    self.counters["kayip_freni_yarim:" + str(fren.neden)] += 1
-                else:                                                                   # fren aktif: tam boyuta GERI DONULMEZ (asla artirmaz)
-                    self.counters["kayip_freni_boyut_reddi"] += 1
-        if dec is None:
-            dec = K.check_entry(acct, cand, src.risk_config)
+        dec = K.check_entry(acct, cand, src.risk_config)
         if not dec.allowed:
             o = self._skip(row, tf, "risk_denied", skip_reason="risk_denied", veto_status=vs,
                            veto_reason=lk.reason, risk_allowed=False, risk_reason=dec.reason, **tk)
@@ -552,10 +430,6 @@ class EntryGate:
         td = self._tasfiye_mesafesi_karari(row, tf, cand, lev, vs, lk.reason, tk)        # 23.11: kagit = canli, ayni kod
         if td is not None:
             return td
-        if paper:                                                                       # 23.11 asama B: toplam buyukluk tavani (boyut belli olduktan sonra)
-            tb = self._toplam_buyukluk_karari(row, tf, acct, dec.size, vs, lk.reason, tk)
-            if tb is not None:
-                return tb
         size = dec.size                                                                 # 12
         self.counters["enter"] += 1
         ev = build_decision_event(

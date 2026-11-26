@@ -20,18 +20,6 @@ def clusters_of(pair: str, clusters: Mapping[str, ClusterSpec]) -> list[str]:
     return [name for name, spec in clusters.items() if pair in spec.pairs]
 
 
-def count_in_cluster(held_pairs: Collection[str] | Sequence[str], spec: ClusterSpec) -> int:
-    return sum(1 for p in held_pairs if p in spec.pairs)
-
-
-def full_cluster(pair: str, held_pairs: Sequence[str], clusters: Mapping[str, ClusterSpec]) -> str | None:
-    """Giris icin yeri olmayan ilk kume adi (acik + acilmakta pozisyonlar `held_pairs`); hepsinde yer varsa None."""
-    for name in clusters_of(pair, clusters):
-        if count_in_cluster(held_pairs, clusters[name]) >= clusters[name].max_positions:
-            return name
-    return None
-
-
 def account_full(n_open: int, max_positions: int | None) -> bool:
     return max_positions is not None and n_open >= max_positions
 

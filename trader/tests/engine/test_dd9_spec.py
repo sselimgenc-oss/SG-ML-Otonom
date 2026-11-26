@@ -208,8 +208,6 @@ def test_k_02_live_json_exact_key_sets():
     assert set(live) == {"mode", "var_dir", "kill_file", "pause_file", "live", "pairs", "optional_pairs", "strategy", "arms",
                          "shadow_blocks", "exit_modes", "max_positions", "target_trade_risk", "risk",
                          "clusters", "etiket_kurallari", "flat_bar_guard", "contract_types", "cost_overrides",
-                         "korelasyon", "kayip_freni", "toplam_buyukluk_kat",   # 23.11 kullanici karari: asama B esikleri
-                         "uzun_yon",   # 23.11 kullanici karari: fikir 7 uzun donem yon kapisi
                          "target_mode"}   # 24.11 kullanici karari: hedef bekleyen emir (kagitla ayni "resting")
     assert set(live["live"]) == set(testnet["live"])
 

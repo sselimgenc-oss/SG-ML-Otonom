@@ -65,14 +65,14 @@ SHADOW_BLOCK_KEYS = ("regime", "r1_disabled", "same_bar_reentry", "tf_15m")
 CONTRACT_TYPES = ("PERPETUAL", "TRADIFI_PERPETUAL")
 SESSION_TAGS = ("open", "closed", "weekend")
 _SLIP_KEYS = ("slip_entry_bps", "slip_exit_bps", "slip_stop_bps")
-_CLUSTER_KEYS = {"pairs", "max_positions"}
+_CLUSTER_KEYS = {"pairs"}
 
 
 @dataclass(frozen=True)
 class ClusterSpec:
-    """Kume (04 §4.1): uyeler `pairs` icinde olmali; `max_positions` acik + acilmakta pozisyon tavani."""
+    """Kume (04 §4.1): yalniz varlik sinifi/seans/maliyet siniflamasi; uyeler `pairs` icinde olmali. 25.11 sadelestirme 3/4: kume basina
+    acik pozisyon tavani kaldirildi (eski `max_positions` anahtari yapilandirmadan sessizce dusurulur)."""
     pairs: tuple[str, ...]
-    max_positions: int
 
 
 @dataclass(frozen=True)
@@ -117,10 +117,6 @@ class EngineConfig:
     arms: tuple[str, ...] = ()                                # bilesik strateji kurulumlari: arm_id ("T1@1h") listesi; bos = stratejinin varsayilani
     etiket_kurallari: Mapping[str, Any] = dataclasses.field(default_factory=dict)    # 20 Kasim: etiket kurallari (yalniz paper; bos = kapali; docs/etiket-kurallari-spec.md)
     # --- 23.11 kullanici karari: asama B esikleri (yalniz paper/live giris kapisi; bos/None = kapali) ---
-    korelasyon: Mapping[str, float] = dataclasses.field(default_factory=dict)       # {esik, pencere_gun, yon_basina_max}
-    kayip_freni: Mapping[str, float] = dataclasses.field(default_factory=dict)      # {ardisik, gunluk_oran, carpan}
-    uzun_yon: Mapping[str, float] = dataclasses.field(default_factory=dict)         # fikir 7: {ema, egim_gun, min_gun}; bos = kapali
-    toplam_buyukluk_kat: float | None = None                  # acik pozisyon nominali + aday <= kat x kasa
     exit_modes: Mapping[str, Mapping] = dataclasses.field(default_factory=dict)      # cikis kipleri (basa-bas / kismi kar); anahtar default|KURULUM|arm_id; bos = kapali (docs/cikis-kipleri-spec.md)
     ml1: Mapping[str, Any] = dataclasses.field(default_factory=dict)                 # 25.11 ML1 (yalniz paper): {"aktif": bool, "paket_yolu"?, "tohum_yolu"?}; bos/aktif=false = kapali (onceki davranis)
 
@@ -160,12 +156,13 @@ _OPTIONAL_KEYS = {"strategy", "target_trade_risk", "startup_wait_s", "pause_file
                   "leverage", "live", "ladder_follow", "shadow_blocks", "mtm_marks",
                   "optional_pairs", "retired_pairs", "max_positions", "risk", "clusters", "flat_bar_guard", "contract_types",
                   "cost_overrides", "arms", "exit_modes", "etiket_kurallari",
-                  "korelasyon", "kayip_freni", "toplam_buyukluk_kat", "uzun_yon", "ml1"}
+                  "ml1"}
 _ML1_KEYS = {"aktif": bool, "paket_yolu": str, "tohum_yolu": str}
 _PAPER_ONLY_KEYS = ("optional_pairs", "max_positions", "risk", "clusters", "flat_bar_guard", "contract_types",
-                    "cost_overrides", "arms", "korelasyon", "kayip_freni", "toplam_buyukluk_kat", "uzun_yon")
-# 25.11 sadelestirme: ML1 kapisi secer; kol basina/aile basina acik pozisyon tavani kaldirildi (hesap/kume/korelasyon tavanlari duruyor)
-_KALDIRILAN_ANAHTARLAR = ("arm_max_positions", "arm_family_max_positions")
+                    "cost_overrides", "arms")
+# 25.11 sadelestirme: ML1 kapisi secer; boyut/giris frenleri 3 katmana indi (islem basi risk, gunluk zarar siniri, hesap geneli acik
+# pozisyon/risk). Kol/aile/kume tavanlari, korelasyon grubu, kayip freni, toplam buyukluk tavani, uzun donem yon filtresi kaldirildi.
+_KALDIRILAN_ANAHTARLAR = ("arm_max_positions", "arm_family_max_positions", "korelasyon", "kayip_freni", "toplam_buyukluk_kat", "uzun_yon")
 _LIVE_KEYS = {f.name for f in dataclasses.fields(LiveSettings)}
 _STRATEGY_RE = re.compile(r"[a-z][a-z0-9_]{0,39}")
 
@@ -306,33 +303,15 @@ def _build_clusters(v: Any, pairs: tuple[str, ...]) -> dict[str, ClusterSpec]:
         if not isinstance(name, str) or not re.fullmatch(r"[a-z][a-z0-9_]{0,31}", name):
             raise ConfigError(f"clusters kume adi gecersiz: {name!r}")
         if isinstance(spec, ClusterSpec):
-            spec = {"pairs": list(spec.pairs), "max_positions": spec.max_positions}
+            spec = {"pairs": list(spec.pairs)}
+        if isinstance(spec, Mapping) and "max_positions" in spec:          # eski kume tavani anahtari: kaldirildi, yok sayilir (bot acilisi bozulmasin)
+            spec = {k: x for k, x in spec.items() if k != "max_positions"}
         if not isinstance(spec, Mapping) or set(spec) != _CLUSTER_KEYS:
             raise ConfigError(f"clusters.{name} tam olarak {sorted(_CLUSTER_KEYS)} icermeli")
         members = _pair_subset(f"clusters.{name}.pairs", spec["pairs"], pairs)
         if not members:
             raise ConfigError(f"clusters.{name}.pairs bos olamaz")
-        out[name] = ClusterSpec(pairs=members, max_positions=_int(f"clusters.{name}.max_positions", spec["max_positions"], 1, 1000))
-    return out
-
-
-_KORELASYON_KEYS = {"esik": (0.0, 1.0), "pencere_gun": (1, 365), "yon_basina_max": (1, 1000)}
-_UZUN_YON_KEYS = {"ema": (2, 400), "egim_gun": (1, 100), "min_gun": (2, 1000)}
-_FREN_KEYS = {"ardisik": (1, 1000), "gunluk_oran": (0.0, 1.0), "carpan": (0.0, 1.0)}
-
-
-def _build_sayi_blogu(name: str, v: Any, keys: Mapping[str, tuple], ints: tuple[str, ...]) -> dict[str, float]:
-    """23.11 asama B: `korelasyon` / `kayip_freni` bloklari: tam anahtar kumesi, sayi, aralik; bos = kapali."""
-    if v in (None, {}):
-        return {}
-    if not isinstance(v, Mapping) or set(v) != set(keys):
-        raise ConfigError(f"{name} tam olarak {sorted(keys)} icermeli")
-    out: dict[str, float] = {}
-    for k, (lo, hi) in keys.items():
-        x = _int(f"{name}.{k}", v[k], int(lo), int(hi)) if k in ints else _num(f"{name}.{k}", v[k], lo, hi)
-        if k not in ints and x <= 0:
-            raise ConfigError(f"{name}.{k} > 0 olmali")
-        out[k] = x
+        out[name] = ClusterSpec(pairs=members)
     return out
 
 
@@ -567,22 +546,13 @@ def _validate(raw: Mapping[str, Any]) -> EngineConfig:
         etiket_kurallari = _EK.build_config(etiket_raw)
     except _EK.EtiketConfigHatasi as e:
         raise ConfigError(str(e)) from e
-    korelasyon = _build_sayi_blogu("korelasyon", raw.get("korelasyon"), _KORELASYON_KEYS, ("pencere_gun", "yon_basina_max"))
-    kayip_freni = _build_sayi_blogu("kayip_freni", raw.get("kayip_freni"), _FREN_KEYS, ("ardisik",))
-    uzun_yon = _build_sayi_blogu("uzun_yon", raw.get("uzun_yon"), _UZUN_YON_KEYS, ("ema", "egim_gun", "min_gun"))
     ml1 = _build_ml1(raw.get("ml1"))
-    tb_raw = raw.get("toplam_buyukluk_kat")
-    toplam_buyukluk_kat = None if tb_raw is None else _num("toplam_buyukluk_kat", tb_raw, 0.0, 100.0)
-    if toplam_buyukluk_kat is not None and toplam_buyukluk_kat <= 0:
-        raise ConfigError("toplam_buyukluk_kat > 0 olmali")
     if mode not in ("paper", "backtest", "live") and exit_modes:   # 23.11 kullanici karari: canli = kagit (canli motor da uygular)
         raise ConfigError(f"exit_modes yalniz mode='paper'/'backtest'/'live' ile verilebilir (mode={mode!r})")
     if mode not in ("paper", "live"):                         # 23.11 kullanici karari: canli = kagit
         given = {"optional_pairs": optional_pairs, "max_positions": max_positions, "risk": risk_raw,
                  "clusters": clusters, "flat_bar_guard": flat_bar_guard, "cost_overrides": cost_overrides,
-                 "contract_types": contract_types, "arms": arms,
-                 "korelasyon": korelasyon, "kayip_freni": kayip_freni, "toplam_buyukluk_kat": toplam_buyukluk_kat,
-                 "uzun_yon": uzun_yon, "ml1": ml1}
+                 "contract_types": contract_types, "arms": arms, "ml1": ml1}
         bad = sorted(k for k, x in given.items() if x not in ((), {}, None, False))
         if bad:
             raise ConfigError(f"{bad} yalniz mode='paper' ile verilebilir (mode={mode!r})")
@@ -624,7 +594,7 @@ def _validate(raw: Mapping[str, Any]) -> EngineConfig:
         risk=risk_raw, clusters=clusters,
         flat_bar_guard=flat_bar_guard, contract_types=contract_types, cost_overrides=cost_overrides,
         arms=arms, exit_modes=exit_modes, etiket_kurallari=etiket_kurallari,
-        korelasyon=korelasyon, kayip_freni=kayip_freni, toplam_buyukluk_kat=toplam_buyukluk_kat, uzun_yon=uzun_yon, ml1=ml1,
+        ml1=ml1,
         **{n: raw[n] for n in _STR},
     )
 
@@ -707,6 +677,10 @@ def load_engine_config(base_path: Any, bot_path: Any = None, *,
     for k in _KALDIRILAN_ANAHTARLAR:                  # eski sunucu kaplamasi kalmis olabilir: bot acilisi bozulmasin (yok sayilir)
         if merged.pop(k, None) is not None:
             logging.getLogger("engine.config").warning("kaldirilan yapilandirma anahtari yok sayildi: %s", k)
+    if isinstance(merged.get("clusters"), dict):        # eski kume basina tavan (max_positions) kaldirildi: sunucu kaplamasinda kalmis olabilir
+        for cname, cspec in merged["clusters"].items():
+            if isinstance(cspec, dict) and cspec.pop("max_positions", None) is not None:
+                logging.getLogger("engine.config").warning("kaldirilan yapilandirma anahtari yok sayildi: clusters.%s.max_positions", cname)
     merged = apply_universe_overlay(merged, universe_path)
     cfg = _validate(merged)
     if env is not None:

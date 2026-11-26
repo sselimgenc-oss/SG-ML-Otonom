@@ -55,15 +55,13 @@ PINNED_SHA = {
     "engine.base.json": "26f5664f630f44bf594eb58e4efa881b2e71890ecb6d11ec80ad9fe2b3b8b361",   # 25.11 kullanici karari: denetim kalan maddeler (start_delay_s kalkti); 24.11 kullanici karari: veto ve C1 artiklari silindi (veto_mode/veto_config kalkti);   # WP-06a: yalniz veto_config yolu; 24.11 kullanici karari: ML filtreleri silindi (ml_mode/ml_model_path kalkti)
     "engine.learner.json": "30ca2842c40cacafbf6cdd90c9e6f1f54fc62b9a9ec913476d1399ac5352cb12",
     "engine.testnet.json": "eff9eb61dcd9018bf86c195a02f7f25f08960473e705cbd114e104c26a956c9c",   # 24.11 kullanici karari: veto ve C1 artiklari silindi
-    "engine.live.json": "05f1bfc2dc8ba2c5705e6fab9b5c40c722bc349c99425c8af9ea313cc20bd59b",   # 24.11 kullanici karari: formasyon kutuphanesi birlesik (MF1 48 + GF1 52 + IN1 66 + PA2 29 + PA varyantlari 56 kol; max_positions 36)
+    "engine.live.json": "1dcdc78cae2e1961383db7f02871c6f5ade8978d8df092b8af77468c2db0cb03",   # 25.11 sadelestirme 3/4: korelasyon/kayip_freni/toplam_buyukluk_kat/uzun_yon ve kume max_positions kaldirildi; 24.11 kullanici karari: formasyon kutuphanesi birlesik (MF1 48 + GF1 52 + IN1 66 + PA2 29 + PA varyantlari 56 kol; max_positions 36)
     #   # 24.11 kullanici karari: veto ve C1 artiklari silindi (veto_mode, arm_max_positions L1 kalkti);   # 24.11 kullanici karari: DL1 dort zaman dilimi acik; onceki 24.11 ML filtreleri silindi
 }
 # 23.11 kullanici karari: canli = kagit. engine.live.json'a eklenen kagit sistem anahtarlari (+ pairs yerine kagit evreni).
 LIVE_PAPER_SYSTEM_KEYS = {"pairs", "optional_pairs", "strategy", "arms", "shadow_blocks",
                           "exit_modes", "max_positions", "target_trade_risk", "risk", "clusters", "etiket_kurallari",
                           "flat_bar_guard", "contract_types", "cost_overrides",
-                          "korelasyon", "kayip_freni", "toplam_buyukluk_kat",   # 23.11 kullanici karari: asama B esikleri
-                          "uzun_yon",   # 23.11 kullanici karari: fikir 7 uzun donem yon kapisi
                           "target_mode"}   # 24.11 kullanici karari: hedef bekleyen emir (kagitla ayni "resting"; taban dosya "bar_close" kalir)
 VETO_KEYS_REMOVED = {"veto_mode", "veto_config", "start_delay_s"}   # 24.11 kullanici karari: veto ve C1 artiklari silindi   # 25.11 kullanici karari: denetim kalan maddeler (start_delay_s kalkti)
 ML_KEYS_REMOVED = {"ml_mode", "ml_model_path", "ml_features", "ml_experimental", "ml_pairs"}   # 24.11 kullanici karari: ML filtreleri silindi
@@ -286,12 +284,12 @@ def test_dt2_paper_optional_pairs_hisse_emtia_24():
     assert set(cfg.optional_pairs) <= set(cfg.pairs)
 
 
-def test_dt2_paper_kumeler_ve_tavanlar_4_6_5_3_2_2():
+def test_dt2_paper_kumeler_tavansiz_siniflama():
     cfg = _paper()
     cl = _clusters_of(cfg)
     assert set(cl) == set(CAPS)
-    for name, cap in CAPS.items():
-        assert cl[name][1] == cap, name
+    for name in CAPS:
+        assert cl[name][1] is None, name                       # 25.11 sadelestirme 3/4: kume basina tavan kaldirildi
     assert cl["kripto_buyuk"][0] == BUYUK
     assert cl["hisse_teknoloji"][0] == TEKNOLOJI
     assert cl["metal"][0] == METAL and cl["enerji_sanayi"][0] == ENERJI

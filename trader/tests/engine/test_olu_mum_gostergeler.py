@@ -2,9 +2,9 @@
 
 Bulgu (duzeltme oncesi): bu mumlar market.sqlite'a yazilir (`MarketStore._validate` hacim >= 0 kabul eder, h==l gecerlidir) ve gosterge girdisine
 AYNEN girerdi: dogru aralik 0 -> Wilder ATR her olu mumda (13/14) ile carpilir (65 saatlik hafta sonu: x0,0083), EMA'lar tekrarlanan kapanisa yaklasir
-(EMA20 == EMA50 -> rejim kaybolur), oynaklik tahmini ve korelasyon sifir getiriyle bozulur. Duzeltme TEK yerde (`arm_guard.active_mask`/
+(EMA20 == EMA50 -> rejim kaybolur), oynaklik tahmini sifir getiriyle bozulur. Duzeltme TEK yerde (`arm_guard.active_mask`/
 `expand_rows`/`regime_series`/`core_signals`/`tail_active`): olu mumlar gosterge girdisinden cikar, sonuc tam izgaraya genisler; kriptoda (olu mum yok)
-eski yol AYNEN. Bu testler: ATR/EMA/rejim/stop mesafesi (pazartesi ilk karar), uzun yon, korelasyon, oynaklik tahmini, kripto etkilenmez."""
+eski yol AYNEN. Bu testler: ATR/EMA/rejim/stop mesafesi (pazartesi ilk karar), oynaklik tahmini, kripto etkilenmez."""
 from __future__ import annotations
 
 import math
@@ -20,9 +20,7 @@ from trader_core import ledger as L
 from trader_core import regime as R
 from trader_core import signals as S
 from trader_engine import arm_guard as AG
-from trader_engine import korelasyon_grubu as KG
 from trader_engine import strategy_runner as SR
-from trader_engine import uzun_yon as UY
 from trader_engine.bars import arm_tf_delta
 from trader_engine.marketdata.sources import StoreSource
 from trader_engine.strategies.base import StrategyContext, validate_table
@@ -215,48 +213,7 @@ def test_pencere_dolu_bar_sayar_kripto_degismez(stock, tmp_path):
     assert c.equals(st.bars(crypto, "1h", D, n)) and len(c) == n          # kripto: birebir view.bars(n)
 
 
-# --------------------------------------------------------------------------------------------- uzun yon / korelasyon / oynaklik
-def test_uzun_yon_hafta_sonu_gunleri_gunluk_seriye_girmez(stock):
-    now = (stock["flat"]["4h"].index[-1] + timedelta(hours=4)).to_pydatetime()
-    kf = UY.gunluk_kapanislar(stock["flat"]["4h"], now)
-    kc = UY.gunluk_kapanislar(stock["clean"]["4h"], now)
-    assert kf == kc and len(kf) > 100
-    legacy = [k for _g, _t, k in _legacy_gunluk(stock["flat"]["4h"], now)]
-    assert len(legacy) > len(kf)                                        # eski: cumartesi/pazar kopya kapanislar da gun sayilirdi
-    cfg = {"ema": 50, "egim_gun": 10, "min_gun": 60}
-    rf = UY.UzunYon(cfg, lambda p, tf, until, n: stock["flat"]["4h"][stock["flat"]["4h"].index + pd.Timedelta("4h") <= until].iloc[-n:]).rejim("X", now)
-    rc = UY.UzunYon(cfg, lambda p, tf, until, n: stock["clean"]["4h"][stock["clean"]["4h"].index + pd.Timedelta("4h") <= until].iloc[-n:]).rejim("X", now)
-    assert rf == rc
-
-
-def _legacy_gunluk(df, now):
-    c = df["close"].astype("float64")
-    c = c[~c.index.duplicated(keep="last")].sort_index()
-    c = c[c.index + timedelta(hours=4) <= now]
-    c = c[c.index.normalize() < pd.Timestamp(now).normalize()]
-    return [(g, grp.index[-1], float(grp.iloc[-1])) for g, grp in c.groupby(c.index.normalize())]
-
-
-def test_korelasyon_getirileri_olu_mumlardan_etkilenmez(stock):
-    f1, c1 = stock["flat"]["1h"], stock["clean"]["1h"]
-    rf, rc = KG.getiriler(f1), KG.getiriler(c1)
-    pd.testing.assert_series_equal(rf, rc, rtol=TOL)
-    assert len(rc) < len(f1) * 0.3
-    # eski: olu mumlar sifir getiri uretirdi
-    cl = f1["close"].astype("float64")
-    prev = cl.copy(); prev.index = prev.index + timedelta(hours=1)
-    old = (cl / prev.reindex(cl.index) - 1.0).dropna()
-    assert int((old == 0.0).sum()) > 3000
-    # kripto ile korelasyon: olu mumlu == olu mumsuz (hisse-kripto korelasyonu sifirlarla seyrelmez)
-    crypto = GS.resample(GS.make_15m(1, 96 * DAYS, START, 100.0), "1h")
-    def mat(stock_df):
-        frames = {"A": stock_df, "B": crypto}
-        g = KG.KorelasyonGruplari(lambda p, tf, now, n: frames[p], ["A", "B"], {}, 0.7, 150, min_ortak=100)
-        return g.korelasyon("A", "B", START + timedelta(days=DAYS))
-    cf, cc = mat(f1), mat(c1)
-    assert cf is not None and cc is not None and cf == pytest.approx(cc, abs=1e-12)
-
-
+# --------------------------------------------------------------------------------------------- oynaklik
 def test_oynaklik_tahmini_olu_mumlardan_etkilenmez(stock):
     fl, nf = stock["flat"]["1h"], stock["clean"]["1h"]
     i = _first_monday_bars(fl)[-1]

@@ -76,7 +76,7 @@ def main() -> int:
     print(f"pencere {start} -> {end}; kol {len(arms)}; esik {thr}", flush=True)
 
     cfg0 = T.PAPER
-    clusters = {k: {"pairs": [p for p in v.pairs if p in pairs], "max_positions": v.max_positions} for k, v in cfg0.clusters.items()}
+    clusters = {k: {"pairs": [p for p in v.pairs if p in pairs]} for k, v in cfg0.clusters.items()}
     clusters = {k: v for k, v in clusters.items() if v["pairs"]}
     tmp = Path(tempfile.mkdtemp(prefix="ml1_real_"))
     kw = dict(pairs=tuple(pairs), optional_pairs=tuple(p for p in pairs if p in cfg0.optional_pairs), clusters=clusters,

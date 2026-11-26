@@ -87,9 +87,7 @@ _CFG = []
 def _paper_cfg():
     if not _CFG:
         import dataclasses
-        # 23.11 kullanici karari: asama B esikleri. Bu dosya sabit kume tavanlarini (cluster_cap) olcer; korelasyon grubu
-        # (ayri kural, test_asama_b_esikleri.py) burada kapali tutulur ki kume tavani kendi basina denensin.
-        _CFG.append(dataclasses.replace(load_cli_config(CONFIG, "learner", "paper"), korelasyon={}))
+        _CFG.append(dataclasses.replace(load_cli_config(CONFIG, "learner", "paper")))
     return _CFG[0]
 
 
@@ -153,7 +151,7 @@ def _pos(tid, pair, D, side="long"):
 class Env:
     def __init__(self, tmp, D, mode_cfg=None):
         self.D = D
-        self.cfg = mode_cfg or _paper_cfg()   # 23.11 kullanici karari: asama B esikleri (korelasyon kapali; bkz. _paper_cfg)
+        self.cfg = mode_cfg or _paper_cfg()   # 23.11 kullanici karari: asama B esikleri (bkz. _paper_cfg)
         self.clock = SimClock(D + timedelta(seconds=5))
         self.led = L.open_ledger(str(tmp / "l.sqlite"), "learner", create=True, clock=self.clock.now)
         self.led.init_params(_params(), reason="strategy:test")
@@ -333,12 +331,13 @@ def test_cluster_membership_multi():
 
 
 # ------------------------------------------------------------------------------------------------ D-T6 tavanlar (kapi)
-def test_cluster_cap_tech5_blocks_6th_tech(mk):
+def test_cluster_cap_yok_tech5_dolu_6ncy_girer(mk):
+    """25.11 sadelestirme 3/4: kume basina tavan kaldirildi; kumeler yalniz siniflama (varlik sinifi/seans/maliyet)."""
     e = mk()
     e.fill(TEK[:5])
     out = e.decide("AMD")
-    assert out.action == "skip" and out.event.skip_reason == "cluster_cap"
-    assert out.event.veto_status == "not_evaluated" and out.event.final_action == "skipped"
+    assert out.action == "enter", (out.code, out.event and out.event.skip_reason)
+    assert out.event.veto_status == "not_evaluated" and out.event.final_action == "entered"
 
 
 def test_nontech_stock_enters_when_tech3_full(mk):
@@ -348,12 +347,12 @@ def test_nontech_stock_enters_when_tech3_full(mk):
     assert out.action == "enter", (out.code, out.event and out.event.skip_reason)
 
 
-def test_stock5_full_blocks_any_stock(mk):
+def test_hisse_8_dolu_yeni_hisse_girer_kume_tavani_yok(mk):
     e = mk()
     e.fill(TEK[:2] + NONTEK[:6])               # hisse=8, teknoloji=2
     for b in ("XOM", "AMD"):
         out = e.decide(b)
-        assert out.action == "skip" and out.event.skip_reason == "cluster_cap", b
+        assert out.action == "enter", (b, out.code)
 
 
 def test_stock5_full_does_not_block_crypto_or_metal(mk):
@@ -370,14 +369,13 @@ def test_crypto_big_cap_6_not_binding(mk):
     assert e.decide("DOGE").action == "enter"
 
 
-def test_crypto_other_cap_9(mk):
+def test_crypto_other_9_dolu_giris_serbest(mk):
     e = mk()
     e.fill(DIGER[:8])
     assert e.decide("XMR").action == "enter"
     e2 = mk()
     e2.fill(DIGER[:9])
-    out = e2.decide("XMR")
-    assert out.action == "skip" and out.event.skip_reason == "cluster_cap"
+    assert e2.decide("XMR").action == "enter"                  # kume tavani yok
 
 
 def test_metal_and_energy_clusters_independent(mk):
@@ -414,15 +412,14 @@ def test_account_cap_23_allows_24th(mk):
     assert e.decide("BZ").action == "enter"
 
 
-def test_cluster_cap_checked_before_account_cap(mk):
+def test_kume_dolu_olsa_da_yalniz_hesap_tavani_engeller(mk):
     e = mk()
-    e.fill(BUYUK[:5] + DIGER[:9] + NONTEK[:6] + TEK[:2] + METAL)     # hesap 24 dolu, diger kume 9/9 dolu
-    out = e.decide("XMR")
-    assert out.action == "skip" and out.event.skip_reason == "cluster_cap"       # sira: kume tavani -> hesap tavani
+    e.fill(BUYUK[:5] + DIGER[:9] + NONTEK[:6] + TEK[:2] + METAL)     # hesap 24 dolu (tavan 36), diger kume 9 dolu
+    assert e.decide("XMR").action == "enter"
 
 
 def test_pairs_order_same_bar(mk):
-    """Ayni barda sira `pairs` sirasi: ilk gelen girer, tavan dolunca sonrakiler cluster_cap alir."""
+    """Ayni barda sira `pairs` sirasi; kume tavani olmadigindan hepsi girer."""
     e = mk()
     e.fill(TEK[:4])
     order = [b for b in TEK[4:]]            # pairs sirasinda 3 aday (teknoloji tavani 5)
@@ -432,8 +429,7 @@ def test_pairs_order_same_bar(mk):
         outs.append(o)
         if o.action == "enter":
             e.fill([b])                      # giris sayimi: acilmakta pozisyon
-    assert [o.action for o in outs] == ["enter", "skip", "skip"]
-    assert all(o.event.skip_reason == "cluster_cap" for o in outs[1:])
+    assert [o.action for o in outs] == ["enter", "enter", "enter"]
 
 
 # ------------------------------------------------------------------------------------------------ D-T7 kapi: seans etiketi bilgidir
@@ -474,9 +470,8 @@ def test_metal_weekend_entry_allowed(mk):
 def test_session_tag_on_skipped_rows_too(mk):
     D = utc(2026, 12, 5, 15, 0)
     e = mk(D)
-    e.fill(TEK[:5])
-    out = e.decide("AMD")
-    assert out.action == "skip" and out.event.skip_reason == "cluster_cap" and out.event.session_tag == "weekend"
+    out = e.decide("AMD", volume=0.0)
+    assert out.action == "skip" and out.event.skip_reason == "flat_bar" and out.event.session_tag == "weekend"
 
 
 # ------------------------------------------------------------------------------------------------ D-T7 tatil bari
@@ -498,11 +493,11 @@ def test_normal_bar_not_flat(mk):
     assert e.decide("BTC").action == "enter"
 
 
-def test_flat_bar_precedes_cluster_cap(mk):
+def test_flat_bar_dolu_kumede_de_flat_bar_yazar(mk):
     e = mk()
     e.fill(TEK[:5])
     out = e.decide("AMD", volume=0.0)
-    assert out.event.skip_reason == "flat_bar"           # sira: kural -> tatil bari -> ... -> kume tavani
+    assert out.event.skip_reason == "flat_bar"           # sira: kural -> tatil bari -> ...
 
 
 def test_flat_bar_guard_off_in_non_paper_unchanged(mk, tmp_path):
@@ -546,13 +541,13 @@ def test_no_lesson_means_session_closed_never_used(mk):
             assert o.action == "enter", (D, b, o.code)
 
 
-def test_session_closed_precedes_cluster_cap(mk):
+def test_session_closed_dolu_kumede_de_session_closed_yazar(mk):
     D = utc(2026, 12, 5, 15, 0)
     e = mk(D)
     e.fill(TEK[:5])
     _set_session_off(e.gate, {"stock": ["weekend"], "hisse": ["weekend"]})
     out = e.decide("AMD")
-    assert out.event.skip_reason == "session_closed"          # sira: tatil bari -> ders-kapali seans -> kume tavani
+    assert out.event.skip_reason == "session_closed"          # sira: tatil bari -> ders-kapali seans
 
 
 # ------------------------------------------------------------------------------------------------ veto adimi yok (kagit)
@@ -566,16 +561,16 @@ def test_no_veto_step_in_paper_entry_and_rows_not_evaluated(mk):
 
 def test_all_rejection_rows_veto_not_evaluated(mk):
     e = mk()
-    e.fill(TEK[:5])
+    e.fill([f"X{i}" for i in range(36)])
     rows = [e.decide("AMD"), e.decide("BTC", volume=0.0)]
     assert all(r.event.veto_status == "not_evaluated" for r in rows)
-    assert {r.event.skip_reason for r in rows} == {"cluster_cap", "flat_bar"}
+    assert {r.event.skip_reason for r in rows} == {"max_positions", "flat_bar"}
 
 
 def test_rejection_skip_reasons_valid_in_ledger_v5(mk):
     """Red satirlari defterde gercekten yazilabilir (ledger v5 skip_reason sozlugu)."""
     e = mk()
-    e.fill(TEK[:5])
+    e.fill([f"X{i}" for i in range(36)])
     out = e.decide("AMD")
     e.led.record_decision(out.event)
     for r in ("cluster_cap", "flat_bar", "session_closed", "max_positions"):

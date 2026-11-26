@@ -23,9 +23,7 @@ from test_engine_05_impl_smoke import H, T0, _params, _row  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 UTC = timezone.utc
-# 23.11 kullanici karari: asama B esikleri. Bu dosya sabit kume tavanlarini (cluster_cap) olcer; korelasyon grubu (ayri kural,
-# test_asama_b_esikleri.py) burada kapali tutulur.
-CFG = dataclasses.replace(load_cli_config(ROOT / "config", "learner", "paper"), korelasyon={}, toplam_buyukluk_kat=None)   # sahte pozisyonlarda nominal yok
+CFG = dataclasses.replace(load_cli_config(ROOT / "config", "learner", "paper"))
 
 
 def u(*a):
@@ -60,13 +58,9 @@ def test_flat_bar_and_classes():
     assert AG.clusters_of("NVDA/USDT", CFG.clusters) == ["hisse", "hisse_teknoloji"]
 
 
-def test_cluster_caps_multi_membership():
-    cl = CFG.clusters
-    tech = ["NVDA/USDT", "MSFT/USDT", "AAPL/USDT", "AMZN/USDT", "META/USDT"]
-    assert AG.full_cluster("GOOGL/USDT", tech, cl) == "hisse_teknoloji"
-    assert AG.full_cluster("JPM/USDT", tech, cl) is None                      # teknoloji disi hisse girer
-    eight = tech + ["JPM/USDT", "WMT/USDT", "HD/USDT"]
-    assert AG.full_cluster("LLY/USDT", eight, cl) == "hisse"
+def test_kume_tavani_kaldirildi_yalniz_hesap_tavani():
+    assert not hasattr(AG, "full_cluster") and not hasattr(AG, "count_in_cluster")
+    assert all(not hasattr(c, "max_positions") for c in CFG.clusters.values())
     assert AG.account_full(24, 24) and not AG.account_full(23, 24) and not AG.account_full(99, None)
 
 
@@ -109,8 +103,7 @@ def test_gate_paper_rows(env):
     env.g.session_off = {"hisse": {"weekend"}}
     assert _go(env, "NVDA/USDT").action == "enter"                            # kapatilmamis seansta ret yok
     env.held[:] = ["NVDA/USDT", "MSFT/USDT", "AAPL/USDT", "AMZN/USDT", "META/USDT"]
-    o = _go(env, "GOOGL/USDT")
-    assert (o.code, o.event.skip_reason, o.event.veto_status) == ("cluster_cap", "cluster_cap", "not_evaluated")
+    assert _go(env, "GOOGL/USDT").action == "enter"                           # kume tavani yok (25.11 sadelestirme 3/4)
     assert _go(env, "JPM/USDT").action == "enter"
     env.held[:] = [f"X{i}" for i in range(36)]   # 24.11 kullanici karari: max_positions 24 -> 36 (kagit = canli)
     o = _go(env, "XRP/USDT")

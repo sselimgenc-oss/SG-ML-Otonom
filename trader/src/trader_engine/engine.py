@@ -166,10 +166,6 @@ class Engine:
         if cfg.mode in PAPER_SYSTEM_MODES:       # DD-12 WP-13: ders kapattigi kurulumlar (salt okunur dosya; yoksa hepsi acik); 23.11 kullanici karari: canli = kagit
             _arms_path = Path(cfg.ledger_path).parent / "arms_off.json"
             self.gate.arms_off = lambda: load_arms_off(_arms_path)
-            if self.gate.korelasyon is not None:                        # 23.11 asama B: korelasyon matrisi market.sqlite barlarindan (saatte bir)
-                self.gate.korelasyon.bars_fn = lambda p, tf, until, n: self.view.bars(p, tf, until, n)
-            if self.gate.uzun_yon is not None:                          # fikir 7: 1d rejimi market.sqlite 4h barlarindan
-                self.gate.uzun_yon.bars_fn = lambda p, tf, until, n: self.view.bars(p, tf, until, n)
             if cfg.etiket_kurallari:                                    # rejim etiketi kurali (sabit; girisi yalniz atlatabilir; docs/etiket-kurallari-spec.md)
                 self.gate.etiket_cfg = cfg.etiket_kurallari
         self.reconciler = reconciler if reconciler is not None else self._make_reconciler()
@@ -556,11 +552,11 @@ class Engine:
             return None
 
     def cluster_counts(self) -> dict | None:
-        """status.json `clusters` (DD-12 §4.1): kume basina acik + acilmakta pozisyon sayisi ve tavan; hesap geneli. Yalniz kagit."""
+        """status.json `clusters` (DD-12 §4.1): kume basina acik pozisyon sayisi (yalniz bilgi; kume tavani yok) ve hesap tavani. Yalniz kagit."""
         if self.cfg.mode not in PAPER_SYSTEM_MODES or not self.cfg.clusters:
             return None
         held = [p.pair for p in self.state.open_positions()]
-        out = {name: {"open": sum(1 for h in held if h in spec.pairs), "max": spec.max_positions}
+        out = {name: {"open": sum(1 for h in held if h in spec.pairs)}
                for name, spec in self.cfg.clusters.items()}
         res = {"account": {"open": len(held), "max": self.cfg.max_positions}, "clusters": out,
                "optional_waiting": int(self._c.get("optional_waiting", 0))}
@@ -2069,7 +2065,7 @@ class Engine:
 
     def _pair_entries(self, pair: str, D: datetime, fr: SignalFrame, pre, attempted: bool) -> bool:
         """Bir ciftin adaylari (buyuk tf once, sonra oncelik; `fr` kazanan, `fr.extras` digerleri). 24.11: kazanan sonraki bir
-        kontrolde (uzun_yon, kurulum tavani, risk/boyut ...) reddedilirse siradaki aday ayni adimda denenir; biri girince ya da
+        kontrolde (ML1 esigi, risk/boyut ...) reddedilirse siradaki aday ayni adimda denenir; biri girince ya da
         aday kalmayinca durur (cift basina en cok BIR islem). Reddedilen adaylar gercek red nedeniyle yazilir (`mark_decided`
         yalniz hicbiri girmediyse, ilk redle, bir kez); hic denenmemis / yalniz onceliginde kaybeden sinyal adaylari
         `arm_conflict` yazilir. Kagit/canli/geri test ayni yol. Doner: giris denemesi yapildi mi."""

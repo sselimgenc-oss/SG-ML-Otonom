@@ -417,15 +417,6 @@ def check_entry(state: AccountState, cand: Candidate, cfg: RiskConfig = LOCKED_C
         return Decision(False, f"iç hata: {exc!r}", None)
 
 
-def check_entry_scaled(state: AccountState, cand: Candidate, cfg: RiskConfig, mult: float) -> Decision:
-    """`check_entry`, hedef işlem riski `mult` (0, 1] ile ÇARPILMIŞ kopya üzerinde (yalnız küçültür; sınırlar ve diğer alanlar aynı).
-    Kademeli boyut küçültme (docs/motor/kademeli-kucultme-spec.md) kullanır; mult > 1 ya da <= 0 ValueError."""
-    m = _num(mult, "mult")
-    if not 0 < m <= 1:
-        raise ValueError(f"mult (0, 1] içinde olmalı: {m!r}")
-    return check_entry(state, cand, tightened(cfg, target_trade_risk=cfg.target_trade_risk * m))
-
-
 def live_config(**kw: float) -> RiskConfig:
     """Canli katmani RiskConfig'i (`LiveRiskConfig`, LIVE_LIMITS): `paper_config` ile ayni anahtarlar."""
     unknown = set(kw) - set(PAPER_KEYS)
