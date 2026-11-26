@@ -43,5 +43,5 @@
 2026-11-26 00:41 UTC      3013  pa_proposer/M1@15m.json
 2026-11-26 00:41 UTC      3030  pa_proposer/M1@1d.json
 2026-11-26 00:41 UTC      3031  pa_proposer/M1@4h.json
-2026-11-26 14:47 UTC      8630  ml1/ml1_package.json
-2026-11-26 14:47 UTC      8639  ml1/ml1_package.son_iyi.json
+2026-11-26 15:47 UTC      8631  ml1/ml1_package.son_iyi.json
+2026-11-26 15:47 UTC      8632  ml1/ml1_package.json
