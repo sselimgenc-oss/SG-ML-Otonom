@@ -2,7 +2,7 @@
   "sema": "ortak.gunluk_ozet.v1",
   "proje": "ML",
   "mod": "kagit",
-  "uretim": "2026-11-26T05:00:19Z",
+  "uretim": "2026-11-26T06:04:13Z",
   "gun": "2026-11-26",
   "kasa": {
     "baslangic": 1000.0,
@@ -479,7 +479,7 @@
     "durdu_mu": false
   },
   "saglik": {
-    "son_nabiz": "2026-11-26T05:00:18Z",
+    "son_nabiz": "2026-11-26T06:00:48Z",
     "hata_sayisi_gun": 2
   },
   "notlar": [
