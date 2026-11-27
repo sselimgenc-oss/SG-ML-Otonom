@@ -1,10 +1,10 @@
 {
  "sema": "ml.mutabakat.v1",
- "uretim": "2026-11-26T23:21:06Z",
- "uretim_tsi": "2026-11-27 02:21",
- "islem_sayisi": 4,
+ "uretim": "2026-11-27T00:21:13Z",
+ "uretim_tsi": "2026-11-27 03:21",
+ "islem_sayisi": 5,
  "kapanan": 1,
- "acik": 3,
+ "acik": 4,
  "uyusmazlik_sayisi": 0,
  "uyusmazliklar": [],
  "telegram": {
@@ -14,26 +14,22 @@
   "fazla": 0,
   "oncesi": 0,
   "dagilim": {
-   "gönderildi (kayıt)": 5,
-   "—": 3
+   "gönderildi (kayıt)": 6,
+   "—": 4
   },
   "kaynak": "Telegram geçmişine erişim yok; motorun gönderdi kaydı (imleç) kullanıldı. Sıra: (1) gönderim kaydı islem_gonderildi.jsonl (ts, işlem no, tür, yön, K/Z; kayıt başlangıcından itibaren), (2) outbox 'sent' işaretleri (teslim edilmiş mesajın anahtarı; mesaj metni yok), (3) islem_imleci.json (duyurulmuş işlem numaraları). Gönderim kaydından önceki işlemlerde imleç yalnız 'duyuruldu' sayıldığını gösterir, mesaj metnini kanıtlamaz; mesaj sisteminden önceki işlemler 'Telegram öncesi' sayılır, uyuşmazlık değildir."
  },
- "fiyat_bekleniyor": [
-  1,
-  3,
-  4
- ],
- "fiyat_bekleniyor_durum": "fiyat bekleniyor (piyasa kapalı/veri yok)",
+ "fiyat_bekleniyor": [],
+ "fiyat_bekleniyor_durum": null,
  "panel_notu": "Panel 'tümü' listesi son 200 kapanan işlemi gösterir; toplamlar tüm işlemleri kapsar.",
  "bilgi": [
-  "Fiyatı gelmeyen açık işlemler: #1, #3, #4 · fiyat bekleniyor (piyasa kapalı/veri yok); uyuşmazlık sayılmaz"
+  "Açık işlemlerin anlık kâr/zararı: kasada -1,44 $, panelde -1,24 $ · fark 0,20 $ (fiyat zamanlaması, uyuşmazlık sayılmaz)"
  ],
  "kontroller": [
   {
    "ad": "Kasa = başlangıç + Σ net K/Z",
    "sonuc": "geçti",
-   "ayrinti": "Kasa 1.001,61 $ tutuyor"
+   "ayrinti": "Kasa 1.001,54 $ tutuyor"
   },
   {
    "ad": "Net K/Z: SQL toplamı = motor toplamı = brüt - komisyon - fonlama",
@@ -58,17 +54,13 @@
   {
    "ad": "Açık pozisyon sayısı (motor = panel = şerit = durum)",
    "sonuc": "geçti",
-   "ayrinti": "3 açık işlem, hepsi aynı"
+   "ayrinti": "4 açık işlem, hepsi aynı"
   },
   {
    "ad": "Açık K/Z fiyat kaynağı (panel = motor mark)",
    "sonuc": "geçti",
-   "ayrinti": "Açık işlemlerin kâr/zararı panelle aynı; fiyat bekleniyor (piyasa kapalı/veri yok): #1, #3, #4",
-   "fiyat_bekleniyor": [
-    1,
-    3,
-    4
-   ]
+   "ayrinti": "Açık işlemlerin kâr/zararı panelle aynı",
+   "fiyat_bekleniyor": []
   },
   {
    "ad": "Günlük zarar limiti oranı (panel = kâğıt ayarı)",
@@ -95,8 +87,7 @@
    "uyusmazlik": [],
    "panel": "aynı",
    "telegram_acildi": "gönderildi (kayıt)",
-   "telegram_kapandi": "—",
-   "fiyat_durumu": "fiyat bekleniyor (piyasa kapalı/veri yok)"
+   "telegram_kapandi": "—"
   },
   {
    "islem_no": 2,
@@ -119,7 +110,7 @@
   },
   {
    "islem_no": 3,
-   "kol": "Trend tepki yükselişi · 1 saat",
+   "kol": "Düşüş trendi: tepkiden satış · 1 saat",
    "coin": "TRX",
    "yon": "short",
    "durum": "açık",
@@ -134,12 +125,11 @@
    "uyusmazlik": [],
    "panel": "aynı",
    "telegram_acildi": "gönderildi (kayıt)",
-   "telegram_kapandi": "—",
-   "fiyat_durumu": "fiyat bekleniyor (piyasa kapalı/veri yok)"
+   "telegram_kapandi": "—"
   },
   {
    "islem_no": 4,
-   "kol": "Trend tepki yükselişi: 3 yükselen dip · 1 saat",
+   "kol": "Düşüş trendi: 3 yükselen dibin kırılımıyla satış · 1 saat",
    "coin": "BTC",
    "yon": "short",
    "durum": "açık",
@@ -154,8 +144,26 @@
    "uyusmazlik": [],
    "panel": "aynı",
    "telegram_acildi": "gönderildi (kayıt)",
-   "telegram_kapandi": "—",
-   "fiyat_durumu": "fiyat bekleniyor (piyasa kapalı/veri yok)"
+   "telegram_kapandi": "—"
+  },
+  {
+   "islem_no": 5,
+   "kol": "Düşüş trendi: tepkiden satış · 4 saat",
+   "coin": "XRP",
+   "yon": "short",
+   "durum": "açık",
+   "acilis": "2026-11-27 03:00",
+   "kapanis": null,
+   "giris": 0.9433,
+   "cikis": null,
+   "brut": null,
+   "komisyon": 0.16639812,
+   "fonlama": 0.0,
+   "net": null,
+   "uyusmazlik": [],
+   "panel": "aynı",
+   "telegram_acildi": "gönderildi (kayıt)",
+   "telegram_kapandi": "—"
   }
  ]
 }
