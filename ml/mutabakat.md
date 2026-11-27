@@ -1,6 +1,6 @@
 # İşlem mutabakatı
 
-Son kontrol: 2026-11-27 03:21 (TSİ). İşlem: 5 (kapanan 1, açık 4). Uyuşmazlık: 0.
+Son kontrol: 2026-11-27 04:26 (TSİ). İşlem: 5 (kapanan 1, açık 4). Uyuşmazlık: 0.
 
 ## Kontroller
 
@@ -12,12 +12,12 @@ Son kontrol: 2026-11-27 03:21 (TSİ). İşlem: 5 (kapanan 1, açık 4). Uyuşmaz
 | Short toplamı (motor = panel) | geçti | Short işlemler panelle aynı (1 işlem) |
 | Toplam kapanan (motor = panel 'tümü') | geçti | Kapanan işlemlerin toplamı panelle aynı (1 işlem) |
 | Açık pozisyon sayısı (motor = panel = şerit = durum) | geçti | 4 açık işlem, hepsi aynı |
-| Açık K/Z fiyat kaynağı (panel = motor mark) | geçti | Açık işlemlerin kâr/zararı panelle aynı |
+| Açık K/Z fiyat kaynağı (panel = motor mark) | geçti | Açık işlemlerin kâr/zararı panelle aynı; fiyat bekleniyor (piyasa kapalı/veri yok): #1, #3, #4, #5 |
 | Günlük zarar limiti oranı (panel = kâğıt ayarı) | geçti | Günlük zarar limiti %8,00 (panelle aynı) |
 
 ## Bilgi
 
-- Açık işlemlerin anlık kâr/zararı: kasada -1,44 $, panelde -1,24 $ · fark 0,20 $ (fiyat zamanlaması, uyuşmazlık sayılmaz)
+- Fiyatı gelmeyen açık işlemler: #1, #3, #4, #5 · fiyat bekleniyor (piyasa kapalı/veri yok); uyuşmazlık sayılmaz
 
 ## Telegram kaynağı
 
