@@ -1858,7 +1858,7 @@ def _imlec_oku(p: Path) -> dict | None:
         return None
 
 
-SAATLIK_ISLEM_MESAJI = 4          # saatte en cok bu kadar tekil islem mesaji; fazlasi saat sonunda tek ozet
+SAATLIK_ISLEM_MESAJI = 20         # saatte en cok bu kadar tekil islem mesaji; fazlasi saat sonunda tek ozet
 
 
 def _kol_haritasi(path: str) -> dict:
@@ -1972,12 +1972,13 @@ def islem_tick(cfg: TelegramConfig, notifier: "TelegramNotifier", now: datetime 
             (t, (kol(t), t.pair, t.side, t.entry_price, (t.qty or 0.0) * (t.entry_price or 0.0), t.planned_stop, zd, puan,
                  t.planned_risk)))
     for dk, grup in yeni_acilan.items():
-        gitti = _saat_gonder(kayit, now, TS.islemler_acildi([g[1] for g in grup]), notifier,
-                             f"islem-ac:{'-'.join(str(g[0].trade_id) for g in grup)}", {"acilan": len(grup)})
-        if gitti:
-            for g in grup:
-                gonderildi_yaz(cfg.var_dir, now, "acildi", g[0])
-        sent += gitti
+        for t, sat in grup:                              # 27.11 sahip karari: ayni dakikadaki acilislar da TEK TEK (kurulum adiyla)
+            k, pr, sd, g, tu, st, zd, pu, rk = sat
+            gitti = _saat_gonder(kayit, now, TS.islem_acildi(k, pr, sd, g, tu, st, zd=zd, puan=pu, risk=rk), notifier,
+                                 f"islem-ac:{t.trade_id}", {"acilan": 1})
+            if gitti:
+                gonderildi_yaz(cfg.var_dir, now, "acildi", t)
+            sent += gitti
     for t in sorted(kap, key=lambda t: (t.exit_ts, t.trade_id)):
         if t.trade_id in kapanan:
             continue

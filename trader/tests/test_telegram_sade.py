@@ -333,8 +333,9 @@ def _ac_kapa_ledger(rig, n):
     (rig.tmp / "tg" / "islem_imleci.json").write_text(json.dumps({"acilan": [], "kapanan": []}))
 
 
-def test_islemler_saatte_en_cok_4_mesaj_fazlasi_saat_sonunda_ozet(rig):
-    assert T.SAATLIK_ISLEM_MESAJI == 4
+def test_islemler_saatte_en_cok_4_mesaj_fazlasi_saat_sonunda_ozet(rig, monkeypatch):
+    assert T.SAATLIK_ISLEM_MESAJI == 20                     # 27.11: acilislar tek tek; uretim siniri 20/saat
+    monkeypatch.setattr(T, "SAATLIK_ISLEM_MESAJI", 4)       # sinir mekanizmasi kucuk sinirla sinanir
     _ac_kapa_ledger(rig, 8)                                 # 8 acilis (farkli dakikalar) + 4 kapanis = 12 olay
     now = datetime(2026, 11, 16, 18, 5, tzinfo=UTC)
     T.islem_tick(rig.cfg, rig.n, now)
@@ -369,7 +370,7 @@ def test_ayni_dakikadaki_acilislar_tek_mesaj():
     assert "puan" not in TS.islemler_acildi([("T1", "SOL/USDT", "long", 1, 1, 1, "4h"), ("T1", "ETH/USDT", "long", 1, 1, 1, "4h")])
     buyuk = TS.islemler_acildi([("T1 · 1 saat", "SOL/USDT", "long", 1, 1, 1)] * 6)
     ok_form(buyuk)
-    assert "işlem daha" not in buyuk and len(buyuk.splitlines()) == 7   # 6 islemin hepsi listelenir
+    assert "ve 2 işlem daha" in buyuk and len(buyuk.splitlines()) == 6
 
 
 def test_gunluk_ozet_ml1_satiri_var_eski_model_satiri_yok(tmp_path):
@@ -426,3 +427,12 @@ def test_etiket_yon_duyarli_long_degismedi():
     assert TS.kol_adi("IN1-RSI2@1h", None, "long") == "Gösterge: RSI(2) dip · 1 saat"
     assert TS.etiket("XY9", "short") == "XY9"
     assert TS.etiket("GF1-UCLU", "short") == "Grafik: üçlü tepe" and TS.etiket("GF1-KAMA", "short") == "Grafik: yükselen kama"
+
+
+def test_ayni_dakikadaki_acilislar_tek_tek_ve_kurulum_adiyla(rig):
+    """27.11 sahip karari: ayni dakikadaki acilislar toplu degil tek tek, her biri kurulum adiyla gider."""
+    _ac_kapa_ledger(rig, 3)
+    T.islem_tick(rig.cfg, rig.n, datetime(2026, 11, 16, 18, 5, tzinfo=UTC))
+    acilis = [t for t in rig.fake.texts if "açıldı" in t]
+    assert acilis and all("işlem açıldı" not in t and "işlem daha" not in t for t in acilis)
+    assert all(len(t.splitlines()) == 3 for t in acilis)    # yon/coin · kurulum adi · giris/stop/tutar
