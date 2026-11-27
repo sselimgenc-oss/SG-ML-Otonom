@@ -369,7 +369,7 @@ def test_ayni_dakikadaki_acilislar_tek_mesaj():
     assert "puan" not in TS.islemler_acildi([("T1", "SOL/USDT", "long", 1, 1, 1, "4h"), ("T1", "ETH/USDT", "long", 1, 1, 1, "4h")])
     buyuk = TS.islemler_acildi([("T1 · 1 saat", "SOL/USDT", "long", 1, 1, 1)] * 6)
     ok_form(buyuk)
-    assert "ve 2 işlem daha" in buyuk and len(buyuk.splitlines()) == 6
+    assert "işlem daha" not in buyuk and len(buyuk.splitlines()) == 7   # 6 islemin hepsi listelenir
 
 
 def test_gunluk_ozet_ml1_satiri_var_eski_model_satiri_yok(tmp_path):

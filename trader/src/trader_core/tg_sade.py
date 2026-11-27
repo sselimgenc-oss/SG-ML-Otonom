@@ -364,12 +364,10 @@ def islemler_acildi(satirlar: list[tuple]) -> str:
         k, pr, sd, g, t, st, zd, pu, rk = rows[0]
         return islem_acildi(k, pr, sd, g, t, st, zd=zd, puan=pu, risk=rk)
     out = [f"🟩 {len(rows)} işlem açıldı"]
-    for k, pr, sd, g, t, st, zd, pu, rk in rows[:4]:
+    for k, pr, sd, g, t, st, zd, pu, rk in rows:       # hepsi listelenir (en cok 14 pozisyon; kesme yok: sahip karari 27.11)
         zf = zd_adi(zd) or str(k).partition(" · ")[2]
         p = puan_metni(pu)
         out.append(f"{coin(pr)} {yon(sd)}" + (f" · {zf}" if zf else "") + f" · {sayi(t, 0)} $" + (f" · puan {p}" if p else ""))
-    if len(rows) > 4:
-        out.append(f"… ve {len(rows) - 4} işlem daha")
     return _bagla(out)
 
 
