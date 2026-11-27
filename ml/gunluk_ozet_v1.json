@@ -2,24 +2,30 @@
   "sema": "ortak.gunluk_ozet.v1",
   "proje": "ML",
   "mod": "kagit",
-  "uretim": "2026-11-27T14:03:33Z",
+  "uretim": "2026-11-27T15:02:43Z",
   "gun": "2026-11-27",
   "kasa": {
     "baslangic": 1000.0,
-    "simdi": 969.07,
-    "gun_pnl": -30.93,
-    "toplam_pnl": -30.93,
+    "simdi": 1000.12,
+    "gun_pnl": 0.12,
+    "toplam_pnl": 0.12,
     "zirveden_dusus_yuzde": 3.35
   },
   "islem": {
-    "gun_acilan": 8,
-    "gun_kapanan": 5,
-    "kazanan": 1,
+    "gun_acilan": 13,
+    "gun_kapanan": 7,
+    "kazanan": 3,
     "kaybeden": 4,
-    "acik_pozisyon": 4,
+    "acik_pozisyon": 7,
     "alinmayan_sinyal": 0
   },
   "hesaplar": [
+    {
+      "ad": "IN1-RSIDONUS",
+      "gun_pnl": 16.24,
+      "toplam_pnl": 16.24,
+      "islem": 1
+    },
     {
       "ad": "B1",
       "gun_pnl": 0.0,
@@ -201,12 +207,6 @@
       "islem": 0
     },
     {
-      "ad": "IN1-RSIDONUS",
-      "gun_pnl": 0.0,
-      "toplam_pnl": 0.0,
-      "islem": 0
-    },
-    {
       "ad": "IN1-STOK",
       "gun_pnl": 0.0,
       "toplam_pnl": 0.0,
@@ -365,8 +365,10 @@
     "durdu_mu": false
   },
   "saglik": {
-    "son_nabiz": "2026-11-27T14:00:57Z",
+    "son_nabiz": "2026-11-27T15:01:07Z",
     "hata_sayisi_gun": 0
   },
-  "notlar": []
+  "notlar": [
+    "en iyi kurulum: IN1-RSIDONUS"
+  ]
 }
