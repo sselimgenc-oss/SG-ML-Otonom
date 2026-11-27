@@ -1,10 +1,10 @@
 {
  "sema": "ml.mutabakat.v1",
- "uretim": "2026-11-26T22:19:06Z",
- "uretim_tsi": "2026-11-27 01:19",
- "islem_sayisi": 2,
- "kapanan": 0,
- "acik": 2,
+ "uretim": "2026-11-26T23:21:06Z",
+ "uretim_tsi": "2026-11-27 02:21",
+ "islem_sayisi": 4,
+ "kapanan": 1,
+ "acik": 3,
  "uyusmazlik_sayisi": 0,
  "uyusmazliklar": [],
  "telegram": {
@@ -14,30 +14,31 @@
   "fazla": 0,
   "oncesi": 0,
   "dagilim": {
-   "gönderildi (kayıt)": 2,
-   "—": 2
+   "gönderildi (kayıt)": 5,
+   "—": 3
   },
   "kaynak": "Telegram geçmişine erişim yok; motorun gönderdi kaydı (imleç) kullanıldı. Sıra: (1) gönderim kaydı islem_gonderildi.jsonl (ts, işlem no, tür, yön, K/Z; kayıt başlangıcından itibaren), (2) outbox 'sent' işaretleri (teslim edilmiş mesajın anahtarı; mesaj metni yok), (3) islem_imleci.json (duyurulmuş işlem numaraları). Gönderim kaydından önceki işlemlerde imleç yalnız 'duyuruldu' sayıldığını gösterir, mesaj metnini kanıtlamaz; mesaj sisteminden önceki işlemler 'Telegram öncesi' sayılır, uyuşmazlık değildir."
  },
  "fiyat_bekleniyor": [
   1,
-  2
+  3,
+  4
  ],
  "fiyat_bekleniyor_durum": "fiyat bekleniyor (piyasa kapalı/veri yok)",
  "panel_notu": "Panel 'tümü' listesi son 200 kapanan işlemi gösterir; toplamlar tüm işlemleri kapsar.",
  "bilgi": [
-  "Fiyatı gelmeyen açık işlemler: #1, #2 · fiyat bekleniyor (piyasa kapalı/veri yok); uyuşmazlık sayılmaz"
+  "Fiyatı gelmeyen açık işlemler: #1, #3, #4 · fiyat bekleniyor (piyasa kapalı/veri yok); uyuşmazlık sayılmaz"
  ],
  "kontroller": [
   {
    "ad": "Kasa = başlangıç + Σ net K/Z",
    "sonuc": "geçti",
-   "ayrinti": "Kasa 999,63 $ tutuyor"
+   "ayrinti": "Kasa 1.001,61 $ tutuyor"
   },
   {
    "ad": "Net K/Z: SQL toplamı = motor toplamı = brüt - komisyon - fonlama",
    "sonuc": "geçti",
-   "ayrinti": "Defter toplamları tutuyor (+0,00 $)"
+   "ayrinti": "Defter toplamları tutuyor (+2,69 $)"
   },
   {
    "ad": "Long toplamı (motor = panel)",
@@ -47,25 +48,26 @@
   {
    "ad": "Short toplamı (motor = panel)",
    "sonuc": "geçti",
-   "ayrinti": "Short işlemler panelle aynı (0 işlem)"
+   "ayrinti": "Short işlemler panelle aynı (1 işlem)"
   },
   {
    "ad": "Toplam kapanan (motor = panel 'tümü')",
    "sonuc": "geçti",
-   "ayrinti": "Kapanan işlemlerin toplamı panelle aynı (0 işlem)"
+   "ayrinti": "Kapanan işlemlerin toplamı panelle aynı (1 işlem)"
   },
   {
    "ad": "Açık pozisyon sayısı (motor = panel = şerit = durum)",
    "sonuc": "geçti",
-   "ayrinti": "2 açık işlem, hepsi aynı"
+   "ayrinti": "3 açık işlem, hepsi aynı"
   },
   {
    "ad": "Açık K/Z fiyat kaynağı (panel = motor mark)",
    "sonuc": "geçti",
-   "ayrinti": "Açık işlemlerin kâr/zararı panelle aynı; fiyat bekleniyor (piyasa kapalı/veri yok): #1, #2",
+   "ayrinti": "Açık işlemlerin kâr/zararı panelle aynı; fiyat bekleniyor (piyasa kapalı/veri yok): #1, #3, #4",
    "fiyat_bekleniyor": [
     1,
-    2
+    3,
+    4
    ]
   },
   {
@@ -101,13 +103,52 @@
    "kol": "Gösterge: RSI(2) tepe · 1 saat",
    "coin": "ETH",
    "yon": "short",
-   "durum": "açık",
+   "durum": "kapalı",
    "acilis": "2026-11-27 00:00",
-   "kapanis": null,
+   "kapanis": "2026-11-27 02:00",
    "giris": 1703.51,
+   "cikis": 1693.47,
+   "brut": 3.2429199999999883,
+   "komisyon": 0.54861227,
+   "fonlama": 0.0,
+   "net": 2.694307729999988,
+   "uyusmazlik": [],
+   "panel": "aynı",
+   "telegram_acildi": "gönderildi (kayıt)",
+   "telegram_kapandi": "gönderildi (kayıt)"
+  },
+  {
+   "islem_no": 3,
+   "kol": "Trend tepki yükselişi · 1 saat",
+   "coin": "TRX",
+   "yon": "short",
+   "durum": "açık",
+   "acilis": "2026-11-27 02:00",
+   "kapanis": null,
+   "giris": 0.30391,
    "cikis": null,
    "brut": null,
-   "komisyon": 0.27511686500000004,
+   "komisyon": 0.501603455,
+   "fonlama": 0.0,
+   "net": null,
+   "uyusmazlik": [],
+   "panel": "aynı",
+   "telegram_acildi": "gönderildi (kayıt)",
+   "telegram_kapandi": "—",
+   "fiyat_durumu": "fiyat bekleniyor (piyasa kapalı/veri yok)"
+  },
+  {
+   "islem_no": 4,
+   "kol": "Trend tepki yükselişi: 3 yükselen dip · 1 saat",
+   "coin": "BTC",
+   "yon": "short",
+   "durum": "açık",
+   "acilis": "2026-11-27 02:00",
+   "kapanis": null,
+   "giris": 60511.2,
+   "cikis": null,
+   "brut": null,
+   "komisyon": 0.48408959999999995,
    "fonlama": 0.0,
    "net": null,
    "uyusmazlik": [],
