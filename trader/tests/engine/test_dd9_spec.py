@@ -207,7 +207,7 @@ def test_k_02_live_json_exact_key_sets():
     # 23.11 kullanici karari: canli = kagit (kagit sistem anahtarlari eklendi; ayrinti: test_canli_kagit_parite.py)
     assert set(live) == {"mode", "var_dir", "kill_file", "pause_file", "live", "pairs", "optional_pairs", "strategy", "arms",
                          "shadow_blocks", "exit_modes", "max_positions", "target_trade_risk", "risk",
-                         "clusters", "etiket_kurallari", "flat_bar_guard", "contract_types", "cost_overrides",
+                         "clusters", "etiket_kurallari", "flat_bar_guard", "stop_tabani", "contract_types", "cost_overrides",
                          "target_mode"}   # 24.11 kullanici karari: hedef bekleyen emir (kagitla ayni "resting")
     assert set(live["live"]) == set(testnet["live"])
 

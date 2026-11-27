@@ -6,7 +6,7 @@ alinsaydi ve ogrenme kayitlari boylece formasyon x zaman dilimi bazinda calisir.
 
 Kurallar: karar yalniz kapanmis son mumda (`t`); `planned_entry = c[t]`; short, long'un fiyat aynasi (o,h,l,c -> -o,-l,-h,-c);
 ayni mumda iki yon cikarsa aday yok. Kitap kurallari sabittir: hicbir ders parametresi (`inp.params.*`) okunmaz.
-Dedektorler yalniz `t` ve oncesini okur (ileriye bakis yok). Stop mesafesi girisin %0,6'sindan kucukse ya da yanlis taraftaysa
+Dedektorler yalniz `t` ve oncesini okur (ileriye bakis yok). Stop mesafesi yanlis taraftaysa (alt sinir artik STOP TABANI: motor giris kararinda, stop_tabani.py)
 `stop_width`; hedef yanlis taraftaysa `rr_below_min` (sema yalniz bu iki elenme nedenini kabul eder).
 Kutuphane kurulumlarinda kazanc/risk tabani ve ATR cinsinden stop ust siniri BILEREK yok (sahip karari, 26.11): ML1 zayif oranli adaylari da gorur;
 `rr_below_min` burada yalniz 'hedef yanlis tarafta' demektir."""
@@ -26,7 +26,7 @@ from . import _pa as P
 
 ATR_LEN = 14
 MIN_MUM = 40                       # isinma: bu kadar mum yoksa aday yok, hata yok
-MIN_STOP_ORAN = 0.006
+MIN_STOP_ORAN = 0.006               # YALNIZ cevrimdisi ML1 taramasi (trader_ml/ml1/scan.py) kullanir; canli/kagit kararinda stop tabani (stop_tabani.py) yonetir
 PIV_SOL, PIV_SAG = 10, 2           # pivot: sol 10, sag 2, kesin esitsizlik; ancak indeksi <= t-2 olan pivot kullanilir
 IND_PENCERE = 1200                 # uzun serilerde ozyinelemeli gostergeler son bu kadar mumdan hesaplanir (hata < 1e-15)
 KUTUPHANE_FEATURES = {"body_ratio": "body_ratio", "wick_ratio": "wick_ratio", "rr": "rr", "f_seviye": "ema_value",
@@ -203,7 +203,7 @@ def hesapla(aile: str, formasyonlar: dict, kod: str, inp: ArmInput):
     trail = f.kip == "trail"                 # iz suren stop kipi: hedef yok (ana kolun TF1/H2/S1/T1 yolu)
     hedef = None if trail else (entry + 2.0 * risk if hedef is None else float(hedef))
     skip = None
-    if not (risk > 0) or risk < MIN_STOP_ORAN * abs(entry):
+    if not (risk > 0):                       # 27.11: alt sinir (eski %0,6) artik motor giris kararindaki STOP TABANI (stop_tabani.py); burada yalniz gecersiz stop
         skip = "stop_width"
     elif not trail and not (hedef > entry):
         skip = "rr_below_min"

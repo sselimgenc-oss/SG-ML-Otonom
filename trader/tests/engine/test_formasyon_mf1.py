@@ -122,12 +122,20 @@ def test_zaman_stopu_varsayilani_48():
 
 
 def test_stop_dar_ise_elenir():
-    """stop mesafesi girisin %0,6'sindan kucukse stop_width (aday kaydedilir, sinyal degil)."""
+    """27.11: kutuphane artik %0,6 alt sinirini KENDISI uygulamaz; dar stoplu aday sinyal olarak gelir ve motor giris kararindaki
+    stop tabani (stop_tabani.uygula) `stop_width` ile eler (aday kaydedilir, sinyal degil)."""
     # PINBAR dar stop: alt golge 0.4 (>= 2 govde), giris 160.8 stop 160.4 -> %0,25
     p = seri("PINBAR")
     p.iloc[-1] = [160.7, 160.82, 160.4, 160.8, 1.0]
     row = arms.find_arm("MF1-PINBAR").compute(_core_inp(p, pair="SW2/USDT")).iloc[-1]
-    assert row["setup"] == "MF1-PINBAR" and row["skip_reason"] == "stop_width" and not bool(row["signal"])
+    assert row["setup"] == "MF1-PINBAR" and row["skip_reason"] is None and bool(row["signal"])
+    from trader_engine import stop_tabani as ST
+    from test_engine_05_impl_smoke import _row as _sr
+    r = _sr(setup="MF1-PINBAR", side=row["side"], planned_entry=float(row["planned_entry"]), planned_stop=float(row["planned_stop"]),
+            atr_tf=float(row["atr_tf"]), stop_dist_atr=float(row["stop_dist_atr"]))
+    cfg = {"aktif": True, "maliyet_payi": 0.20, "genislet_esik": 0.7, "atr_kat": 0.5}
+    out, kod = ST.uygula(r, cfg, 0.002, 1.0, None)
+    assert kod == "stop_width" and out.signal is False and out.skip_reason == "stop_width"
 
 
 # ------------------------------------------------------------------------------------------------ rastgele yuruyus

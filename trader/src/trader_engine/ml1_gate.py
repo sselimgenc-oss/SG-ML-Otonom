@@ -154,6 +154,36 @@ class Ml1Gate:
             self.counters["ml1_hata"] += 1
             log.error("ML1 aday tamponu hatasi %s: %r", pair, e)
 
+    def stop_guncelle(self, pair: str, D: datetime, arm_id: str, side: str, stop: float, stop_dist_atr: float | None) -> None:
+        """27.11 stop tabani: tamponlanan adayin stopu/`stop_dist_atr`i SON (genisletilmis) degerle degistirilir ki ML1 nihai stopla puanlasin
+        (ozellikler stop mesafesinden turetilir). Tamponda yoksa sessizce gecer (kural kolu degil / kapali). Asla firlatmaz."""
+        try:
+            b = self._buf.get(pair)
+            k = (arm_id, pd.Timestamp(D), side)
+            if not b or k not in b:
+                return
+            b[k]["stop"] = float(stop)
+            if stop_dist_atr is not None and math.isfinite(stop_dist_atr):
+                b[k]["stop_dist_atr"] = float(stop_dist_atr)
+            self.counters["ml1_stop_guncel"] += 1
+        except Exception as e:  # noqa: BLE001
+            self.counters["ml1_hata"] += 1
+            log.error("ML1 stop guncelleme hatasi %s: %r", pair, e)
+
+    @staticmethod
+    def eski_dar_kutuphane(setup: str, entry: float, stop: float) -> bool:
+        """27.11: formasyon kutuphanesi `%0,6 stop tabani` kontrolunu motor giris kararindaki STOP TABANINA (stop_tabani.py) devretti; kutuphane
+        artik dar stoplu adayi da sinyal verir. ML1 aday kumesi (egitim/cevrimdisi tarama: `K.MIN_STOP_ORAN`) degismesin diye bu adaylar
+        ML1 tamponuna ALINMAZ (cagiran: strategy_runner, `observe` oncesi; zaten stop tabani onlari `stop_width` ile eler: 0,6% < 0,7 x en dusuk taban 1,0%). Kutuphane disi: False."""
+        try:
+            from trader_engine.strategies import arms as AR
+            from trader_engine.strategies.arms import _kutuphane as KU
+            if not hasattr(AR.find_arm(setup), "FORMASYON"):
+                return False
+            return not (entry - stop) * (1 if entry > stop else -1) >= KU.MIN_STOP_ORAN * abs(entry)
+        except Exception:  # noqa: BLE001
+            return False
+
     def end_step(self) -> None:
         """Karar adimi sonu: mum pencere referanslari ve adim kararlari birakilir; eski adaylar tampondan atilir."""
         self._bars.clear()

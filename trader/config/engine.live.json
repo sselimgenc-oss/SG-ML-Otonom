@@ -49,6 +49,7 @@
   },
   "etiket_kurallari": {"rejim": {"acik": true}},
   "flat_bar_guard": true,
+  "stop_tabani": {"aktif": true, "maliyet_payi": 0.20, "genislet_esik": 0.7, "atr_kat": 0.5},
   "contract_types": ["PERPETUAL", "TRADIFI_PERPETUAL"],
   "cost_overrides": {
     "NVDA/USDT": {

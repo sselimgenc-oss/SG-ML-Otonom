@@ -67,6 +67,8 @@ class SignalRow:
     tf: str | None = None                  # DD-12 WP-11: satirin tetik zaman dilimi; tekli stratejide None (bar suresinden bulunur)
     vol_tahmin: float | None = None        # fikir 10: GJR oynaklik tahmini / ATR oynakligi (yalniz gece suzgecinin ek ozelligi)
     vol_asim: float | None = None          # fikir 10: oynaklik asimetrisi (kaldirac bileseni), [-1, 1]
+    stop_dogal: float | None = None        # 27.11 stop tabani: kuralin degerlendirdigi DOGAL planli stop fiyati (None = kural uygulanmadi)
+    stop_genisletildi: bool = False        # 27.11 stop tabani: planned_stop tabana genisletildi mi
 
 
 @dataclass(frozen=True)
@@ -472,7 +474,9 @@ class MultiArmSignalSource(WindowedSignalSource):
                     row = dataclasses.replace(row, arm_id=f"{row.setup}@{tf}", tf=tf)
                 else:
                     row = dataclasses.replace(row, tf=tf)
-                if self.ml1 is not None and bool(sig.iloc[-1]["signal"]):        # 25.11 ML1: post_filter ONCESI aday (cevrimdisi tarama ile ayni)
+                if (self.ml1 is not None and bool(sig.iloc[-1]["signal"])        # 25.11 ML1: post_filter ONCESI aday (cevrimdisi tarama ile ayni)
+                        and not self.ml1.eski_dar_kutuphane(str(sig.iloc[-1]["setup"]), float(sig.iloc[-1]["planned_entry"]),
+                                                            float(sig.iloc[-1]["planned_stop"]))):   # 27.11: eski %0,6 altindaki kutuphane adayi ML1 kumesine girmez
                     self.ml1.observe(pair, D, tf, sig.iloc[-1], trig, h4)
                 lt = trig.iloc[-1]
                 tb = (float(lt["high"]), float(lt["low"]), float(lt["volume"])) if "volume" in trig.columns else None

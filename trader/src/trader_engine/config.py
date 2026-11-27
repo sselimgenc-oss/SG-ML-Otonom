@@ -119,6 +119,7 @@ class EngineConfig:
     etiket_kurallari: Mapping[str, Any] = dataclasses.field(default_factory=dict)    # 20 Kasim: etiket kurallari (yalniz paper; bos = kapali; docs/etiket-kurallari-spec.md)
     # --- 23.11 kullanici karari: asama B esikleri (yalniz paper/live giris kapisi; bos/None = kapali) ---
     exit_modes: Mapping[str, Mapping] = dataclasses.field(default_factory=dict)      # cikis kipleri (basa-bas / kismi kar); anahtar default|KURULUM|arm_id; bos = kapali (docs/cikis-kipleri-spec.md)
+    stop_tabani: Mapping[str, Any] = dataclasses.field(default_factory=dict)         # 27.11 sahip karari: stop tabani (tum kurulumlar; giris karari, boyuttan once); bos/aktif=false = eski davranis
     ml1: Mapping[str, Any] = dataclasses.field(default_factory=dict)                 # 25.11 ML1 (yalniz paper): {"aktif": bool, "paket_yolu"?, "ogrenme"?}; bos/aktif=false = kapali (onceki davranis)
 
     @functools.cached_property
@@ -157,7 +158,8 @@ _OPTIONAL_KEYS = {"strategy", "target_trade_risk", "startup_wait_s", "pause_file
                   "leverage", "live", "ladder_follow", "shadow_blocks", "mtm_marks",
                   "optional_pairs", "retired_pairs", "max_positions", "risk", "clusters", "flat_bar_guard", "contract_types",
                   "cost_overrides", "arms", "exit_modes", "etiket_kurallari",
-                  "ml1"}
+                  "ml1", "stop_tabani"}
+_STOP_TABANI_KEYS = {"aktif": bool, "maliyet_payi": (int, float), "genislet_esik": (int, float), "atr_kat": (int, float)}
 _ML1_KEYS = {"aktif": bool, "paket_yolu": str, "ogrenme": dict, "risk_bantlari": dict}                     # tohum paket YOK (sifirdan ogrenme)
 _OGRENME_KEYS = {"aktif": bool, "kuru": bool, "yari_omur_gun": (int, float), "min_islem": int, "min_islem_tf": int, "esik": (int, float)}
 _RISK_BANT_KEYS = {"aktif": bool, "bantlar": (list, tuple), "tavan": (int, float)}
@@ -318,6 +320,28 @@ def _build_clusters(v: Any, pairs: tuple[str, ...]) -> dict[str, ClusterSpec]:
         if not members:
             raise ConfigError(f"clusters.{name}.pairs bos olamaz")
         out[name] = ClusterSpec(pairs=members)
+    return out
+
+
+def _build_stop_tabani(v: Any) -> dict[str, Any]:
+    """27.11 stop tabani blogu: {"aktif": bool, "maliyet_payi": (0,1] (gidis-donus maliyet <= stop mesafesinin bu payi), "genislet_esik": (0,1]
+    (dogal mesafe >= esik x taban ise taban mesafesine GENISLET, altinda atla), "atr_kat": (0,5] (taban >= atr_kat x ATR)}. Bos/None = kapali
+    (eski davranis). Eksik anahtar varsayilan alir (0.20 / 0.7 / 0.5); 'aktif' zorunlu."""
+    if v in (None, {}):
+        return {}
+    if not isinstance(v, Mapping) or not set(v) <= set(_STOP_TABANI_KEYS) or "aktif" not in v:
+        raise ConfigError(f"stop_tabani {sorted(_STOP_TABANI_KEYS)} anahtarlarindan olusmali ('aktif' zorunlu): {v!r}")
+    out: dict[str, Any] = {"maliyet_payi": 0.20, "genislet_esik": 0.7, "atr_kat": 0.5}
+    for k, x in v.items():
+        if k == "aktif":
+            if not isinstance(x, bool):
+                raise ConfigError(f"stop_tabani.aktif bool olmali: {x!r}")
+            out[k] = x
+            continue
+        hi = 5.0 if k == "atr_kat" else 1.0
+        out[k] = _num(f"stop_tabani.{k}", x, 0.0, hi)
+        if out[k] <= 0.0:
+            raise ConfigError(f"stop_tabani.{k} > 0 olmali: {x!r}")
     return out
 
 
@@ -593,6 +617,7 @@ def _validate(raw: Mapping[str, Any]) -> EngineConfig:
     except _EK.EtiketConfigHatasi as e:
         raise ConfigError(str(e)) from e
     ml1 = _build_ml1(raw.get("ml1"))
+    stop_tabani = _build_stop_tabani(raw.get("stop_tabani"))
     if mode not in ("paper", "backtest", "live") and exit_modes:   # 23.11 kullanici karari: canli = kagit (canli motor da uygular)
         raise ConfigError(f"exit_modes yalniz mode='paper'/'backtest'/'live' ile verilebilir (mode={mode!r})")
     if mode not in ("paper", "live"):                         # 23.11 kullanici karari: canli = kagit
@@ -640,7 +665,7 @@ def _validate(raw: Mapping[str, Any]) -> EngineConfig:
         risk=risk_raw, clusters=clusters,
         flat_bar_guard=flat_bar_guard, contract_types=contract_types, cost_overrides=cost_overrides,
         arms=arms, exit_modes=exit_modes, etiket_kurallari=etiket_kurallari,
-        ml1=ml1,
+        ml1=ml1, stop_tabani=stop_tabani,
         **{n: raw[n] for n in _STR},
     )
 

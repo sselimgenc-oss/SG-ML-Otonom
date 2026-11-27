@@ -23,6 +23,7 @@
     "rejim": {"acik": true}
   },
   "flat_bar_guard": true,
+  "stop_tabani": {"aktif": true, "maliyet_payi": 0.20, "genislet_esik": 0.7, "atr_kat": 0.5},
   "contract_types": ["PERPETUAL", "TRADIFI_PERPETUAL"],
   "cost_overrides": {
     "NVDA/USDT": {"open": {"slip_entry_bps": 4.0, "slip_exit_bps": 4.0, "slip_stop_bps": 10.0}, "closed": {"slip_entry_bps": 6.0, "slip_exit_bps": 6.0, "slip_stop_bps": 15.0}, "weekend": {"slip_entry_bps": 8.0, "slip_exit_bps": 8.0, "slip_stop_bps": 20.0}},

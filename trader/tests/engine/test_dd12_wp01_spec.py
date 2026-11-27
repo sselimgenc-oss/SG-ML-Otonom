@@ -57,13 +57,13 @@ PINNED_SHA = {
     "engine.base.json": "c177f2a9410d0f22a8b7f160122d9e72d40749384495687e98c8f21d94aaafdf",   # 25.11 kullanici karari: denetim kalan maddeler (start_delay_s kalkti); 24.11 kullanici karari: veto ve C1 artiklari silindi (veto_mode/veto_config kalkti);   # WP-06a: yalniz veto_config yolu; 24.11 kullanici karari: ML filtreleri silindi (ml_mode/ml_model_path kalkti)
     "engine.learner.json": "30ca2842c40cacafbf6cdd90c9e6f1f54fc62b9a9ec913476d1399ac5352cb12",
     "engine.testnet.json": "eff9eb61dcd9018bf86c195a02f7f25f08960473e705cbd114e104c26a956c9c",   # 24.11 kullanici karari: veto ve C1 artiklari silindi
-    "engine.live.json": "7d238a673c1111090b7fc11fda08b340e1b2830c1905f3c1caf4ff34bde47560",   # 25.11 sadelestirme 3/4: korelasyon/kayip_freni/toplam_buyukluk_kat/uzun_yon ve kume max_positions kaldirildi; 24.11 kullanici karari: formasyon kutuphanesi birlesik (MF1 48 + GF1 52 + IN1 66 + PA2 29 + PA varyantlari 56 kol; max_positions 36)
+    "engine.live.json": "32c5d435979a14bf16a410437e0a7c79fa38849fe8f5a24a488ecd0a3e35bc5c",   # 27.11 sahip karari: stop_tabani blogu (kagitla ayni); /kayip_freni/toplam_buyukluk_kat/uzun_yon ve kume max_positions kaldirildi; 24.11 kullanici karari: formasyon kutuphanesi birlesik (MF1 48 + GF1 52 + IN1 66 + PA2 29 + PA varyantlari 56 kol; max_positions 36)
     #   # 24.11 kullanici karari: veto ve C1 artiklari silindi (veto_mode, arm_max_positions L1 kalkti);   # 24.11 kullanici karari: DL1 dort zaman dilimi acik; onceki 24.11 ML filtreleri silindi
 }
 # 23.11 kullanici karari: canli = kagit. engine.live.json'a eklenen kagit sistem anahtarlari (+ pairs yerine kagit evreni).
 LIVE_PAPER_SYSTEM_KEYS = {"pairs", "optional_pairs", "strategy", "arms", "shadow_blocks",
                           "exit_modes", "max_positions", "target_trade_risk", "risk", "clusters", "etiket_kurallari",
-                          "flat_bar_guard", "contract_types", "cost_overrides",
+                          "flat_bar_guard", "stop_tabani", "contract_types", "cost_overrides",
                           "target_mode"}   # 24.11 kullanici karari: hedef bekleyen emir (kagitla ayni "resting"; taban dosya "bar_close" kalir)
 VETO_KEYS_REMOVED = {"veto_mode", "veto_config", "start_delay_s"}   # 24.11 kullanici karari: veto ve C1 artiklari silindi   # 25.11 kullanici karari: denetim kalan maddeler (start_delay_s kalkti)
 ML_KEYS_REMOVED = {"ml_mode", "ml_model_path", "ml_features", "ml_experimental", "ml_pairs"}   # 24.11 kullanici karari: ML filtreleri silindi

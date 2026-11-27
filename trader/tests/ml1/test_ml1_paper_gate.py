@@ -129,7 +129,15 @@ def test_feature_and_score_parity_with_offline(cold_run, offline):
     # konfluans soguk baslangicta eksik sayilabilir: ozellik esitligi konfluans DISINDAKI tum sutunlarda, konfluans icin <=; tam esitlik asagida
     cj = [j for j, n in enumerate(names) if n in M.CONF_COLS]
     nj = [j for j in range(len(names)) if j not in cj]
-    _assert_close(lx[:, nj], ox[:, nj], "ozellik (konfluans disi)")
+    # 27.11 stop tabani: ML1 nihai (genisletilmis) stopla puanlar => stopu degisen adayda YALNIZ stop mesafesinden turetilen ozellikler
+    # (stop_dist_atr, tgt_stop_ratio) cevrimdisi tablodan farkli olabilir; stopu ayni adaylarda ve diger tum sutunlarda tam esitlik.
+    degisen = (np.abs(live.loc[common, "stop"].to_numpy(float) - off.loc[common, "stop"].to_numpy(float)) > 1e-9)
+    stopa_bagli = [j for j in nj if names[j] in ("stop_dist_atr", "tgt_stop_ratio")]
+    diger = [j for j in nj if j not in stopa_bagli]
+    _assert_close(lx[:, diger], ox[:, diger], "ozellik (konfluans ve stop disi)")
+    _assert_close(lx[~degisen][:, stopa_bagli], ox[~degisen][:, stopa_bagli], "stop ozellikleri (stopu degismeyen)")
+    assert degisen.any() and (lx[degisen][:, stopa_bagli] != ox[degisen][:, stopa_bagli]).any()      # genisletilen aday nihai stopla puanlandi
+    nj = diger
     _assert_close(lx[:, nj].astype(np.float32).astype(float), ox[:, nj].astype(np.float32).astype(float), "ozellik float32")
     assert (lx[:, cj] <= ox[:, cj] + 1e-9).all()                       # soguk baslangic: konfluans asla fazla degil
     # pencere tamamen gozlenen donemde ise (karar zamani - k mum >= ilk adim) konfluans TAM esit

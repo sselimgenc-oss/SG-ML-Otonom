@@ -25,6 +25,7 @@ from .errors import DataError
 from .killswitch import Killswitch
 from .pause import EntryPause
 from . import seans_disi as SD
+from . import stop_tabani as ST
 from .state import StateStore, parse_iso_z
 from .strategies import arms as AR
 from .strategy_runner import SignalFrame, SignalRow
@@ -123,6 +124,9 @@ def _features(row: SignalRow) -> dict:
         put(key, carrier)
     for k in ("rh_touches", "rl_touches"):
         put(k, k)
+    if getattr(row, "stop_dogal", None) is not None:          # 27.11 stop tabani: dogal stop fiyati + genisletildi mi (kayit)
+        out["stop_dogal"] = float(row.stop_dogal)
+        out["stop_genisletildi"] = bool(row.stop_genisletildi)
     for k in ("vol_tahmin", "vol_asim"):                     # fikir 10: yalniz gece suzgecinin ek girdisi (f_vol_*); eksikse yazilmaz
         v = getattr(row, k, None)
         if _fin(v):
@@ -337,6 +341,48 @@ class EntryGate:
             log.error("tasfiye mesafesi hesaplanamadi, GIRIS YOK (fail-closed): %s: %s", type(e).__name__, e)
             return self._skip(row, tf, "tasfiye_okunamadi", skip_reason="risk_denied", veto_status=vs, veto_reason="gate:tasfiye_mesafesi",
                               risk_allowed=False, risk_reason="tasfiye mesafesi hesaplanamadi: giris yok", **tk)
+
+    def stop_tabani_uygula(self, pair: str, D: datetime, cands: tuple, params: Mapping | None, ml1=None) -> tuple:
+        """27.11 sahip karari: STOP TABANI (stop_tabani.py). Adaylari (`SignalFrame` demeti) puanlamadan (ML1) VE boyutlamadan ONCE
+        gecirir: sinyal satirlarinin `planned_stop`u (genisletildiyse), `stop_dist_atr`, `rr` ve `stop_dogal`/`stop_genisletildi`
+        yeni haliyle SignalRow'a yazilir; elenen aday `signal=False` + `skip_reason` (stop_width | rr_below_min) olur (mevcut
+        'filtrelenmis aday' yolu: karar satiri `decide` 1b'de yazilir). ML1 tamponu (`ml1`) genisletilen adayin SON stopuyla guncellenir
+        (elenen aday tamponda KALIR: konfluans baglami egitim/cevrimdisi tarama ile ayni; puanlanmaz, cunku signal=False). Sira: sinyal > elenmis > diger (kararli; tf sirasi korunur) - elenen aday kalan sinyalleri engellemesin.
+        Kapali (bos/aktif=false) => ayni demet doner (eski davranis). Hata => o aday degismez (fail-open degil: satir ayni kalir,
+        sayac `stop_tabani_hata`)."""
+        cfg = self.cfg.stop_tabani
+        if not cfg or not cfg.get("aktif"):
+            return cands
+        out = []
+        changed = False
+        for c in cands:
+            r = c.last
+            if r is None or not r.signal or not r.side or not (r.planned_entry > 0):
+                out.append(c)
+                continue
+            try:
+                paper = self.cfg.mode in ("paper", "live")
+                tag = AG.session_tag(AG.asset_class(pair, self.cfg.clusters), D) if paper else None
+                c_rt = ST.rt_maliyet(self.cfg.risk_config, self.cfg.cost, self.cfg.cost_overrides if paper else None, pair, tag)
+                nr, kod = ST.uygula(r, cfg, c_rt, ST.rr_min_of(r.setup, params), ST.max_atr_of(r.setup))
+            except Exception as e:  # noqa: BLE001
+                self.counters["stop_tabani_hata"] += 1
+                log.error("stop tabani hesaplanamadi %s %s: %s: %s", pair, r.arm_id, type(e).__name__, e)
+                out.append(c)
+                continue
+            self.counters["stop_tabani_" + (kod or ("genisletildi" if nr.stop_genisletildi else "degismedi"))] += 1
+            if ml1 is not None and r.arm_id and kod is None and nr.stop_genisletildi:
+                try:
+                    ml1.stop_guncelle(pair, D, r.arm_id, r.side, nr.planned_stop, nr.stop_dist_atr)
+                except Exception:  # noqa: BLE001 - ML1 yardimi karari etkilemez
+                    self.counters["stop_tabani_ml1_hata"] += 1
+            out.append(dataclasses.replace(c, last=nr))
+            changed = True
+        if not changed:
+            return cands
+        rank = lambda f: 0 if (f.last is not None and f.last.signal) else (  # noqa: E731
+            1 if (f.last is not None and f.last.setup and f.last.side and f.last.skip_reason in _FILTERED_SKIPS) else 2)
+        return tuple(sorted(out, key=rank))
 
     def _arms_off(self) -> Collection[str]:
         ao = self.arms_off

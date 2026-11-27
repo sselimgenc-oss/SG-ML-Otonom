@@ -2180,8 +2180,12 @@ class Engine:
         entered = None          # girisi yapilan aday satiri
         first_skip: EntryOutcome | None = None
         cands = (fr, *fr.extras)
-        if self.ml1 is not None and pre.ok and self.state.position_for_pair(pair) is None and not self.state.is_decided(pair, D):
-            cands = self.ml1.prepare(pair, D, cands)               # 25.11 ML1: puanla + puana gore sirala (firlatmaz)
+        if pre.ok and self.state.position_for_pair(pair) is None and not self.state.is_decided(pair, D):
+            # 27.11 STOP TABANI: ML1 puanlamasindan ve boyutlamadan ONCE (planned_stop tabana genisletilir / aday elenir; ML1 tamponu SON stopla
+            # guncellenir => ML1 nihai stopla puanlar). Sira: stop tabani -> ML1 puanla/sirala -> kapi `decide` (risk/boyut son stopla).
+            cands = self.gate.stop_tabani_uygula(pair, D, cands, self._params_map, self.ml1)
+            if self.ml1 is not None:
+                cands = self.ml1.prepare(pair, D, cands)           # 25.11 ML1: puanla + puana gore sirala (firlatmaz)
         try:
             for k, c in enumerate(cands):
                 if attempted or not self.is_paper:
