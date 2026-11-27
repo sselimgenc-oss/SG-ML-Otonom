@@ -274,6 +274,38 @@ class Ml1Gate:
         except Exception:  # noqa: BLE001 - ogrenme kaydi karari etkilemez
             self.counters["ml1_ogren_log_hata"] += 1
 
+    def note_sanal(self, pair: str, D: datetime, cands: tuple, entered, trail_atr: float) -> None:
+        """Golge ogrenme (27.11): bu adimda KAPIYA ULASIP (stop tabani gecmis, sinyal dogru, puanlanmis/ozellik vektoru hazir) ALINMAYAN adaylar
+        ogreniciye verilir (olay basina bir sanal aday: ogrenici dedup eder); alinan aday varsa o olayin sanal adaylari iptal edilir. Asla firlatmaz."""
+        if self.ogren is None or getattr(self.ogren, "sanal", None) is None:
+            return
+        try:
+            from . import position_manager as PM
+            from .strategies import arms as AR
+            if entered is not None:
+                self.ogren.sanal_giris(pair, entered.side, entered.tf, D)
+            out = []
+            for c in cands:
+                r = None if c is None else c.last
+                if r is None or r is entered or not self._uygun(c):
+                    continue
+                got = self._x.get((r.pair, r.arm_id, r.side))
+                if got is None:
+                    continue
+                x, oz = got
+                v = self._verd.get((r.pair, r.arm_id))
+                mod = PM.exit_mode_of(r.setup)
+                if mod not in ("trail", "target") or not (oz["stop"] > 0) or not (oz["entry_ref"] > 0) or abs(oz["entry_ref"] - oz["stop"]) <= 0:
+                    continue
+                if mod == "trail" and not (isinstance(trail_atr, (int, float)) and math.isfinite(trail_atr) and trail_atr > 0):
+                    continue
+                out.append({**oz, "x": x, "skor": None if v is None else v.score, "mod": mod,
+                            "time_stop": AR.time_stop_of(r.setup, r.tf) if mod == "target" else None, "trail_atr": float(trail_atr)})
+            self.ogren.sanal_adaylar(D, out)
+        except Exception as e:  # noqa: BLE001 - golge ogrenme karari etkilemez
+            self.counters["ml1_ogren_log_hata"] += 1
+            log.error("ML1 sanal aday kaydi hatasi %s: %r", pair, e)
+
     def paket_durumu(self) -> tuple[bool, str | None]:
         """(kapinin yukledigi dosya imzasi etkin dosyayla guncel mi, kapinin etkin paket sha'si ya da None). Ogrenici geri donus denetimi icin."""
         p = self._paths[0]

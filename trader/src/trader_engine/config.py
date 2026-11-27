@@ -161,7 +161,8 @@ _OPTIONAL_KEYS = {"strategy", "target_trade_risk", "startup_wait_s", "pause_file
                   "ml1", "stop_tabani"}
 _STOP_TABANI_KEYS = {"aktif": bool, "maliyet_payi": (int, float), "genislet_esik": (int, float), "atr_kat": (int, float)}
 _ML1_KEYS = {"aktif": bool, "paket_yolu": str, "ogrenme": dict, "risk_bantlari": dict}                     # tohum paket YOK (sifirdan ogrenme)
-_OGRENME_KEYS = {"aktif": bool, "kuru": bool, "yari_omur_gun": (int, float), "min_islem": int, "min_islem_tf": int, "esik": (int, float)}
+_OGRENME_KEYS = {"aktif": bool, "kuru": bool, "yari_omur_gun": (int, float), "min_islem": int, "min_islem_tf": int, "esik": (int, float),
+                  "sanal_aktif": bool, "sanal_agirlik": (int, float), "sinama_aralik": int}
 _RISK_BANT_KEYS = {"aktif": bool, "bantlar": (list, tuple), "tavan": (int, float)}
 _RISK_BANT_TAVAN_MAX = 0.02
 _PAPER_ONLY_KEYS = ("optional_pairs", "max_positions", "risk", "clusters", "flat_bar_guard", "contract_types",
@@ -356,10 +357,11 @@ def _build_ml1(v: Any) -> dict[str, Any]:
             if not isinstance(x, Mapping) or not set(x) <= set(_OGRENME_KEYS):
                 raise ConfigError(f"ml1.ogrenme {sorted(_OGRENME_KEYS)} anahtarlarindan olusmali: {x!r}")
             for kk, xx in x.items():
-                if isinstance(xx, bool) != (kk in ("aktif", "kuru")) or not isinstance(xx, _OGRENME_KEYS[kk]):
+                if isinstance(xx, bool) != (kk in ("aktif", "kuru", "sanal_aktif")) or not isinstance(xx, _OGRENME_KEYS[kk]):
                     raise ConfigError(f"ml1.ogrenme.{kk} gecersiz: {xx!r}")
                 if (kk == "yari_omur_gun" and xx <= 0) or (kk == "min_islem" and xx < 1) or (kk == "min_islem_tf" and xx < 0) \
-                        or (kk == "esik" and not 0.0 < xx < 1.0):
+                        or (kk == "esik" and not 0.0 < xx < 1.0) or (kk == "sanal_agirlik" and not (0.0 <= xx <= 1.0 and math.isfinite(xx))) \
+                        or (kk == "sinama_aralik" and xx < 1):
                     raise ConfigError(f"ml1.ogrenme.{kk} aralik disi: {xx!r}")
             continue
         if k == "risk_bantlari":

@@ -481,7 +481,9 @@
     add(k, el('div', 'ml1-not', 'Kural kolları aday üretir; ML1 her adaya 0–1 arası puan verir, puanı ' +
       (num(m.esik) ? trn(m.esik, 2) : 'belirlenen eşik (henüz okunamadı)') + ' ve üstü olanları işleme çevirir. Aynı fırsat için tek işlem açar.'));
     add(k, el('div', 'ml1-not', m.durum_satiri));
-    return add(k, el('div', 'yok', m.tf_satiri));
+    add(k, el('div', 'yok', m.tf_satiri));
+    if (m.sanal_notu) add(k, el('div', 'yok', m.sanal_notu));       // golge veri: kucuk gri not (yalniz bu sekme)
+    return k;
   }
   function ml1Eleme(m) {
     var k = kart('Aday eleme'), e = m.eleme;

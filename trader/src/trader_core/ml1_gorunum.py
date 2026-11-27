@@ -264,7 +264,8 @@ def ogr_durumu(d: Any, kapanan_defter: int, tf: Mapping[str, int], puanli_var: b
     return {"asama": asama, "kapanan": int(kap) if isinstance(kap, int) and not isinstance(kap, bool) else int(kapanan_defter),
             "min_islem": int(mn) if isinstance(mn, int) and not isinstance(mn, bool) and mn > 0 else MIN_ISLEM_VARSAYILAN,
             "tf": {k: int(tfd.get(k, 0)) for k in ZD_SIRA} if isinstance(tfd, Mapping) else {k: int(tf.get(k, 0)) for k in ZD_SIRA},
-            "son_sinama": _sinama_of(d), "kaynak": "durum" if d else "defter"}
+            "son_sinama": _sinama_of(d), "kaynak": "durum" if d else "defter",
+            "sanal": int(d["sanal"]) if isinstance(d.get("sanal"), int) and not isinstance(d.get("sanal"), bool) else None}
 
 
 def durum_satiri(oz: Mapping) -> str:
@@ -278,6 +279,13 @@ def durum_satiri(oz: Mapping) -> str:
         t = f"ML1 öğrenme aşamasında: {n}/{o.get('min_islem', MIN_ISLEM_VARSAYILAN)} kapanan işlem; süzme başlamadı"
     sn = sinama_metni(o.get("son_sinama"))
     return t + (f" ({sn})" if sn else "")
+
+
+def sanal_notu(oz: Mapping) -> str | None:
+    """Yalniz panel ML1 sekmesinde kucuk gri not: 'N içinde sanal: Y' (golge ogrenme; gercek islem gorunumlerine/Telegram'a KARISMAZ). Sanal yoksa None."""
+    o = oz.get("ogr") or {}
+    y = o.get("sanal")
+    return f"{o.get('kapanan', 0)} içinde sanal: {y}" if isinstance(y, int) and y > 0 else None
 
 
 def tf_satiri(oz: Mapping) -> str:

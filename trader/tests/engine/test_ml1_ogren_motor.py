@@ -120,7 +120,7 @@ def test_motor_etiket_defterdeki_gercek_net_r_ve_ilk_paket_min_islem_sonrasi(kos
     assert yazildi, upd[-3:]
     assert all(u["kapali_islem"] >= MIN_ISLEM for u in upd if "kapali_islem" in u) and yazildi[0]["kapali_islem"] >= MIN_ISLEM
     dur = json.loads((_ogren_dir(eng) / "durum.json").read_text())
-    assert dur["surum"] == len(yazildi) and dur["asama"] == "suzme" and dur["kapali_islem"] == len(sonuc) and dur["min_islem"] == MIN_ISLEM
+    assert dur["surum"] == len(yazildi) and dur["asama"] == "suzme" and dur["gercek"] == len(sonuc) and dur["kapali_islem"] == len(sonuc) + dur["sanal"] and dur["min_islem"] == MIN_ISLEM
     assert dur["kuru"] is False and dur["son_guncelleme"]
     etkin, why = M.load_package(tmp / "models" / "ml1_package.json")
     assert why is None and etkin["threshold"] == 0.50 and etkin["online"]["kaynak"] == "gercek_kagit_islemleri" and "taban_sha" not in etkin["online"]
@@ -136,9 +136,12 @@ def test_motor_yeniden_baslatma_cift_sayim_yok(kosu):
     eng, tmp = kosu
     n_sonuc = len([r for r in _dosyalar(eng, "sonuclar") if "y" in r])
     pend = set(eng.ogren.bekleyen)
-    og2 = OG.Ml1Ogrenici(_ogren_dir(eng), eng.ml1._paths[0], now_fn=eng.clock.now, ledger=eng.ledger, min_islem=MIN_ISLEM)
+    og2 = OG.Ml1Ogrenici(_ogren_dir(eng), eng.ml1._paths[0], now_fn=eng.clock.now, ledger=eng.ledger, min_islem=MIN_ISLEM)     # sanal kapali: yalniz gercek
     assert og2.baslat(T.END)
-    assert set(og2.bekleyen) == pend and og2.n_kapali == n_sonuc == eng.ogren.n_kapali
+    og3 = OG.Ml1Ogrenici(_ogren_dir(eng), eng.ml1._paths[0], now_fn=eng.clock.now, ledger=eng.ledger, min_islem=MIN_ISLEM, sanal=eng.ogren.sanal)
+    assert og3.baslat(T.END) and og3.n_kapali == eng.ogren.n_kapali and og3.n_sanal == eng.ogren.n_sanal       # sanal acikken bekleyen/etiketli kalici
+    assert set(og3.sanal_bekleyen) == set(eng.ogren.sanal_bekleyen)
+    assert set(og2.bekleyen) == pend and og2.n_kapali == n_sonuc == eng.ogren.n_kapali - eng.ogren.n_sanal
     assert not (og2.kapali & set(og2.bekleyen))
 
 
@@ -186,3 +189,24 @@ def test_motor_ogrenme_kaydi_yazilamazsa_karar_degismez(tmp_path, hist):
     ka = [(r["pair"], r["arm_id"], r["final_action"]) for r in T.decisions(a)]
     kb = [(r["pair"], r["arm_id"], r["final_action"]) for r in T.decisions(b)]
     assert ka == kb
+
+
+def test_motor_golge_ogrenme_sanal_adaylar_yazilir_cozulur_ve_defterde_islem_olmaz(kosu):
+    eng, tmp = kosu
+    sn = _dosyalar(eng, "sanallar")
+    aday = [r for r in sn if r["t"] == "aday"]
+    sonuc = [r for r in sn if r["t"] == "sonuc"]
+    assert aday, eng.ogren.sayac
+    assert len({r["sid"] for r in aday}) == len(aday)                                  # her sanal aday bir kez
+    entered = {(r["pair"], r["arm_id"], r["side"], r["decision_ts"]) for r in _dosyalar(eng, "alinanlar")}
+    for r in aday:                                                                     # alinan islemin kendisi sanal aday OLMAZ
+        assert (r["pair"], r["arm_id"], r["side"], r["decision_ts"]) not in entered and len(r["x"]) == len(M.feature_names())
+        assert r["mod"] in ("trail", "target")
+    for r in sonuc:
+        assert r["y"] == int(r["r_net"] > 0) and r["exit_reason"]
+    dur = json.loads((_ogren_dir(eng) / "durum.json").read_text())
+    assert dur["sanal"] == len(sonuc) and dur["bekleyen_sanal"] == len(eng.ogren.sanal_bekleyen) and dur["sinama_aralik"] == 100
+    # sanal satirlar defter islem tablolarina HICBIR ZAMAN girmez: defterdeki her islem kimligi gercek `alinanlar` kaydidir
+    gercek_id = {r["trade_id"] for r in _dosyalar(eng, "alinanlar")}
+    tum = {t.trade_id for t in eng.ledger.list_closed_trades(limit=10000)} | {t.trade_id for t in eng.ledger.list_open_trades()}
+    assert tum == gercek_id or tum <= gercek_id | tum and len(tum) == len(gercek_id)

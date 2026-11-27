@@ -330,7 +330,8 @@ def ml1_view(ctx: Ctx, now: datetime, *, aktif: Any = None, ogr_durum: Any = Non
     """ML1 sekmesi ve OZET karti. Sayilar `ml1_gorunum.ml1_ozet` (Telegram ile ayni); eski kol kapanis kaydi OKUNMAZ. `aktif` = motor ayarindaki
     `ml1.aktif`. Islemi olmayan kol/grup hicbir yerde listelenmez."""
     oz = MG.ml1_ozet(ctx.decisions, ctx.closed, ctx.open, now, ogr_durum)
-    return {"durum": MG.durum(ctx.decisions, now, aktif), **oz, "gruplar": MG.gruplar(ctx.decisions, ctx.closed), "durum_satiri": MG.durum_satiri(oz), "tf_satiri": MG.tf_satiri(oz)}
+    return {"durum": MG.durum(ctx.decisions, now, aktif), **oz, "gruplar": MG.gruplar(ctx.decisions, ctx.closed), "durum_satiri": MG.durum_satiri(oz), "tf_satiri": MG.tf_satiri(oz),
+            "sanal_notu": MG.sanal_notu(oz)}
 
 
 # ----------------------------------------------------------------------------- teknik

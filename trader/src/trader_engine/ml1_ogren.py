@@ -1,5 +1,6 @@
-"""ML1 sifirdan ogrenme (yalniz kagit): YALNIZ gercekten acilip kapanan kagit islemlerden ogrenir; tohum paket, taban model, cikis
-simulatoru ile etiketleme ve alinmayan adaylardan ogrenme YOKTUR (sahip karari).
+"""ML1 sifirdan ogrenme (yalniz kagit): gercekten acilip kapanan kagit islemlerden VE (27.11 sahip karari, "golge ogrenme") alinmayan adaylardan ogrenir;
+alinmayan adayin etiketi AYNI kurallarla simulasyondan gelir (`ml1_sanal.py`; dosya `sanallar-*.jsonl`; defter/islem tablolarina HICBIR ZAMAN girmez).
+Tohum paket ve taban model YOKTUR (sahip karari). Egitim satirlarinda `sanal` sutunu; ornek agirligi `sanal_agirlik` (0..1, varsayilan 1).
 Bilinen risk (sahip karari #11, 26.11): model yalniz kendi gecirdigi islemleri gorur (secilim yanlilgi); rastgele gecis payi bilerek yok.
 
 Akis (karar adimi sonunda, `_shadow_step` kalibi: durum/broker/emir/kapi uzerinde YAZMA yok, istisna sizmaz):
@@ -37,6 +38,7 @@ from trader_ml.ml1 import model as M
 
 log = logging.getLogger("engine.ml1_ogren")
 
+K_BARS = F.K_BARS
 MIN_ISLEM = 200                   # ilk paket DENEMESINDEN once kapanan islem sayisi (config ogrenme.min_islem)
 ESIK = 0.50                       # sabit esik (config ogrenme.esik)
 YARI_OMUR_GUN = 30.0
@@ -49,6 +51,8 @@ DURAKLAT = timedelta(hours=24)
 YAS_KAPAT_GUN = 120               # defterde hic kapanmayan (acilamamis) alinan kayit bu yastan sonra etiketsiz kapatilir
 SAKLA_AY = 14
 SINAMA_ORAN = 0.20                # orneklem-disi sinama: en yeni islemlerin orani (zaman sirali, ambargolu)
+SINAMA_ARALIK = 100               # basarisiz sinamadan sonra yeni deneme icin gereken ek etiketli satir
+SINAMA_GERCEK_MIN = 20            # gercek-satir alt kumesi sinama metrigi icin en az gercek sinama satiri (bilgi amacli)
 SINAMA_MIN_N = 40                 # sinama kumesi alt siniri; n // 2'yi asarsa "sinama_yetersiz_veri"
 
 
@@ -62,7 +66,7 @@ def olay_agirligi(d: pd.DataFrame) -> np.ndarray:
 
 
 def uydur(d: pd.DataFrame, X: np.ndarray, simdi: datetime, *, yari_omur_gun: float = YARI_OMUR_GUN, pencere_gun: float = PENCERE_GUN,
-          maks_satir: int = MAKS_SATIR, ridge: float = RIDGE) -> dict | None:
+          maks_satir: int = MAKS_SATIR, ridge: float = RIDGE, sanal_agirlik: float = 1.0) -> dict | None:
     """Sifir merkezli ridge lojistik (Newton/IRLS), standardizasyon KENDI verisinden. `d`: sutunlar k, decision_ts (tz), pair, side, tf, y;
     `X`: d ile ayni sirada ham ozellikler. Sonuc kanonik sirada (decision_ts, k) hesaplanir => girdi sirasindan bagimsiz.
     Olay agirligi etiketli islemlerden hesaplanir. Pencerede veri yoksa ya da tek sinif varsa None. Doner st (standardizasyon), coef, b, n_etkin, n_sonuc, tarih araligi."""
@@ -83,6 +87,10 @@ def uydur(d: pd.DataFrame, X: np.ndarray, simdi: datetime, *, yari_omur_gun: flo
     e = olay_agirligi(dd)
     age = np.maximum(yas_gun[keep], 0.0)
     w = e * np.exp2(-age / float(yari_omur_gun))
+    if "sanal" in dd.columns:
+        w = w * np.where(dd["sanal"].to_numpy(bool), float(sanal_agirlik), 1.0)
+    if not w.sum() > 0:
+        return None
     Xk = np.asarray(X, float)[keep]
     st = M.fit_standardizer(Xk)
     Z = np.clip(M.standardize(Xk, st), -Z_KIRP, Z_KIRP)
@@ -103,17 +111,17 @@ def _auc(p: np.ndarray, y: np.ndarray) -> float:
 
 
 def sina(d: pd.DataFrame, X: np.ndarray, simdi: datetime, *, yari_omur_gun: float = YARI_OMUR_GUN, pencere_gun: float = PENCERE_GUN,
-         maks_satir: int = MAKS_SATIR, ridge: float = RIDGE) -> dict:
+         maks_satir: int = MAKS_SATIR, ridge: float = RIDGE, sanal_agirlik: float = 1.0) -> dict:
     """Orneklem-disi sinama (yayin kapisi): satir kumesi/sirasi `uydur` ile AYNI; en yeni `n_h` satir sinama, oncesi egitim (ayni olaydaki egitim
     satirlari ambargo ile atilir). Egitim kumesinden uydurulan model sinamada puanlanir (kapiyla ayni yol, kirpma YOK) ve sabit tabanla
     (egitim taban orani) karsilastirilir. Gecme: iki sinif var, ll_model < ll_taban, auc > 0.5. Firlatmaz."""
     try:
-        return _sina(d, X, simdi, yari_omur_gun=yari_omur_gun, pencere_gun=pencere_gun, maks_satir=maks_satir, ridge=ridge)
+        return _sina(d, X, simdi, yari_omur_gun=yari_omur_gun, pencere_gun=pencere_gun, maks_satir=maks_satir, ridge=ridge, sanal_agirlik=sanal_agirlik)
     except Exception as e:  # noqa: BLE001
         return {"gecti": False, "neden": f"sinama_hatasi:{type(e).__name__}"}
 
 
-def _sina(d, X, simdi, *, yari_omur_gun, pencere_gun, maks_satir, ridge) -> dict:
+def _sina(d, X, simdi, *, yari_omur_gun, pencere_gun, maks_satir, ridge, sanal_agirlik=1.0) -> dict:
     if len(d) == 0:
         return {"gecti": False, "neden": "sinama_yetersiz_veri"}
     simdi_ns = pd.Timestamp(simdi).as_unit("ns").value
@@ -134,7 +142,8 @@ def _sina(d, X, simdi, *, yari_omur_gun, pencere_gun, maks_satir, ridge) -> dict
     egit = (~h) & ~np.isin(ev, ev[h])                            # ambargo: sinamayla ayni olaydaki egitim satirlari atilir
     sinir_ts = pd.Timestamp(int(t_b), unit="ns", tz="UTC").isoformat()
     out: dict = {"gecti": False, "neden": "", "n_egitim": int(egit.sum()), "n_sinama": int(h.sum()), "sinir_ts": sinir_ts}
-    r_e = uydur(dd[egit].reset_index(drop=True), Xk[egit], simdi, yari_omur_gun=yari_omur_gun, pencere_gun=pencere_gun, maks_satir=maks_satir, ridge=ridge)
+    r_e = uydur(dd[egit].reset_index(drop=True), Xk[egit], simdi, yari_omur_gun=yari_omur_gun, pencere_gun=pencere_gun, maks_satir=maks_satir, ridge=ridge,
+                sanal_agirlik=sanal_agirlik)
     if r_e is None:
         out["neden"] = "sinama_egitim_uydurulamadi"
         return out
@@ -146,6 +155,14 @@ def _sina(d, X, simdi, *, yari_omur_gun, pencere_gun, maks_satir, ridge) -> dict
     ll_t = M.log_loss(np.full(len(y_h), p0), y_h)
     auc = _auc(p, y_h)
     out.update({"ll_model": round(ll_m, 6), "ll_taban": round(ll_t, 6), "auc": None if not np.isfinite(auc) else round(auc, 6), "taban_oran": round(p0, 6)})
+    if "sanal" in dd.columns:                                                  # bilgi amacli: yalniz GERCEK islemlerden olusan alt kumede ayni olcumler
+        gh = ~dd["sanal"].to_numpy(bool)[h]
+        out["n_sinama_gercek"] = int(gh.sum())
+        if gh.sum() >= SINAMA_GERCEK_MIN:
+            yg, pg = y_h[gh], p[gh]
+            a_g = _auc(pg, yg)
+            out["gercek"] = {"n": int(gh.sum()), "ll_model": round(M.log_loss(pg, yg), 6), "ll_taban": round(M.log_loss(np.full(len(yg), p0), yg), 6),
+                             "auc": None if not np.isfinite(a_g) else round(a_g, 6)}
     if len(np.unique(y_h)) < 2:
         out["neden"] = "sinama_tek_sinif"
     elif not ll_m < ll_t:
@@ -221,7 +238,7 @@ def _vek(x) -> np.ndarray:
 class Ml1Ogrenici:
     def __init__(self, dizin, paket_yolu, *, now_fn: Callable[[], datetime], ledger=None, kapi=None, min_islem: int = MIN_ISLEM,
                  min_islem_tf: int = 0, esik: float = ESIK, yari_omur_gun: float = YARI_OMUR_GUN, kuru: bool = False,
-                 sinama: bool = True) -> None:
+                 sinama: bool = True, sanal=None, sanal_agirlik: float = 1.0, sinama_aralik: int = SINAMA_ARALIK) -> None:
         self.dir = Path(dizin)
         self.paket_yolu = Path(paket_yolu)
         self.son_iyi_yolu = self.paket_yolu.with_name("ml1_package.son_iyi.json")
@@ -230,12 +247,21 @@ class Ml1Ogrenici:
         self.yari_omur, self.kuru = float(yari_omur_gun), bool(kuru)
         self.sinama = bool(sinama)                       # yalniz testler kapatir; motor GECIRMEZ, config'ten okunmaz
         self.son_sinama: dict | None = None
+        self.sanal = sanal                               # ml1_sanal.SanalCfg | None (None = golge ogrenme kapali)
+        self.sanal_agirlik = float(sanal_agirlik)
+        self.sinama_aralik = int(sinama_aralik)
+        self.sonraki_sinama_n: int | None = None         # basarisiz sinamadan sonra: bu kadar etiketli satira ulasilmadan yeni deneme yok
+        self.sanal_bekleyen: dict[str, dict] = {}        # sid -> bekleyen sanal aday (x dahil)
+        self.sanal_bilinen: set[str] = set()
+        self.n_sanal = 0                                 # etiketlenmis sanal satir sayisi (n_kapali'nin icinde)
+        self._sanal_son: dict[tuple, tuple] = {}         # (cift, yon, tf) -> (olay zinciri son aday zamani, olayda gercek giris var mi)
+        self._sanal_kontrol: dict[str, pd.Timestamp] = {}
         self.sayac: Counter = Counter()
         self.hazir = False
         self.bekleyen: dict[int, dict] = {}              # trade_id -> alinan (henuz kapanmamis) islemin kaydi (x dahil)
         self.kapali: set[int] = set()                    # sonuclanmis ya da etiketsiz kapatilmis trade_id'ler
         self.bilinen: set[int] = set()
-        self._sn: list[tuple] = []                       # (k, ts_ns, y, pair, side, tf, x float32); yalniz etiketli
+        self._sn: list[tuple] = []                       # (k, ts_ns, y, pair, side, tf, x float32, sanal bool); yalniz etiketli
         self.n_kapali = 0                                # kapanan ogrenilmis (etiketli) islem sayisi (kalici; son 14 ayin dosyalarindan)
         self.n_tf: Counter = Counter()
         self.n_oz: Counter = Counter()                   # kapanan ogrenilmis islemler: ozellik tanimi surumu -> sayi (eski kayit atilmaz, oran gorunur)
@@ -278,7 +304,9 @@ class Ml1Ogrenici:
         return "suzme" if got is not None else "ogrenme"
 
     def _durum_yaz(self, simdi: datetime) -> None:
-        d = {"aktif": True, "kuru": self.kuru, "asama": self.asama(), "kapali_islem": self.n_kapali, "min_islem": self.min_islem,
+        d = {"aktif": True, "kuru": self.kuru, "asama": self.asama(), "kapali_islem": self.n_kapali, "gercek": self.n_kapali - self.n_sanal, "sanal": self.n_sanal,
+             "bekleyen_sanal": len(self.sanal_bekleyen), "sanal_agirlik": self.sanal_agirlik, "sinama_aralik": self.sinama_aralik,
+             "sonraki_sinama_n": self.sonraki_sinama_n, "min_islem": self.min_islem,
              "min_islem_tf": self.min_islem_tf, "kapali_islem_tf": {tf: int(self.n_tf.get(tf, 0)) for tf in M.TFS}, "oz_karisik": {k: int(v) for k, v in sorted(self.n_oz.items())},
              "esik": self.esik,
              "surum": self.surum, "son_guncelleme": self.son_guncelleme, "guncellendi": pd.Timestamp(simdi).isoformat(),
@@ -302,6 +330,8 @@ class Ml1Ogrenici:
                 self.son_guncelleme = dur.get("son_guncelleme")
                 self.son_geri_donus = dur.get("son_geri_donus")
                 self.son_sinama = dur.get("son_sinama")
+                sn = dur.get("sonraki_sinama_n")
+                self.sonraki_sinama_n = int(sn) if isinstance(sn, int) and not isinstance(sn, bool) else None
                 self.bugun.update(dur.get("bugun") or {})
                 db = dur.get("duraklat_bitis")
                 self.duraklat_bitis = pd.Timestamp(db).to_pydatetime() if db else None
@@ -322,6 +352,7 @@ class Ml1Ogrenici:
     def _kur(self, simdi: datetime) -> None:
         sinir_ns = (pd.Timestamp(simdi) - pd.Timedelta(days=PENCERE_GUN)).as_unit("ns").value
         self._sn, self.n_kapali, self.n_tf, self.n_oz = [], 0, Counter(), Counter()
+        self.n_sanal, self.sanal_bekleyen, self.sanal_bilinen, self._sanal_son = 0, {}, set(), {}
         for ay in self._aylar(simdi, SAKLA_AY):
             for r in self._oku(self._p(f"sonuclar-{ay}.jsonl")):
                 tid = int(r["trade_id"])
@@ -333,13 +364,16 @@ class Ml1Ogrenici:
                     self.n_oz[str(int(r.get("oz") or 1))] += 1
                     ts = pd.Timestamp(r["decision_ts"]).as_unit("ns").value
                     if ts >= sinir_ns:
-                        self._sn.append((r["k"], ts, float(r["y"]), r["pair"], r["side"], r["tf"], _vek(r["x"])))
+                        self._sn.append((r["k"], ts, float(r["y"]), r["pair"], r["side"], r["tf"], _vek(r["x"]), False))
         for ay in self._aylar(simdi, SAKLA_AY):
             for r in self._oku(self._p(f"alinanlar-{ay}.jsonl")):
                 tid = int(r["trade_id"])
                 self.bilinen.add(tid)
                 if tid not in self.kapali and r.get("x") is not None:
                     self.bekleyen[tid] = r
+                self._sanal_olay_isle(r["pair"], r["side"], r["tf"], pd.Timestamp(r["decision_ts"]), True)       # gercek giris: olay zinciri (golge yok)
+        if self.sanal is not None:                                  # golge ogrenme kapaliyken sanal dosyalar egitime KATILMAZ
+            self._sanal_kur(sinir_ns, simdi)
 
     # ------------------------------------------------------------------ kapidan: gercekten alinan islem
     def islem_alindi(self, r: dict) -> bool:
@@ -397,7 +431,7 @@ class Ml1Ogrenici:
             self._ekle(self._p(f"sonuclar-{_ay(D)}.jsonl"), [row])
             self.kapali.add(tid)
             self.bekleyen.pop(tid, None)
-            self._sn.append((r["k"], pd.Timestamp(r["decision_ts"]).as_unit("ns").value, float(y), r["pair"], r["side"], r["tf"], _vek(r["x"])))
+            self._sn.append((r["k"], pd.Timestamp(r["decision_ts"]).as_unit("ns").value, float(y), r["pair"], r["side"], r["tf"], _vek(r["x"]), False))
             self.n_kapali += 1
             self.n_tf[r["tf"]] += 1
             self.n_oz[str(int(r.get("oz") or 1))] += 1
@@ -410,7 +444,7 @@ class Ml1Ogrenici:
     def _tampon(self) -> tuple[pd.DataFrame, np.ndarray]:
         d = pd.DataFrame({"k": [s[0] for s in self._sn], "decision_ts": pd.to_datetime([s[1] for s in self._sn], unit="ns", utc=True),
                           "y": [s[2] for s in self._sn], "pair": [s[3] for s in self._sn], "side": [s[4] for s in self._sn],
-                          "tf": [s[5] for s in self._sn]})
+                          "tf": [s[5] for s in self._sn], "sanal": np.array([bool(s[7]) for s in self._sn], bool)})
         X = np.vstack([s[6] for s in self._sn]).astype(float) if self._sn else np.zeros((0, len(M.feature_names())))
         return d, X
 
@@ -436,7 +470,10 @@ class Ml1Ogrenici:
         t0 = self.now_fn()
         self._tampon_buda(D)
         d, X = self._tampon()
-        r = uydur(d, X, D, yari_omur_gun=self.yari_omur)
+        if self.sonraki_sinama_n is not None and self.n_kapali < self.sonraki_sinama_n:
+            self.sayac["sinama_aralik_bekle"] += 1                  # son basarisiz sinamadan beri yeterli yeni etiketli satir yok
+            return None
+        r = uydur(d, X, D, yari_omur_gun=self.yari_omur, sanal_agirlik=self.sanal_agirlik)
         if r is None:
             self.sayac["uydurulamadi"] += 1
             self._yeni_sonuc = 0                                 # tek sinif/veri yok: sonraki kapanan islemde yeniden denenir
@@ -444,8 +481,11 @@ class Ml1Ogrenici:
         self.n_etkin = r["n_etkin"]
         s = None
         if self.sinama:
-            s = sina(d, X, D, yari_omur_gun=self.yari_omur)
+            s = sina(d, X, D, yari_omur_gun=self.yari_omur, sanal_agirlik=self.sanal_agirlik)
             self.son_sinama = {"ts": pd.Timestamp(D).isoformat(), **s}
+            self.sonraki_sinama_n = None if s["gecti"] else self.n_kapali + self.sinama_aralik
+            if not s["gecti"]:
+                self.son_sinama["sonraki_sinama_n"] = self.sonraki_sinama_n
         yeni = yeni_paket(r, esik=self.esik, surum=self.surum + 1, simdi=D, metrics=None if s is None else {"sinama": s})
         red, olc = denetle(yeni, self.esik)
         onceki, _ = M.load_package(self.paket_yolu)
@@ -569,6 +609,149 @@ class Ml1Ogrenici:
                 return self.geri_don(D, "gecme_orani:0.00")
             self._izle = None
 
+    # ------------------------------------------------------------------ golge (sanal) ogrenme
+    @staticmethod
+    def _aralik(tf: str) -> pd.Timedelta:
+        from trader_core import arm_time as AT
+        return pd.Timedelta(K_BARS * AT.arm_tf_delta(tf))
+
+    def _sanal_olay_isle(self, pair: str, side: str, tf: str, ts: pd.Timestamp, giris: bool) -> bool:
+        """Olay zinciri (`features.events` kurali: ayni cift|yon|tf, ardisik bosluk <= K mum). Doner: bu aday YENI ve gercek giris icermeyen olayin ilki mi."""
+        key = (pair, side, tf)
+        eski = self._sanal_son.get(key)
+        devam = eski is not None and ts - eski[0] <= self._aralik(tf) and ts >= eski[0]
+        girdi = giris or (devam and eski[1])
+        self._sanal_son[key] = (max(ts, eski[0]) if devam else ts, bool(girdi))
+        return (not devam) and not giris
+
+    def _sanal_kur(self, sinir_ns: int, simdi: datetime) -> None:
+        bek: dict[str, dict] = {}
+        for ay in self._aylar(simdi, SAKLA_AY):
+            for r in self._oku(self._p(f"sanallar-{ay}.jsonl")):
+                sid = r.get("sid")
+                if not sid:
+                    continue
+                t = r.get("t")
+                if t == "aday":
+                    self._sanal_olay_isle(r["pair"], r["side"], r["tf"], pd.Timestamp(r["decision_ts"]), False)
+                    if sid not in self.sanal_bilinen:
+                        bek[sid] = r
+                    self.sanal_bilinen.add(sid)
+                elif t == "sonuc":
+                    bek.pop(sid, None)
+                    self.sanal_bilinen.add(sid)
+                    if r.get("x") is not None and "y" in r:
+                        self.n_kapali += 1
+                        self.n_sanal += 1
+                        self.n_tf[r["tf"]] += 1
+                        self.n_oz[str(int(r.get("oz") or 1))] += 1
+                        ts = pd.Timestamp(r["decision_ts"]).as_unit("ns").value
+                        if ts >= sinir_ns:
+                            self._sn.append((r["k"], ts, float(r["y"]), r["pair"], r["side"], r["tf"], _vek(r["x"]), True))
+                elif t == "iptal":
+                    bek.pop(sid, None)
+        self.sanal_bekleyen = bek
+
+    def _sanal_yaz(self, ts, satir: dict) -> None:
+        self._ekle(self._p(f"sanallar-{_ay(ts)}.jsonl"), [satir])
+
+    def sanal_giris(self, pair: str, side: str, tf: str, D: datetime) -> None:
+        """Gercek giris: ayni olaydaki BEKLEYEN sanal adaylar iptal edilir (bir olay = ya gercek islem ya sanal aday); zincir 'girisli' isaretlenir."""
+        if self.sanal is None or not self.hazir:
+            return
+        ts = pd.Timestamp(D)
+        self._sanal_olay_isle(pair, side, tf, ts, True)
+        for sid, r in list(self.sanal_bekleyen.items()):
+            if (r["pair"], r["side"], r["tf"]) == (pair, side, tf) and 0 <= (ts - pd.Timestamp(r["decision_ts"])) / pd.Timedelta(1, "s") <= self._aralik(tf).total_seconds():
+                self._sanal_yaz(ts, {"t": "iptal", "sid": sid, "neden": "olayda_gercek_giris"})
+                self.sanal_bekleyen.pop(sid, None)
+                self.sayac["sanal_iptal_giris"] += 1
+
+    def sanal_adaylar(self, D: datetime, adaylar: list[dict]) -> int:
+        """Bu adimda ML1 kapisina ulasip ALINMAYAN uygun adaylar (stop tabani gecmis, sinyal dogru; her biri ozet + x + skor + mod/time_stop/trail_atr).
+        Olay basina en cok bir sanal aday: yeni olayda en yuksek puanli (puan yoksa kapi sirasindaki ilk). Doner: yeni kayit sayisi."""
+        if self.sanal is None or not self.hazir or not adaylar:
+            return 0
+        ts = pd.Timestamp(D)
+        gr: dict[tuple, list[dict]] = {}
+        for a in adaylar:
+            gr.setdefault((a["pair"], a["side"], a["tf"]), []).append(a)
+        n = 0
+        for (pair, side, tf), lst in gr.items():
+            if not self._sanal_olay_isle(pair, side, tf, ts, False):
+                continue
+            en = lst[0]
+            for a in lst[1:]:
+                if (a.get("skor") is not None) and (en.get("skor") is None or a["skor"] > en["skor"]):
+                    en = a
+            if len(self.sanal_bekleyen) >= self.sanal.tavan:
+                self.sayac["sanal_tavan"] += 1
+                continue
+            rec = dict(en)
+            rec["decision_ts"] = ts.isoformat()
+            rec["k"] = f"{pair}|{rec['arm_id']}|{side}|{ts.isoformat()}"
+            rec["sid"] = "s|" + rec["k"]
+            rec["t"] = "aday"
+            if rec["sid"] in self.sanal_bilinen:
+                continue
+            self._sanal_yaz(ts, rec)
+            self.sanal_bilinen.add(rec["sid"])
+            self.sanal_bekleyen[rec["sid"]] = rec
+            self.sayac["sanal_aday"] += 1
+            n += 1
+        return n
+
+    def sanal_coz(self, D: datetime) -> int:
+        """Bekleyen sanal adaylari simulasyonla etiketler (adim basina en cok `butce` kontrol; her aday en cok `kontrol_aralik`te bir). Doner: yeni etiketli sayi."""
+        sc = self.sanal
+        if sc is None or not self.hazir or not self.sanal_bekleyen:
+            return 0
+        from . import ml1_sanal as SN
+        now = pd.Timestamp(D)
+        sira = sorted(self.sanal_bekleyen, key=lambda k: self._sanal_kontrol.get(k, pd.Timestamp(0, tz="UTC")))
+        kontrol, n = 0, 0
+        for sid in sira:
+            if kontrol >= sc.butce:
+                break
+            r = self.sanal_bekleyen[sid]
+            ts = pd.Timestamp(r["decision_ts"])
+            son = self._sanal_kontrol.get(sid)
+            if son is not None and now - son < sc.kontrol_aralik:
+                continue
+            if now <= ts:
+                continue
+            kontrol += 1
+            self._sanal_kontrol[sid] = now
+            try:
+                b15, trig, fon = SN.veri_al(sc.view, r, now, r["mod"] == "trail")
+                res = SN.simule(r, b15, trig, sc.maliyet_fn(r["pair"], ts.to_pydatetime()), fon, now)
+            except Exception as e:  # noqa: BLE001
+                self.sayac["sanal_hata"] += 1
+                log.warning("ML1 sanal simulasyon hatasi %s: %r", sid, e)
+                continue
+            if res is None:
+                if now - ts > pd.Timedelta(days=SN.MAKS_GUN + SN.VERI_YOK_GUN + 1):
+                    self._sanal_yaz(now, {"t": "iptal", "sid": sid, "neden": "cozulemedi"})
+                    self.sanal_bekleyen.pop(sid, None)
+                    self.sayac["sanal_iptal_veri"] += 1
+                continue
+            row = {"t": "sonuc", "sid": sid, "k": r["k"], "decision_ts": r["decision_ts"], "exit_ts": res.exit_ts.isoformat(), "y": res.y,
+                   "r_net": res.r_net, "exit_reason": res.exit_reason, "kesildi": res.kesildi, "tf": r["tf"], "pair": r["pair"], "side": r["side"],
+                   "arm_id": r["arm_id"], "x": r["x"], "oz": int(r.get("oz") or 1)}
+            self._sanal_yaz(now, row)
+            self.sanal_bekleyen.pop(sid, None)
+            self._sanal_kontrol.pop(sid, None)
+            self._sn.append((r["k"], ts.as_unit("ns").value, float(res.y), r["pair"], r["side"], r["tf"], _vek(r["x"]), True))
+            self.n_kapali += 1
+            self.n_sanal += 1
+            self.n_tf[r["tf"]] += 1
+            self.n_oz[str(int(r.get("oz") or 1))] += 1
+            self._yeni_sonuc += 1
+            self.bugun["sonuc"] += 1
+            self.sayac["sanal_sonuc"] += 1
+            n += 1
+        return n
+
     # ------------------------------------------------------------------ motor girisi
     def temizle(self, D: datetime) -> None:
         gun = pd.Timestamp(D).strftime("%Y-%m-%d")
@@ -594,6 +777,7 @@ class Ml1Ogrenici:
                 self.bugun = {"tarih": gun, "sonuc": 0, "guncelleme": 0, "geri_donus": 0}
             self.izle(D)
             out["sonuc"] = self.topla(D)
+            out["sanal"] = self.sanal_coz(D)
             dur = self.duraklat_bitis is not None and pd.Timestamp(D) < pd.Timestamp(self.duraklat_bitis)
             if self._yeni_sonuc > 0 and not dur:
                 out["guncelleme"] = self.guncelle(D) is not None

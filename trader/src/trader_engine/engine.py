@@ -197,10 +197,15 @@ class Engine:
         if self.ml1 is not None and cfg.mode == "paper" and og.get("aktif"):
             try:
                 from .ml1_ogren import Ml1Ogrenici
+                from . import ml1_sanal as _SN
+                sanal = None
+                if og.get("sanal_aktif", True):
+                    sanal = _SN.SanalCfg(view=view, maliyet_fn=self._sanal_maliyet)
                 self.ogren = Ml1Ogrenici(cfg.path("ml1_ogren"), self.ml1._paths[0], now_fn=clock.now, ledger=ledger, kapi=self.ml1,
                                          min_islem=int(og.get("min_islem", 200)), min_islem_tf=int(og.get("min_islem_tf", 0)),
                                          esik=float(og.get("esik", 0.50)), yari_omur_gun=og.get("yari_omur_gun", 30.0),
-                                         kuru=bool(og.get("kuru", False)))
+                                         kuru=bool(og.get("kuru", False)), sanal=sanal, sanal_agirlik=float(og.get("sanal_agirlik", 1.0)),
+                                         sinama_aralik=int(og.get("sinama_aralik", 100)))
                 self.ml1.ogren = self.ogren
             except Exception as e:  # noqa: BLE001 - ogrenme kurulamazsa motor ogrenmesiz calisir (D2: girisler kapali)
                 self._ml1_ariza = "ogrenici"
@@ -1506,6 +1511,21 @@ class Engine:
             self._shadow_step(D)
             self._ml1_ogren_step(D)
 
+    def _sanal_maliyet(self, pair: str, ts: datetime):
+        """ML1 golge ogrenme simulasyonu maliyeti: kagit brokerin `cost` modeli + `cost_overrides` (cift/seans kaymasi; stop_tabani ile ayni cozum)."""
+        from .ml1_sanal import Maliyet
+        c = self.cfg.cost
+        sl = None
+        ov = (self.cfg.cost_overrides or {}).get(pair)
+        if ov:
+            try:
+                sl = ov.get(session_tag(asset_class(pair, self.cfg.clusters), ts))
+            except Exception:  # noqa: BLE001
+                sl = None
+        sl = sl or {}
+        return Maliyet(float(c.taker_fee), float(sl.get("slip_entry_bps", c.slip_entry_bps)), float(sl.get("slip_exit_bps", c.slip_exit_bps)),
+                       float(sl.get("slip_stop_bps", c.slip_stop_bps)))
+
     def _ml1_ogren_step(self, D: datetime) -> None:
         """ML1 aninda ogrenme adimi (`_shadow_step` kalibi): cozme + uydurma + guvenlik. Durum/broker/emir/kapi uzerinde YAZMA yok; istisna sizmaz."""
         if self.ogren is None or self._stop:
@@ -2216,6 +2236,8 @@ class Engine:
                     continue
                 break                                              # ignore (position_exists / already_decided / ...): satir yazilmaz
         finally:
+            if self.ml1 is not None:
+                self.ml1.note_sanal(pair, D, cands, entered, float((self._params_map or {}).get("trail_atr", 0.0)))   # ML1 golge ogrenme (alinmayan adaylar)
             if entered is None and first_skip is not None and first_skip.mark_decided:
                 try:
                     with self.state.tx():
