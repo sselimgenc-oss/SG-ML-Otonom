@@ -303,7 +303,15 @@ class Ml1Ogrenici:
         got, _ = M.load_package(self.paket_yolu)
         return "suzme" if got is not None else "ogrenme"
 
+    def _hiz(self, simdi: datetime) -> tuple[float | None, str | None]:
+        from trader_ml.ml1.hiz import hiz_hesapla     # etiketli (gercek+sanal) satirlar; N durum satiriyla ayni (n_kapali)
+        try:
+            return hiz_hesapla([pd.Timestamp(s[1], unit="ns", tz="UTC") for s in self._sn], self.n_kapali, self.min_islem, simdi)
+        except Exception:  # noqa: BLE001
+            return None, None
+
     def _durum_yaz(self, simdi: datetime) -> None:
+        hiz, varis = self._hiz(simdi)
         d = {"aktif": True, "kuru": self.kuru, "asama": self.asama(), "kapali_islem": self.n_kapali, "gercek": self.n_kapali - self.n_sanal, "sanal": self.n_sanal,
              "bekleyen_sanal": len(self.sanal_bekleyen), "sanal_agirlik": self.sanal_agirlik, "sinama_aralik": self.sinama_aralik,
              "sonraki_sinama_n": self.sonraki_sinama_n, "min_islem": self.min_islem,
@@ -312,7 +320,8 @@ class Ml1Ogrenici:
              "surum": self.surum, "son_guncelleme": self.son_guncelleme, "guncellendi": pd.Timestamp(simdi).isoformat(),
              "bugun": dict(self.bugun), "n_etkin": round(self.n_etkin, 3), "n_tampon": len(self._sn), "bekleyen": len(self.bekleyen),
              "duraklat_bitis": None if self.duraklat_bitis is None else self.duraklat_bitis.isoformat(),
-             "son_geri_donus": self.son_geri_donus, "son_sinama": self.son_sinama, "sayac": dict(self.sayac)}
+             "son_geri_donus": self.son_geri_donus, "son_sinama": self.son_sinama, "sayac": dict(self.sayac),
+             "gunluk_hiz": hiz, "tahmini_varis": varis}
         _atomik_yaz_bayt(self._p("durum.json"), json.dumps(d, sort_keys=True, indent=1).encode("utf-8"))
 
     # ------------------------------------------------------------------ baslangic: dosyalardan kurulum

@@ -11,6 +11,7 @@
   "max_positions": 14,
   "target_trade_risk": 0.01,
   "risk": {"target_trade_risk": 0.01, "max_open_risk": 0.12, "max_same_dir_risk": 0.06, "daily_max_loss": 0.08},
+  "kume_risk": {"aktif": true, "kumeler": {"kripto": {"ciftler": ["BTC/USDT", "ETH/USDT", "SOL/USDT", "XRP/USDT", "TRX/USDT"], "ayni_yon": 0.03}, "hisse": {"ciftler": ["AAPL/USDT", "MSFT/USDT", "NVDA/USDT", "GOOGL/USDT", "AMZN/USDT", "META/USDT", "TSLA/USDT"], "ayni_yon": 0.03}, "emtia": {"ciftler": ["XAU/USDT", "BZ/USDT"], "ayni_yon": 0.02}}},
   "clusters": {
     "kripto_buyuk": {
       "pairs": [

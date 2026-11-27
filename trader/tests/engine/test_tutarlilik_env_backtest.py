@@ -89,6 +89,7 @@ def make_config_dir(dst: Path) -> Path:
     ov = json.loads((ROOT / "config" / "engine.paper.json").read_text(encoding="utf-8"))
     ov["pairs"] = list(PAIRS)
     ov["optional_pairs"] = ["NVDA/USDT"]
+    ov.pop("kume_risk", None)                            # kume_risk tum 14 cifti kapsar; bu test daraltilmis evren kullanir
     ov["arms"] = list(ARMS)
     ov["clusters"] = {"kripto_buyuk": {"pairs": ["BTC/USDT", "ETH/USDT"], "max_positions": 4},
                       "kripto_diger": {"pairs": ["SOL/USDT"], "max_positions": 6},

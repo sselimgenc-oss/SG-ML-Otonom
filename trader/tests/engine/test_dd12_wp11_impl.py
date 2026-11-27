@@ -287,7 +287,7 @@ def _cfg(tmp: Path, **kw):
                 "kripto_diger": {"pairs": ["SOL/USDT"], "max_positions": 6},
                 "hisse": {"pairs": ["NVDA/USDT"], "max_positions": 5},
                 "hisse_teknoloji": {"pairs": ["NVDA/USDT"], "max_positions": 3}}
-    base = dict(pairs=tuple(PAIRS), optional_pairs=("NVDA/USDT",), clusters=clusters,
+    base = dict(pairs=tuple(PAIRS), optional_pairs=("NVDA/USDT",), clusters=clusters, kume_risk={},
                 cost_overrides={"NVDA/USDT": PAPER.cost_overrides["NVDA/USDT"]}, var_dir=str(tmp / "var"),
                 kill_file=str(tmp / "KILL"), pause_file=str(tmp / "PAUSE"),
                 market_db=str(tmp / "m.sqlite"),

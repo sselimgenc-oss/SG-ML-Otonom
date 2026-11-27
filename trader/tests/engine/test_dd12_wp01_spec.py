@@ -57,11 +57,11 @@ PINNED_SHA = {
     "engine.base.json": "c177f2a9410d0f22a8b7f160122d9e72d40749384495687e98c8f21d94aaafdf",   # 25.11 kullanici karari: denetim kalan maddeler (start_delay_s kalkti); 24.11 kullanici karari: veto ve C1 artiklari silindi (veto_mode/veto_config kalkti);   # WP-06a: yalniz veto_config yolu; 24.11 kullanici karari: ML filtreleri silindi (ml_mode/ml_model_path kalkti)
     "engine.learner.json": "30ca2842c40cacafbf6cdd90c9e6f1f54fc62b9a9ec913476d1399ac5352cb12",
     "engine.testnet.json": "eff9eb61dcd9018bf86c195a02f7f25f08960473e705cbd114e104c26a956c9c",   # 24.11 kullanici karari: veto ve C1 artiklari silindi
-    "engine.live.json": "32c5d435979a14bf16a410437e0a7c79fa38849fe8f5a24a488ecd0a3e35bc5c",   # 27.11 sahip karari: stop_tabani blogu (kagitla ayni); /kayip_freni/toplam_buyukluk_kat/uzun_yon ve kume max_positions kaldirildi; 24.11 kullanici karari: formasyon kutuphanesi birlesik (MF1 48 + GF1 52 + IN1 66 + PA2 29 + PA varyantlari 56 kol; max_positions 36)
+    "engine.live.json": "bd4878c6af00841ad3e06238c009ae592e8b94e0977a8fe2e98af428a6e6da61",   # 27.11 sahip karari: stop_tabani blogu (kagitla ayni); /kayip_freni/toplam_buyukluk_kat/uzun_yon ve kume max_positions kaldirildi; 24.11 kullanici karari: formasyon kutuphanesi birlesik (MF1 48 + GF1 52 + IN1 66 + PA2 29 + PA varyantlari 56 kol; max_positions 36)
     #   # 24.11 kullanici karari: veto ve C1 artiklari silindi (veto_mode, arm_max_positions L1 kalkti);   # 24.11 kullanici karari: DL1 dort zaman dilimi acik; onceki 24.11 ML filtreleri silindi
 }
 # 23.11 kullanici karari: canli = kagit. engine.live.json'a eklenen kagit sistem anahtarlari (+ pairs yerine kagit evreni).
-LIVE_PAPER_SYSTEM_KEYS = {"pairs", "optional_pairs", "strategy", "arms", "shadow_blocks",
+LIVE_PAPER_SYSTEM_KEYS = {"kume_risk", "pairs", "optional_pairs", "strategy", "arms", "shadow_blocks",
                           "exit_modes", "max_positions", "target_trade_risk", "risk", "clusters", "etiket_kurallari",
                           "flat_bar_guard", "stop_tabani", "contract_types", "cost_overrides",
                           "target_mode"}   # 24.11 kullanici karari: hedef bekleyen emir (kagitla ayni "resting"; taban dosya "bar_close" kalir)
@@ -464,14 +464,14 @@ def test_dt30_paper_davranis_toplam_ve_ayni_yon_ve_gunluk():
     rc = _paper().risk_config
     pos = lambda p, s, r: OpenPosition(pair=p, side=s, risk_amount=r, margin=0.0)
     # toplam acik 60 (30 long + 30 short) + yeni ~10: paper izinli, kilitli (%5 gunluk/%6 toplam) reddeder
-    st = _state(opens=[pos("BTC/USDT:USDT", "long", 30.0), pos("SOL/USDT:USDT", "short", 30.0)])
+    st = _state(opens=[pos("AAPL/USDT:USDT", "long", 30.0), pos("SOL/USDT:USDT", "short", 30.0)])
     assert check_entry(st, _cand(), rc).allowed
     assert not check_entry(st, _cand(), LOCKED_CFG).allowed
     # ayni yon (Karar A, 21.11): gunluk butce artik acik riski saymaz; long 45 + ~10 izinli, long 55 + ~10 > %6 (60) -> ret
     # 23.11 kullanici karari: asama B esikleri (max_same_dir_risk 0.16 -> 0.06)
-    st2 = _state(opens=[pos("BTC/USDT:USDT", "long", 45.0)])
+    st2 = _state(opens=[pos("AAPL/USDT:USDT", "long", 45.0)])
     assert check_entry(st2, _cand(), rc).allowed
-    assert not check_entry(_state(opens=[pos("BTC/USDT:USDT", "long", 55.0)]), _cand(), rc).allowed
+    assert not check_entry(_state(opens=[pos("AAPL/USDT:USDT", "long", 55.0)]), _cand(), rc).allowed
     # gunluk zarar %6: paper'da kural 4 tetiklenmez (limit %8); 60+10... yalniz gunluk butce: 60 + 0 + 10 <= 80 izinli
     st3 = _state(equity=940.0, day_start=1000.0)
     assert check_entry(st3, _cand(), rc).allowed

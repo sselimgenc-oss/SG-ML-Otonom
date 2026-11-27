@@ -108,7 +108,7 @@ def mk(tmp_path):
 
 
 # yalniz ilgili kuralin denendigi yalin yapilandirma: baska tavan (kume/hesap) araya girmez
-BOS = dict(clusters={}, max_positions=None, etiket_kurallari={})
+BOS = dict(clusters={}, max_positions=None, etiket_kurallari={}, kume_risk={})
 
 
 def _go(e, pair="BTC/USDT", side="long", D=T0):

@@ -120,14 +120,21 @@ class EngineConfig:
     # --- 23.11 kullanici karari: asama B esikleri (yalniz paper/live giris kapisi; bos/None = kapali) ---
     exit_modes: Mapping[str, Mapping] = dataclasses.field(default_factory=dict)      # cikis kipleri (basa-bas / kismi kar); anahtar default|KURULUM|arm_id; bos = kapali (docs/cikis-kipleri-spec.md)
     stop_tabani: Mapping[str, Any] = dataclasses.field(default_factory=dict)         # 27.11 sahip karari: stop tabani (tum kurulumlar; giris karari, boyuttan once); bos/aktif=false = eski davranis
+    kume_risk: Mapping[str, Any] = dataclasses.field(default_factory=dict)           # 27.11 kume bazli ayni-yon risk tavani: {"aktif", "kumeler": {ad: {"ciftler", "ayni_yon"}}}; bos/aktif=false = eski davranis
     ml1: Mapping[str, Any] = dataclasses.field(default_factory=dict)                 # 25.11 ML1 (yalniz paper): {"aktif": bool, "paket_yolu"?, "ogrenme"?}; bos/aktif=false = kapali (onceki davranis)
+
+    def _kume_tuple(self) -> tuple:
+        kr = self.kume_risk
+        if not kr or not kr.get("aktif"):
+            return ()
+        return tuple((n, tuple(k["ciftler"]), float(k["ayni_yon"])) for n, k in kr["kumeler"].items())
 
     @functools.cached_property
     def risk_config(self) -> RiskConfig:
         """Boyutlama/kapi icin tek RiskConfig (twin ve learner ayni degeri okur). Nesne tek kez kurulur (12 §8.3:
         K0'da `step_config` ayni nesneyi dondurur)."""
         if self.mode in ("paper", "live") and self.risk:      # 23.11 kullanici karari: canli = kagit (canli: LIVE_LIMITS)
-            return build_paper_risk_config(self.target_trade_risk, self.risk, mode=self.mode)
+            return build_paper_risk_config(self.target_trade_risk, self.risk, mode=self.mode, kume_risk=self._kume_tuple())
         return build_risk_config(self.target_trade_risk)
 
     def _bot_path(self, name: str) -> str:
@@ -158,7 +165,7 @@ _OPTIONAL_KEYS = {"strategy", "target_trade_risk", "startup_wait_s", "pause_file
                   "leverage", "live", "ladder_follow", "shadow_blocks", "mtm_marks",
                   "optional_pairs", "retired_pairs", "max_positions", "risk", "clusters", "flat_bar_guard", "contract_types",
                   "cost_overrides", "arms", "exit_modes", "etiket_kurallari",
-                  "ml1", "stop_tabani"}
+                  "ml1", "stop_tabani", "kume_risk"}
 _STOP_TABANI_KEYS = {"aktif": bool, "maliyet_payi": (int, float), "genislet_esik": (int, float), "atr_kat": (int, float)}
 _ML1_KEYS = {"aktif": bool, "paket_yolu": str, "ogrenme": dict, "risk_bantlari": dict}                     # tohum paket YOK (sifirdan ogrenme)
 _OGRENME_KEYS = {"aktif": bool, "kuru": bool, "yari_omur_gun": (int, float), "min_islem": int, "min_islem_tf": int, "esik": (int, float),
@@ -194,7 +201,7 @@ def build_risk_config(target_trade_risk: Any) -> RiskConfig:
         raise ConfigError(f"target_trade_risk: {e}") from e
 
 
-def build_paper_risk_config(target_trade_risk: Any, risk: Mapping[str, Any], mode: str = "paper") -> RiskConfig:
+def build_paper_risk_config(target_trade_risk: Any, risk: Mapping[str, Any], mode: str = "paper", kume_risk: tuple = ()) -> RiskConfig:
     """DD-12 §4.1 (mode="paper"; 23.11: canli da, LIVE_LIMITS): `risk` blogundaki anahtarlar PAPER_LIMITS icinde uygulanir. Ust sinirlari asan,
     bilinmeyen, sayi olmayan ya da `target_trade_risk` ile celisen deger => ConfigError (fail-closed)."""
     unknown = set(risk) - set(PAPER_KEYS)
@@ -205,6 +212,11 @@ def build_paper_risk_config(target_trade_risk: Any, risk: Mapping[str, Any], mod
     if "target_trade_risk" in kw and kw["target_trade_risk"] != ttr:
         raise ConfigError(f"risk.target_trade_risk ({kw['target_trade_risk']}) ile target_trade_risk ({ttr}) celisiyor")
     kw["target_trade_risk"] = ttr
+    if kume_risk:
+        kw["kume_risk"] = kume_risk
+        for kn, _kp, kc in kume_risk:
+            if kc > kw.get("max_same_dir_risk", LOCKED_CFG.max_same_dir_risk):
+                raise ConfigError(f"kume_risk.{kn}.ayni_yon max_same_dir_risk degerini asamaz")
     try:
         return live_config(**kw) if mode == "live" else paper_config(**kw)
     except ValueError as e:
@@ -302,6 +314,35 @@ def _build_arms(v: Any) -> tuple[str, ...]:
     if len(set(v)) != len(v):
         raise ConfigError("arms yinelenen oge iceriyor")
     return tuple(v)
+
+
+def _build_kume_risk(v: Any, pairs: tuple[str, ...]) -> dict[str, Any]:
+    """27.11 kume_risk: {"aktif": bool, "kumeler": {ad: {"ciftler": [...], "ayni_yon": 0<oran<=1}}}. Aktifse her cift tam bir kumede."""
+    if not v:
+        return {}
+    if not isinstance(v, Mapping) or set(v) != {"aktif", "kumeler"} or not isinstance(v["aktif"], bool) or not isinstance(v["kumeler"], Mapping):
+        raise ConfigError("kume_risk {aktif: bool, kumeler: {...}} olmali")
+    out: dict[str, Any] = {}
+    seen: set[str] = set()
+    for name, spec in v["kumeler"].items():
+        if not isinstance(name, str) or not re.fullmatch(r"[a-z][a-z0-9_]{0,31}", name):
+            raise ConfigError(f"kume_risk kume adi gecersiz: {name!r}")
+        if not isinstance(spec, Mapping) or set(spec) != {"ciftler", "ayni_yon"}:
+            raise ConfigError(f"kume_risk.{name} tam olarak ['ayni_yon', 'ciftler'] icermeli")
+        members = _pair_subset(f"kume_risk.{name}.ciftler", spec["ciftler"], pairs)
+        if not members:
+            raise ConfigError(f"kume_risk.{name}.ciftler bos olamaz")
+        dup = seen & set(members)
+        if dup:
+            raise ConfigError(f"kume_risk: cift birden fazla kumede: {sorted(dup)}")
+        seen |= set(members)
+        cap = _num(f"kume_risk.{name}.ayni_yon", spec["ayni_yon"])
+        if not 0 < cap <= 1:
+            raise ConfigError(f"kume_risk.{name}.ayni_yon (0, 1] araliginda olmali")
+        out[name] = {"ciftler": list(members), "ayni_yon": cap}
+    if v["aktif"] and seen != set(pairs):
+        raise ConfigError(f"kume_risk: kumede olmayan cift: {sorted(set(pairs) - seen)}")
+    return {"aktif": v["aktif"], "kumeler": out}
 
 
 def _build_clusters(v: Any, pairs: tuple[str, ...]) -> dict[str, ClusterSpec]:
@@ -605,6 +646,7 @@ def _validate(raw: Mapping[str, Any]) -> EngineConfig:
             raise ConfigError("contract_types yinelenen oge iceriyor")
         contract_types = tuple(ct_raw)
     clusters = _build_clusters(raw.get("clusters", {}), pairs_set)
+    kume_risk = _build_kume_risk(raw.get("kume_risk"), pairs_set)
     cost_overrides = _build_cost_overrides(raw.get("cost_overrides", {}), pairs_set)
     arms = _build_arms(raw.get("arms", ()))
     try:
@@ -625,7 +667,7 @@ def _validate(raw: Mapping[str, Any]) -> EngineConfig:
     if mode not in ("paper", "live"):                         # 23.11 kullanici karari: canli = kagit
         given = {"optional_pairs": optional_pairs, "max_positions": max_positions, "risk": risk_raw,
                  "clusters": clusters, "flat_bar_guard": flat_bar_guard, "cost_overrides": cost_overrides,
-                 "contract_types": contract_types, "arms": arms, "ml1": ml1}
+                 "contract_types": contract_types, "arms": arms, "ml1": ml1, "kume_risk": kume_risk}
         bad = sorted(k for k, x in given.items() if x not in ((), {}, None, False))
         if bad:
             raise ConfigError(f"{bad} yalniz mode='paper' ile verilebilir (mode={mode!r})")
@@ -667,7 +709,7 @@ def _validate(raw: Mapping[str, Any]) -> EngineConfig:
         risk=risk_raw, clusters=clusters,
         flat_bar_guard=flat_bar_guard, contract_types=contract_types, cost_overrides=cost_overrides,
         arms=arms, exit_modes=exit_modes, etiket_kurallari=etiket_kurallari,
-        ml1=ml1, stop_tabani=stop_tabani,
+        ml1=ml1, stop_tabani=stop_tabani, kume_risk=kume_risk,
         **{n: raw[n] for n in _STR},
     )
 

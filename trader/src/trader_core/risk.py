@@ -8,6 +8,7 @@ from __future__ import annotations
 import math
 import numbers
 from dataclasses import dataclass, field, fields, replace
+from typing import ClassVar
 from decimal import Decimal
 
 _SIDES = ("long", "short")
@@ -97,6 +98,9 @@ class RiskConfig:
     liq_safety_factor: float = 1.5
     max_notional_ratio: float = 1.0
 
+    # Kume bazli ayni-yon acik risk tavani ((ad, (cift, ...), oran), ...); bos = kapali. Alan DEGIL (asdict/baseline dokumleri degismez):
+    # yalniz paper_config/live_config ornege yazar.
+    kume_risk: ClassVar[tuple] = ()
     _LIMITS = HARD_LIMITS   # sınıf özniteliği (alan değil): `PaperRiskConfig` kağıt sınırlarını taşır
     # Adım 10 biçimi (sınıf özniteliği, alan değil: asdict/baseline dökümleri değişmez). True (kilitli/testnet/canlı):
     # loss_today + açık risk + yeni risk <= daily_max_loss*day_start. `PaperRiskConfig` False: yalnız bugünkü zarar.
@@ -156,12 +160,16 @@ PAPER_KEYS = ("target_trade_risk", "max_open_risk", "max_same_dir_risk", "daily_
 def paper_config(**kw: float) -> RiskConfig:
     """Kağıt katmanı RiskConfig'i: LOCKED_CFG'den yalnız `PAPER_KEYS` ayarlanabilir; her biri PAPER_LIMITS'i aşamaz
     (aşarsa ValueError). Verilmeyen anahtar kilitli değerde kalır; `PaperRiskConfig` döner."""
-    unknown = set(kw) - set(PAPER_KEYS)
+    unknown = set(kw) - set(PAPER_KEYS) - {"kume_risk"}
     if unknown:
         raise ValueError(f"paper_config bilinmeyen anahtar: {sorted(unknown)}")
     d = {f.name: getattr(LOCKED_CFG, f.name) for f in fields(LOCKED_CFG)}
+    kume = kw.pop("kume_risk", ())
     d.update(kw)
-    return PaperRiskConfig(**d)
+    cfg = PaperRiskConfig(**d)
+    if kume:
+        object.__setattr__(cfg, "kume_risk", tuple(kume))
+    return cfg
 
 
 def tightened(base: RiskConfig, *, target_trade_risk: float) -> RiskConfig:
@@ -403,6 +411,13 @@ def _check_entry(state: AccountState, cand: Candidate, cfg: RiskConfig) -> Decis
     same = sum(op[2] for op in opens if op[1] == side)
     if same + size.risk_amount > cfg.max_same_dir_risk * equity:
         return _deny(f"aynı yön ({side}) risk sınırı aşılır")
+    # 9b. Küme bazlı aynı yön riski (kume_risk boşsa atlanır)
+    for kname, kpairs, kcap in cfg.kume_risk:
+        if pair in kpairs:
+            ksame = sum(op[2] for op in opens if op[1] == side and op[0] in kpairs)
+            if ksame + size.risk_amount > kcap * equity:
+                return _deny(f"aynı yön ({side}) küme ({kname}) risk sınırı aşılır")
+            break
     # 10. Günlük bütçe
     loss_today = max(0.0, day_start - equity)
     if cfg._DAILY_INCLUDES_OPEN_RISK:
@@ -427,9 +442,13 @@ def check_entry(state: AccountState, cand: Candidate, cfg: RiskConfig = LOCKED_C
 
 def live_config(**kw: float) -> RiskConfig:
     """Canli katmani RiskConfig'i (`LiveRiskConfig`, LIVE_LIMITS): `paper_config` ile ayni anahtarlar."""
-    unknown = set(kw) - set(PAPER_KEYS)
+    unknown = set(kw) - set(PAPER_KEYS) - {"kume_risk"}
     if unknown:
         raise ValueError(f"live_config bilinmeyen anahtar: {sorted(unknown)}")
     d = {f.name: getattr(LOCKED_CFG, f.name) for f in fields(LOCKED_CFG)}
+    kume = kw.pop("kume_risk", ())
     d.update(kw)
-    return LiveRiskConfig(**d)
+    cfg = LiveRiskConfig(**d)
+    if kume:
+        object.__setattr__(cfg, "kume_risk", tuple(kume))
+    return cfg

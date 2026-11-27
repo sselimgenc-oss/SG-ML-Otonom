@@ -1584,7 +1584,7 @@ def ml1_metni(cfg: TelegramConfig, now: datetime) -> str:
         f"ML1{'' if aktif is True else ' (kapalı)'} · eşik {esik}",
         f"Bugün: {TS.sayi(e['bugun']['puanlanan'], 0)} aday, {TS.sayi(e['bugun']['gecen'], 0)} geçti, {e['bugun']['islem']} işlem",
         f"7 gün: {TS.sayi(e['7g']['puanlanan'], 0)} aday, {TS.sayi(e['7g']['gecen'], 0)} geçti, {e['7g']['islem']} işlem",
-        MG.durum_satiri(oz), MG.tf_satiri(oz)][:TS.MAX_SATIR]))
+        MG.durum_satiri(oz), MG.tf_satiri(oz), MG.hiz_satiri(oz)][:TS.MAX_SATIR]))
 
 
 def build_report(cfg: TelegramConfig, now: datetime, day: str, sections: Mapping[str, Callable[[], str]] | None = None

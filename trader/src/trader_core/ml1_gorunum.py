@@ -265,7 +265,21 @@ def ogr_durumu(d: Any, kapanan_defter: int, tf: Mapping[str, int], puanli_var: b
             "min_islem": int(mn) if isinstance(mn, int) and not isinstance(mn, bool) and mn > 0 else MIN_ISLEM_VARSAYILAN,
             "tf": {k: int(tfd.get(k, 0)) for k in ZD_SIRA} if isinstance(tfd, Mapping) else {k: int(tf.get(k, 0)) for k in ZD_SIRA},
             "son_sinama": _sinama_of(d), "kaynak": "durum" if d else "defter",
-            "sanal": int(d["sanal"]) if isinstance(d.get("sanal"), int) and not isinstance(d.get("sanal"), bool) else None}
+            "sanal": int(d["sanal"]) if isinstance(d.get("sanal"), int) and not isinstance(d.get("sanal"), bool) else None,
+            "gunluk_hiz": _f(d.get("gunluk_hiz")), "tahmini_varis": d.get("tahmini_varis") if isinstance(d.get("tahmini_varis"), str) else None}
+
+
+def hiz_satiri(oz: Mapping) -> str:
+    """'Hız: son 7 günde günde ortalama 4,5 etiketli işlem · 200'e tahmini varış: 14.12' (pano + Telegram AYNI metin)."""
+    o = oz.get("ogr") or {}
+    h, v = o.get("gunluk_hiz"), o.get("tahmini_varis")
+    if not h or h <= 0 or not v:
+        return "Hız: henüz ölçülemedi"
+    try:
+        gg = f"{v[8:10]}.{v[5:7]}"
+    except (TypeError, IndexError):
+        return "Hız: henüz ölçülemedi"
+    return f"Hız: son 7 günde günde ortalama {TS.sayi(h, 1)} etiketli işlem · {o.get('min_islem', MIN_ISLEM_VARSAYILAN)}'e tahmini varış: {gg}"
 
 
 def durum_satiri(oz: Mapping) -> str:

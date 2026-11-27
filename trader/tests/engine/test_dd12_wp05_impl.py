@@ -209,7 +209,7 @@ def _cfg(tmp: Path, pairs):
                 "hisse_teknoloji": {"pairs": ["NVDA/USDT"], "max_positions": 3}}
     return apply_overrides(
         PAPER, pairs=tuple(pairs), optional_pairs=("NVDA/USDT",),
-        clusters=clusters, cost_overrides={"NVDA/USDT": PAPER.cost_overrides["NVDA/USDT"]},
+        clusters=clusters, kume_risk={}, cost_overrides={"NVDA/USDT": PAPER.cost_overrides["NVDA/USDT"]},
         var_dir=str(tmp / "var"), kill_file=str(tmp / "KILL"), pause_file=str(tmp / "PAUSE"),
         market_db=str(tmp / "m.sqlite"), history_dir=str(tmp / "h"),
         cost=dict(fill_model="native", granularity="15m", trigger_source="last"))

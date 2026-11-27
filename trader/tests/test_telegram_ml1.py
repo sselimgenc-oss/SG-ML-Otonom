@@ -47,7 +47,7 @@ def test_gunluk_ozet_haftalik_ve_ml1_sayilari_panodakiyle_ayni(cfg):
     ml = T.ml1_metni(cfg, NOW)
     assert f"Bugün: {e['bugun']['puanlanan']} aday, {e['bugun']['gecen']} geçti, {e['bugun']['islem']} işlem" in ml
     assert f"7 gün: {e['7g']['puanlanan']} aday, {e['7g']['gecen']} geçti, {e['7g']['islem']} işlem" in ml
-    assert MG.durum_satiri(m) in ml and MG.tf_satiri(m) in ml and "ML1 · eşik 0,60" in ml and len(ml.splitlines()) == 5
+    assert MG.durum_satiri(m) in ml and MG.tf_satiri(m) in ml and "ML1 · eşik 0,60" in ml and len(ml.splitlines()) == 6
     assert "Sınav" not in ml and "15" not in ml.replace("0,60", "")
     hf = T.haftalik_metni(cfg, NOW)                                              # ayni defter, ayni `now`
     assert f"ML1: {e['7g']['puanlanan']} aday puanladı" in hf and f"{e['7g']['islem']}{TS.iyelik_belirtme(e['7g']['islem'])} işleme çevirdi" in hf
