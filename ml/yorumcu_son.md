@@ -1,36 +1,15 @@
-# Yorumcu raporu 2026-11-27
+# Yorumcu raporu 2026-11-28
 
-Yalnız yorum: bu rapor hiçbir ayarı değiştirmez, işlem açıp kapatmaz. Kapanmış işlem n = 3.
+Yalnız yorum: bu rapor hiçbir ayarı değiştirmez, işlem açıp kapatmaz. Kapanmış işlem n = 10.
 
 ## Bulgular
 
-- **Dün (2026-11-26):** Kapanan işlem yok (n = 0), toplam_R 0.0. Yetersiz örnek, bu günden sonuç çıkarılamaz.
-- **Kararlar:** Bot toplam 332 karar verdi (n = 332). 6 kararda işleme girdi, 326 kararda atladı. En sık red nedenleri:
-  - stop_width: 169
-  - arm_conflict: 77
-  - session_closed: 58
-  - etiket_rejim: 17
-  - rr_below_min: 5
+- **Dün (2026-11-27):** Kapanan işlem n = 9, toplam_R = -0.62. Bu yetersiz örnek, o yüzden kesin sonuç çıkarmıyorum. R, bir işlemde riske edilen miktarı birim alan ölçüdür. Eksi R, o gün toplamda kayıp olduğunu gösterir.
 
-  Burada "kol", tek bir strateji demek. arm_conflict, kolların birbiriyle çakışması demek. En çok atlama stop_width kuralından geldi.
-- **Kollar:** Üç kolun her birinde yalnızca 1 işlem var (n = 1), hepsi yetersiz örnek, kesin sonuç yok.
-  - IN1-RSI2@1h: toplam_R 0.27 (yetersiz örnek, n=1)
-  - T1-GERI3@1h: toplam_R -0.96 (yetersiz örnek, n=1)
-  - T1@1h: toplam_R -0.96 (yetersiz örnek, n=1)
+- **Genel tablo:** Toplam kapanmış işlem n = 10, yani yetersiz örnek. Masraf sonrası net = -0.75 R, ort = -0.075 R. Güven alt sınırı hesaplanamadı, çünkü gün sayısı 2 < 8. Masraf x1.5 altında net = -1.11 R. Ölçüm tablosunda 300 işlem şartı var ve şu an n = 10. Monte Carlo (sonuçları rastgele karıştırarak olası en kötü düşüşü tahmin etme) p95 = %6.0 (n=10). Bu da yetersiz örnek.
 
-  Son iki kolun kaybı aynı yönde (short), aynı rejimde (trend_down) ve aynı saat diliminde (20-24 UTC). Her biri n = 1 olduğu için yetersiz örnek, bir örüntü demek için erken.
-- **arm_conflict kayıpları:** Tabloda en çok kayıp IN1-HIZLIMA@1h (9) ve IN1-VWAP@1h (9) kollarında görünüyor. Bu kolların n değeri 0, yani yetersiz örnek. R değerleri hesaplanamamış, kesin sonuç çıkarılamaz.
-- **Ölçüm tablosu:** Kapanmış işlem sayısı n = 3, yetersiz örnek.
-  - Masraf sonrası net -1.65 R, ortalama -0.549 R.
-  - Güven alt sınırı hesaplanamadı, çünkü gün sayısı 1 (en az 8 gerekiyor).
-  - Rastgele girişe göre yüzdelik 26.0 (n = 3). Yani rastgele girişlerin çoğu bu sonuçtan daha iyi çıkmış, ama 3 işlemle bu bir şey kanıtlamaz.
-  - Monte Carlo (karışık işlem sıralarıyla yapılan deneme) p95 düşüş %2.3 (n = 3).
+- **Kararlar:** n_karar = 785. Bunların 17'si "entered" (işleme girildi), 768'i "skipped" (atlandı). En sık red nedenleri stop_width n = 375 (stop mesafesi uygun bulunmadı) ve arm_conflict n = 204 (kollar arası çakışma). Bu sayılar büyük, ama reddedilenlerin sonradan kazandırıp kazandırmayacağını tablo göstermiyor. Arm_conflict kayıp tablosunda her kolda n = 0, yani yetersiz örnek. Kayıp sayısı en yüksek kol H2-MINI@1h (kayip 4). Bunun ardından GF1-UCGEN@1h ve GF1-YATAY@1h gelir (ikisinde kayip 3). Bu kayıpların R değeri ölçülmediği için bir şey söylemiyorum.
 
-  Veri çok az olduğu için bu sayılar güvenilir bir yön göstermiyor.
+- **Rejim ve rastgele giriş:** Rejim n: trend_down = 9, trend_up = 1. Her ikisi de yetersiz örnek. Kayıp kümelerinde çoğunlukla trend_down rejimi ve short yön var, ama her kümede kayip_sayisi 1. Bu bir örüntü sayılmaz. Rastgele girişle karşılaştırmada yüzdelik = 12.4, p = 0.876 (n = 10). Yetersiz örnek, kesin sonuç yok.
 
-## Öneriler
-
-Veri genel olarak yetersiz. Aşağıdaki iki öneri yalnızca izleme amaçlıdır, hiçbir ayar değişikliği içermez.
-
-- **Öneri 1:** Kolların hakkında hüküm vermeden önce her kolda en az 30 işlem birikmesini bekle (yetersiz_ornek_esigi_n = 30). Nasıl ölçülür: Her gün "kollar" tablosunda n alanına bak. Bir kolun etiketi "yetersiz örnek"ten çıktığında o kolun ort_R ve kazanma_orani_yuzde değerlerini değerlendir.
-- **
+- **Koll

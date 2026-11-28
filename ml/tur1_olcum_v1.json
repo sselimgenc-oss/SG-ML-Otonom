@@ -2,63 +2,63 @@
  "bolumler": {
   "canli_sartlari": {
    "dsr_pbo": {
-    "deneme_sharpe_sayisi": 0,
-    "dsr": 0.06315330271853019,
+    "deneme_sharpe_sayisi": 2,
+    "dsr": 0.0013256891106931206,
     "etiket": "yetersiz örnek",
-    "kol_sayisi": 3,
-    "n": 3,
+    "kol_sayisi": 8,
+    "n": 10,
     "pbo": null,
-    "pbo_not": "hesaplanamadı (1 gün < 32)",
-    "sr_islem_basina": -0.7737584559575647
+    "pbo_not": "hesaplanamadı (2 gün < 32)",
+    "sr_islem_basina": -0.06862144851254307
    },
    "etiket": "yetersiz örnek",
    "hepsi_gecti": false,
    "maddeler": [
     {
      "ad": "En az 300 kapanmış işlem",
-     "deger": "n = 3",
+     "deger": "n = 10",
      "gecti": false,
      "sonuc": "FAIL"
     },
     {
      "ad": "Masraf sonrası net > 0 ve güven alt sınırı > 0",
-     "deger": "net = -1.65 R; ort = -0.549 R; alt sınır = hesaplanamadı (gün sayısı 1 < 8)",
+     "deger": "net = -0.75 R; ort = -0.075 R; alt sınır = hesaplanamadı (gün sayısı 2 < 8)",
      "gecti": false,
      "sonuc": "FAIL"
     },
     {
      "ad": "En az 2 rejimde pozitif (rejim başına >= 30 işlem ve gün kümeli güven alt sınırı > 0)",
-     "deger": "0 rejim pozitif []; rejim n: trend_down=3; alt sınır: ",
+     "deger": "0 rejim pozitif []; rejim n: trend_down=9, trend_up=1; alt sınır: ",
      "gecti": false,
      "sonuc": "FAIL"
     },
     {
      "ad": "Rastgele giriş yüzdeliği >= 90",
-     "deger": "yüzdelik = 26.0",
+     "deger": "yüzdelik = 12.4",
      "gecti": false,
      "sonuc": "FAIL"
     },
     {
      "ad": "Masraf x1.5 altında net > 0",
-     "deger": "net = -1.81 R",
+     "deger": "net = -1.11 R",
      "gecti": false,
      "sonuc": "FAIL"
     },
     {
      "ad": "Monte Carlo %95 maks düşüş <= %15 (sermaye mandalı oranından türetilir: 1 - 0.85; karıştırma ve blok örneklemenin kötüsü)",
-     "deger": "p95 = %2.3 (n=3)",
+     "deger": "p95 = %6.0 (n=10)",
      "gecti": true,
      "sonuc": "PASS"
     },
     {
      "ad": "Çoklu deneme: deflated Sharpe ve PBO (BİLGİ, geçme şartı değil)",
      "bilgi": true,
-     "deger": "DSR = 0.06 (kol sayısı 3); hesaplanamadı (1 gün < 32); n=3",
+     "deger": "DSR = 0.00 (kol sayısı 8); hesaplanamadı (2 gün < 32); n=10",
      "gecti": true,
      "sonuc": "BİLGİ"
     }
    ],
-   "n": 3,
+   "n": 10,
    "uyari": "Bu liste karar vermez; yalnız ölçer. Örnek küçükken PASS bile kanıt sayılmaz."
   },
   "dayaniklilik": {
@@ -66,62 +66,95 @@
    "gecikme": {
     "1_mum": {
      "alt": null,
-     "ayni_islemlerde_gercek_net": -1.6469165282899862,
+     "ayni_islemlerde_gercek_net": -0.7473615725022872,
      "durum": {
-      "ok": 3
+      "ok": 10
      },
      "etiket": "yetersiz örnek",
      "kalan_oran": null,
-     "n": 3,
-     "ort": -0.5560817730600819,
-     "toplam": -1.6682453191802455,
+     "n": 10,
+     "ort": 0.0663679654110946,
+     "toplam": 0.663679654110946,
      "ust": null,
      "veri_yok_tf": {}
     },
     "2_mum": {
      "alt": null,
-     "ayni_islemlerde_gercek_net": -1.6469165282899862,
+     "ayni_islemlerde_gercek_net": -0.7473615725022872,
      "durum": {
-      "kacirildi": 1,
-      "ok": 2
+      "kacirildi": 4,
+      "ok": 6
      },
      "etiket": "yetersiz örnek",
      "kalan_oran": null,
-     "n": 3,
-     "ort": -0.6012881103860849,
-     "toplam": -1.8038643311582545,
+     "n": 10,
+     "ort": 0.13296790727895416,
+     "toplam": 1.3296790727895416,
      "ust": null,
      "veri_yok_tf": {}
     }
    },
-   "gercek_net_r": -1.6469165282899862,
+   "gercek_net_r": -0.7473615725022872,
    "masraf": {
     "x1.5": {
      "alt": null,
      "etiket": "yetersiz örnek",
      "kalan_oran": null,
-     "n": 3,
-     "ort": -0.6029208370545575,
-     "toplam": -1.8087625111636723,
+     "n": 10,
+     "ort": -0.11136515829551571,
+     "toplam": -1.1136515829551572,
      "ust": null
     },
     "x2.0": {
      "alt": null,
      "etiket": "yetersiz örnek",
      "kalan_oran": null,
-     "n": 3,
-     "ort": -0.6568694980124529,
-     "toplam": -1.9706084940373585,
+     "n": 10,
+     "ort": -0.14799415934080276,
+     "toplam": -1.4799415934080276,
      "ust": null
     }
    },
-   "n": 3
+   "n": 10
   },
   "kayip_kumeleri": {
    "etiket": "yetersiz örnek",
    "kayba_gore": [
     {
      "kayip_sayisi": 1,
+     "kol": "IN1-RSI2@1h",
+     "not": "az örnek",
+     "rejim": "trend_up",
+     "saat": "12-16 UTC",
+     "toplam_islem": 1,
+     "toplam_kayip_r": -1.0351057559101915,
+     "varlik_sinifi": "kripto",
+     "yon": "long"
+    },
+    {
+     "kayip_sayisi": 1,
+     "kol": "T1@4h",
+     "not": "az örnek",
+     "rejim": "trend_down",
+     "saat": "00-04 UTC",
+     "toplam_islem": 1,
+     "toplam_kayip_r": -0.9846705052558782,
+     "varlik_sinifi": "kripto",
+     "yon": "short"
+    },
+    {
+     "kayip_sayisi": 1,
+     "kol": "PA2-ONCEKI@1h",
+     "not": "az örnek",
+     "rejim": "trend_down",
+     "saat": "04-08 UTC",
+     "toplam_islem": 1,
+     "toplam_kayip_r": -0.9711056989958045,
+     "varlik_sinifi": "kripto",
+     "yon": "short"
+    },
+    {
+     "kayip_sayisi": 1,
      "kol": "T1@1h",
      "not": "az örnek",
      "rejim": "trend_down",
@@ -139,14 +172,58 @@
      "saat": "20-24 UTC",
      "toplam_islem": 1,
      "toplam_kayip_r": -0.9585603017686455,
+     "varlik_sinifi": "kripto",
+     "yon": "short"
+    },
+    {
+     "kayip_sayisi": 1,
+     "kol": "IN1-RSI2@4h",
+     "not": "az örnek",
+     "rejim": "trend_down",
+     "saat": "20-24 UTC",
+     "toplam_islem": 1,
+     "toplam_kayip_r": -0.1301574983043424,
      "varlik_sinifi": "kripto",
      "yon": "short"
     }
    ],
-   "kume_sayisi": 2,
-   "n_islem": 3,
-   "n_kayip": 2,
+   "kume_sayisi": 6,
+   "n_islem": 10,
+   "n_kayip": 6,
    "sayiya_gore": [
+    {
+     "kayip_sayisi": 1,
+     "kol": "IN1-RSI2@1h",
+     "not": "az örnek",
+     "rejim": "trend_up",
+     "saat": "12-16 UTC",
+     "toplam_islem": 1,
+     "toplam_kayip_r": -1.0351057559101915,
+     "varlik_sinifi": "kripto",
+     "yon": "long"
+    },
+    {
+     "kayip_sayisi": 1,
+     "kol": "T1@4h",
+     "not": "az örnek",
+     "rejim": "trend_down",
+     "saat": "00-04 UTC",
+     "toplam_islem": 1,
+     "toplam_kayip_r": -0.9846705052558782,
+     "varlik_sinifi": "kripto",
+     "yon": "short"
+    },
+    {
+     "kayip_sayisi": 1,
+     "kol": "PA2-ONCEKI@1h",
+     "not": "az örnek",
+     "rejim": "trend_down",
+     "saat": "04-08 UTC",
+     "toplam_islem": 1,
+     "toplam_kayip_r": -0.9711056989958045,
+     "varlik_sinifi": "kripto",
+     "yon": "short"
+    },
     {
      "kayip_sayisi": 1,
      "kol": "T1@1h",
@@ -166,6 +243,17 @@
      "saat": "20-24 UTC",
      "toplam_islem": 1,
      "toplam_kayip_r": -0.9585603017686455,
+     "varlik_sinifi": "kripto",
+     "yon": "short"
+    },
+    {
+     "kayip_sayisi": 1,
+     "kol": "IN1-RSI2@4h",
+     "not": "az örnek",
+     "rejim": "trend_down",
+     "saat": "20-24 UTC",
+     "toplam_islem": 1,
+     "toplam_kayip_r": -0.1301574983043424,
      "varlik_sinifi": "kripto",
      "yon": "short"
     }
@@ -173,32 +261,35 @@
   },
   "rakip_kiyasi": {
    "al_tut": {
-    "bizim_getiri": -0.011758930060512724,
+    "bizim_getiri": -0.0038035325032628364,
     "donem": [
-     "2026-11-26T21:00:00Z",
-     "2026-11-27T04:00:00Z"
+     "2026-11-26T20:00:00Z",
+     "2026-11-28T01:00:00Z"
     ],
     "durum": "ok",
     "enstruman_getirisi": {
-     "BTC/USDT": 0.010764088970842467,
-     "ETH/USDT": 0.014173699717112909,
-     "TRX/USDT": 0.0021692686935086414
+     "BTC/USDT": -0.013625033156444033,
+     "BZ/USDT": -0.011108690917011499,
+     "ETH/USDT": -0.025363849765258184,
+     "SOL/USDT": 0.006175438596491167,
+     "TRX/USDT": -0.010019445634619761,
+     "XRP/USDT": -0.003569179088809493
     },
     "etiket": "yetersiz örnek",
     "kilitli_aralik_disarida": false,
     "masraf": "yok (al-tut masrafsız; bizimki masraflı)",
-    "n": 3,
-    "n_enstruman": 3,
-    "n_veri_var": 3,
-    "ort_getiri": 0.009035685793821338,
+    "n": 10,
+    "n_enstruman": 6,
+    "n_veri_var": 6,
+    "ort_getiri": -0.009585126660941967,
     "veri_yok_enstruman": []
    },
    "bizim": {
     "alt": null,
     "etiket": "yetersiz örnek",
-    "n": 3,
-    "ort": -0.548972176096662,
-    "toplam": -1.6469165282899862,
+    "n": 10,
+    "ort": -0.07473615725022872,
+    "toplam": -0.7473615725022872,
     "ust": null
    },
    "etiket": "yetersiz örnek",
@@ -206,55 +297,56 @@
     "alt": null,
     "etiket": "yetersiz örnek",
     "mfe_yok_sayisi": 0,
-    "n": 3,
-    "ort": 0.33317753226508035,
-    "toplam": 0.9995325967952411,
+    "n": 10,
+    "ort": -0.12907680276224043,
+    "toplam": -1.2907680276224043,
     "ust": null
    },
    "hep_short": {
     "alt": null,
     "etiket": "yetersiz örnek",
     "mfe_yok_sayisi": 0,
-    "n": 3,
-    "ort": -0.548972176096662,
-    "toplam": -1.6469165282899862,
+    "n": 10,
+    "ort": 0.11807716055060735,
+    "toplam": 1.1807716055060735,
     "ust": null
    },
    "hicbir_sey": {
-    "n": 3,
+    "n": 10,
     "ort": 0.0,
     "toplam": 0.0
    },
-   "n": 3,
+   "n": 10,
    "rastgele_giris": {
     "asama": 1,
     "atlanan": 0,
     "atlanan_neden": {},
     "atlanan_tf": {},
-    "bizim_ort_r": -0.548972176096662,
-    "bizim_toplam_r": -1.6469165282899862,
+    "bizim_ort_r": -0.07473615725022872,
+    "bizim_toplam_r": -0.7473615725022872,
     "durum": "ok",
     "eski_masraf": {
      "masraf": "k2 varsayılanı: kayma 2bp, stop kayması 5bp, taker 5bp",
-     "p": 0.7405189620758483,
-     "rastgele_ort_toplam_r": 0.4981186551163021,
-     "yuzdelik": 26.0
+     "p": 0.8762475049900199,
+     "rastgele_ort_toplam_r": 6.101504454384952,
+     "yuzdelik": 12.4
     },
     "etiket": "yetersiz örnek",
     "kapsanan_tf": [
-     "1h"
+     "1h",
+     "4h"
     ],
     "masraf_modeli": "kagit_config",
-    "n": 3,
+    "n": 10,
     "not": "Rastgele giriş kâğıt masraf modeliyle (config kayma/komisyon; hisse/emtia 'open' seans kayması) fiyatlanır; FONLAMA dahil değildir (k2 simülasyonu taşımaz), yani rakip bizden biraz ucuza çıkar. Eski sabit masrafla sonuç yan yanadır.",
-    "p": 0.7405189620758483,
-    "rastgele_ort_r": 0.16603955170543402,
-    "rastgele_ort_toplam_r": 0.4981186551163021,
-    "rastgele_p5": -2.8056477143561676,
-    "rastgele_p50": 0.04335076895079276,
-    "rastgele_p95": 5.854623263828281,
+    "p": 0.8762475049900199,
+    "rastgele_ort_r": 0.6060942569683399,
+    "rastgele_ort_toplam_r": 6.060942569683399,
+    "rastgele_p5": -3.422867641160045,
+    "rastgele_p50": 5.759131918123316,
+    "rastgele_p95": 16.017813625873814,
     "simulasyon_sayisi": 500,
-    "yuzdelik": 26.0
+    "yuzdelik": 12.4
    }
   },
   "sans_kuyruk": {
@@ -263,60 +355,81 @@
    "blok": {
     "batis_olasiligi": 0.0,
     "maks_dusus": {
-     "p5": 0.005573736022074008,
-     "p50": 0.014414400958586692,
-     "p95": 0.023302704838852946,
-     "p99": 0.026548401145020648
+     "p5": 0.010326227043070381,
+     "p50": 0.028411768515255925,
+     "p95": 0.05979124763626753,
+     "p99": 0.07369514717569836
     },
     "ornekleme": 10000,
     "ort_blok_uzunlugu": 1.0
    },
    "en_iyi_cikar": {
     "1": {
-     "net_r": -1.9171902830766094,
-     "net_usd": -14.453237790512713
+     "net_r": -2.3715964984514994,
+     "net_usd": -19.511647311719212
     },
     "2": {
-     "net_r": -0.9586299813079641,
-     "net_usd": -8.849467048340205
+     "net_r": -3.96346708196741,
+     "net_usd": -34.85178065171926
     },
     "5": {
-     "net_r": null,
-     "net_usd": null
+     "net_r": -4.908072243238483,
+     "net_usd": -44.03113238798146
     }
    },
    "etiket": "yetersiz örnek",
    "gercek_sira": {
-    "maks_dusus": 0.014414400958586692,
-    "min_kasa_orani": 0.9882410699394872
+    "maks_dusus": 0.03353417719514538,
+    "min_kasa_orani": 0.9690697791420185
    },
    "karistirma": 10000,
    "kasa_baslangic": 1000.0,
    "maks_dusus": {
-    "p5": 0.01175893006051274,
-    "p50": 0.014414400958586692,
-    "p95": 0.01445323779051273,
-    "p99": 0.01445323779051273
+    "p5": 0.018437736154515605,
+    "p50": 0.027295396070530616,
+    "p95": 0.04230622835805866,
+    "p99": 0.04462880278265664
    },
-   "n": 3,
-   "toplam_net_r": -1.6469165282899862,
-   "toplam_net_usd": -11.758930060512725
+   "n": 10,
+   "toplam_net_r": -0.7473615725022872,
+   "toplam_net_usd": -3.8035325032628364
   },
   "yon_denetimi": {
    "etiket": "yetersiz örnek",
-   "n": 3,
+   "n": 10,
    "yon": [
+    {
+     "alt": null,
+     "anahtar": "long",
+     "etiket": "yetersiz örnek",
+     "n": 1,
+     "ort": -1.0351057559101915,
+     "toplam": -1.0351057559101915,
+     "ust": null
+    },
     {
      "alt": null,
      "anahtar": "short",
      "etiket": "yetersiz örnek",
-     "n": 3,
-     "ort": -0.548972176096662,
-     "toplam": -1.6469165282899862,
+     "n": 9,
+     "ort": 0.03197157593421159,
+     "toplam": 0.2877441834079043,
      "ust": null
     }
    ],
    "yon_kol": [
+    {
+     "alt": null,
+     "anahtar": [
+      "long",
+      "IN1-RSI2@1h"
+     ],
+     "etiket": "yetersiz örnek",
+     "n": 1,
+     "ort": -1.0351057559101915,
+     "toplam": -1.0351057559101915,
+     "ust": null
+    },
     {
      "alt": null,
      "anahtar": [
@@ -327,6 +440,54 @@
      "n": 1,
      "ort": 0.27027375478662335,
      "toplam": 0.27027375478662335,
+     "ust": null
+    },
+    {
+     "alt": null,
+     "anahtar": [
+      "short",
+      "IN1-RSI2@4h"
+     ],
+     "etiket": "yetersiz örnek",
+     "n": 2,
+     "ort": 0.33716570324222517,
+     "toplam": 0.6743314064844503,
+     "ust": null
+    },
+    {
+     "alt": null,
+     "anahtar": [
+      "short",
+      "IN1-RSIDONUS@1h"
+     ],
+     "etiket": "yetersiz örnek",
+     "n": 1,
+     "ort": 1.6242349259492121,
+     "toplam": 1.6242349259492121,
+     "ust": null
+    },
+    {
+     "alt": null,
+     "anahtar": [
+      "short",
+      "MF1-PINBAR@1h"
+     ],
+     "etiket": "yetersiz örnek",
+     "n": 1,
+     "ort": 1.5918705835159106,
+     "toplam": 1.5918705835159106,
+     "ust": null
+    },
+    {
+     "alt": null,
+     "anahtar": [
+      "short",
+      "PA2-ONCEKI@1h"
+     ],
+     "etiket": "yetersiz örnek",
+     "n": 1,
+     "ort": -0.9711056989958045,
+     "toplam": -0.9711056989958045,
      "ust": null
     },
     {
@@ -352,9 +513,33 @@
      "ort": -0.9586299813079641,
      "toplam": -0.9586299813079641,
      "ust": null
+    },
+    {
+     "alt": null,
+     "anahtar": [
+      "short",
+      "T1@4h"
+     ],
+     "etiket": "yetersiz örnek",
+     "n": 1,
+     "ort": -0.9846705052558782,
+     "toplam": -0.9846705052558782,
+     "ust": null
     }
    ],
    "yon_rejim": [
+    {
+     "alt": null,
+     "anahtar": [
+      "long",
+      "trend_up"
+     ],
+     "etiket": "yetersiz örnek",
+     "n": 1,
+     "ort": -1.0351057559101915,
+     "toplam": -1.0351057559101915,
+     "ust": null
+    },
     {
      "alt": null,
      "anahtar": [
@@ -362,9 +547,9 @@
       "trend_down"
      ],
      "etiket": "yetersiz örnek",
-     "n": 3,
-     "ort": -0.548972176096662,
-     "toplam": -1.6469165282899862,
+     "n": 9,
+     "ort": 0.03197157593421159,
+     "toplam": 0.2877441834079043,
      "ust": null
     }
    ],
@@ -372,13 +557,25 @@
     {
      "alt": null,
      "anahtar": [
+      "long",
+      "kripto"
+     ],
+     "etiket": "yetersiz örnek",
+     "n": 1,
+     "ort": -1.0351057559101915,
+     "toplam": -1.0351057559101915,
+     "ust": null
+    },
+    {
+     "alt": null,
+     "anahtar": [
       "short",
       "kripto"
      ],
      "etiket": "yetersiz örnek",
-     "n": 3,
-     "ort": -0.548972176096662,
-     "toplam": -1.6469165282899862,
+     "n": 9,
+     "ort": 0.03197157593421159,
+     "toplam": 0.2877441834079043,
      "ust": null
     }
    ]
@@ -386,78 +583,87 @@
  },
  "ek_bolumler": {
   "baslangic_dusus": {
-   "baslangic_sayisi": 3,
+   "baslangic_sayisi": 10,
    "durum": "ok",
-   "en_iyi": 0.0056037707421725145,
-   "en_kotu": 0.01445323779051273,
+   "en_iyi": 0.0012987047525491562,
+   "en_kotu": 0.03362452858798144,
    "en_kotu_baslangic": {
     "trade_id": 4,
     "zaman": "2026-11-26T23:00:00.000Z"
    },
    "etiket": "yetersiz örnek",
-   "gercek_ilk_islemden": 0.014414400958586692,
-   "medyan": 0.014414400958586692,
-   "n": 3
+   "gercek_ilk_islemden": 0.03353417719514538,
+   "medyan": 0.011660104816614015,
+   "n": 10
   },
   "kosu_testi": {
    "durum": "yetersiz_ornek",
    "etiket": "yetersiz örnek",
-   "kayip": 2,
-   "kazanc": 1,
-   "n": 3
+   "kayip": 6,
+   "kazanc": 4,
+   "n": 10
   },
   "tf_masraf": {
    "etiket": "yetersiz örnek",
-   "n": 3,
+   "n": 10,
    "satirlar": [
     {
-     "brut_r": -1.3232245625426136,
+     "brut_r": 0.176258152730156,
+     "etiket": "yetersiz örnek",
+     "masraf_brut_orani": 3.4794454438650724,
+     "masraf_r": 0.6132806264610153,
+     "n": 7,
+     "net_r": -0.4370224737308594,
+     "tf": "1h"
+    },
+    {
+     "brut_r": -0.1910397043267026,
      "etiket": "yetersiz örnek",
      "masraf_brut_orani": null,
-     "masraf_r": 0.32369196574737247,
+     "masraf_r": 0.1192993944447252,
      "n": 3,
-     "net_r": -1.6469165282899862,
-     "tf": "1h"
+     "net_r": -0.31033909877142785,
+     "tf": "4h"
     }
    ]
   },
   "toparlanma": {
    "durum": "ok",
    "en_uzun": {
-    "bitti": false,
-    "gun": 0.17222222222222222,
-    "islem": 2
+    "bitti": true,
+    "gun": 0.7083333333333334,
+    "islem": 7
    },
    "etiket": "yetersiz örnek",
-   "kasa_son": 988.2410699394873,
-   "kasa_zirve": 1002.69430773,
-   "n": 3,
+   "kasa_son": 996.1964674967371,
+   "kasa_zirve": 1007.9017760492864,
+   "n": 10,
    "simdi": {
     "bitti": false,
-    "gun": 0.17222222222222222,
+    "gun": 0.3333333333333333,
     "islem": 2
    },
    "su_an_dususte": true
   },
   "verimlilik": {
-   "cikis_verimi": 0.37769463844051837,
-   "cikis_verimi_n": 3,
+   "cikis_verimi": 0.46433285041028033,
+   "cikis_verimi_n": 10,
    "etiket": "yetersiz örnek",
-   "giris_verimi": 0.35435231287678876,
-   "giris_verimi_n": 3,
-   "kazanan_n": 1,
-   "kazananlarda_gerceklesen_mfe_orani": 0.6549252858875735,
-   "n": 3,
-   "n_mfe_mae_var": 3,
+   "giris_verimi": 0.3866918592722456,
+   "giris_verimi_n": 10,
+   "kazanan_n": 4,
+   "kazananlarda_gerceklesen_mfe_orani": 0.8479141199208746,
+   "n": 10,
+   "n_mfe_mae_var": 10,
    "n_mfe_mae_yok": 0,
-   "ort_geri_verme_r": 0.7630268541808712
+   "ort_geri_verme_r": 0.6143419551596547
   }
  },
  "kasa_baslangic_kaynagi": "varsayim 1000 (wallet_start okunamadi)",
  "kilitli_donem_atilan_islem": 0,
  "market_verisi": true,
- "n_islem": 3,
+ "n_islem": 10,
  "sema": "ml.tur1_olcum.v1",
  "tohum": 20261123,
- "uretim": "2026-11-27T05:10:38Z"
+ "uretim": "2026-11-28T05:10:52Z"
 }
