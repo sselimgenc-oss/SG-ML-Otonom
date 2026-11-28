@@ -169,7 +169,8 @@ _OPTIONAL_KEYS = {"strategy", "target_trade_risk", "startup_wait_s", "pause_file
 _STOP_TABANI_KEYS = {"aktif": bool, "maliyet_payi": (int, float), "genislet_esik": (int, float), "atr_kat": (int, float)}
 _ML1_KEYS = {"aktif": bool, "paket_yolu": str, "ogrenme": dict, "risk_bantlari": dict}                     # tohum paket YOK (sifirdan ogrenme)
 _OGRENME_KEYS = {"aktif": bool, "kuru": bool, "yari_omur_gun": (int, float), "min_islem": int, "min_islem_tf": int, "esik": (int, float),
-                  "sanal_aktif": bool, "sanal_agirlik": (int, float), "sinama_aralik": int}
+                  "sanal_aktif": bool, "sanal_agirlik": (int, float), "sinama_aralik": int,
+                  "kiyas_min_n": int, "kiyas_isaret_min": (int, float), "kiyas_dr_maks": (int, float), "kiyas_dusuk_agirlik": (int, float)}
 _RISK_BANT_KEYS = {"aktif": bool, "bantlar": (list, tuple), "tavan": (int, float)}
 _RISK_BANT_TAVAN_MAX = 0.02
 _PAPER_ONLY_KEYS = ("optional_pairs", "max_positions", "risk", "clusters", "flat_bar_guard", "contract_types",
@@ -402,7 +403,9 @@ def _build_ml1(v: Any) -> dict[str, Any]:
                     raise ConfigError(f"ml1.ogrenme.{kk} gecersiz: {xx!r}")
                 if (kk == "yari_omur_gun" and xx <= 0) or (kk == "min_islem" and xx < 1) or (kk == "min_islem_tf" and xx < 0) \
                         or (kk == "esik" and not 0.0 < xx < 1.0) or (kk == "sanal_agirlik" and not (0.0 <= xx <= 1.0 and math.isfinite(xx))) \
-                        or (kk == "sinama_aralik" and xx < 1):
+                        or (kk == "sinama_aralik" and xx < 1) or (kk == "kiyas_min_n" and xx < 1) \
+                        or (kk == "kiyas_isaret_min" and not (0.0 < xx <= 1.0)) or (kk == "kiyas_dr_maks" and not (xx > 0.0 and math.isfinite(xx))) \
+                        or (kk == "kiyas_dusuk_agirlik" and not (0.0 <= xx <= 1.0)):
                     raise ConfigError(f"ml1.ogrenme.{kk} aralik disi: {xx!r}")
             continue
         if k == "risk_bantlari":

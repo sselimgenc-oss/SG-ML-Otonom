@@ -198,3 +198,15 @@ def test_tf_satiri_sade_kelimeler(oz):
     s = MG.tf_satiri(o)
     assert s.startswith("Kapanan işlem: 1 saat ") and " · 4 saat " in s and " · 1 gün " in s
     assert not any(x in s for x in ("1s ", "4s ", "1g "))
+
+
+def test_sanal_notu_kiyas_ve_etkin_agirlik():
+    """P1-b: panel ML1 sekmesindeki gri not; kiyas yoksa eski metin, kiyas varsa ek kisim, agirlik < 1 ise ek kisim."""
+    base = {"kapali_islem": 37, "sanal": 17}
+    assert MG.sanal_notu({"ogr": MG.ogr_durumu(base, 0, {}, False)}) == "37 içinde sanal: 17"
+    kiyas = {"n": 34, "ort_mutlak_dr": 0.21, "isaret_uyumu": 0.91, "agirlik_dusur": False}
+    assert MG.sanal_notu({"ogr": MG.ogr_durumu({**base, "sanal_kiyas": kiyas, "sanal_agirlik_etkin": 1.0}, 0, {}, False)}) == \
+        "37 içinde sanal: 17 · gerçekle kıyas (n=34): yön uyumu %91, ort. |ΔR| 0,21"
+    assert MG.sanal_notu({"ogr": MG.ogr_durumu({**base, "sanal_kiyas": kiyas, "sanal_agirlik_etkin": 0.5}, 0, {}, False)}) == \
+        "37 içinde sanal: 17 · gerçekle kıyas (n=34): yön uyumu %91, ort. |ΔR| 0,21 · sanal ağırlık 0,5"
+    assert MG.sanal_notu({"ogr": MG.ogr_durumu({**base, "sanal_kiyas": {"n": 0}}, 0, {}, False)}) == "37 içinde sanal: 17"

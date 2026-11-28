@@ -592,3 +592,69 @@ def test_oz_karisik_sayaci_eski_kayit_1_sayilir_ve_yeniden_baslatmada_korunur(tm
     assert dur["oz_karisik"] == {"1": 2, "2": 2} and dur["kapali_islem"] == 4
     og2 = OG.Ml1Ogrenici(tmp_path / "og", tmp_path / "models" / "ml1_package.json", now_fn=lambda: NOW, ledger=defter, min_islem=1000)
     assert og2.baslat(NOW) and dict(og2.n_oz) == {"1": 2, "2": 2}
+
+
+# ================================================================================================================ P1: olcum veri kaynagi + etkin sanal agirlik
+def test_note_taken_olcum_alanlari_ve_karar_x_degismez(hist, tmp_path):
+    g = MG.Ml1Gate({"aktif": True, "paket_yolu": str(tmp_path / "yok.json")})
+    alinanlar = []
+    g.ogren = SimpleNamespace(islem_alindi=lambda r: alinanlar.append(r))
+    Dd, r, w, h4w, c = _frame("1h", "BTC/USDT", 3000, hist, "R1")
+    g.observe("BTC/USDT", Dd, "1h", r, w, h4w)
+    g.prepare("BTC/USDT", Dd, (c,))
+    g.note_taken("BTC/USDT", "R1@1h", "long", Dd, 7, 5, trail_atr=2.5)
+    a = alinanlar[0]
+    assert a["mod"] == "target" and a["time_stop"] == 48 and a["trail_atr"] == 2.5 and "skor" in a and len(a["x"]) == K
+    g.end_step()
+
+
+def test_gercek_kapanan_islemler_ve_yeniden_baslatma(tmp_path):
+    defter = SahteDefter()
+    og = _sinama_ogrenici(tmp_path, defter, 60, ogrenilebilir=True, seed=5)
+    og.adim(NOW)
+    assert len(og.gercek) == 60
+    g = og.gercek[1000]
+    assert "x" not in g and g["y"] in (0, 1) and g["r_net"] in (0.8, -1.0) and g["exit_reason"] == "stop" and g["exit_ts"] and g["setup"] == "T1"
+    og2 = _ogrenici(tmp_path, defter, min_islem=60)
+    assert set(og2.gercek) == set(og.gercek) and og2.gercek[1000]["r_net"] == g["r_net"]
+
+
+def _agirlik_yakala(monkeypatch):
+    cagri = {"uydur": [], "sina": []}
+    for ad in ("uydur", "sina"):
+        orij = getattr(OG, ad)
+
+        def sar(*a, _o=orij, _ad=ad, **k):
+            cagri[_ad].append(k.get("sanal_agirlik"))
+            return _o(*a, **k)
+        monkeypatch.setattr(OG, ad, sar)
+    return cagri
+
+
+def test_agirlik_fn_uydur_ve_sina_etkin_agirlikla_cagrilir(tmp_path, monkeypatch):
+    defter = SahteDefter()
+    og = _sinama_ogrenici(tmp_path, defter, 240, ogrenilebilir=True, seed=5, sanal_agirlik=1.0)
+    og.agirlik_fn = lambda: 0.5
+    cagri = _agirlik_yakala(monkeypatch)
+    og.adim(NOW)
+    assert cagri["uydur"] and set(cagri["uydur"]) == {0.5} and set(cagri["sina"]) == {0.5}
+    dur = json.loads((tmp_path / "og" / "durum.json").read_text())
+    assert dur["sanal_agirlik"] == 1.0 and dur["sanal_agirlik_etkin"] == 0.5
+    son = [json.loads(x) for x in (tmp_path / "og" / "guncellemeler.jsonl").read_text().splitlines()][-1]
+    assert son["sanal_agirlik"] == 0.5
+
+
+def test_agirlik_fn_hata_ya_nan_ayar_degeri_ve_yalniz_dusurur(tmp_path):
+    og = _ogrenici(tmp_path, SahteDefter(), sanal_agirlik=0.8)
+    og.agirlik_fn = lambda: (_ for _ in ()).throw(RuntimeError("x"))
+    assert og.etkin_sanal_agirlik() == 0.8
+    og.agirlik_fn = lambda: float("nan")
+    assert og.etkin_sanal_agirlik() == 0.8
+    og.agirlik_fn = lambda: 1.5
+    assert og.etkin_sanal_agirlik() == 0.8
+    og.agirlik_fn = lambda: 1.0                                          # ayari YUKSELTMEZ
+    assert og.etkin_sanal_agirlik() == 0.8
+    og.agirlik_fn = lambda: 0.2
+    assert og.etkin_sanal_agirlik() == 0.2
+    og.kiyas_fn = lambda: {"n": 3, "ort_mutlak_dr": 0.1, "isaret_uyumu": 0.9, "agirlik_dusur": False, "fazla": 1}
+    assert og._kiyas() == {"n": 3, "ort_mutlak_dr": 0.1, "isaret_uyumu": 0.9, "agirlik_dusur": False}

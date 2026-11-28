@@ -57,6 +57,9 @@ KALDIRILAN_KOLLAR = ("C1", "DL1", "HB1", "M1")         # CT/C1 ayriligi: kullani
 _REASONS = ("stop", "target", "trail_stop", "regime_flip", "time_stop", "manual", "force_exit", "liquidation", "other")
 _STATUS_COUNTERS = ("callback_errors", "data_gaps", "ledger_errors", "outbox_failed", "unknown_orders", "mark_fallbacks",
                     "minute_gaps", "funding_missing", "exit_data_gap")
+# P1-a: kagit brokerde eksik 1 dk mumda 15 dk mumla temkinli stop kontrolu (ayar yok; belge: brokers/paper.py ust yorumu, olcum `eksik_dakika_stop`)
+GAP15_AKTIF = True
+GAP15_BEKLE_KARAR = 4            # 15 dk mumu bu kadar karar adimi gelmezse kayit `veri_yok` ile atilir
 STARTUP_MAX_AGE_S = 300          # acilis kapisi: son kapanmis 1m (last+mark) en fazla bu kadar eski olabilir
 EXIT_STARTUP_GATE = 7
 # DD-6 (O1): canli `advance_to` veri hatasi dayanikliligi. Hata = cikis degil: ussel geri cekilme, N ardisik hatada girisler kapanir.
@@ -212,6 +215,20 @@ class Engine:
                 self._c["ml1_ogren_kurulamadi"] += 1
                 log.critical("ML1 ogrenme kurulamadi: %r", e)
         self._params_map: dict | None = None
+        self._gap15: dict[str, dict] = {}                        # P1-a: eksik 1 dk mumu olan acik pozisyon pencereleri ("trade_id|pencere" -> kayit); kv "gap15"
+        self.olcum = None                                       # P1-0: olcum kayit defteri (yalniz kagit; kurulamazsa motor yine calisir)
+        if cfg.mode == "paper":
+            try:
+                from .olcumler import OlcumYonetici
+                self.olcum = OlcumYonetici(cfg.path("olcum"), now_fn=clock.now, ml1_cfg=cfg.ml1 or {}, view=view, ledger=ledger, ogren=self.ogren,
+                                           maliyet_fn=self._sanal_maliyet, kume_fn=lambda pair: asset_class(pair, cfg.clusters),
+                                           trail_atr_fn=lambda: (self._params_map or {}).get("trail_atr"))
+                if self.ogren is not None:
+                    self.ogren.agirlik_fn = lambda: (self.olcum.deger("golge_gercek") or {}).get("sanal_agirlik_etkin", self.ogren.sanal_agirlik)
+                    self.ogren.kiyas_fn = lambda: self.olcum.deger("golge_gercek")
+            except Exception as e:  # noqa: BLE001 - olcum kurulamazsa motor olcumsuz calisir
+                self.olcum = None
+                log.error("olcum kurulamadi: %r", e)
         self._exit_seen: dict[int, datetime] = {}                 # canli telafi: trade_id -> en son degerlendirilen TF siniri (bellek)
         self._mode_flags: dict[str, int] = {}                  # etkin defter surumunun cikis kipi bayraklari (exit_breakeven/exit_partial)
         self._act_id: int | None = None
@@ -921,6 +938,11 @@ class Engine:
         if self.ogren is not None:
             if not self.ogren.baslat(now):                        # ML1 ogrenme: adaylar/sonuclar dosyalarindan bellek (firlatmaz)
                 self._ml1_ariza = "ogrenici_baslat"
+        if self.olcum is not None:
+            self.olcum.baslat(now)                                # olcumler: ozet/satirlar dosyalardan bellek (firlatmaz)
+        if cfg.mode == "paper":
+            g = self.state.kv_get("gap15")
+            self._gap15 = {str(k): dict(v) for k, v in g.items() if isinstance(v, Mapping)} if isinstance(g, dict) else {}
         if self.is_paper:
             snap = self.state.kv_get("broker_snapshot")
             if snap:
@@ -1203,6 +1225,8 @@ class Engine:
             self._handle_events(self.broker.poll(end), step, end)
             self._kill_step(end)                                # kill emri bu adimda verilir, sonraki adimda dolar
             opens = self.state.open_positions()
+            if self.cfg.mode == "paper" and GAP15_AKTIF:
+                self._gap15_not(ts, step, opens)
             for p in opens:
                 bar = step.bars.get(p.pair)
                 if bar is not None and p.status in ("open", "closing"):
@@ -1216,6 +1240,113 @@ class Engine:
         self._last_minute = ts
         self._remember_marks(step)
         self._c["steps"] += 1
+
+    def _gap15_not(self, ts: datetime, step, opens) -> None:
+        """P1-a: bu dakikada 1 dk mumu GELMEYEN acik pozisyonlari 15 dk penceresi icin not et (tx icinde; kv'ye yazilir). Hicbir istisna sizmaz."""
+        try:
+            eksik = [p for p in opens if p.status in ("open", "closing") and p.pair not in step.bars]
+            if not eksik:
+                return
+            pen = floor_tf(ts, "15m")
+            for p in eksik:
+                key = f"{p.trade_id}|{iso_z(pen)}"
+                g = self._gap15.get(key)
+                if g is None:
+                    px = self.broker.stop_fiyati(p.pair) if hasattr(self.broker, "stop_fiyati") else None
+                    g = self._gap15[key] = {"trade_id": int(p.trade_id), "pair": p.pair, "pencere": iso_z(pen), "dakikalar": [], "stop_px": px, "eklendi_karar": 0}
+                dk = iso_z(ts)
+                if dk not in g["dakikalar"]:
+                    g["dakikalar"].append(dk)
+            self.state.kv_set("gap15", self._gap15)
+        except (StateError, EngineExit):
+            raise
+        except Exception as e:  # noqa: BLE001
+            log.error("gap15 not hatasi: %r", e)
+
+    def _olc_say(self, ad: str, anahtar: str) -> None:
+        if self.olcum is not None:
+            self.olcum.say(ad, anahtar)
+
+    def _gap15_step(self, D: datetime) -> None:
+        """P1-a (yalniz kagit): kapanmis 15 dk pencerelerinde eksik 1 dk mumu olan acik pozisyonlari 15 dk `last` mumuyla temkinli stop/tasfiye icin
+        kontrol eder (hedef DEGIL). `decision_step`'ten once. Hata motoru dusurmez."""
+        try:
+            self._gap15_kontrol(D)
+        except (StateError, EngineExit):
+            raise
+        except Exception as e:  # noqa: BLE001
+            log.error("gap15 kontrol hatasi: %r", e)
+            self._olc_say("eksik_dakika_stop", "hata")
+            try:                                                # tx geri alindi: bellekteki broker'i son kayda dondur
+                snap = self.state.kv_get("broker_snapshot")
+                if snap:
+                    self._restore_broker(snap)
+                g = self.state.kv_get("gap15")
+                self._gap15 = {str(k): dict(v) for k, v in g.items() if isinstance(v, Mapping)} if isinstance(g, dict) else {}
+            except Exception as e2:  # noqa: BLE001
+                log.error("gap15 geri yukleme hatasi: %r", e2)
+
+    def _gap15_kontrol(self, D: datetime) -> None:
+        from .state import parse_iso_z
+        ADIM15 = timedelta(minutes=15)
+        sat: list[dict] = []                                    # olcum satirlari (tx sonunda yazilir)
+        tetik: dict[str, str] = {}
+        with self.state.tx():
+            for key, g in sorted(self._gap15.items(), key=lambda kv: (kv[1]["pencere"], kv[0])):
+                if key not in self._gap15:                      # ayni islemin tetiklenmesiyle silinmis
+                    continue
+                pen = parse_iso_z(g["pencere"])
+                if pen + ADIM15 > D:
+                    continue
+                pair = g["pair"]
+                pos = self.state.position_for_pair(pair)
+                if pos is None or pos.trade_id != g["trade_id"] or pos.status not in ("open", "closing"):
+                    del self._gap15[key]
+                    self._olc_say("eksik_dakika_stop", "kapanmis")
+                    continue
+                if g.get("stop_px") is None:
+                    del self._gap15[key]
+                    self._olc_say("eksik_dakika_stop", "stop_yok")
+                    continue
+                df = self.view.bars(pair, "15m", pen + ADIM15, 1, "last")
+                if len(df) == 0 or df.index[-1].to_pydatetime() != pen:
+                    g["eklendi_karar"] = int(g.get("eklendi_karar", 0)) + 1
+                    if g["eklendi_karar"] >= GAP15_BEKLE_KARAR:
+                        del self._gap15[key]
+                        self._olc_say("eksik_dakika_stop", "veri_yok")
+                    continue
+                r = df.iloc[-1]
+                o, h, l = float(r["open"]), float(r["high"]), float(r["low"])
+                giris_pencerede = pos.entry_ts is None or pos.entry_ts >= pen
+                gecerli = iso_z(pen) in g["dakikalar"] and not giris_pencerede
+                res = self.broker.gap_stop_kontrol(pair, o, h, l, float(g["stop_px"]), ts=D - timedelta(minutes=1), acilis_gecerli=gecerli)   # type: ignore[attr-defined]
+                self._olc_say("eksik_dakika_stop", "kontrol")
+                if res is not None:
+                    self._olc_say("eksik_dakika_stop", "stop")
+                    if res == "tasfiye":
+                        self._olc_say("eksik_dakika_stop", "tasfiye")
+                    tetik[pair] = res
+                sat.append({"trade_id": int(g["trade_id"]), "pair": pair, "pencere": g["pencere"], "dakika_sayisi": len(g["dakikalar"]),
+                            "stop_px": float(g["stop_px"]), "o": o, "h": h, "l": l, "sonuc": res or "yok", "dolum": None,
+                            "giris_pencerede": bool(giris_pencerede)})
+                del self._gap15[key]
+                if res is not None:
+                    for k2 in [k for k, v in self._gap15.items() if v["trade_id"] == g["trade_id"]]:
+                        del self._gap15[k2]
+            evs = self.broker.poll(D)
+            self._handle_events(evs, None, D)
+            self.state.kv_set("gap15", self._gap15)
+            self._save_broker()
+        self._post_commit()
+        fiyat = {e.pair: e.fill.price for e in evs if e.kind in ("fill", "liquidation") and e.fill is not None and e.fill.role != "entry"}
+        if self.olcum is not None:
+            for row in sat:
+                if row["sonuc"] != "yok":
+                    row["dolum"] = fiyat.get(row["pair"])
+                try:
+                    self.olcum.kaydet("eksik_dakika_stop", row, D)
+                except Exception as e:  # noqa: BLE001
+                    log.warning("eksik_dakika_stop satiri yazilamadi: %r", e)
 
     def _process_step_live(self, step, ts: datetime) -> None:
         """Canli dakika adimi (11 §6.2 madde 4): yalniz gun basi, MFE/MAE ve imlec. Olay/KILL live_tick'te."""
@@ -1528,19 +1659,25 @@ class Engine:
 
     def _ml1_ogren_step(self, D: datetime) -> None:
         """ML1 aninda ogrenme adimi (`_shadow_step` kalibi): cozme + uydurma + guvenlik. Durum/broker/emir/kapi uzerinde YAZMA yok; istisna sizmaz."""
-        if self.ogren is None or self._stop:
+        if (self.ogren is None and self.olcum is None) or self._stop:
             return
         rec = self._rec["ml1_ogren"]
         t0 = self.clock.now()
         try:
-            acik = {p for p in self.cfg.pairs if self.state.position_for_pair(p) is not None}
-            r = self.ogren.adim(D, acik)
-            rec["sonuc"] += int(r.get("sonuc", 0))
-            rec["guncelleme"] += int(bool(r.get("guncelleme")))
-            rec["hata"] = int(self.ogren.sayac.get("hata", 0))
+            if self.ogren is not None:
+                acik = {p for p in self.cfg.pairs if self.state.position_for_pair(p) is not None}
+                r = self.ogren.adim(D, acik)
+                rec["sonuc"] += int(r.get("sonuc", 0))
+                rec["guncelleme"] += int(bool(r.get("guncelleme")))
+                rec["hata"] = int(self.ogren.sayac.get("hata", 0))
         except Exception as e:  # noqa: BLE001
             rec["hata"] += 1
             log.warning("ML1 ogrenme adimi hatasi: %r", e)
+        try:
+            if self.olcum is not None:
+                self.olcum.adim(D)                             # P1-0: olcumler (kendi icinde firlatmaz)
+        except Exception as e:  # noqa: BLE001
+            log.warning("olcum adimi hatasi: %r", e)
         finally:
             try:
                 rec["adim_ms"] = round((self.clock.now() - t0).total_seconds() * 1000.0, 1)
@@ -2343,7 +2480,7 @@ class Engine:
             self.state.kv_set(f"eq:{tid}", equity)
         self._entry_events[tid] = out.event
         if self.ml1 is not None:
-            self.ml1.note_taken(pair, row.arm_id, row.side, D, did, tid)     # ML1 ogrenme: yalniz GERCEKTEN alinan islem (trade_id + decision_id ile bagli)
+            self.ml1.note_taken(pair, row.arm_id, row.side, D, did, tid, trail_atr=float((self._params_map or {}).get("trail_atr", 0.0)) or None)     # ML1 ogrenme: yalniz GERCEKTEN alinan islem (trade_id + decision_id ile bagli)
         intent = Intent(kind="entry", bot=self.cfg.bot, pair=pair, side=row.side, signal_bar_close_ts=row.bar_close_ts,
                         setup=row.setup, qty=size.qty, leverage=out.leverage, planned_entry=row.planned_entry,
                         stop_price=row.planned_stop, target_price=row.planned_target, reason="entry", decision_id=did)
@@ -2404,6 +2541,8 @@ class Engine:
                     else:
                         if not self._decision_ready(nxt, now):
                             return n
+                        if self._gap15 and self.cfg.mode == "paper":
+                            self._gap15_step(nxt)                       # P1-a: eksik dakika penceresi 15 dk mumuyla temkinli stop kontrolu
                         self.decision_step(nxt)
             end = nxt + timedelta(seconds=step_s)
             if now < end:
@@ -2979,5 +3118,15 @@ def session_cost_broker(cfg: EngineConfig, pcfg, rules_fn, funding_fn, clock):
 
         def _triggers_pair(self, pair, bar):
             return self._with_session(pair, bar, super()._triggers_pair)
+
+        def gap_stop_kontrol(self, pair, o, h, l, stop_px, *, ts, acilis_gecerli):
+            cost = session_cost(cfg, self._base_pcfg.cost, pair, ts)
+            if cost is self._base_pcfg.cost:
+                return super().gap_stop_kontrol(pair, o, h, l, stop_px, ts=ts, acilis_gecerli=acilis_gecerli)
+            self._cfg = replace(self._base_pcfg, cost=cost)
+            try:
+                return super().gap_stop_kontrol(pair, o, h, l, stop_px, ts=ts, acilis_gecerli=acilis_gecerli)
+            finally:
+                self._cfg = self._base_pcfg
 
     return _SessionPaperBroker(pcfg, rules_fn, funding_fn, clock)

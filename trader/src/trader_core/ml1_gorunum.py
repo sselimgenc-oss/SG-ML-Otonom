@@ -266,7 +266,8 @@ def ogr_durumu(d: Any, kapanan_defter: int, tf: Mapping[str, int], puanli_var: b
             "tf": {k: int(tfd.get(k, 0)) for k in ZD_SIRA} if isinstance(tfd, Mapping) else {k: int(tf.get(k, 0)) for k in ZD_SIRA},
             "son_sinama": _sinama_of(d), "kaynak": "durum" if d else "defter",
             "sanal": int(d["sanal"]) if isinstance(d.get("sanal"), int) and not isinstance(d.get("sanal"), bool) else None,
-            "gunluk_hiz": _f(d.get("gunluk_hiz")), "tahmini_varis": d.get("tahmini_varis") if isinstance(d.get("tahmini_varis"), str) else None}
+            "gunluk_hiz": _f(d.get("gunluk_hiz")), "tahmini_varis": d.get("tahmini_varis") if isinstance(d.get("tahmini_varis"), str) else None,
+            "sanal_kiyas": dict(d["sanal_kiyas"]) if isinstance(d.get("sanal_kiyas"), Mapping) else None, "sanal_agirlik_etkin": _f(d.get("sanal_agirlik_etkin"))}
 
 
 def hiz_satiri(oz: Mapping) -> str | None:
@@ -299,7 +300,18 @@ def sanal_notu(oz: Mapping) -> str | None:
     """Yalniz panel ML1 sekmesinde kucuk gri not: 'N içinde sanal: Y' (golge ogrenme; gercek islem gorunumlerine/Telegram'a KARISMAZ). Sanal yoksa None."""
     o = oz.get("ogr") or {}
     y = o.get("sanal")
-    return f"{o.get('kapanan', 0)} içinde sanal: {y}" if isinstance(y, int) and y > 0 else None
+    if not (isinstance(y, int) and y > 0):
+        return None
+    t = f"{o.get('kapanan', 0)} içinde sanal: {y}"
+    k = o.get("sanal_kiyas")
+    if isinstance(k, Mapping):
+        n, uyum, dr = k.get("n"), _f(k.get("isaret_uyumu")), _f(k.get("ort_mutlak_dr"))
+        if isinstance(n, int) and not isinstance(n, bool) and n >= 1 and uyum is not None and dr is not None:
+            t += f" · gerçekle kıyas (n={n}): yön uyumu %{int(round(uyum * 100))}, ort. |ΔR| {TS.sayi(dr, 2)}"
+    w = _f(o.get("sanal_agirlik_etkin"))
+    if w is not None and w < 1.0:
+        t += " · sanal ağırlık " + TS.sayi(w, 2).rstrip("0").rstrip(",")
+    return t
 
 
 def tf_satiri(oz: Mapping) -> str:

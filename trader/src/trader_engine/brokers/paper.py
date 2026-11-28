@@ -1,4 +1,9 @@
-"""PaperBroker (03 §4): benzetimli borsa. Belirlenimli; rastgelelik, duvar saati, ag yok."""
+"""PaperBroker (03 §4): benzetimli borsa. Belirlenimli; rastgelelik, duvar saati, ag yok.
+
+Eksik dakika kurali (P1-a, yalniz kagit motor; olcum `eksik_dakika_stop`): pozisyonun 1 dk mumu gelmeyen dakikada `_triggers_pair` calismaz; motor
+(`Engine._gap15_step`) o 15 dk penceresi icin 15 dk `last` mumuyla `gap_stop_kontrol` cagirir (yalniz stop + tasfiye, hedef yok). Sinirlamalar: tetik
+kaynagi mark olsa da last mumu kullanilir; pozisyon pencere icinde acildiysa aralik giris oncesini de kapsar (temkinli); dolum zamani kontrol adiminin
+son dakikasidir (D - 1 dk), gercek pencere olcum kaydinda durur; aradaki funding odemeleri geri alinmaz."""
 from __future__ import annotations
 
 import math
@@ -592,6 +597,51 @@ class PaperBroker:
             self._close(t, pos, qty, fp, qty * fp * cost.taker_fee, ts, "target", "fill", None)
         if bar.mark_c is not None:
             self._last_mark[pair] = bar.mark_c
+
+    def stop_fiyati(self, pair: str) -> float | None:
+        """Salt okunur: pozisyonun en siki `new` stop emrinin tetik fiyati (long: en yuksek, short: en dusuk); pozisyon/stop yoksa None."""
+        pos = self._pos.get(pair)
+        if pos is None:
+            return None
+        stops = [o for o in self._new_orders() if o.pair == pair and o.role == "stop" and o.trigger_price is not None]
+        if not stops:
+            return None
+        s = max(stops, key=lambda x: x.trigger_price) if pos.side == "long" else min(stops, key=lambda x: x.trigger_price)   # type: ignore[arg-type,return-value]
+        return float(s.trigger_price)   # type: ignore[arg-type]
+
+    def gap_stop_kontrol(self, pair: str, o: float, h: float, l: float, stop_px: float, *, ts: datetime, acilis_gecerli: bool) -> str | None:
+        """Eksik 1 dk mumlar icin temkinli kontrol (yalniz kagit; motor `_gap15_step`): 15 dk `last` mumu (o,h,l) ile YALNIZ stop + tasfiye
+        degerlendirilir (hedef DEGIL: eksik veride kazanc yazilmaz). Doner "stop" | "tasfiye" | None. Mantik `_triggers_pair` ile ayni sira."""
+        pos = self._pos.get(pair)
+        if pos is None:
+            return None
+        stops = [x for x in self._new_orders() if x.pair == pair and x.role == "stop"]
+        if not stops:
+            return None
+        long = pos.side == "long"
+        liq = pos.liq_price
+        stop = max(stops, key=lambda x: x.trigger_price) if long else min(stops, key=lambda x: x.trigger_price)   # type: ignore[arg-type,return-value]
+        hit = l <= stop_px if long else h >= stop_px
+        touch = l <= liq if long else h >= liq
+        if acilis_gecerli and (o <= liq if long else o >= liq):
+            self._liquidate(pair, pos, stops, stop_px, ts)
+            return "tasfiye"
+        if hit:
+            beyond = stop_px <= liq if long else stop_px >= liq
+            if touch and beyond:
+                self._liquidate(pair, pos, stops, stop_px, ts)
+                return "tasfiye"
+            gap = acilis_gecerli and (o <= stop_px if long else o >= stop_px)
+            base = o if gap else stop_px
+            rules = self._rules_fn(pair)
+            fp = self._slipped(base, stop.order_side, self._cfg.cost.slip_stop_bps, rules.tick, pair, pos.opened_ts)
+            qty = min(stop.qty, pos.qty)
+            self._close(stop, pos, qty, fp, qty * fp * self._cfg.cost.taker_fee, ts, "stop", "fill", None)
+            return "stop"
+        if touch:
+            self._liquidate(pair, pos, stops, stop_px, ts)
+            return "tasfiye"
+        return None
 
     def _liquidate(self, pair: str, pos: _Pos, stops: list[_Order], stop_px: float | None, ts: datetime) -> None:
         long = pos.side == "long"

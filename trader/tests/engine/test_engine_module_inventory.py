@@ -24,6 +24,7 @@ ALLOWED_MODULES_B = ALLOWED_MODULES_A | {"exchange/binance_rest.py", "pause.py",
                                          "ml1_gate.py",                  # 25.11 ML1 kagit giris kapisi (paper; cevrimdisi ML1 ozellik/puan islevlerini yeniden kullanir)
                                          "ml1_ogren.py",                 # ML1 aninda ogrenme (yalniz kagit): cozme + uydurma + guvenlik, motor adim sonunda cagirir
                                          "ml1_sanal.py",                 # ML1 golge (sanal) ogrenme: alinmayan adayin kagit kurallariyla simulasyonu (yalniz ogrenici dosyasina yazar)
+                                         "olcumler.py",                  # P1-0: olcum kayit defteri (200/300 islem sorulari; yalniz olcer, tek cikti var/learner/olcum/ozet.json)
                                          "stop_tabani.py",               # 27.11 sahip karari: stop tabani (giris kararinda; saf hesap)
                                          "seans_disi.py",                # 23.11 fikir 9 a: seans disi (hafta sonu/tatil/haber) giris kapisi, saf stdlib
                                          "arm_guard.py",                 # DD-12 WP-04: saf kume/seans/tatil yardimcilari

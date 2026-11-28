@@ -258,7 +258,7 @@ class Ml1Gate:
         except Exception:  # noqa: BLE001
             pass
 
-    def note_taken(self, pair: str, arm_id: str, side: str, D: datetime, decision_id: int, trade_id: int) -> None:
+    def note_taken(self, pair: str, arm_id: str, side: str, D: datetime, decision_id: int, trade_id: int, trail_atr: float | None = None) -> None:
         """Gercekten acilan islem (motor `_enter`, pozisyon kaydi yazildiktan sonra): adayin ozellik vektoru ogreniciye, GERCEK islem
         kimligiyle (trade_id + decision_id) baglanarak verilir. Alinmayan aday ASLA saklanmaz. Hata karari etkilemez."""
         if self.ogren is None:
@@ -269,7 +269,17 @@ class Ml1Gate:
                 self.counters["ml1_ogren_x_yok"] += 1
                 return
             x, ozet = got
-            self.ogren.islem_alindi({**ozet, "decision_ts": pd.Timestamp(D).isoformat(), "decision_id": int(decision_id),
+            v = self._verd.get((pair, arm_id))
+            ek: dict = {"skor": None if v is None else v.score, "mod": None, "time_stop": None, "trail_atr": trail_atr}     # olcum kaydi (karar/x degismez)
+            try:
+                from . import position_manager as PM
+                from .strategies import arms as AR
+                ek["mod"] = PM.exit_mode_of(ozet.get("setup"))
+                if ek["mod"] == "target":
+                    ek["time_stop"] = AR.time_stop_of(ozet.get("setup"), ozet.get("tf"))
+            except Exception:  # noqa: BLE001 - ek alanlar eksik kalirsa olcum _tamamla ile turetir
+                pass
+            self.ogren.islem_alindi({**ozet, **ek, "decision_ts": pd.Timestamp(D).isoformat(), "decision_id": int(decision_id),
                                      "trade_id": int(trade_id), "x": x})
         except Exception:  # noqa: BLE001 - ogrenme kaydi karari etkilemez
             self.counters["ml1_ogren_log_hata"] += 1

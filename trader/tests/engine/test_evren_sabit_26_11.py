@@ -92,7 +92,7 @@ def test_kaplama_dosyasi_pairs_degistiremez(tmp_path):
 
 def test_ml1_ogrenme_blogu_paper_sifirdan():
     p, l = _raw("engine.paper.json"), _raw("engine.live.json")
-    assert p["ml1"] == {"aktif": True, "risk_bantlari": {"aktif": True, "bantlar": [[0.50, 0.005], [0.60, 0.010], [0.70, 0.015]], "tavan": 0.015}, "ogrenme": {"aktif": True, "kuru": False, "min_islem": 200, "min_islem_tf": 0, "esik": 0.50}}
+    assert p["ml1"] == {"aktif": True, "risk_bantlari": {"aktif": True, "bantlar": [[0.50, 0.005], [0.60, 0.010], [0.70, 0.015]], "tavan": 0.015}, "ogrenme": {"aktif": True, "kuru": False, "min_islem": 200, "min_islem_tf": 0, "esik": 0.50, "kiyas_min_n": 30, "kiyas_isaret_min": 0.85, "kiyas_dr_maks": 0.30, "kiyas_dusuk_agirlik": 0.5}}
     assert "ml1" not in l                                                              # ML1 yalniz paper
     assert not (ROOT / "models" / "ml1" / "ml1_package.json").exists()                 # tohum paket depoda yok
     assert "tohum_yolu" not in C._ML1_KEYS

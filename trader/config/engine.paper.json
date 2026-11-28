@@ -12,7 +12,7 @@
   "target_trade_risk": 0.01,
   "risk": {"target_trade_risk": 0.01, "max_open_risk": 0.12, "max_same_dir_risk": 0.06, "daily_max_loss": 0.08},
   "kume_risk": {"aktif": true, "kumeler": {"kripto": {"ciftler": ["BTC/USDT", "ETH/USDT", "SOL/USDT", "XRP/USDT", "TRX/USDT"], "ayni_yon": 0.03}, "hisse": {"ciftler": ["AAPL/USDT", "MSFT/USDT", "NVDA/USDT", "GOOGL/USDT", "AMZN/USDT", "META/USDT", "TSLA/USDT"], "ayni_yon": 0.03}, "emtia": {"ciftler": ["XAU/USDT", "BZ/USDT"], "ayni_yon": 0.02}}},
-  "ml1": {"aktif": true, "risk_bantlari": {"aktif": true, "bantlar": [[0.50, 0.005], [0.60, 0.010], [0.70, 0.015]], "tavan": 0.015}, "ogrenme": {"aktif": true, "kuru": false, "min_islem": 200, "min_islem_tf": 0, "esik": 0.50}},
+  "ml1": {"aktif": true, "risk_bantlari": {"aktif": true, "bantlar": [[0.50, 0.005], [0.60, 0.010], [0.70, 0.015]], "tavan": 0.015}, "ogrenme": {"aktif": true, "kuru": false, "min_islem": 200, "min_islem_tf": 0, "esik": 0.50, "kiyas_min_n": 30, "kiyas_isaret_min": 0.85, "kiyas_dr_maks": 0.30, "kiyas_dusuk_agirlik": 0.5}},
   "clusters": {
     "kripto_buyuk": {"pairs": ["BTC/USDT", "ETH/USDT", "XRP/USDT", "SOL/USDT"]},
     "kripto_diger": {"pairs": ["TRX/USDT"]},

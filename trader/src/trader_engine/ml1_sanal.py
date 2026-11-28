@@ -12,7 +12,8 @@ Simulasyon motorun 15 dk `last` mum izgarasinda, kagit brokerin dolum kurallarin
   * net R: (brut - giris ucreti - cikis ucreti - funding) / planli risk; planli risk motorla ayni `risk.loss_at_stop` (birim adet). Funding: kagit broker
     gibi 8 saatlik izgarada (00/08/16) piyasa fonlama noktalari, birim adet.
 Gercek kagit dolumundan farklar: 1 dk yerine 15 dk mum (stop/hedef ayni 15 dk icinde sirasi bilinmez: stop once), tetik mark yerine last, tick yuvarlamasi
-yok, kutuphane kural cikisi (EXIT_RULE) ve kismi/basa-bas cikis kipleri yok, SignalParams varsayilan (surum parametresi degil), min notional/marjin reddi yok."""
+yok, kutuphane kural cikisi (EXIT_RULE) ve kismi/basa-bas cikis kipleri yok, SignalParams varsayilan (surum parametresi degil), min notional/marjin reddi yok.
+Golge-gercek kiyasi: `olcumler.golge_gercek` ayni `veri_al` + `simule` ile kapanan GERCEK islemi yeniden simule eder; uyum dusukse sanal agirlik otomatik 0,5 (docs/inceleme-200.md)."""
 from __future__ import annotations
 
 import math
