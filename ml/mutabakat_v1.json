@@ -1,7 +1,7 @@
 {
  "sema": "ml.mutabakat.v1",
- "uretim": "2026-11-28T11:56:20Z",
- "uretim_tsi": "2026-11-28 14:56",
+ "uretim": "2026-11-28T12:49:11Z",
+ "uretim_tsi": "2026-11-28 15:49",
  "islem_sayisi": 19,
  "kapanan": 11,
  "acik": 8,
@@ -19,11 +19,14 @@
   },
   "kaynak": "Telegram geçmişine erişim yok; motorun gönderdi kaydı (imleç) kullanıldı. Sıra: (1) gönderim kaydı islem_gonderildi.jsonl (ts, işlem no, tür, yön, K/Z; kayıt başlangıcından itibaren), (2) outbox 'sent' işaretleri (teslim edilmiş mesajın anahtarı; mesaj metni yok), (3) islem_imleci.json (duyurulmuş işlem numaraları). Gönderim kaydından önceki işlemlerde imleç yalnız 'duyuruldu' sayıldığını gösterir, mesaj metnini kanıtlamaz; mesaj sisteminden önceki işlemler 'Telegram öncesi' sayılır, uyuşmazlık değildir."
  },
- "fiyat_bekleniyor": [],
- "fiyat_bekleniyor_durum": null,
+ "fiyat_bekleniyor": [
+  17
+ ],
+ "fiyat_bekleniyor_durum": "fiyat bekleniyor (piyasa kapalı/veri yok)",
  "panel_notu": "Panel 'tümü' listesi son 200 kapanan işlemi gösterir; toplamlar tüm işlemleri kapsar.",
  "bilgi": [
-  "Açık işlemlerin anlık kâr/zararı: kasada -14,48 $, panelde -14,40 $ · fark 0,09 $ (fiyat zamanlaması, uyuşmazlık sayılmaz)"
+  "Açık işlemlerin anlık kâr/zararı: kasada -14,38 $, panelde -12,00 $ · fark 2,38 $ (fiyat zamanlaması, uyuşmazlık sayılmaz)",
+  "Fiyatı gelmeyen açık işlemler: #17 · fiyat bekleniyor (piyasa kapalı/veri yok); uyuşmazlık sayılmaz"
  ],
  "kontroller": [
   {
@@ -59,8 +62,10 @@
   {
    "ad": "Açık K/Z fiyat kaynağı (panel = motor mark)",
    "sonuc": "geçti",
-   "ayrinti": "Açık işlemlerin kâr/zararı panelle aynı",
-   "fiyat_bekleniyor": []
+   "ayrinti": "Açık işlemlerin kâr/zararı panelle aynı; fiyat bekleniyor (piyasa kapalı/veri yok): #17",
+   "fiyat_bekleniyor": [
+    17
+   ]
   },
   {
    "ad": "Günlük zarar limiti oranı (panel = kâğıt ayarı)",
@@ -167,7 +172,7 @@
   },
   {
    "islem_no": 6,
-   "kol": "PA: önceki dönem tepesi · 1 saat",
+   "kol": "Fiyat: önceki dönem tepesi · 1 saat",
    "coin": "BTC",
    "yon": "short",
    "durum": "kapalı",
@@ -338,7 +343,7 @@
   },
   {
    "islem_no": 16,
-   "kol": "PA: değer boşluğu · 4 saat",
+   "kol": "Fiyat: değer boşluğu · 4 saat",
    "coin": "META",
    "yon": "long",
    "durum": "açık",
@@ -372,7 +377,8 @@
    "uyusmazlik": [],
    "panel": "aynı",
    "telegram_acildi": "gönderildi (kayıt)",
-   "telegram_kapandi": "—"
+   "telegram_kapandi": "—",
+   "fiyat_durumu": "fiyat bekleniyor (piyasa kapalı/veri yok)"
   },
   {
    "islem_no": 18,

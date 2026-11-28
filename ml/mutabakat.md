@@ -1,6 +1,6 @@
 # İşlem mutabakatı
 
-Son kontrol: 2026-11-28 14:56 (TSİ). İşlem: 19 (kapanan 11, açık 8). Uyuşmazlık: 0.
+Son kontrol: 2026-11-28 15:49 (TSİ). İşlem: 19 (kapanan 11, açık 8). Uyuşmazlık: 0.
 
 ## Kontroller
 
@@ -12,12 +12,13 @@ Son kontrol: 2026-11-28 14:56 (TSİ). İşlem: 19 (kapanan 11, açık 8). Uyuşm
 | Short toplamı (motor = panel) | geçti | Short işlemler panelle aynı (10 işlem) |
 | Toplam kapanan (motor = panel 'tümü') | geçti | Kapanan işlemlerin toplamı panelle aynı (11 işlem) |
 | Açık pozisyon sayısı (motor = panel = şerit = durum) | geçti | 8 açık işlem, hepsi aynı |
-| Açık K/Z fiyat kaynağı (panel = motor mark) | geçti | Açık işlemlerin kâr/zararı panelle aynı |
+| Açık K/Z fiyat kaynağı (panel = motor mark) | geçti | Açık işlemlerin kâr/zararı panelle aynı; fiyat bekleniyor (piyasa kapalı/veri yok): #17 |
 | Günlük zarar limiti oranı (panel = kâğıt ayarı) | geçti | Günlük zarar limiti %8,00 (panelle aynı) |
 
 ## Bilgi
 
-- Açık işlemlerin anlık kâr/zararı: kasada -14,48 $, panelde -14,40 $ · fark 0,09 $ (fiyat zamanlaması, uyuşmazlık sayılmaz)
+- Açık işlemlerin anlık kâr/zararı: kasada -14,38 $, panelde -12,00 $ · fark 2,38 $ (fiyat zamanlaması, uyuşmazlık sayılmaz)
+- Fiyatı gelmeyen açık işlemler: #17 · fiyat bekleniyor (piyasa kapalı/veri yok); uyuşmazlık sayılmaz
 
 ## Telegram kaynağı
 
@@ -36,7 +37,7 @@ Yok.
 | 3 | Düşüş trendi: tepkiden satış · 1 saat | TRX | short | kapalı | 2026-11-27 02:00 | 2026-11-27 06:08 | 0,303910 | 0,305300 | -4,5884 | 1,0055 | 0,0099 | -5,6038 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 4 | Düşüş trendi: 3 yükselen dibin kırılımıyla satış · 1 saat | BTC | short | kapalı | 2026-11-27 02:00 | 2026-11-27 05:07 | 60.511,200000 | 61.009,500000 | -7,9728 | 0,9722 | -0,0955 | -8,8495 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 5 | Düşüş trendi: tepkiden satış · 4 saat | XRP | short | kapalı | 2026-11-27 03:00 | 2026-11-27 08:52 | 0,943300 | 0,970300 | -9,5256 | 0,3376 | 0,0000 | -9,8632 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
-| 6 | PA: önceki dönem tepesi · 1 saat | BTC | short | kapalı | 2026-11-27 08:00 | 2026-11-27 11:17 | 61.379,300000 | 62.036,700000 | -8,5462 | 0,8022 | -0,0403 | -9,3081 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
+| 6 | Fiyat: önceki dönem tepesi · 1 saat | BTC | short | kapalı | 2026-11-27 08:00 | 2026-11-27 11:17 | 61.379,300000 | 62.036,700000 | -8,5462 | 0,8022 | -0,0403 | -9,3081 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 7 | Gösterge: RSI 70 altına dönüş · 1 saat | ETH | short | kapalı | 2026-11-27 10:00 | 2026-11-27 17:38 | 1.733,280000 | 1.691,720000 | 16,3331 | 0,6730 | -0,0480 | 15,7081 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 8 | Gösterge: RSI(2) tepe · 4 saat | TRX | short | kapalı | 2026-11-27 11:00 | 2026-11-27 19:00 | 0,305280 | 0,301130 | 8,4618 | 0,6182 | 0,0599 | 7,7837 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 9 | Mum: pin bar (üst fitil) · 1 saat | XRP | short | kapalı | 2026-11-27 12:00 | 2026-11-27 17:34 | 0,975700 | 0,954100 | 16,0574 | 0,7173 | 0,0000 | 15,3401 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
@@ -45,7 +46,7 @@ Yok.
 | 12 | Mum: iç çubuk aşağı kırılımı · 1 saat | NVDA | short | açık | 2026-11-27 18:00 | — | 146,500000 | — | — | 0,0747 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
 | 13 | Grafik: üçlü tepe · 1 saat | GOOGL | short | açık | 2026-11-27 18:00 | — | 272,170000 | — | — | 0,1238 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
 | 15 | Grafik: üçlü tepe · 1 saat | BTC | short | açık | 2026-11-27 18:00 | — | 59.166,100000 | — | — | 0,0887 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
-| 16 | PA: değer boşluğu · 4 saat | META | long | açık | 2026-11-27 19:00 | — | 635,720000 | — | — | 0,1271 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
+| 16 | Fiyat: değer boşluğu · 4 saat | META | long | açık | 2026-11-27 19:00 | — | 635,720000 | — | — | 0,1271 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
 | 17 | Mum: iç çubuk · 1 saat | BZ | long | açık | 2026-11-27 23:00 | — | 90,840000 | — | — | 0,3502 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
 | 18 | Mum: ayı yutan · 1 saat | SOL | short | kapalı | 2026-11-28 06:00 | 2026-11-28 13:50 | 71,650000 | 70,530000 | 12,7456 | 0,8090 | -0,0361 | 11,9727 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 19 | Trend aşağı kırılımı · 1 saat | ETH | short | açık | 2026-11-28 14:00 | — | 1.645,520000 | — | — | 0,3694 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
