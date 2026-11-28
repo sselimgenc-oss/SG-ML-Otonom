@@ -205,7 +205,7 @@ def _grup_satirlari(pairs: Sequence[tuple[Any, Any]], *, eski_ayri: bool) -> lis
     for ad, items in by.items():
         kol: dict[tuple[str, str], list[Any]] = {}
         for t, d in items:
-            kol.setdefault((TS.kurulum_adi(getattr(t, "setup", None)), TS.zd_adi(_tf_of(t, d))), []).append(t)
+            kol.setdefault((TS.kurulum_adi(getattr(t, "setup", None), getattr(t, "side", None)), TS.zd_adi(_tf_of(t, d))), []).append(t)
         kollar = []
         for (kad, zf), ts in kol.items():
             st = _istatistik(ts)
@@ -237,7 +237,7 @@ def durum(decisions: Sequence[Any], now: datetime, aktif: Any) -> dict:
     if any(skor(d) is not None for d in son24):
         return {"metin": "Açık: adayları ML1 seçiyor", "renk": "yesil"}
     if any(ogrenme_mi(d) for d in son24):
-        return {"metin": "Öğrenme aşaması: model henüz yok, adaylar süzülmeden alınıyor", "renk": "sari"}
+        return {"metin": "Öğrenme aşaması: model henüz yok, adaylar puanlanmadan alınıyor", "renk": "sari"}
     return {"metin": "Açık: son 24 saatte puanlanacak aday çıkmadı", "renk": "sari"}
 
 
@@ -269,28 +269,28 @@ def ogr_durumu(d: Any, kapanan_defter: int, tf: Mapping[str, int], puanli_var: b
             "gunluk_hiz": _f(d.get("gunluk_hiz")), "tahmini_varis": d.get("tahmini_varis") if isinstance(d.get("tahmini_varis"), str) else None}
 
 
-def hiz_satiri(oz: Mapping) -> str:
-    """'Hız: son 7 günde günde ortalama 4,5 etiketli işlem · 200'e tahmini varış: 14.12' (pano + Telegram AYNI metin)."""
+def hiz_satiri(oz: Mapping) -> str | None:
+    """'Hız: son 7 günde günde ortalama 4,5 etiketli işlem · 200'e tahmini varış: 14.12' (pano + Telegram AYNI metin). Ölçülemediyse None (satır gösterilmez)."""
     o = oz.get("ogr") or {}
     h, v = o.get("gunluk_hiz"), o.get("tahmini_varis")
     if not h or h <= 0 or not v:
-        return "Hız: henüz ölçülemedi"
+        return None
     try:
         gg = f"{v[8:10]}.{v[5:7]}"
     except (TypeError, IndexError):
-        return "Hız: henüz ölçülemedi"
+        return None
     return f"Hız: son 7 günde günde ortalama {TS.sayi(h, 1)} etiketli işlem · {o.get('min_islem', MIN_ISLEM_VARSAYILAN)}'e tahmini varış: {gg}"
 
 
 def durum_satiri(oz: Mapping) -> str:
-    """'ML1 öğrenme aşamasında: 37/200 kapanan işlem; süzme başlamadı' (pano + Telegram AYNI metin). Süzmede: 'ML1 süzme aşamasında: N kapanan işlem'.
+    """'ML1 öğrenme aşamasında: 37/200 kapanan işlem; puanlama başlamadı' (pano + Telegram AYNI metin). Puanlamada: 'ML1 puanlama aşamasında: N kapanan işlem'.
     Son örneklem-dışı sınama geçmediyse sonuna '(son deneme: geçmedi (<neden>))' eklenir."""
     o = oz.get("ogr") or {}
     n = o.get("kapanan", 0)
     if o.get("asama") == "suzme":
-        t = f"ML1 süzme aşamasında: {n} kapanan işlem"
+        t = f"ML1 puanlama aşamasında: {n} kapanan işlem"
     else:
-        t = f"ML1 öğrenme aşamasında: {n}/{o.get('min_islem', MIN_ISLEM_VARSAYILAN)} kapanan işlem; süzme başlamadı"
+        t = f"ML1 öğrenme aşamasında: {n}/{o.get('min_islem', MIN_ISLEM_VARSAYILAN)} kapanan işlem; puanlama başlamadı"
     sn = sinama_metni(o.get("son_sinama"))
     return t + (f" ({sn})" if sn else "")
 
@@ -303,9 +303,9 @@ def sanal_notu(oz: Mapping) -> str | None:
 
 
 def tf_satiri(oz: Mapping) -> str:
-    """'Kapanan işlem: 1s 12 · 4s 5 · 1g 3' (zaman dilimi sayilari)."""
+    """'Kapanan işlem: 1 saat 12 · 4 saat 5 · 1 gün 3' (zaman dilimi sayilari)."""
     tf = (oz.get("ogr") or {}).get("tf") or {}
-    kisa = {"1h": "1s", "4h": "4s", "1d": "1g"}
+    kisa = {"1h": "1 saat", "4h": "4 saat", "1d": "1 gün"}
     return "Kapanan işlem: " + " · ".join(f"{kisa[k]} {int(tf.get(k, 0))}" for k in ZD_SIRA)
 
 

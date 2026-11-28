@@ -144,7 +144,7 @@ def test_report_paper_is_plain_turkish(tmp_path):
     out = T.build_report(cfg, NOW, DAY, T.default_sections(cfg, NOW, DAY))
     lines = out.splitlines()
     assert lines[0] == "[ML] 🌙 Günlük özet · 16 Kasım"
-    for want in ("Bugün kapanan işlem yok.", "Kasa 1.000,00 $ · toplam +0,00 $", "Açık işlem yok.", "ML1 bugün: puanlanacak aday çıkmadı.",
+    for want in ("Bugün kapanan işlem yok.", "Kasa 1.000,00 $ · toplam 0,00 $", "Açık işlem yok.", "ML1 öğrenme aşamasında: 0/200 kapanan işlem; puanlama başlamadı",
                  f"Günlük zarar sınırı: 0 $ / {limit_orani() * 1000:.0f} $", "Yeni işlemler açık."):
         assert want in out, want
     assert "Dersler:" not in out and len(lines) <= 10
@@ -179,7 +179,15 @@ def test_report_risk_closed_lines(tmp_path):
     assert "Günlük zarar sınırı doldu: bugün yeni işlem açılmaz." in T.build_report(cfg, NOW, DAY, {})
     _status(tmp_path, entries_open=False, gate={"ok": False, "code": "paused"})
     out = T.build_report(cfg, NOW, DAY, {"Duraklatma": lambda: "ana bot: yeni işlemler duraklatıldı — elle durduruldu"})
-    assert "Yeni işlemler duraklatıldı." in out and "ana bot" not in out
+    assert "Yeni işlemler duraklatıldı: elle durduruldu." in out and "ana bot" not in out and "/devam" not in out     # V-06: ilk neden, ham kod yok
+    _status(tmp_path, entries_open=False, gate={"ok": False, "code": "paused"})
+    out = T.build_report(cfg, NOW, DAY, {"Duraklatma": lambda: "ana bot: yeni işlemler duraklatıldı — Ana para kilidi (kasa ana paranın %15 altına indi) (motor tarafından, 16.11 10:00)"})
+    assert "Yeni işlemler duraklatıldı: ana para kilidi (kasa ana paranın %15 altına indi). Açmak için /devam yaz." in out
+    assert "capital_latch" not in out and "motor tarafından" not in out
+    out = T.build_report(cfg, NOW, DAY, {"Duraklatma": lambda: "ana bot: yeni işlemler duraklatıldı — senin /durdur komutun; borsa geçici engel koydu (Telegram'dan, 16.11 10:00)"})
+    assert "Yeni işlemler duraklatıldı: senin /durdur komutun. Açmak için /devam yaz." in out and "borsa" not in out
+    out = T.build_report(cfg, NOW, DAY, {"Duraklatma": lambda: "ana bot: yeni işlemler duraklatıldı — risk kademesi incelemesi bekliyor (motor tarafından, 16.11 10:00)"})
+    assert "Yeni işlemler duraklatıldı: risk kademesi incelemesi bekliyor." in out and "/devam" not in out
 
 
 def test_report_heartbeat_missing_first_line(tmp_path):
@@ -214,3 +222,15 @@ def test_report_ignores_failing_sections(tmp_path):
         raise PermissionError("secret path")
     out = T.build_report(cfg, NOW, DAY, {"A": boom, "B": boom, "C": boom})
     assert "PermissionError" not in out and "secret" not in out and "bilgiler okunamadı" not in out
+
+
+def test_report_sifir_kz_islem_zarar_sayilmaz(tmp_path, monkeypatch):
+    """A-13: K/Z tam sifir olan islem 'zarar' degil 'basa bas'; basa bas yoksa o ek hic yazilmaz."""
+    from types import SimpleNamespace as NS
+    cfg = _paper_cfg(tmp_path)
+    _status(tmp_path)
+    trades = [NS(realized_pnl=4.0, r_multiple=1.0), NS(realized_pnl=-1.5, r_multiple=-1.0), NS(realized_pnl=0.0, r_multiple=0.0)]
+    monkeypatch.setattr(T, "_ledger_day", lambda path, bot, day: (trades, []))
+    assert "Bugün 3 işlem kapandı (1 kâr, 1 zarar, 1 başa baş) · +2,50 $" in T.build_report(cfg, NOW, DAY, {})
+    monkeypatch.setattr(T, "_ledger_day", lambda path, bot, day: (trades[:2], []))
+    assert "Bugün 2 işlem kapandı (1 kâr, 1 zarar) · +2,50 $" in T.build_report(cfg, NOW, DAY, {})

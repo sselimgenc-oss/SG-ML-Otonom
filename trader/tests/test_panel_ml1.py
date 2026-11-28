@@ -40,7 +40,7 @@ def test_pano_govdesinde_ml1_ve_ogrenme_yok(ml1_env):
     m = p["ml1"]
     assert m["durum"] == {"metin": "Açık: adayları ML1 seçiyor", "renk": "yesil"} and m["esik"] == 0.6
     assert [r["kod"] for r in m["zd"]] == ["1h", "4h", "1d"] and "sinav" not in m and "zd_ozet" not in m
-    assert m["durum_satiri"].startswith("ML1 ") and m["tf_satiri"].startswith("Kapanan işlem: 1s ")
+    assert m["durum_satiri"].startswith("ML1 ") and m["tf_satiri"].startswith("Kapanan işlem: 1 saat ")
     assert {"eleme", "ogr", "gruplar", "toplam", "eski"} <= set(m)
     assert m["eleme"]["bugun"]["puanlanan"] == 9 and m["gruplar"]["tumu"][-1]["grup"] == "Kaldırılan kollar (eski)"
 
@@ -68,7 +68,42 @@ def test_toplam_kz_tek_kaynak_canli(ml1_env):
     t = p["kz"]["toplam"]
     assert t["kaynak"] == "kasa" and p["serit"]["toplam"] == t["toplam"] == pytest.approx(1010.0 - 1000.0)
     assert t["kapanan"] + t["acik"] + t["fark"] == pytest.approx(t["toplam"], abs=1e-9)
+    # V-01: tek "acik K/Z" rakami: serit = Acik sekmesi = K/Z karti; komisyon ayri satir, satirlar toplama esit
+    assert t["acik_brut"] == p["serit"]["acik_kz"] == p["acik"]["kz"] == pytest.approx(3.0)
+    assert t["acik_komisyon"] <= 0 and t["acik"] == pytest.approx(t["acik_brut"] + t["acik_komisyon"])
+    assert t["kapanan"] + t["acik_brut"] + t["acik_komisyon"] + t["fark"] == pytest.approx(t["toplam"], abs=1e-9)
     assert p["serit"]["toplam_kaynak"] == "kasa" and "tumu" not in p["kz"]["donemler"]
+
+
+def test_bugun_yuzdesi_serit_ve_kz_ayni(ml1_env):
+    """V-02: serit ve K/Z sekmesi bugunun yuzdesini ayni tabandan (gun basi kasa) hesaplar; gun basi yoksa baslangic sermayesi."""
+    ml1_env.write_status("learner", 5, equity=1010.0, day_start_equity=950.0, unrealized_pnl_usd=3.0, open_positions=[])
+    p = _pano(ml1_env)
+    pnl = p["serit"]["bugun"]
+    assert pnl != 0 and p["serit"]["bugun_yuzde"] == p["kz"]["donemler"]["bugun"]["yuzde"] == pytest.approx(pnl / 950.0 * 100.0)
+    assert p["kz"]["donemler"]["7g"]["yuzde"] == pytest.approx(p["kz"]["donemler"]["7g"]["kz"] / 1000.0 * 100.0)      # 7g/30g: baslangic sermayesi
+    ml1_env.write_status("learner", 5, equity=1010.0, day_start_equity=None, unrealized_pnl_usd=3.0, open_positions=[])
+    q = _pano(ml1_env)
+    assert q["serit"]["bugun_yuzde"] == q["kz"]["donemler"]["bugun"]["yuzde"] == pytest.approx(q["serit"]["bugun"] / 1000.0 * 100.0)
+    assert PP.bugun_yuzde(10.0, 900.0, 1000.0) == pytest.approx(10 / 900 * 100) and PP.bugun_yuzde(10.0, 0, 1000.0) == pytest.approx(1.0)
+    assert PP.bugun_yuzde(10.0, None, None) is None
+
+
+def test_ogrenme_asamasinda_bugunku_aday_sayisi_payload_ve_ozet_kartinda(tmp_path):
+    """V-03: ML1 ozet karti 'puanlanacak aday yok' yerine bugunku aday/islem sayisini okur (ml1.ogrenme.bugun)."""
+    from ml1_gorunum_destek import ogrenme_defteri
+    e = Env(tmp_path, learner=False)
+    try:
+        ogrenme_defteri(str(tmp_path / "var/learner/ledger.sqlite"))
+        (tmp_path / "config/engine.paper.json").write_text(json.dumps({"ml1": {"aktif": True}}))
+        e.write_status("learner", 5)
+        m = _pano(e)["ml1"]
+    finally:
+        e.close()
+    assert m["eleme"]["bugun"]["puanlanan"] == 0 and m["ogrenme"]["bugun"] == {"aday": 4, "islem": 3}
+    js = (STATIC / "panel.js").read_text(encoding="utf-8")
+    ozet = js.split("function ml1OzetKart")[1].split("function ml1Aciklama")[0]
+    assert "m.ogrenme.bugun" in ozet and "puanlama henüz başlamadı" in ozet and "bugün aday çıkmadı" in ozet and "m.tf_satiri" not in ozet and "m.durum_satiri" not in ozet
 
 
 def test_toplam_kz_durum_bayatsa_kapanan_toplami(ml1_env):
@@ -112,6 +147,8 @@ def test_pano_dosyalarinda_yasak_sozcuk_yok():
     yasak = ("Ders", "ders", "arms_off", "Karantina", "karantina", "Kademeli küçültme", "M1", "DL1", "HB1", "ogrenme")
     for p in (STATIC / "panel.js", STATIC / "index.html", STATIC / "panel.css", ROOT / "src/trader_core/panel_pano.py"):
         t = p.read_text(encoding="utf-8")
+        if p.name == "panel.js":
+            t = t.replace("m.ogrenme", "m.OGR")          # V-03: ML1 ozet karti `ogrenme.bugun` (aday/islem) okur; baska kullanim yasak
         for w in yasak:
             assert w not in t, (p.name, w)
 
@@ -122,12 +159,12 @@ def test_arayuz_sekmeler_ml1_ve_eski_kartlar_yok():
     ozet = js.split("function tabOzet")[1].split("function isikKart")[0]
     assert "ml1OzetKart" in ozet and "ogrenmeOzetKart" not in js
     for s in ("Aday eleme", "Fikir grubuna göre", "ML1 işlemleri", "Tüm işlemler", "Toplam K/Z nasıl oluşuyor?",
-              "Kapanan K/Z", "Bugün kapanan K/Z", "Yapay zekâ yorum harcaması"):
+              "Kapanan K/Z", "Bugün K/Z"):
         assert s in js, s
     assert "Kaynağa göre K/Z" not in js and "Model ayrıntısı" not in js
     for s in ("sınavı geçti", "Sınav sonucu", "Sınavı geçen", "kanitli", "kanitsiz", "zd_ozet", "15 dakika", "15dk"):
         assert s not in js, s
-    assert "m.durum_satiri" in js and "m.tf_satiri" in js
+    assert "m.durum_satiri" in js and "m.tf_satiri" not in js and "m.ogrenme.bugun" in js      # M-02: sayilar yalniz tabloda; V-03: bugun aday sayisi
     assert "sek-ml1" in (STATIC / "index.html").read_text(encoding="utf-8")
 
 

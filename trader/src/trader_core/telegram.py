@@ -924,21 +924,22 @@ class TelegramDaemon:
             dk = int((self.now() - parse_ts_z(st["loop_at"])).total_seconds() // 60)
         except Exception:  # noqa: BLE001
             dk = None
-        lines = [f"Anlık durum ({KIP_TR.get(str(st.get('mode')), 'kip bilinmiyor')})"]
+        kip = KIP_TR.get(str(st.get('mode')), 'kip bilinmiyor')
+        bayat = dk is not None and dk >= 2
+        lines = [f"Son bilinen durum · {dk} dk önce ({kip})" if bayat else f"Anlık durum ({kip})"]
+        if bayat:
+            lines.append(f"Bot yanıt vermiyor! (son sinyal {dk} dk önce)")
         k = _kasa_toplam_satiri(self.cfg, st)
         if k:
             lines.append(k)
         lines.append(_acik_satiri(st))
-        calisiyor = dk is None or dk < 2
-        if calisiyor:
+        if not bayat:
             pause_text = "\n".join(pause_lines(self.pauses, sadece_tutulan=True)) if self.pauses else ""
             doldu = _zarar_doldu(self.cfg, st)
             d = _durum_satiri(st, pause_text, doldu)
             if d and not (self.pauses and not st.get("kill") and not doldu):     # duraklatma satiri (asagida) bunu zaten soyler
                 lines.append(d)
-            lines.append("Bot çalışıyor.")
-        else:
-            lines.append(f"Bot yanıt vermiyor! (son sinyal {dk} dk önce)")
+            lines.append("Bot çalışıyor." if dk is not None else "Bot durumu doğrulanamadı (son sinyal zamanı okunamadı).")
         lines += self._pause_lines()
         lines += self._ladder_lines()
         self._reply("\n".join(lines), "INFO", etiket=True)
@@ -1501,6 +1502,23 @@ def _zarar_doldu(cfg: TelegramConfig, st: Mapping[str, Any]) -> bool:
     return max(0.0, dse - eq) >= TS.limit_orani(cfg.config_dir, st.get("mode")) * dse
 
 
+_KIM_EKI = re.compile(r"\s\((?:Telegram'dan|motor tarafından|sunucudan)[^)]*\)\s*$")
+
+
+def _duraklatma_cumlesi(pause_text: str) -> str:
+    """'ana bot: yeni işlemler duraklatıldı — <neden>[; ...] (kim, zaman)' -> 'Yeni işlemler duraklatıldı: <ilk neden>.' (+ ' Açmak için /devam yaz.'
+    yalniz /devam ile kalkan nedenlerde: elle durdurma, ana para kilidi). Neden okunamazsa eski kisa cumle."""
+    ilk = pause_text.splitlines()[0] if pause_text else ""
+    _, ayr, neden = ilk.partition(" — ")
+    neden = _KIM_EKI.sub("", neden).split("; ")[0].strip().rstrip(".")
+    if not ayr or not neden:
+        return "Yeni işlemler duraklatıldı."
+    acilir = neden in (NEDEN_TR[PAUSE_USER], NEDEN_TR[PAUSE_LATCH])
+    if neden[1:2].islower():
+        neden = neden[:1].lower() + neden[1:]
+    return f"Yeni işlemler duraklatıldı: {neden}." + (" Açmak için /devam yaz." if acilir else "")
+
+
 def _durum_satiri(st: Mapping[str, Any] | None, pause_text: str, doldu: bool) -> str:
     if st is None:
         return "Bot durumu okunamadı."
@@ -1509,7 +1527,7 @@ def _durum_satiri(st: Mapping[str, Any] | None, pause_text: str, doldu: bool) ->
     if doldu:
         return "Günlük zarar sınırı doldu: bugün yeni işlem açılmaz."
     if pause_text:
-        return "Yeni işlemler duraklatıldı."
+        return _duraklatma_cumlesi(pause_text)
     if st.get("entries_open") is False:
         if st.get("gate_code") == "params_unavailable":
             return f"Yeni işlemler kapalı: {neden_tr('params_unavailable', st.get('params_kaynak'))}."
@@ -1519,6 +1537,14 @@ def _durum_satiri(st: Mapping[str, Any] | None, pause_text: str, doldu: bool) ->
     return ""
 
 
+
+
+def _kz_sayim(closed: list) -> str:
+    """'W kâr, L zarar' (+ ', B başa baş' yalniz B > 0): sifir K/Z islem zarar sayilmaz."""
+    w = sum(1 for t in closed if (t.realized_pnl or 0) > 0)
+    z = sum(1 for t in closed if (t.realized_pnl or 0) < 0)
+    b = len(closed) - w - z
+    return f"{w} kâr, {z} zarar" + (f", {b} başa baş" if b else "")
 
 
 def _ml1_veri(cfg: TelegramConfig, now: datetime) -> tuple[dict | None, Any]:
@@ -1549,27 +1575,20 @@ def _ml1_veri(cfg: TelegramConfig, now: datetime) -> tuple[dict | None, Any]:
     return MG.ml1_ozet(dec, closed, acik, now, durum), aktif
 
 
-def _ml1_satirlari(oz: dict | None, aktif: Any, *, hafta: bool = False) -> list[str]:
-    """Gunluk ozet (hafta=False) ve haftalik ozet (hafta=True) ML1 satirlari; sayilar pano ile ayni."""
+def _ml1_satirlari(oz: dict | None, aktif: Any) -> list[str]:
+    """Gunluk ozetin ML1 satiri (TEK satir; sayilar pano ile ayni): bugun aday geldiyse bugunku sayilar, yoksa ML1 durum satiri."""
     if aktif is not True:
         return ["ML1 kapalı."]
     if oz is None:
         return []
-    e = oz["eleme"]["7g" if hafta else "bugun"]
-    og = (oz.get("ogrenme") or {}).get("7g" if hafta else "bugun") or {}
+    e = oz["eleme"]["bugun"]
+    og = (oz.get("ogrenme") or {}).get("bugun") or {}
     if not e["puanlanan"] and og.get("aday"):
-        ilk = (f"ML1 öğrenme aşamasında{'' if hafta else ' (bugün)'}: {TS.sayi(og['aday'], 0)} aday süzülmeden geçti, "
-               f"{og['islem']}{TS.iyelik_belirtme(og['islem'])} işleme çevirdi")
-    elif not e["puanlanan"]:
-        ilk = "ML1: puanlanacak aday çıkmadı." if hafta else "ML1 bugün: puanlanacak aday çıkmadı."
-    elif hafta:
-        ilk = (f"ML1: {TS.sayi(e['puanlanan'], 0)} aday puanladı, {TS.sayi(e['islem'], 0)}{TS.iyelik_belirtme(e['islem'])} "
-               f"işleme çevirdi (%{TS.sayi(e['islem'] / e['puanlanan'] * 100, 0)})")
-    else:
-        ilk = f"ML1 bugün: {TS.sayi(e['puanlanan'], 0)} aday puanladı, {e['islem']}{TS.iyelik_belirtme(e['islem'])} işleme çevirdi"
-    if hafta:
-        return [ilk, MG.durum_satiri(oz), MG.tf_satiri(oz)]
-    return [ilk, MG.durum_satiri(oz)]
+        return [f"ML1 öğrenme aşamasında (bugün): {TS.sayi(og['aday'], 0)} aday puanlanmadan geçti, "
+                f"{og['islem']}{TS.iyelik_belirtme(og['islem'])} işleme çevirdi"]
+    if e["puanlanan"]:
+        return [f"ML1 bugün: {TS.sayi(e['puanlanan'], 0)} aday puanladı, {e['islem']}{TS.iyelik_belirtme(e['islem'])} işleme çevirdi"]
+    return [MG.durum_satiri(oz)]
 
 
 def ml1_metni(cfg: TelegramConfig, now: datetime) -> str:
@@ -1580,11 +1599,12 @@ def ml1_metni(cfg: TelegramConfig, now: datetime) -> str:
     e = oz["eleme"]
     ogr = (oz.get("ogrenme") or {}).get("7g") or {}
     esik = TS.sayi(oz["esik"], 2) if oz["esik"] is not None else ("öğrenme aşaması" if ogr.get("aday") else "okunamadı")
-    return TS.etiketle("\n".join([
+    satirlar = [
         f"ML1{'' if aktif is True else ' (kapalı)'} · eşik {esik}",
         f"Bugün: {TS.sayi(e['bugun']['puanlanan'], 0)} aday, {TS.sayi(e['bugun']['gecen'], 0)} geçti, {e['bugun']['islem']} işlem",
         f"7 gün: {TS.sayi(e['7g']['puanlanan'], 0)} aday, {TS.sayi(e['7g']['gecen'], 0)} geçti, {e['7g']['islem']} işlem",
-        MG.durum_satiri(oz), MG.tf_satiri(oz), MG.hiz_satiri(oz)][:TS.MAX_SATIR]))
+        MG.durum_satiri(oz), MG.tf_satiri(oz), MG.hiz_satiri(oz)]
+    return TS.etiketle("\n".join([x for x in satirlar if x][:TS.MAX_SATIR]))
 
 
 def build_report(cfg: TelegramConfig, now: datetime, day: str, sections: Mapping[str, Callable[[], str]] | None = None
@@ -1619,8 +1639,7 @@ def build_report(cfg: TelegramConfig, now: datetime, day: str, sections: Mapping
         problems += 1
     if closed:
         pnl, _r = _sum(closed)
-        win = sum(1 for t in closed if (t.realized_pnl or 0) > 0)
-        out.append(f"Bugün {len(closed)} işlem kapandı ({win} kâr, {len(closed) - win} zarar) · {TS.isaretli(pnl)} $")
+        out.append(f"Bugün {len(closed)} işlem kapandı ({_kz_sayim(closed)}) · {TS.isaretli(pnl)} $")
     elif not problems:
         out.append("Bugün kapanan işlem yok.")
     eq, dse = (st or {}).get("equity"), (st or {}).get("day_start_equity")
@@ -1797,41 +1816,32 @@ def run_report(cfg: TelegramConfig, notifier: TelegramNotifier, now: datetime, s
 # Haftalik ozet (ayri mesaj; pazar gunu bir kez)
 # ---------------------------------------------------------------------------
 def haftalik_metni(cfg: TelegramConfig, now: datetime) -> str:
-    """Son 7 gunun ozeti (defter + ML1; sayilar panodaki ML1 sekmesiyle ayni). En cok 10 satir."""
+    """Son 7 gunun (basliktaki gunler, TSI 00:00'dan) ozeti: sonuc ve haftanin en iyisi/en kotusu. Kasa ve ML1 satiri yok (gunluk ozette). En cok 10 satir."""
     from . import ledger as L  # noqa: PLC0415
-    led = L.open_ledger(cfg.ledger_path, "learner", create=False, read_only=True, migrate=False)
-    try:
-        closed = led.list_closed_trades(since=now - timedelta(days=7), until=now + timedelta(minutes=1), limit=5000)
-    finally:
-        led.close()
     gun = now.astimezone(TR).date()
     bas = gun - timedelta(days=6)
+    a, _ = _istanbul_day_bounds_utc(bas.isoformat())
+    led = L.open_ledger(cfg.ledger_path, "learner", create=False, read_only=True, migrate=False)
+    try:
+        closed = led.list_closed_trades(since=parse_ts_z(a), until=now + timedelta(minutes=1), limit=5000)
+    finally:
+        led.close()
     lines = [f"🗓 Haftalık özet · {bas.day} {AY_TR[bas.month - 1]} – {gun.day} {AY_TR[gun.month - 1]}"]
     if not closed:
         lines.append("Bu hafta kapanan işlem yok.")
     else:
         pnl, _ = _sum(closed)
-        win = sum(1 for t in closed if (t.realized_pnl or 0) > 0)
-        lines.append(f"{len(closed)} işlem kapandı ({win} kâr, {len(closed) - win} zarar) · {TS.isaretli(pnl)} $")
-    try:
-        st = json.loads(Path(cfg.status_path).read_text(encoding="utf-8"))
-        if (k := _kasa_toplam_satiri(cfg, st)):
-            lines.append(k)
-    except Exception:  # noqa: BLE001
-        pass
-    oz, aktif = _ml1_veri(cfg, now)
-    lines += _ml1_satirlari(oz, aktif, hafta=True)
-    if closed:
+        lines.append(f"{len(closed)} işlem kapandı ({_kz_sayim(closed)}) · {TS.isaretli(pnl)} $")
         en = max(closed, key=lambda t: t.realized_pnl or 0.0)
         kt = min(closed, key=lambda t: t.realized_pnl or 0.0)
-        s = f"En iyi: {TS.coin(en.pair)} {TS.isaretli(en.realized_pnl or 0.0)} $"
+        s = f"Haftanın en iyisi: {TS.coin(en.pair)} {TS.isaretli(en.realized_pnl or 0.0)} $"
         if (kt.realized_pnl or 0.0) < 0:
-            s += f" · En kötü: {TS.coin(kt.pair)} {TS.isaretli(kt.realized_pnl or 0.0)} $"
+            s += f" · en kötüsü: {TS.coin(kt.pair)} {TS.isaretli(kt.realized_pnl or 0.0)} $"
         lines.append(s)
     return TS.etiketle("\n".join(lines[:TS.MAX_SATIR_OZET]))
 
 
-HAFTALIK_TELEGRAM = True                        # pazar gunu, gunluk ozetin ardindan ayri mesaj (ML1 satirlariyla)
+HAFTALIK_TELEGRAM = True                        # pazar gunu, gunluk ozetin ardindan ayri mesaj (yalniz haftanin sonucu)
 
 
 def haftalik_gonder(cfg: TelegramConfig, notifier: "TelegramNotifier", now: datetime) -> bool:
@@ -1900,7 +1910,7 @@ def gonderildi_yaz(var_dir, now: datetime, tur: str, t, pnl: float | None = None
 
 
 def _saat_gonder(kayit, now: datetime, text: str, notifier: "TelegramNotifier", anahtar: str, delta: dict) -> int:
-    """Saatlik sinir: ilk 4 mesaj sessiz gider; sonrakiler `delta` ile ozete eklenir."""
+    """Saatlik sinir: ilk 20 mesaj sessiz gider; sonrakiler `delta` ile ozete eklenir."""
     st = kayit.durum("islem_saat")
     n = int(st.get("n", 0))
     if n < SAATLIK_ISLEM_MESAJI:
@@ -1932,7 +1942,7 @@ def _saat_kaydi(kayit, now: datetime, notifier: "TelegramNotifier") -> int:
 
 def islem_tick(cfg: TelegramConfig, notifier: "TelegramNotifier", now: datetime | None = None) -> int:
     """Yeni acilan/kapanan islemler (sessiz) ve gunluk zarar esikleri (sesli) icin mesaj yollar; yollanan sayiyi dondurur.
-    Ilk calismada mevcut islemler 'bildirilmis' sayilir. Saatte en cok 4 tekil islem mesaji; ayni dakikadaki acilislar tek
+    Ilk calismada mevcut islemler 'bildirilmis' sayilir. Saatte en cok 20 tekil islem mesaji; ayni dakikadaki acilislar tek
     mesaj; fazlasi saat sonunda tek ozet. Imlec: <var>/islem_imleci.json."""
     from . import ledger as L  # noqa: PLC0415
     now = now or datetime.now(UTC)
@@ -1970,11 +1980,11 @@ def islem_tick(cfg: TelegramConfig, notifier: "TelegramNotifier", now: datetime 
         zd, puan = zd_puan(t)
         yeni_acilan.setdefault(t.entry_ts.strftime("%Y-%m-%dT%H:%M"), []).append(
             (t, (kol(t), t.pair, t.side, t.entry_price, (t.qty or 0.0) * (t.entry_price or 0.0), t.planned_stop, zd, puan,
-                 t.planned_risk)))
+                 t.planned_risk, t.leverage)))
     for dk, grup in yeni_acilan.items():
         for t, sat in grup:                              # 27.11 sahip karari: ayni dakikadaki acilislar da TEK TEK (kurulum adiyla)
-            k, pr, sd, g, tu, st, zd, pu, rk = sat
-            gitti = _saat_gonder(kayit, now, TS.islem_acildi(k, pr, sd, g, tu, st, zd=zd, puan=pu, risk=rk), notifier,
+            k, pr, sd, g, tu, st, zd, pu, rk, kl = sat
+            gitti = _saat_gonder(kayit, now, TS.islem_acildi(k, pr, sd, g, tu, st, zd=zd, puan=pu, risk=rk, kaldirac=kl), notifier,
                                  f"islem-ac:{t.trade_id}", {"acilan": 1})
             if gitti:
                 gonderildi_yaz(cfg.var_dir, now, "acildi", t)
@@ -1988,7 +1998,7 @@ def islem_tick(cfg: TelegramConfig, notifier: "TelegramNotifier", now: datetime 
         pnl = float(t.realized_pnl or 0.0)
         zd, _puan = zd_puan(t)
         gitti = _saat_gonder(kayit, now, TS.islem_kapandi(kol(t), t.pair, t.side, pnl, (t.qty or 0.0) * (t.entry_price or 0.0),
-                                                          t.exit_reason, r=t.r_multiple, zd=zd,
+                                                          t.exit_reason, kritik=(t.exit_reason == "liquidation"), r=t.r_multiple, zd=zd,
                                                           sure=TS.sure_metni(t.entry_ts, t.exit_ts), setup=t.setup,
                                                           hedef=t.planned_target),
                              notifier, f"islem-kapat:{t.trade_id}", {"kapanan": 1, "net": pnl})

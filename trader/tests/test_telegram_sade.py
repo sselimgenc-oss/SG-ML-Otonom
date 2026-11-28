@@ -93,30 +93,49 @@ def test_yasak_izler_temizlenir():
 
 # ------------------------------------------------------------------ islem mesajlari
 def test_acildi_uc_satir_puansiz_ikinci_satirda_yalniz_kurulum_adi():
-    t = TS.islem_acildi("Trend geri çekilmesi", "SOL/USDT", "long", 142.3, 250, 139.8, zd="4h", puan=0.63, risk=9)
-    assert t == ("[ML] 🟩 SOL long açıldı · 4 saat\nTrend geri çekilmesi · ML1 puanı 0,63\n"
-                 "Giriş 142,30 · Stop 139,80 · Tutar 250 $ · Risk 9 $")
-    p = TS.islem_acildi("Trend geri çekilmesi", "SOL/USDT", "long", 142.3, 250, 139.8, zd="4h")       # ML1 oncesi/kapali: puan ve risk yok
-    assert p.splitlines()[1] == "Trend geri çekilmesi" and p.splitlines()[2] == "Giriş 142,30 · Stop 139,80 · Tutar 250 $"
-    assert "USDT" not in t and len(t.splitlines()) == 3
+    t = TS.islem_acildi("Trend geri çekilmesi", "SOL/USDT", "long", 142.3, 250, 139.8, zd="4h", puan=0.63, risk=9, kaldirac=3)
+    assert t == ("[ML] 🟩 SOL long açıldı · 4 saat\nTrend geri çekilmesi\n"
+                 "Giriş 142,30 · Stop 139,80\nPozisyon 250 $ (3x, teminat 83 $) · Risk 9 $")          # D-1: ML1 puani yok; V-07: pozisyon + teminat
+    assert "puan" not in t and "ML1" not in t
+    p = TS.islem_acildi("Trend geri çekilmesi", "SOL/USDT", "long", 142.3, 250, 139.8, zd="4h")       # kaldirac ve risk yok
+    assert p.splitlines()[1] == "Trend geri çekilmesi" and p.splitlines()[2] == "Giriş 142,30 · Stop 139,80"
+    assert p.splitlines()[3] == "Pozisyon 250 $"
+    for bos in (None, 0, "x", float("nan")):                                      # kaldirac bilinmiyor / gecersiz: parantez yok
+        assert TS.islem_acildi("T", "SOL/USDT", "long", 1, 250, 1, kaldirac=bos).splitlines()[3] == "Pozisyon 250 $"
+    assert TS.islem_acildi("T", "SOL/USDT", "long", 1, 250, 1, kaldirac=2.5).splitlines()[3] == "Pozisyon 250 $ (2,5x, teminat 100 $)"
+    assert "USDT" not in t and len(t.splitlines()) == 4
     assert "🟥 BTC short açıldı" in TS.islem_acildi("T1", "BTC/USDT", "short", 60000, 500, 61000, zd="1h")
     assert TS.islem_acildi("Yatay piyasa kenarı · 1 saat", "ETH/USDT", "long", 1, 1, 1).splitlines()[0].endswith("· 1 saat")
 
 
 def test_kapandi_r_durust_neden_zaman_dilimi_ve_sure():
-    k = TS.islem_kapandi("T1 · 1s", "SOL/USDT", "long", 9.6, 300, "target", r=1.07, zd="4h", sure="6s 20dk")
-    assert k == "[ML] 🟢 SOL long kapandı · +9,60 $ (+1,07 R)\nKâr al · 4 saat · 6s 20dk sürdü"
-    y = TS.islem_kapandi("T1 · 1s", "SOL/USDT", "long", 9.6, 300, "target")                 # R yok: yuzde (eski davranis)
-    assert y.splitlines()[0] == "[ML] 🟢 SOL long kapandı · +9,60 $ (+3,2%)" and y.splitlines()[1] == "Kâr al"
+    k = TS.islem_kapandi("Mum: ayı yutan · 1 saat", "SOL/USDT", "short", 11.97, 300, "target", r=1.07, zd="4h", sure="7s 50dk")
+    assert k == "[ML] 🟢 SOL short kapandı · +11,97 $\nMum: ayı yutan · 1 saat\nKâr al · 7s 50dk sürdü"       # D-1/D-2: R ve % yok, kurulum adi var
+    assert "(" not in k and " R" not in k and "%" not in k
+    k2 = TS.islem_kapandi("Mum: yutan", "SOL/USDT", "long", 9.6, 300, "target", zd="4h", sure="6s 20dk")     # kol'da zaman dilimi yok: zd eklenir
+    assert k2.splitlines()[1] == "Mum: yutan · 4 saat" and k2.splitlines()[2] == "Kâr al · 6s 20dk sürdü"
+    k3 = TS.islem_kapandi("", "SOL/USDT", "long", 9.6, 300, "target", sure="6s 20dk")                     # kol bos: 2 satir
+    assert k3.splitlines() == ["[ML] 🟢 SOL long kapandı · +9,60 $", "Kâr al · 6s 20dk sürdü"]
+    y = TS.islem_kapandi("T1 · 1s", "SOL/USDT", "long", 9.6, 300, "target")
+    assert y.splitlines()[0] == "[ML] 🟢 SOL long kapandı · +9,60 $" and y.splitlines()[2] == "Kâr al"
     z = TS.islem_kapandi("T1 · 1s", "BTC/USDT", "short", -6.4, 300, "stop", r=-1.0)
-    assert z.splitlines()[0].startswith("[ML] 🔻") and "−6,40 $ (−1,00 R)" in z and z.splitlines()[1] == "Stop"
+    assert z.splitlines()[0].startswith("[ML] 🔻") and "−6,40 $" in z.splitlines()[0] and z.splitlines()[2] == "Stop"
+    sifir = TS.islem_kapandi("T1 · 1s", "SOL/USDT", "long", -0.004, 300, "time_stop")                   # V-11: yuvarlaninca sifir -> notr simge, isaretsiz
+    assert sifir.splitlines()[0] == "[ML] ⚪ SOL long kapandı · 0,00 $"
+    assert TS.islem_kapandi("T1 · 1s", "SOL/USDT", "long", 0.0, 300, "time_stop").startswith("[ML] ⚪")
+    assert TS.islem_kapandi("T1 · 1s", "SOL/USDT", "long", -0.006, 300, "stop").startswith("[ML] 🔻 SOL long kapandı · −0,01 $")
+    lq = TS.islem_kapandi("T1 · 1s", "SOL/USDT", "long", -50.0, 300, "liquidation", kritik=True)         # tasfiye: kirmizi simge
+    assert lq.startswith("[ML] 🔴 SOL long kapandı") and "Tasfiye" in lq
+    assert TS.isaretli(-0.001) == "0,00" and TS.isaretli(0.004) == "0,00" and TS.isaretli(-0.006) == "−0,01" and TS.isaretli(0.006) == "+0,01"
     assert "🔴" not in z and "🔴" in TS.islem_kapandi("T1 · 1s", "BTC/USDT", "short", -6.4, 300, "stop", kritik=True)
     assert "Süre doldu" in TS.islem_kapandi("T1 · 1s", "ETH/USDT", "long", 1, 100, "time_stop")
     assert "Elle (borsadan)" in TS.islem_kapandi("T1 · 1s", "ETH/USDT", "long", 1, 100, "manual")
+    assert TS.sure_metni(datetime(2026, 11, 1, tzinfo=UTC), datetime(2026, 11, 2, tzinfo=UTC)) == "1g"           # 1440 dk: '1g 0s' degil
+    assert TS.sure_metni(datetime(2026, 11, 1, tzinfo=UTC), datetime(2026, 11, 2, 3, tzinfo=UTC)) == "1g 3s"
     assert "Bot kapattı (kural/koruma)" in TS.islem_kapandi("x", "ETH/USDT", "long", 1, 100, "other")
     assert "Kâr al (stop)" in TS.islem_kapandi("x", "ETH/USDT", "long", 1, 100, "stop")
     kal = TS.islem_kapandi("x", "ETH/USDT", "long", -1, 100, "force_exit", setup="M1@1h", zd="1h", sure="2g 3s")
-    assert kal.splitlines()[1] == "Kol kaldırıldı: bot pozisyonu kapattı · 1 saat · 2g 3s sürdü"
+    assert kal.splitlines()[2] == "Kol kaldırıldı: bot pozisyonu kapattı · 2g 3s sürdü" and kal.splitlines()[1] == "x · 1 saat"
     assert "Bot kapattı (zorunlu)" in TS.islem_kapandi("x", "ETH/USDT", "long", -1, 100, "force_exit", setup="T1@1h")
 
 
@@ -129,7 +148,7 @@ def test_islem_tick_acilan_ve_kapanani_bildirir_tekrar_etmez(rig):
     assert sum("kapandı" in t for t in rig.fake.texts) == 1
     assert sum(t.splitlines()[2].startswith("Giriş") for t in rig.fake.texts if "kapandı" not in t) == 2
     for t in rig.fake.texts:
-        ok_form(t, 3)
+        ok_form(t, 4)
     assert T.islem_tick(rig.cfg, rig.n, NOW) == 0          # ayni islem ikinci kez gitmez
 
 
@@ -240,7 +259,7 @@ def test_limit_doldu_acik_pozisyonlarin_akibetini_soyler(rig):
     assert T.zarar_tick(rig.cfg, rig.n, T0) == 1
     t = rig.fake.texts[0]
     assert "zarar sınırı doldu" in t and "stoplarıyla izleniyor" in t and "yeni işlem açılmaz" in t and t.splitlines()[0].startswith("[ML] 🔴")
-    assert re.search(r"Bugün \d+ \$ kaybedildi \(sınır \d+ \$\)\.", t)                    # tutar ve limit tam sayi
+    assert re.search(r"Bugün kasa \d+ \$ düştü \(açık işlemler dahil; sınır \d+ \$\)\.", t) and "yarın 00:00'a (TSİ) kadar" in t   # tutar ve limit tam sayi
     ok_form(t)
     assert T.zarar_tick(rig.cfg, rig.n, T0) == 0
 
@@ -252,6 +271,13 @@ def test_teknik_uyarilar_susar(rig, kod):
     assert rig.n.send(alert(kod)) is True
     assert rig.n.send(alert(kod, H.Status.OK)) is True
     assert rig.fake.texts == []
+
+
+def test_capital_latch_susturulmaz():
+    """V-05: ana para kilidi 'susturulan' kumede degil; alarm olarak gider."""
+    assert "capital_latch" not in TS._SUSTUR and "capital_latch" in TS._SADE
+    ent = TS._SADE["capital_latch"]
+    assert ent[0] == "Ana para kilidi devrede: kasa ana paranın %15 altına indi." and ent[2] == "Açmak için /devam yaz."
 
 
 def test_kol_adi_bicimi():
@@ -269,9 +295,11 @@ def test_islem_mesajinda_kurulum_adi_zaman_dilimi_ve_puan_ledgerdan_gelir(rig):
     T.islem_tick(rig.cfg, rig.n, NOW)
     ac = next(t for t in rig.fake.texts if "açıldı" in t)
     assert ac.splitlines()[:2] == ["[ML] 🟩 ETH long açıldı · 1 saat", "Yatay piyasa kenarı"]      # fikstur kararinda ml1 puani yok
-    assert "Risk " in ac.splitlines()[2] and "öğrenen" not in "".join(rig.fake.texts)
+    assert ac.splitlines()[3].startswith("Pozisyon ") and "Risk " in ac.splitlines()[3] and "öğrenen" not in "".join(rig.fake.texts)
+    assert "teminat" in ac.splitlines()[3] and "x, teminat" in ac.splitlines()[3]                    # fikstur islemi kaldiracli
     kp = next(t for t in rig.fake.texts if "kapandı" in t)
-    assert kp.splitlines()[1].startswith("Kâr al · 1 saat · ") and " R)" in kp.splitlines()[0]
+    assert kp.splitlines()[1] == "Yatay piyasa kenarı · 1 saat" and kp.splitlines()[2].startswith("Kâr al · ")      # D-2: kurulum adi var
+    assert " R)" not in kp and "%" not in kp.splitlines()[0]
 
 
 def test_limit_orani_ayardan_okunur(tmp_path, monkeypatch):
@@ -341,13 +369,13 @@ def test_islemler_saatte_en_cok_4_mesaj_fazlasi_saat_sonunda_ozet(rig, monkeypat
     T.islem_tick(rig.cfg, rig.n, now)
     assert len(rig.fake.texts) == 4
     sessiz = [c for c in rig.fake.texts]
-    assert all("Son 1 saatte" not in t for t in sessiz)
+    assert all("tek tek bildirilmedi" not in t for t in sessiz)
     T.islem_tick(rig.cfg, rig.n, now + timedelta(minutes=10))
     assert len(rig.fake.texts) == 4                         # ayni saat: sinir
     T.islem_tick(rig.cfg, rig.n, now + timedelta(hours=1))
     assert len(rig.fake.texts) == 5
     o = rig.fake.texts[-1]
-    assert o.startswith("[ML] Son 1 saatte 8 işlem daha: ") and "açıldı" in o and "kapandı" in o and "net " in o
+    assert o.startswith("[ML] Bu saat ayrıca 8 işlem (tek tek bildirilmedi): ") and "açıldı" in o and "kapandı" in o and "net " in o
     ok_form(o)
 
 
@@ -364,8 +392,8 @@ def test_ayni_dakikadaki_acilislar_tek_mesaj():
     t = TS.islemler_acildi([("T1", "SOL/USDT", "long", 142.3, 250, 139.1, "4h", 0.63, 9),
                             ("R1", "ETH/USDT", "short", 3000, 180, 3100, "1d", 0.61, 7),
                             ("S1", "BTC/USDT", "long", 60000, 300, 59000, "1h", 0.59, 10)])
-    assert t.splitlines() == ["[ML] 🟩 3 işlem açıldı", "SOL long · 4 saat · 250 $ · puan 0,63", "ETH short · 1 gün · 180 $ · puan 0,61",
-                              "BTC long · 1 saat · 300 $ · puan 0,59"]
+    assert t.splitlines() == ["[ML] 🟩 3 işlem açıldı", "SOL long · 4 saat · 250 $", "ETH short · 1 gün · 180 $",
+                              "BTC long · 1 saat · 300 $"]                                    # D-1: satirlarda ML1 puani yok
     ok_form(t)
     assert "puan" not in TS.islemler_acildi([("T1", "SOL/USDT", "long", 1, 1, 1, "4h"), ("T1", "ETH/USDT", "long", 1, 1, 1, "4h")])
     buyuk = TS.islemler_acildi([("T1 · 1 saat", "SOL/USDT", "long", 1, 1, 1)] * 6)
@@ -382,14 +410,14 @@ def test_gunluk_ozet_ml1_satiri_var_eski_model_satiri_yok(tmp_path):
     cfg = T.TelegramConfig("1:t", 5, str(tmp_path), "", str(sp), ledger_path=str(tmp_path / "l.sqlite"))
     r = T.build_report(cfg, NOW, DAY)
     assert "Dersler:" not in r and "Model:" not in r and "model süresi" not in r.lower() and "ders" not in r.lower()
-    assert "ML1 bugün: puanlanacak aday çıkmadı." in r         # config_dir bos: depodaki gercek ayar (ml1.aktif)
+    assert [x for x in r.splitlines() if x.startswith("ML1")] == ["ML1 öğrenme aşamasında: 0/200 kapanan işlem; puanlama başlamadı"]   # D-3: tek ML1 satiri (aday yok: durum)
     ok_form(r, TS.MAX_SATIR_OZET)
     cd = tmp_path / "cfg"
     cd.mkdir()
     (cd / "engine.base.json").write_text(json.dumps({"wallet_start": 1000.0}))
     cfg.config_dir = str(cd)                                   # ayarda ml1.aktif yok -> tek satir
     r = T.build_report(cfg, NOW, DAY)
-    assert "ML1 kapalı." in r and "ML1 bugün" not in r and "toplam +0,00 $" in r
+    assert "ML1 kapalı." in r and "ML1 bugün" not in r and "toplam 0,00 $" in r
 
 
 def test_ornek_render_acildi_ve_kapandi(rig):
@@ -397,8 +425,8 @@ def test_ornek_render_acildi_ve_kapandi(rig):
     T.islem_tick(rig.cfg, rig.n, NOW)
     ac = next(t for t in rig.fake.texts if "kapandı" not in t)
     kp = next(t for t in rig.fake.texts if "kapandı" in t)
-    ok_form(ac, 3)
-    ok_form(kp, 2)
+    ok_form(ac, 4)
+    ok_form(kp, 3)
     assert ac.splitlines()[0].startswith("[ML] 🟩 ") and " açıldı" in ac.splitlines()[0] and "Stop " in ac
     assert kp.splitlines()[0].startswith("[ML] 🟢 ") and "kapandı · +" in kp
 
@@ -435,4 +463,56 @@ def test_ayni_dakikadaki_acilislar_tek_tek_ve_kurulum_adiyla(rig):
     T.islem_tick(rig.cfg, rig.n, datetime(2026, 11, 16, 18, 5, tzinfo=UTC))
     acilis = [t for t in rig.fake.texts if "açıldı" in t]
     assert acilis and all("işlem açıldı" not in t and "işlem daha" not in t for t in acilis)
-    assert all(len(t.splitlines()) == 3 for t in acilis)    # yon/coin · kurulum adi · giris/stop/tutar
+    assert all(len(t.splitlines()) == 4 for t in acilis)    # yon/coin · kurulum adi · giris/stop · pozisyon
+
+
+# ------------------------------------------------------------------ V-10, V-12, A-13, M-06 (haftalik pencere, uyusmazlik satiri, sifir K/Z)
+def test_islem_kontrolu_cok_sorun_sessizce_dusmez():
+    t = TS.islem_kontrolu({"sorunlar": [f"S{i}: fark var" for i in range(1, 6)]})
+    sat = t.splitlines()
+    assert len(sat) == 4 and sat[0] == "[ML] ⚠️ İşlem kontrolünde 5 uyuşmazlık bulundu"
+    assert sat[1:3] == ["S1: fark var", "S2: fark var"] and sat[3] == "… ve 3 uyuşmazlık daha"
+    ok_form(t)
+    t3 = TS.islem_kontrolu({"sorunlar": ["A: x", "B: y", "C: z"]})
+    assert t3.splitlines()[1:] == ["A: x", "B: y", "C: z"] and "daha" not in t3                 # 3 ve az: degismez
+
+
+def _hafta_defteri(path, cikislar):
+    """cikislar: UTC kapanis zamanlari (hepsi kazancli); islem i, kapanisindan 1 saat once acilir."""
+    from test_telegram_report import PARAMS
+    RNOW = datetime(2026, 11, 30, tzinfo=UTC)
+    from trader_core import ledger as L
+    led = L.open_ledger(str(path), "learner", clock=lambda: RNOW)
+    led.init_params(PARAMS, reason="x")
+    for i, cik in enumerate(cikislar, start=1):
+        bar = cik - timedelta(hours=1)
+        did = led.record_decision(L.DecisionEvent(
+            bar_close_ts=bar, trigger_tf="1h", pair="ETH/USDT", side="long", setup="R1", regime="range",
+            atr_ratio=1.1, rh=2100.0, rl=1980.0, rh_touches=2, rl_touches=3,
+            features={"atr_1h": 20.0, "stop_dist_atr": 2.0, "atr_4h": 40.0, "wick_ratio": 0.5, "rr": 2.5, "edge_dist_atr": 0.1},
+            planned_entry=2000.0, planned_stop=1960.0, planned_target=2100.0, param_version_id=1,
+            veto_status="allowed", veto_reason=None, risk_allowed=True, risk_reason="ok", size_qty=0.3,
+            size_notional=600.0, size_margin=200.0, size_risk_amount=13.188, leverage=3, final_action="entered", skip_reason=None))
+        led.record_trade_entry(L.TradeEntry(i, did, bar + timedelta(seconds=3), 2001.0, 0.3, 3, 0.30015))
+        led.record_trade_exit(L.TradeExit(i, cik, 2079.0, "target", 2100.0, 0.3, 0.1))
+    led.close()
+
+
+def test_haftalik_pencere_basliktaki_gunlerle_ayni(tmp_path):
+    """V-12: baslik 16–22 Kasim (TSI); 15 Kasim 23:30 TSI'de kapanan islem haftaya girmez, 16 Kasim 00:15 TSI'dekiler girer."""
+    _hafta_defteri(tmp_path / "l.sqlite", [datetime(2026, 11, 15, 20, 30, tzinfo=UTC),      # 15.11 23:30 TSI: dislanir
+                                          datetime(2026, 11, 15, 21, 15, tzinfo=UTC),      # 16.11 00:15 TSI: dahil
+                                          datetime(2026, 11, 20, 9, 0, tzinfo=UTC)])
+    cfg = T.TelegramConfig("1:t", 5, str(tmp_path / "tg"), "", str(tmp_path / "status.json"), ledger_path=str(tmp_path / "l.sqlite"))
+    hf = T.haftalik_metni(cfg, datetime(2026, 11, 22, 18, 0, tzinfo=UTC))
+    assert hf.splitlines()[0] == "[ML] 🗓 Haftalık özet · 16 Kasım – 22 Kasım"
+    assert "2 işlem kapandı (2 kâr, 0 zarar)" in hf                                          # 3 degil 2
+    assert "Haftanın en iyisi: ETH +" in hf and "En iyi:" not in hf
+    assert "Kasa" not in hf and "ML1" not in hf and "Kapanan işlem:" not in hf                # D-3 / M-05
+
+
+def test_kz_sayim_sifir_k_z_zarar_sayilmaz():
+    from types import SimpleNamespace as NS
+    tr = [NS(realized_pnl=5.0), NS(realized_pnl=-2.0), NS(realized_pnl=0.0), NS(realized_pnl=0.0)]
+    assert T._kz_sayim(tr) == "1 kâr, 1 zarar, 2 başa baş"
+    assert T._kz_sayim(tr[:2]) == "1 kâr, 1 zarar"                                           # basa bas yoksa eklenmez

@@ -39,11 +39,12 @@
     var s = Math.abs(x).toFixed(d === undefined ? 2 : d), p = s.split('.'), g = p[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
     return p.length > 1 ? g + ',' + p[1] : g;
   }
-  function f2(x) { return num(x) ? (x < 0 ? '−' : '') + trn(x) : '—'; }
-  function sgn(x) { return num(x) ? (x > 0 ? '+' : (x < 0 ? '−' : '')) + trn(x) : '—'; }
-  function usd(x) { return num(x) ? f2(x) + ' $' : '—'; }
-  function usdS(x) { return num(x) ? sgn(x) + ' $' : '—'; }
-  function pc(x) { return num(x) ? (x > 0 ? '+' : (x < 0 ? '−' : '')) + '%' + trn(x) : ''; }
+  function sifir(x, d) { return Number(Math.abs(x).toFixed(d === undefined ? 2 : d)) === 0; }   // gosterilen basamaga yuvarlaninca sifir: isaret yok
+  function f2(x) { return num(x) ? (x < 0 && !sifir(x) ? '−' : '') + trn(x) : '—'; }
+  function sgn(x) { return num(x) ? (sifir(x) ? '' : (x > 0 ? '+' : '−')) + trn(x) : '—'; }
+  function usd(x) { return num(x) ? f2(x) + '\u00a0$' : '—'; }                // rakam ile birim bolunmez
+  function usdS(x) { return num(x) ? sgn(x) + '\u00a0$' : '—'; }
+  function pc(x) { return num(x) ? (sifir(x) ? '' : (x > 0 ? '+' : '−')) + '%' + trn(x) : ''; }
   function px(x) { return !num(x) ? '—' : (x < 0 ? '−' : '') + (Math.abs(x) >= 1 ? trn(x, 2) : trn(x, 3)); }
   /* ek:basla — "12'si", "3'ü": sayinin okunusuna gore iyelik eki (son soylenen sozcuge gore) */
   function ek(n) {
@@ -64,24 +65,18 @@
     if (s < 5400) return Math.round(s / 60) + ' dk önce';
     return trn(s / 3600, 1) + ' sa önce';
   }
-  function etiketTsi(iso) {                                   // yalniz gosterim: TSİ (sabit +3)
-    var t = Date.parse(iso);
-    if (!isFinite(t)) return '—';
-    var d = new Date(t + 3 * 3600000).toISOString();
-    return d.slice(8, 10) + '.' + d.slice(5, 7) + ' ' + d.slice(11, 16);
-  }
-
   /* ---------- ag ---------- */
   var SNAP = window.__SNAPSHOT__ || null;                      // anlik goruntu kipi: veri gomulu, ag yok
   var SNAP_STALE_S = 600;                                      // gorunumun kendisi 10 dk'dan eskiyse bayat
   function snapBanner() {
-    var b = $('snap-bant');
+    var b = $('snap-bant'), u = $('uretim');
     if (!SNAP || !b) return;
     var age = (Date.now() - Date.parse(SNAP.generated_at)) / 1000;
     if (!isFinite(age) || age > SNAP_STALE_S) {
       b.textContent = 'BAYAT GÖRÜNÜM: bu sayfa ' + (isFinite(age) ? ago(age).replace(' önce', '') : 'bilinmeyen süre') + ' önce üretildi; Yenile ile tekrar yükleyin.';
       b.style.display = '';
-    } else { b.style.display = 'none'; }
+      if (u) u.style.display = 'none';                          // sayfa yasi bir kez: bant gorunurken alttaki satir gizli
+    } else { b.style.display = 'none'; if (u) u.style.display = ''; }
   }
   function get(path) {
     if (SNAP) {
@@ -261,6 +256,13 @@
   function kasaKart(s) {
     var k = sk('Kasa', usd(s.kasa), eskiAlt(s, num(s.baslangic) ? 'başlangıç ' + usd(s.baslangic) : '')), q = el('span', 'ipucu', '?');
     q.title = KASA_IPUCU; q.setAttribute('tabindex', '0'); q.setAttribute('aria-label', KASA_IPUCU);
+    function ipucuAc() {                                        // dokununca seridin altinda gorunur satir (telefonda title calismaz)
+      var n = $('kasa-not');
+      if (!n) return;
+      if (n.hidden) { n.textContent = KASA_IPUCU; n.hidden = false; } else n.hidden = true;
+    }
+    q.addEventListener('click', ipucuAc);
+    q.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ipucuAc(); } });
     k.firstChild.appendChild(q);
     return k;
   }
@@ -275,10 +277,10 @@
     if (p.mod) { ro.hidden = false; ro.textContent = p.mod === 'live' ? 'CANLI' : 'KÂĞIT'; } else ro.hidden = true;
     add(z,
       kasaKart(s),
-      sk('Bugün kapanan K/Z', usdS(s.bugun), pc(s.bugun_yuzde), cls(s.bugun)),
+      sk('Bugün K/Z', usdS(s.bugun), pc(s.bugun_yuzde), cls(s.bugun)),
       sk('Toplam K/Z', usdS(s.toplam), s.toplam_kaynak === 'kapanan' ? 'yalnız kapanan işlemler (canlı fiyat yok)' : pc(s.toplam_yuzde), cls(s.toplam)),
-      sk('Açık poz.', String(s.acik), eskiAlt(s, num(s.acik_kz) ? 'açık K/Z ' + usdS(s.acik_kz) : ''), ''),
-      sk('Zirveden düşüş', usdS(s.dusus), pc(s.dusus_yuzde), cls(s.dusus)),
+      sk('Açık işlem', String(s.acik), eskiAlt(s, num(s.acik_kz) ? 'açık K/Z ' + usdS(s.acik_kz) : ''), ''),
+      sk('Zirveden düşüş', usdS(s.dusus), s.toplam_kaynak === 'kasa' ? pc(s.dusus_yuzde) + ' · açık işlemler dahil' : pc(s.dusus_yuzde), cls(s.dusus)),
       add(el('div', 'ks risk ' + r.renk), el('div', 'e', 'Risk durumu'),
         add(el('div', 'b'), el('span', 'nokta'), el('span', '', r.metin)), el('div', 'a', r.alt)));
   }
@@ -320,11 +322,6 @@
 
   function yokKart(txt) { return add(kart('Veri'), yok(txt)); }
 
-  function kzHatasi(root, p) {
-    clear(root);
-    add(root, yokKart('Veri şu an okunamıyor.'));
-  }
-
   /* ÖZET */
   function tabOzet(root, p) {
     clear(root);
@@ -336,9 +333,9 @@
     var a = p.acik, k = kart('Açık işlemler', link('Tümü', 'acik'));
     if (!a.n) add(k, yok('Şu an açık işlem yok.'));
     else {
-      add(k, satir('Adet', String(a.n)), satir('Toplam K/Z', usdS(a.kz), cls(a.kz)));
-      if (a.en_iyi) add(k, satir('En iyi', a.en_iyi.coin + ' ' + usdS(a.en_iyi.kz), cls(a.en_iyi.kz)));
-      if (a.en_kotu) add(k, satir('En kötü', a.en_kotu.coin + ' ' + usdS(a.en_kotu.kz), cls(a.en_kotu.kz)));
+      if (a.en_iyi) add(k, satir('Açık en iyi', a.en_iyi.coin + ' ' + usdS(a.en_iyi.kz), cls(a.en_iyi.kz)));
+      if (a.en_kotu) add(k, satir('Açık en kötü', a.en_kotu.coin + ' ' + usdS(a.en_kotu.kz), cls(a.en_kotu.kz)));
+      if (!a.en_iyi && !a.en_kotu) add(k, yok(a.n + ' açık işlem; K/Z üstteki şeritte.'));
     }
     add(ig, k);
     var s3 = kart('Son kapanan işlemler', link('Tümü', 'kapanan'));
@@ -397,14 +394,16 @@
       add(k, add(el('div', 'ozet-ic'), el('span', '', v.n + ' işlem'), el('span', '', 'kazanan %' + trn(v.kazanan_yuzde, 0)),
         add(el('span'), document.createTextNode('net '), el('b', cls(v.net), usdS(v.net)))));
       var rows = v.rows.map(function (r) {
-        return {cells: [sym(r.coin, r.yon), el('div', 'n', r.kapanis), kzHucre(r.kz, r.kz_yuzde), el('div', 'n', usd(r.buyukluk)), add(el('div', 'sg'), el('span', 'n', r.neden))],
-          v: [r.coin, r.kapanis_ts, r.kz, r.buyukluk, r.neden],
-          detail: [['Giriş', px(r.giris)], ['Çıkış', px(r.cikis)], ['Süre', r.sure], ['Büyüklük', usd(r.buyukluk)], ['Kaldıraç', r.kaldirac ? r.kaldirac + 'x' : ''],
+        return {cells: [sym(r.coin, r.yon), el('div', 'n', r.kapanis), kzHucre(r.kz, r.kz_yuzde), add(el('div', 'sg'), el('span', 'n w', r.neden_kisa || r.neden))],
+          v: [r.coin, r.kapanis_ts, r.kz, r.neden_kisa || r.neden],
+          detail: [['Neden', r.neden], ['Giriş', px(r.giris)], ['Çıkış', px(r.cikis)], ['Süre', r.sure], ['Büyüklük', usd(r.buyukluk)], ['Kaldıraç', r.kaldirac ? r.kaldirac + 'x' : ''],
             ['Marj', num(r.marj) ? usd(r.marj) : ''], ['Komisyon', usd(r.komisyon)], ['Kol', r.kol], ['Zaman dilimi', r.zd],
-            ['Sonuç (R)', num(r.r) ? sgn(r.r) + ' R' : ''], ['ML1 puanı', num(r.ml1_puan) ? trn(r.ml1_puan, 2) : ''],
+            ['Sonuç (R)', num(r.r) ? sgn(r.r) + '\u00a0R' : ''], ['ML1 puanı', num(r.ml1_puan) ? trn(r.ml1_puan, 2) : ''],
             ['Açılış', r.acilis], ['Kapanış açıklaması', r.neden_aciklama, 1]]};
       });
-      add(k, tablo(['Sembol', 'Kapanış', 'K/Z', 'Büyüklük', 'Neden'], rows, [2, 3, 4], 'kapanan'));
+      var kt = tablo(['Sembol', 'Kapanış', 'K/Z', 'Neden'], rows, [2, 3], 'kapanan');
+      kt.className = 'kapt';
+      add(k, kt);
       if (v.daha_fazla) add(k, el('div', 'yok', 'Daha eski ' + v.daha_fazla + ' işlem listede gösterilmiyor.'));
       add(root, k);
     }
@@ -419,8 +418,11 @@
     if (z.egri) { var g = kart('Kasa eğrisi · 30 gün'); add(g, cizgiGrafik(z.egri)); add(ig, g); }
     var n = kart('Toplam K/Z nasıl oluşuyor?');
     add(n, satir('Kapanan işlemlerden (masraflar düşülmüş)', usdS(t.kapanan), cls(t.kapanan)));
-    if (t.kaynak === 'kasa' && num(t.acik)) add(n, satir('Açık işlemlerden (şu anki değer, giriş komisyonu düşülmüş)', usdS(t.acik), cls(t.acik)));
-    if (t.fark_goster) add(n, satir('Diğer fark (fonlama vb.; incelenmeli)', usdS(t.fark), 'uyar'));
+    if (t.kaynak === 'kasa' && num(t.acik_brut)) {                // tek "açık K/Z" rakami: şeritteki ile aynı; komisyon ayrı satır
+      add(n, satir('Açık işlemlerden (şu anki değer)', usdS(t.acik_brut), cls(t.acik_brut)));
+      if (num(t.acik_komisyon) && t.acik_komisyon !== 0) add(n, satir('Açık işlemlerin giriş komisyonu', usdS(t.acik_komisyon), cls(t.acik_komisyon)));
+    } else if (t.kaynak === 'kasa' && num(t.acik)) add(n, satir('Açık işlemlerden (şu anki değer, giriş komisyonu düşülmüş)', usdS(t.acik), cls(t.acik)));
+    if (t.fark_goster) add(n, satir('Diğer (fonlama vb.)', usdS(t.fark)));
     add(n, satir(t.kaynak === 'kasa' ? 'Toplam (kasa − başlangıç)' : 'Toplam (yalnız kapanan işlemler)', usdS(t.toplam), cls(t.toplam)));
     if (t.kaynak !== 'kasa') add(n, el('div', 'yok', 'Kasa bilgisi şu an yok; açık işlemlerin değeri hesaba katılamıyor.'));
     add(ig, n);
@@ -431,7 +433,7 @@
     });
     add(d, g3, el('div', 'yok', 'Yalnız kapanmış işlemler; açık işlemler dahil değil.')); add(ig, d);
     if (z.oran) {
-      var o = kart('Kazanma oranı');
+      var o = kart('Kazanma oranı · tüm işlemler');
       if (z.oran.olculemedi) add(o, yok(z.oran.olculemedi));
       else add(o, satir('Kazanan işlem', '%' + trn(z.oran.kazanma_yuzde, 0) + ' (' + z.oran.n + ' işlem)'),
         satir('Ortalama kazanç', usdS(z.oran.ort_kazanc), 'iyi'), satir('Ortalama kayıp', usdS(z.oran.ort_kayip), 'kotu'));
@@ -439,24 +441,15 @@
     }
     if (z.masraf) {
       var m = kart('Masraflar');
-      add(m, satir('Komisyon · 30 gün', usd(z.masraf['30g'].komisyon)), satir('Fonlama · 30 gün', usdS(-z.masraf['30g'].fonlama)),
-        satir('Komisyon · toplam', usd(z.masraf.tumu.komisyon)), satir('Fonlama · toplam', usdS(-z.masraf.tumu.fonlama)));
+      add(m, satir('Komisyon', usd(z.masraf.tumu.komisyon)), satir('Fonlama (+ = alınan)', usdS(-z.masraf.tumu.fonlama)));
       add(ig, m);
     }
-    var f = kart('Fikir grubuna göre');
-    add(f, link('Fikir grubuna göre ayrıntı', 'ml1'));
-    add(ig, f);
     add(root, ig);
   }
 
   /* ML1 */
-  function netR(x) { return num(x) ? sgn(x) + ' R' : '—'; }
+  function netR(x) { return num(x) ? sgn(x) + '\u00a0R' : '—'; }
   function kaz(x) { return num(x) ? '%' + trn(x, 0) : '—'; }
-  function boldMetin(parts) {                                  // [metin, kalin?] dizisi -> span (yalniz textContent)
-    var d = el('div', 'ml1-not');
-    parts.forEach(function (x) { add(d, x[1] ? el('b', '', x[0]) : document.createTextNode(x[0])); });
-    return d;
-  }
   function basit(head, rows) {                                 // kucuk sabit tablo (siralama/ayrinti yok)
     var t = el('table', 'bas'), th = el('thead'), hr = el('tr'), tb = el('tbody');
     head.forEach(function (h, i) { add(hr, el('th', i ? 'sg' : '', h)); });
@@ -468,27 +461,26 @@
     return add(t, add(th, hr), tb);
   }
   function ml1OzetKart(m) {
-    var k = kart('ML1', link('Ayrıntı', 'ml1')), b = m.eleme.bugun;
+    var k = kart('ML1', link('Ayrıntı', 'ml1')), b = m.eleme.bugun, og = (m.ogrenme && m.ogrenme.bugun) || {};
+    var bugun = b.puanlanan ? b.puanlanan + ' aday puanlandı, ' + b.islem + ek(b.islem) + ' işleme döndü'
+      : (og.aday > 0 ? og.aday + ' aday geldi, ' + og.islem + ek(og.islem) + ' işleme döndü (puanlama henüz başlamadı)' : 'bugün aday çıkmadı');
     add(k, satir('Durum', m.durum.metin, m.durum.renk === 'kirmizi' ? 'kotu' : ''));
-    add(k, satir('Bugün', b.puanlanan ? b.puanlanan + ' aday puanlandı, ' + b.islem + ek(b.islem) + ' işleme döndü' : 'puanlanacak aday çıkmadı'));
-    add(k, el('div', 'ml1-not', m.durum_satiri));                  // ML1 durum satiri (asama, kapanan islem N/200)
-    add(k, el('div', 'yok', m.tf_satiri));
+    add(k, satir('Bugün', bugun));
     return k;
   }
   function ml1Aciklama(m) {
     var k = kart('ML1 ne yapıyor?');
     add(k, add(el('div'), rozetRenk(m.durum.metin, m.durum.renk)));
-    add(k, el('div', 'ml1-not', 'Kural kolları aday üretir; ML1 her adaya 0–1 arası puan verir, puanı ' +
-      (num(m.esik) ? trn(m.esik, 2) : 'belirlenen eşik (henüz okunamadı)') + ' ve üstü olanları işleme çevirir. Aynı fırsat için tek işlem açar.'));
+    add(k, el('div', 'ml1-not', 'Kurallar aday bulur; ML1 her adaya puan verir, puanı ' +
+      (num(m.esik) ? trn(m.esik, 2) + ' ve üstü olanlar' : 'yeterince yüksek olanlar') + ' işleme girer. Aynı fırsat için tek işlem açar.'));
     add(k, el('div', 'ml1-not', m.durum_satiri));
-    add(k, el('div', 'yok', m.tf_satiri));
     if (m.hiz_satiri) add(k, el('div', 'yok', m.hiz_satiri));
     if (m.sanal_notu) add(k, el('div', 'yok', m.sanal_notu));       // golge veri: kucuk gri not (yalniz bu sekme)
     return k;
   }
   function ml1Eleme(m) {
     var k = kart('Aday eleme'), e = m.eleme;
-    if (!e['7g'].puanlanan && !e.bugun.puanlanan) { add(k, yok('Bu dönemde ML1’in puanladığı aday yok.')); return k; }
+    if (!e['7g'].puanlanan && !e.bugun.puanlanan) { add(k, yok('Bu dönemde puanlanan aday yok.')); return k; }
     function sat(ad, x) {
       return [ad, num(x.puanlanan) ? String(x.puanlanan) : '—', x.gecen + (num(x.gecme_yuzde) ? ' (%' + trn(x.gecme_yuzde, 0) + ')' : ''), String(x.islem)];
     }
@@ -504,11 +496,11 @@
     var rows = m.zd.map(function (r) {
       var ad = add(el('div'), el('div', 'n', r.ad));
       return {cells: [ad, el('div', 'n', String(r.n)), el('div', 'n', kaz(r.kazanma)), el('div', 'n ' + cls(r.net_r), netR(r.net_r)),
-          el('div', 'n ' + cls(r.kz), num(r.kz) ? usdS(r.kz) : '—'), el('div', 'n', String(r.acik))],
-        v: [r.ad, r.n, num(r.kazanma) ? r.kazanma : null, num(r.net_r) ? r.net_r : null, num(r.kz) ? r.kz : null, r.acik],
+          el('div', 'n ' + cls(r.kz), num(r.kz) ? usdS(r.kz) : '—')],
+        v: [r.ad, r.n, num(r.kazanma) ? r.kazanma : null, num(r.net_r) ? r.net_r : null, num(r.kz) ? r.kz : null],
         detail: [['İşlem başına ortalama', num(r.ort_r) ? netR(r.ort_r) : ''], ['Açık işlem', String(r.acik)]]};
     });
-    var w = tablo(['Zaman dilimi', 'İşlem', 'Kazanan', 'Net R', 'K/Z', 'Açık'], rows, [1, 2, 3, 4, 5], 'ml1_zd');
+    var w = tablo(['Zaman dilimi', 'Adet', 'Kazanma', 'Net R', 'K/Z'], rows, [1, 2, 3, 4], 'ml1_zd');
     w.className = 'zdt';
     add(k, w);
     add(k, el('div', 'yok', 'R = bir işlemde riske atılan tutar (kasanın %1’i).'));
@@ -534,7 +526,7 @@
             return [c.kol + ' · ' + c.zd, c.n + ' işlem · ' + kaz(c.kazanma) + ' · ' + netR(c.net_r) + ' · ' + usdS(c.kz), 1];
           })};
       });
-      var w = tablo(['Fikir grubu', 'İşlem', 'Kazanan', 'Net R', 'K/Z'], rows, [1, 2, 3, 4], 'ml1_grup');
+      var w = tablo(['Fikir grubu', 'Adet', 'Kazanma', 'Net R', 'K/Z'], rows, [1, 2, 3, 4], 'ml1_grup');
       w.className = 'og';
       add(k, w);
     }
@@ -561,7 +553,7 @@
   }
   function bar(ad, kul, lim, pct, birim) {
     var w = el('div', 'lim'), r = el('div', 'r');
-    add(r, el('span', '', ad), el('b', '', birim === 'adet' ? Math.round(kul) + ' / ' + Math.round(lim) : f2(kul) + ' / ' + f2(lim) + ' $'));
+    add(r, el('span', '', ad), el('b', '', birim === 'adet' ? Math.round(kul) + ' / ' + Math.round(lim) : f2(kul) + ' / ' + f2(lim) + '\u00a0$'));
     var c = el('div', 'cub'), i = el('i', pct >= 90 ? 'k' : (pct >= 70 ? 's' : ''));
     i.style.width = Math.min(Math.max(num(pct) ? pct : 0, 0), 100) + '%';
     return add(w, r, add(c, i));
@@ -579,28 +571,12 @@
         return b;
       }, t.saglik.renk !== 'yesil'));
     }
-    if (t.dayaniklilik) add(root, katli('Dayanıklılık', 'sari', function (b) {
-      t.dayaniklilik.sembol.forEach(function (u) { add(b, el('div', 'yok kotu', u)); });
-      return b;
-    }, true));
     if (t.limitler) add(root, katli('Risk limitleri', '', function (b) {
       t.limitler.forEach(function (r) { add(b, bar(r.ad, r.kullanilan, r.limit, r.yuzde, r.birim)); });
       return b;
     }));
-    if (t.butce) add(root, katli('Yapay zekâ yorum harcaması', '', function (b) {
-      return add(b, satir('Bu ay kullanılan', usd(t.butce.kullanilan)), satir('Aylık tavan', usd(t.butce.tavan)));
-    }));
-    if (t.kayitlar) add(root, katli('Kayıtlar', '', function (b) {
-      return add(b, satir('Kapanan işlem', String(t.kayitlar.kapanan)), satir('Açık işlem', String(t.kayitlar.acik)), satir('Değerlendirilen fırsat', String(t.kayitlar.karar)));
-    }));
     if (t.mutabakat) add(root, katli('İşlem kontrolü', t.mutabakat.uyusmazlik > 0 ? 'sari' : '', function (b) {
-      return add(b, el('div', t.mutabakat.uyusmazlik > 0 ? 'yok kotu' : 'yok', 'Son kontrol: ' + t.mutabakat.son + ', ' + t.mutabakat.islem + ' işlem, ' + t.mutabakat.uyusmazlik + ' uyuşmazlık'));
-    }));
-    if (t.dogrulama) add(root, katli('Backtest / doğrulama', '', function (b) {
-      if (num(t.dogrulama.eslesme)) add(b, satir('Kâğıt ile geçmiş test eşleşmesi', '%' + trn(t.dogrulama.eslesme * 100, 0)));
-      if (num(t.dogrulama.pbo)) add(b, satir('Aşırı uyum riski (en yüksek)', '%' + trn(t.dogrulama.pbo * 100, 0)));
-      if (t.dogrulama.uyari) add(b, el('div', 'yok kotu', 'Doğrulama raporunda uyarı var.'));
-      return b;
+      return add(b, el('div', t.mutabakat.uyusmazlik > 0 ? 'yok kotu' : 'yok', 'Son kontrol: ' + t.mutabakat.son + (num(t.mutabakat.yas_s) ? ' (' + ago(t.mutabakat.yas_s) + ')' : '') + ', ' + t.mutabakat.islem + ' işlem, ' + t.mutabakat.uyusmazlik + ' uyuşmazlık'));
     }));
     if (!root.firstChild) add(root, yokKart('Teknik veri yok.'));
   }

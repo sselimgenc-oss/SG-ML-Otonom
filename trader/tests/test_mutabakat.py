@@ -377,7 +377,8 @@ def test_panel_teknik_has_islem_kontrolu_when_json_exists(env):
     _setup(env)
     _run(env)
     t = PanelData(load_config(env.cfg_path), clock=lambda: NOW).pano("learner")["teknik"]
-    assert t["mutabakat"] == {"son": "16.11 21:00", "islem": 6, "uyusmazlik": 0}
+    assert {k: v for k, v in t["mutabakat"].items() if k != "yas_s"} == {"son": "16.11 21:00", "islem": 6, "uyusmazlik": 0}
+    assert t["mutabakat"]["yas_s"] >= 0
     js = (ROOT / "src/trader_panel/static/panel.js").read_text(encoding="utf-8")
     assert "t.mutabakat" in js and "İşlem kontrolü" in js and "Son kontrol: " in js
 
@@ -391,7 +392,8 @@ def test_mutabakat_view_rejects_bad_files(tmp_path):
     p.write_text(json.dumps({"sema": "baska"}))
     assert PP.mutabakat_view(str(p)) is None
     p.write_text(json.dumps({"sema": M.SEMA, "uretim": "2026-11-20T01:40:00Z", "islem_sayisi": 12, "uyusmazlik_sayisi": 2}))
-    assert PP.mutabakat_view(str(p)) == {"son": "20.11 04:40", "islem": 12, "uyusmazlik": 2}
+    assert PP.mutabakat_view(str(p), datetime(2026, 11, 20, 2, 0, tzinfo=timezone.utc)) == {
+        "son": "20.11 04:40", "islem": 12, "uyusmazlik": 2, "yas_s": 1200.0}
 
 
 # ---------------------------------------------------------------- kurulum sonrasi tek seferlik sessiz ozet

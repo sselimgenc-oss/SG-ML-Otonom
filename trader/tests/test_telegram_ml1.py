@@ -47,15 +47,17 @@ def test_gunluk_ozet_haftalik_ve_ml1_sayilari_panodakiyle_ayni(cfg):
     ml = T.ml1_metni(cfg, NOW)
     assert f"Bugün: {e['bugun']['puanlanan']} aday, {e['bugun']['gecen']} geçti, {e['bugun']['islem']} işlem" in ml
     assert f"7 gün: {e['7g']['puanlanan']} aday, {e['7g']['gecen']} geçti, {e['7g']['islem']} işlem" in ml
-    assert MG.durum_satiri(m) in ml and MG.tf_satiri(m) in ml and "ML1 · eşik 0,60" in ml and len(ml.splitlines()) == 6
+    assert MG.durum_satiri(m) in ml and MG.tf_satiri(m) in ml and "ML1 · eşik 0,60" in ml and len(ml.splitlines()) == 5      # hiz olculemedi: satir yok (K-02)
+    assert "Hız" not in ml and "henüz ölçülemedi" not in ml
     assert "Sınav" not in ml and "15" not in ml.replace("0,60", "")
     hf = T.haftalik_metni(cfg, NOW)                                              # ayni defter, ayni `now`
-    assert f"ML1: {e['7g']['puanlanan']} aday puanladı" in hf and f"{e['7g']['islem']}{TS.iyelik_belirtme(e['7g']['islem'])} işleme çevirdi" in hf
+    assert "ML1" not in hf and "Kasa" not in hf and "Kapanan işlem:" not in hf                # D-3: haftalikta ne Kasa ne ML1 satiri
+    assert len([x for x in gun.splitlines() if x.startswith("ML1")]) == 1                    # gunlukte tam bir ML1 satiri
 
 
 def test_haftalik_ozet_ml1_satirlari_kapanan_yokken_de_yazilir(cfg, tmp_path):
     hf = T.haftalik_metni(cfg, datetime(2026, 12, 20, 18, 0, tzinfo=UTC))        # bu hafta kapanan yok, ML1 yok
-    assert "Bu hafta kapanan işlem yok." in hf and "ML1: puanlanacak aday çıkmadı." in hf and "ML1 süzme aşamasında: " in hf and "Kapanan işlem: 1s " in hf and "Sınav" not in hf
+    assert "Bu hafta kapanan işlem yok." in hf and "ML1" not in hf and "Kasa" not in hf and "Sınav" not in hf
 
 
 def test_ml1_kapaliysa_tek_satir_ve_defter_yoksa_okunamadi(cfg, tmp_path):
@@ -119,9 +121,10 @@ def test_ogrenme_asamasi_gunluk_haftalik_ve_ml1_komutu_cokmez(tmp_path):
                                                       "unrealized_pnl_usd": 0.0, "open_positions": [], "loop_at": NOW.strftime("%Y-%m-%dT%H:%M:%SZ")}))
     cfg = T.TelegramConfig("1:t", 5, str(tmp_path / "tg"), "", str(tmp_path / "status.json"), ledger_path=str(tmp_path / "l.sqlite"), config_dir=str(cd))
     gun = T.build_report(cfg, NOW, DAY, {})
-    assert "ML1 öğrenme aşamasında (bugün): 4 aday süzülmeden geçti, 3'ünü işleme çevirdi" in gun
+    assert "ML1 öğrenme aşamasında (bugün): 4 aday puanlanmadan geçti, 3'ünü işleme çevirdi" in gun
+    assert len([x for x in gun.splitlines() if x.startswith("ML1")]) == 1
     hf = T.haftalik_metni(cfg, NOW)
-    assert "ML1 öğrenme aşamasında: 4 aday süzülmeden geçti" in hf
+    assert "ML1" not in hf
     ml = T.ml1_metni(cfg, NOW)
     assert "eşik öğrenme aşaması" in ml and "okunamadı" not in ml
 
@@ -133,5 +136,5 @@ def test_ml1_metni_durum_dosyasindan_asama_ve_son_deneme(cfg, tmp_path):
                                               "kapali_islem_tf": {"1h": 100, "4h": 90, "1d": 50},
                                               "son_sinama": {"gecti": False, "neden": "sinama_auc"}}))
     ml = T.ml1_metni(cfg, NOW)
-    assert "ML1 öğrenme aşamasında: 240/200 kapanan işlem; süzme başlamadı (son deneme: geçmedi (sinama_auc))" in ml
-    assert "Kapanan işlem: 1s 100 · 4s 90 · 1g 50" in ml
+    assert "ML1 öğrenme aşamasında: 240/200 kapanan işlem; puanlama başlamadı (son deneme: geçmedi (sinama_auc))" in ml
+    assert "Kapanan işlem: 1 saat 100 · 4 saat 90 · 1 gün 50" in ml

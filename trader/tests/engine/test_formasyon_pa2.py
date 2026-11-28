@@ -367,4 +367,4 @@ def test_telegram_adlari():
     from evren_destek import KALDIRILAN_KURULUM
     for k in KODLAR:
         assert f"PA2-{k}" not in KALDIRILAN_KURULUM
-        assert tg_sade.kurulum_adi(f"PA2-{k}@1h").startswith("PA: ") and tg_sade.kurulum_adi(f"PA2-{k}@1h") != f"PA2-{k}"
+        assert tg_sade.kurulum_adi(f"PA2-{k}@1h").startswith("Fiyat: ") and tg_sade.kurulum_adi(f"PA2-{k}@1h") != f"PA2-{k}"

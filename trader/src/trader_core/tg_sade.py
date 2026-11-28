@@ -40,6 +40,9 @@ def sayi(x: float, nd: int = 2) -> str:
 
 
 def isaretli(x: float, nd: int = 2) -> str:
+    """Isaretli sayi; gosterilen basamaga yuvarlaninca sifir ise isaretsiz ('0,00')."""
+    if round(float(x), nd) == 0:
+        return sayi(0, nd)
     return ("+" if float(x) >= 0 else "−") + sayi(x, nd)
 
 
@@ -153,8 +156,8 @@ KURULUM_AD = {"T1": "Trend geri çekilmesi", "R1": "Yatay piyasa kenarı", "TF1"
               "IN1-HIZLIMA": "Gösterge: EMA4/EMA9 kesişimi",
               "IN1-BOLL": "Gösterge: Bollinger alt bant dönüşü",
               # 24.11 kullanici karari: formasyon kutuphanesi (PA2 price action formasyonlari)
-              "PA2-EMIRBLOK": "PA: emir bloğu", "PA2-BOLGE": "PA: talep bölgesi", "PA2-FVG": "PA: değer boşluğu",
-              "PA2-ONCEKI": "PA: önceki dönem dibi", "PA2-TCIZGI": "PA: trend çizgisi",
+              "PA2-EMIRBLOK": "Fiyat: emir bloğu", "PA2-BOLGE": "Fiyat: talep bölgesi", "PA2-FVG": "Fiyat: değer boşluğu",
+              "PA2-ONCEKI": "Fiyat: önceki dönem dibi", "PA2-TCIZGI": "Fiyat: trend çizgisi",
               }
 
 
@@ -182,8 +185,8 @@ KURULUM_AD_SHORT = {
     "IN1-MAGERI": "Gösterge: EMA20'ye tepkiden satış", "IN1-BOLLKIR": "Gösterge: Bollinger alt bant kırılımı",
     "IN1-VWAP": "Gösterge: VWAP altına geçiş", "IN1-FIYATMA": "Gösterge: fiyat SMA50 altına geçiş",
     "IN1-HIZLIMA": "Gösterge: EMA4/EMA9 aşağı kesişimi", "IN1-BOLL": "Gösterge: Bollinger üst bant dönüşü",
-    "PA2-EMIRBLOK": "PA: satış emir bloğu", "PA2-BOLGE": "PA: arz bölgesi", "PA2-FVG": "PA: düşüş değer boşluğu",
-    "PA2-ONCEKI": "PA: önceki dönem tepesi", "PA2-TCIZGI": "PA: düşen trend çizgisi",
+    "PA2-EMIRBLOK": "Fiyat: satış emir bloğu", "PA2-BOLGE": "Fiyat: arz bölgesi", "PA2-FVG": "Fiyat: düşüş değer boşluğu",
+    "PA2-ONCEKI": "Fiyat: önceki dönem tepesi", "PA2-TCIZGI": "Fiyat: düşen trend çizgisi",
 }
 
 
@@ -234,7 +237,7 @@ def sure_metni(a: datetime | None, b: datetime | None) -> str:
         return f"{m} dk"
     if m < 1440:
         return f"{m // 60}s {m % 60}dk" if m % 60 else f"{m // 60}s"
-    return f"{m // 1440}g {(m % 1440) // 60}s"
+    return f"{m // 1440}g {(m % 1440) // 60}s" if (m % 1440) // 60 else f"{m // 1440}g"
 
 
 def zd_adi(zd: Any) -> str:
@@ -271,17 +274,28 @@ def puan_metni(puan: Any) -> str | None:
 
 
 def islem_acildi(kol: str, pair: Any, side: Any, giris: Any, tutar: Any, stop: Any, *, zd: Any = None, puan: Any = None,
-                 risk: Any = None) -> str:
-    """3 satir: yon/coin/zaman dilimi · kurulum adi (+ ML1 puani) · giris/stop/tutar (+ risk). `kol` kurulum adi ya da 'kurulum · zaman
-    dilimi' olabilir (ikincisinde zaman dilimi oradan alinir)."""
+                 risk: Any = None, kaldirac: Any = None) -> str:
+    """4 satir: yon/coin/zaman dilimi · kurulum adi · giris/stop · pozisyon buyuklugu (+ kaldirac, teminat, risk). `kol` kurulum adi ya da
+    'kurulum · zaman dilimi' olabilir (ikincisinde zaman dilimi oradan alinir). `puan` verilebilir ama mesajda gosterilmez."""
     ad, _, zf = str(kol).partition(" · ")
     zd_t = zd_adi(zd) or zf
-    p = puan_metni(puan)
     t = f"{sayi(tutar, 0)} $" if tutar is not None else "?"
+    kal = _pozitif(kaldirac)
+    if kal is not None and tutar is not None and _sonlu(tutar):
+        t += f" ({sayi(kal, 0 if float(kal).is_integer() else 1)}x, teminat {sayi(float(tutar) / kal, 0)} $)"
     r = f" · Risk {sayi(risk, 0)} $" if risk is not None and _sonlu(risk) else ""
     return _bagla([f"{'🟩' if yon(side) == 'long' else '🟥'} {coin(pair)} {yon(side)} açıldı" + (f" · {zd_t}" if zd_t else ""),
-                   ad + (f" · ML1 puanı {p}" if p else ""),
-                   f"Giriş {fiyat(giris)} · Stop {fiyat(stop)} · Tutar {t}{r}"])
+                   ad,
+                   f"Giriş {fiyat(giris)} · Stop {fiyat(stop)}",
+                   f"Pozisyon {t}{r}"])
+
+
+def _pozitif(x: Any) -> float | None:
+    try:
+        v = float(x)
+    except (TypeError, ValueError):
+        return None
+    return v if math.isfinite(v) and v > 0 else None
 
 
 def _sonlu(x: Any) -> bool:
@@ -342,39 +356,38 @@ def kapanis_aciklama(kod: Any, pnl: float | None = None, setup: Any = None, hede
 
 def islem_kapandi(kol: str, pair: Any, side: Any, pnl: float, notional: float | None, neden: Any, kritik: bool = False, *,
                   r: Any = None, zd: Any = None, sure: str | None = None, setup: Any = None, hedef: Any = None) -> str:
-    """2 satir: sonuc (K/Z ve R; R yoksa yuzde) · neden, zaman dilimi, sure."""
-    if r is not None and _sonlu(r):
-        yuz = f" ({isaretli(float(r), 2)} R)"
-    else:
-        yuz = f" ({isaretli(pnl / notional * 100, 1)}%)" if notional else ""
-    isaret = "🔴" if kritik else ("🟢" if pnl > 0 else ("🔻" if pnl < 0 else "⚪"))
+    """3 satir: sonuc (yalniz $) · kurulum adi + zaman dilimi (`kol`) · neden + sure. `kol` bos ise 2 satir. `r`/`notional` mesajda gosterilmez."""
+    p = round(float(pnl), 2)
+    isaret = "🔴" if kritik else ("🟢" if p > 0 else ("🔻" if p < 0 else "⚪"))
     et = kapanis_neden(neden, pnl, setup, hedef)
-    ikinci = "Kol kaldırıldı: bot pozisyonu kapattı" if et == "kol kaldırıldı" else ilk_buyuk(et)
-    if zd:
-        ikinci += f" · {zd_adi(zd)}"
+    son = "Kol kaldırıldı: bot pozisyonu kapattı" if et == "kol kaldırıldı" else ilk_buyuk(et)
+    ad = str(kol or "").strip()
+    if ad and " · " not in ad and zd:
+        ad += f" · {zd_adi(zd)}"
+    elif not ad and zd:
+        son += f" · {zd_adi(zd)}"
     if sure and sure != "—":
-        ikinci += f" · {sure} sürdü"
-    return _bagla([f"{isaret} {coin(pair)} {yon(side)} kapandı · {isaretli(pnl)} ${yuz}", ikinci])
+        son += f" · {sure} sürdü"
+    return _bagla([f"{isaret} {coin(pair)} {yon(side)} kapandı · {isaretli(pnl)} $", ad, son])
 
 
 def islemler_acildi(satirlar: list[tuple]) -> str:
-    """Ayni dakikadaki acilislar tek mesaj; her satir (kol, pair, side, giris, tutar, stop[, zd, puan, risk]). Tek islem -> `islem_acildi`."""
-    rows = [tuple(x) + (None,) * (9 - len(x)) for x in satirlar]
+    """Ayni dakikadaki acilislar tek mesaj; her satir (kol, pair, side, giris, tutar, stop[, zd, puan, risk, kaldirac]). Tek islem -> `islem_acildi`."""
+    rows = [tuple(x) + (None,) * (10 - len(x)) for x in satirlar]
     if len(rows) == 1:
-        k, pr, sd, g, t, st, zd, pu, rk = rows[0]
-        return islem_acildi(k, pr, sd, g, t, st, zd=zd, puan=pu, risk=rk)
+        k, pr, sd, g, t, st, zd, pu, rk, kl = rows[0]
+        return islem_acildi(k, pr, sd, g, t, st, zd=zd, puan=pu, risk=rk, kaldirac=kl)
     out = [f"🟩 {len(rows)} işlem açıldı"]
-    for k, pr, sd, g, t, st, zd, pu, rk in rows[:4]:
+    for k, pr, sd, g, t, st, zd, pu, rk, kl in rows[:4]:
         zf = zd_adi(zd) or str(k).partition(" · ")[2]
-        p = puan_metni(pu)
-        out.append(f"{coin(pr)} {yon(sd)}" + (f" · {zf}" if zf else "") + f" · {sayi(t, 0)} $" + (f" · puan {p}" if p else ""))
+        out.append(f"{coin(pr)} {yon(sd)}" + (f" · {zf}" if zf else "") + f" · {sayi(t, 0)} $")
     if len(rows) > 4:
         out.append(f"… ve {len(rows) - 4} işlem daha")
     return _bagla(out)
 
 
 def saatlik_ozet(acilan: int, kapanan: int, net: float) -> str:
-    return _bagla([f"Son 1 saatte {acilan + kapanan} işlem daha: {acilan} açıldı, {kapanan} kapandı · net {isaretli(net)} $"])
+    return _bagla([f"Bu saat ayrıca {acilan + kapanan} işlem (tek tek bildirilmedi): {acilan} açıldı, {kapanan} kapandı · net {isaretli(net)} $"])
 
 
 # ----------------------------------------------------------------------------- gunluk zarar
@@ -433,14 +446,14 @@ def risk_ayari(config_dir: str | Path | None, mode: Any = "paper"):
 
 def limit_uyari(zarar: float, limit: float) -> str:
     return _bagla(["⚠️ Günlük zarar sınırına yaklaşıldı",
-                   f"Bugün {sayi(zarar, 0)} $ kaybedildi; sınır {sayi(limit, 0)} $ (%80'i doldu).",
+                   f"Bugün kasa {sayi(zarar, 0)} $ düştü (açık işlemler dahil); sınır {sayi(limit, 0)} $ (%80'i doldu).",
                    "Sınır dolarsa bugün yeni işlem açılmaz."])
 
 
 def limit_doldu(zarar: float, limit: float) -> str:
     return _bagla(["🔴 Günlük zarar sınırı doldu",
-                   f"Bugün {sayi(zarar, 0)} $ kaybedildi (sınır {sayi(limit, 0)} $).",
-                   "Açık işlemler stoplarıyla izleniyor; yarın 00:00'a kadar yeni işlem açılmaz."])
+                   f"Bugün kasa {sayi(zarar, 0)} $ düştü (açık işlemler dahil; sınır {sayi(limit, 0)} $).",
+                   "Açık işlemler stoplarıyla izleniyor; yarın 00:00'a (TSİ) kadar yeni işlem açılmaz."])
 
 
 def _no_sil(x: Any) -> str:
@@ -460,7 +473,10 @@ def islem_kontrolu_sorun(doc: Mapping[str, Any]) -> str:
     sor = [_no_sil(x)[:140] for x in list(doc.get("sorunlar") or [])]
     if not sor:
         return _bagla(["⚠️ İşlem kontrolünde sorun bulundu"])
-    return _bagla([f"⚠️ İşlem kontrolünde {len(sor)} uyuşmazlık bulundu"] + sor[:3], 4)
+    ust = f"⚠️ İşlem kontrolünde {len(sor)} uyuşmazlık bulundu"
+    if len(sor) > 3:
+        return _bagla([ust] + sor[:2] + [f"… ve {len(sor) - 2} uyuşmazlık daha"], 4)
+    return _bagla([ust] + sor, 4)
 
 
 def islem_kontrolu_ozet(doc: Mapping[str, Any]) -> str:
@@ -535,6 +551,9 @@ def duzeldi(ne: str) -> str:
 # ----------------------------------------------------------------------------- saglik uyarilari
 # kod ya da kontrol adi -> (ne oldu, ne yapiliyor, Senden | None, duzeldi)
 _SADE: dict[str, tuple[str, str, str | None, str]] = {
+    "capital_latch": ("Ana para kilidi devrede: kasa ana paranın %15 altına indi.",
+                      "Yeni işlem açılmıyor; açık işlemler stoplarıyla izleniyor.", "Açmak için /devam yaz.",
+                      "ana para kilidi kaldırıldı"),
     "ml_no_model": ("ML1 modeli yüklenemedi.", "Kural adayları atlanıyor; açık işlemler stoplarıyla izleniyor.", None,
                     "ML1 modeli yüklendi"),
     "exchange_ban_open_positions": ("Borsa geçici engel koydu, açık pozisyon var.",
@@ -614,6 +633,9 @@ _SAGLIK_EK_AD: dict[str, str] = {   # kod taninmazsa kontrol adinin (":bot" once
 }
 
 
+_PANEL_ONCELIK = frozenset({"capital_latch"})     # panel cumlesi _SAGLIK_EK'ten (Telegram metni _SADE'de ayri)
+
+
 def saglik_cumlesi(name: Any, code: Any) -> tuple[str, str | None]:
     """Panel icin: saglik kontrolu (ad, kod) -> (sade Turkce cumle, Senden | None). Tek sozluk: once Telegram uyari metinleri (_SADE),
     sonra _SAGLIK_EK; bilinmeyen -> SAGLIK_BILINMEYEN. `_warmup` eki (motor yeni basladi) kodun anlamini degistirmez."""
@@ -621,7 +643,7 @@ def saglik_cumlesi(name: Any, code: Any) -> tuple[str, str | None]:
     if c.endswith("_warmup"):
         c = c[: -len("_warmup")]
     base = str(name or "").partition(":")[0]
-    ent = _SADE.get(c) or _SADE.get(base)
+    ent = None if c in _PANEL_ONCELIK else (_SADE.get(c) or _SADE.get(base))
     if ent is not None:
         return ent[0].rstrip("."), ent[2]
     if c in _SAGLIK_EK:

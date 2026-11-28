@@ -161,7 +161,7 @@ def test_panel_js_free_of_forbidden_text():
 
 def test_panel_js_new_structure():
     js = (STATIC / "panel.js").read_text(encoding="utf-8")
-    for t in ("ÖZET", "AÇIK", "KAPANAN", "K/Z", "ML1", "TEKNİK", "Risk durumu", "Zirveden düşüş", "Toplam K/Z", "Kasa = başlangıç + kapanan K/Z + açık K/Z − açık işlemlerin giriş komisyonu", "'açık K/Z ' + usdS(s.acik_kz)", "Bugün kapanan K/Z",
+    for t in ("ÖZET", "AÇIK", "KAPANAN", "K/Z", "ML1", "TEKNİK", "Risk durumu", "Zirveden düşüş", "Toplam K/Z", "Kasa = başlangıç + kapanan K/Z + açık K/Z − açık işlemlerin giriş komisyonu", "'açık K/Z ' + usdS(s.acik_kz)", "Bugün K/Z", "Açık işlem",
               "window.self !== window.top", "data-theme", "YENILE_S = 300", "son güncelleme"):
         assert t in js, t
     assert "TAB_MS" not in js and "setInterval" in js and "location.reload" in js
@@ -247,7 +247,7 @@ def test_saglik_bilinmeyen_kod_ve_adsiz_warn_kod_sizmaz():
 def test_testnet_capital_missing_does_not_redden_paper():
     h = _h("CRIT", ("risk_ladder:learner@testnet", "capital_missing", "CRIT"), ("backup_age", "ok", "OK"))
     sg = _tv(h)["saglik"]
-    assert sg["renk"] == "yesil" and sg["durum"] == "Sağlam" and sg["uyarilar"] == [] and sg["senden"] == []
+    assert sg["renk"] == "yesil" and sg["durum"] == "Sistem sağlıklı" and sg["uyarilar"] == [] and sg["senden"] == []
     assert sg["diger_botlar"] == ["Testnet botu: sermaye kaydı girilmemiş (gerçek paraya geçişte yapılacak)"]
     assert "inceleniyor" not in (PP.saglik_yapmali(sg) or "")
     assert PP._problem(sg, "live", {"renk": "yesil"}, None)["renk"] == "yesil"
@@ -269,3 +269,105 @@ def test_stale_status_strip_grey_no_live_numbers(env, tmp_path):
     assert d["bot_durum"] == "stale" and r["renk"] == "gri" and r["limit"] is None and r["kalan"] is None
     assert d["serit"]["kasa"] is None and d["serit"]["durum_yasi_s"] >= 7000
     assert "limite kalan —" in r["alt"]
+
+
+# ---------------- 28.11 duzeltme: sayi bicimi, serit, kartlar, telefon duzeni
+def _js_fn(name: str) -> str:
+    js = (STATIC / "panel.js").read_text(encoding="utf-8")
+    m = re.search(rf"  function {name}\(.*?\n  \}}\n|  function {name}\([^\n]*\}}\n", js, re.S)
+    assert m, name
+    return m.group(0)
+
+
+def test_js_sifira_yuvarlanan_sayida_isaret_yok():
+    """V-11: gosterilen basamaga yuvarlaninca sifir olan deger isaretsiz; digerleri degismez; rakam ile birim bolunmez (G-03)."""
+    js = (STATIC / "panel.js").read_text(encoding="utf-8")
+    fns = "".join(_js_fn(n) for n in ("trn", "num", "sifir", "f2", "sgn", "usd", "usdS", "pc"))
+    out = _node_js(fns + """
+console.log([sgn(-0.004), sgn(0.004), sgn(0), sgn(-0.006), sgn(1.5), sgn(-1.5), pc(-0.0001), pc(0.0001), pc(1.234), pc(-1.234),
+  f2(-0.001), f2(-2), usdS(-0.004), usdS(12.5), usd(-0.001)].join('|'));""").strip()
+    assert out == "0,00|0,00|0,00|−0,01|+1,50|−1,50|%0,00|%0,00|+%1,23|−%1,23|0,00|−2,00|0,00 $|+12,50 $|0,00 $"
+    assert "\\u00a0R" in js and "' $'" not in js                      # R de bolunmez; $ onunde yalniz NBSP
+
+
+def test_serit_etiketleri_ve_zirveden_dusus_aciklamasi():
+    js = (STATIC / "panel.js").read_text(encoding="utf-8")
+    top = js.split("function renderTop")[1].split("/* ---------- sekmeler")[0]
+    assert "sk('Bugün K/Z'" in top and "Bugün kapanan" not in js and "sk('Açık işlem'" in top and "Açık poz." not in js    # G-04, M-01
+    assert "s.toplam_kaynak === 'kasa' ? pc(s.dusus_yuzde) + ' · açık işlemler dahil'" in top and "sk('Zirveden düşüş'" in top    # V-08
+    assert "kasa-not" in js and 'id="kasa-not"' in (STATIC / "index.html").read_text(encoding="utf-8") and "KASA_IPUCU" in js      # G-07: ? dokununca gorunur satir
+    assert "q.title = KASA_IPUCU" in js and "aria-label" in js
+
+
+def test_ozet_ve_kz_kartlari_tek_acik_kz_rakami():
+    js = (STATIC / "panel.js").read_text(encoding="utf-8")
+    ozet = js.split("function tabOzet")[1].split("function isikKart")[0]
+    assert "satir('Adet'" not in ozet and "satir('Toplam K/Z'" not in ozet and "Açık en iyi" in ozet and "Açık en kötü" in ozet            # V-01, M-01
+    kz = js.split("function tabKz")[1].split("/* ML1 */")[0]
+    assert "Açık işlemlerden (şu anki değer)'" in kz and "t.acik_brut" in kz and "Açık işlemlerin giriş komisyonu" in kz and "t.acik_komisyon" in kz
+    assert "Kazanma oranı · tüm işlemler" in kz and "Diğer (fonlama vb.)" in kz and "'uyar'" not in kz                                    # A-13
+    assert "Fonlama (+ = alınan)" in kz and "· 30 gün'" not in kz.split("kart('Masraflar')")[1] and "link('Fikir grubuna göre ayrıntı'" not in kz   # M-04, K-04
+    assert PP.FARK_GOSTER == 1.0
+
+
+def test_kapanan_tablosu_dort_sutun_kisa_neden_ayrintida_tam():
+    js = (STATIC / "panel.js").read_text(encoding="utf-8")
+    kap = js.split("function yukleKapanan")[1].split("/* K/Z */")[0]
+    assert "tablo(['Sembol', 'Kapanış', 'K/Z', 'Neden']" in kap and "'Büyüklük', 'Neden'" not in kap and "r.neden_kisa" in kap      # G-02, K-03
+    assert "['Büyüklük', usd(r.buyukluk)]" in kap and "['Neden', r.neden]" in kap and "r.neden_aciklama" in kap                     # ayrintida kalir
+
+
+def test_closed_row_neden_kisa(env):
+    d = PanelData(load_config(env.cfg_path), clock=lambda: NOW)
+    rows = d.kapanan("learner", "tumu")["rows"]
+    assert rows and all("neden_kisa" in r and r["neden_kisa"] == r["neden"].partition(" (")[0] for r in rows)
+    other = TS.ilk_buyuk(TS.kapanis_neden("other"))
+    assert other == "Bot kapattı (kural/koruma)" and other.partition(" (")[0] == "Bot kapattı"                                          # kisa metin parantez onceki kisim
+
+
+def test_ml1_tablolari_basliklar_kisa_ve_acik_sutunu_yok():
+    js = (STATIC / "panel.js").read_text(encoding="utf-8")
+    assert "tablo(['Zaman dilimi', 'Adet', 'Kazanma', 'Net R', 'K/Z']" in js and "tablo(['Fikir grubu', 'Adet', 'Kazanma', 'Net R', 'K/Z']" in js
+    assert "'Kazanan'" not in js and "'İşlem', 'Kazanan'" not in js and "'Açık']" not in js                                           # G-01
+    css = (STATIC / "panel.css").read_text(encoding="utf-8")
+    th = re.search(r"(?m)^th\{[^}]*\}", css).group(0)
+    assert "white-space:nowrap" in th and "overflow-wrap:anywhere" not in re.search(r"th\.sirali\{[^}]*\}", css).group(0)
+
+
+def test_telefon_css_yazi_boyu_dokunma_hedefi_ve_olu_kod():
+    css = (STATIC / "panel.css").read_text(encoding="utf-8")
+    mobil = css.split("@media (max-width:420px){", 1)[1].split("}\n@media print", 1)[0]
+    assert re.search(r"\.tabs button\{font-size:(1[1-9][.\d]*)px", mobil) and float(re.search(r"\.tabs button\{font-size:([\d.]+)px", mobil).group(1)) >= 11.5
+    assert float(re.search(r"\.ks \.e\{font-size:([\d.]+)px", mobil).group(1)) >= 11
+    assert float(re.search(r"\.ks \.e \.ipucu\{[^}]*font-size:([\d.]+)px", css).group(1)) >= 11
+    assert ".tabs button,#yenile,#tema,.donem button{min-height:40px}" in css                                                          # G-06
+    assert "td.sg .n,td.sg .u{white-space:nowrap" in css                                                                              # G-03
+    for olu in (".d4", ".baz{", ".og .kolad"):                                                                                         # K-05
+        assert olu not in css, olu
+
+
+def test_teknik_sekmesi_yalniz_kalan_kartlar_ve_olu_js_yok():
+    js = (STATIC / "panel.js").read_text(encoding="utf-8")
+    tek = js.split("function tabTeknik")[1].split("function ciz")[0]
+    for kalan in ("'Sağlık'", "'Risk limitleri'", "'İşlem kontrolü'"):
+        assert kalan in tek, kalan
+    for kalkan in ("Yapay zekâ yorum harcaması", "'Kayıtlar'", "Backtest / doğrulama", "'Dayanıklılık'"):                              # K-01: UI cizmez
+        assert kalkan not in js, kalkan
+    for olu in ("function etiketTsi", "function kzHatasi", "function boldMetin"):                                                     # K-05
+        assert olu not in js, olu
+    assert "t.mutabakat.yas_s" in tek and "ago(t.mutabakat.yas_s)" in tek
+
+
+def test_teknik_payload_kaldirilan_kartlarin_verisini_hala_tasir(env):
+    t = PanelData(load_config(env.cfg_path), clock=lambda: NOW).pano("learner")["teknik"]
+    assert "kayitlar" in t and "butce" in t                              # veri uretilir (baska testler okur); UI cizmez (yukaridaki test)
+
+
+def test_sayfa_yasi_bir_kez_ve_ml1_aciklama_yer_tutucusuz():
+    js = (STATIC / "panel.js").read_text(encoding="utf-8")
+    snap = js.split("function snapBanner")[1].split("function get(")[0]
+    assert "u.style.display = 'none'" in snap and "u.style.display = ''" in snap and "son güncelleme" in js                           # M-03
+    acik = js.split("function ml1Aciklama")[1].split("function ml1Eleme")[0]
+    assert "henüz okunamadı" not in acik and "Kurallar aday bulur; ML1 her adaya puan verir, puanı " in acik                           # K-02
+    assert "' ve üstü olanlar'" in acik and "'yeterince yüksek olanlar'" in acik and "m.tf_satiri" not in acik and "m.durum_satiri" in acik   # M-02
+    assert "Bu dönemde puanlanan aday yok." in js

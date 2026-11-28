@@ -238,7 +238,7 @@ class PanelData:
             tk = PP.toplam_kz(ctx, status, s["state"], start)         # TOPLAM K/Z tek kaynak: serit ve K/Z sekmesi ayni nesne
             serit = PP.serit_view(ctx, status, s["state"], self._kill_file(), start, now, curve, s.get("age_s"), tk)
             acik = PP.open_view(ctx, status, now)
-            kz = PP.kz_view(ctx, start, now, curve, tk)
+            kz = PP.kz_view(ctx, start, now, curve, tk, (status or {}).get("day_start_equity"))
             mode = (status or {}).get("mode") or "paper"
             try:
                 ml1 = PP.ml1_view(ctx, now, aktif=((self._motor_ayari(mode).get("ml1") or {}).get("aktif")), ogr_durum=self._ogr_durum(b))
@@ -250,7 +250,7 @@ class PanelData:
                          ("risk", lambda: P.risk_usage(lp, b, status["equity"], status["day_start_equity"], P.today_tr(now),
                                                  status.get("mode"), self._max_positions(mode))["rows"]),
                          ("tut", lambda: P.tutarlilik_view(self._tut_path(), now)),
-                         ("mut", lambda: PP.mutabakat_view(self._mut_path())),
+                         ("mut", lambda: PP.mutabakat_view(self._mut_path(), now)),
                          ("pbo", lambda: P.pbo_view(self._holdout_path("pbo_path", "pbo_ozet.json"),
                                                     self._holdout_path("muhur_path", "muhur.json")))):
                 try:

@@ -118,7 +118,7 @@ def test_hiz_olculemedi():
     assert hiz_hesapla([], 0, 200, NOW) == (None, None)
     assert hiz_hesapla([NOW - timedelta(hours=5)], 1, 200, NOW) == (None, None)          # < 1 gun veri
     assert hiz_hesapla([NOW - timedelta(days=30)], 1, 200, NOW) == (None, None)          # hiz 0
-    assert MG.hiz_satiri({"ogr": {}}) == "Hız: henüz ölçülemedi"
+    assert MG.hiz_satiri({"ogr": {}}) is None
 
 
 def test_hiz_metni():

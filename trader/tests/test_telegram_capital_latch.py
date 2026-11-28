@@ -35,3 +35,21 @@ def test_reason_texts():
     assert "capital_latch" in tg_sade._SAGLIK_EK
     from trader_core.panel_pano import NEDEN_KISA
     assert "capital_latch" in NEDEN_KISA
+
+
+def test_capital_latch_has_own_telegram_alert():
+    """V-05: ana para kilidi devreye girince ayri Telegram uyarisi gider (eskiden sessizdi); duzelince 'Düzeldi'; tekrar siniri mevcut alarm anahtari."""
+    from datetime import datetime, timezone
+
+    from trader_core import health as H
+    now = datetime(2026, 11, 22, 18, 0, tzinfo=timezone.utc)
+    a = H.Alert(H.Status.WARN, "capital_latch", "ana para kilidi", "b", "capital_latch|learner", now)
+    tur, text, key = tg_sade.saglik_mesaji(a)
+    assert tur == "alarm" and key == "capital_latch|learner" and "/devam" in text
+    assert "Ana para kilidi devrede" in text and "Yeni işlem açılmıyor" in text and text.startswith("[ML] ⚠")
+    assert tg_sade.kontrol(text) == []
+    tur, text, _ = tg_sade.saglik_mesaji(H.Alert(H.Status.OK, "capital_latch", "t", "b", "capital_latch|learner|duzeldi|x", now))
+    assert tur == "duzeldi" and "ana para kilidi kaldırıldı" in text
+    # panel cumlesi degismez (TEKNIK sekmesi): eski _SAGLIK_EK cumlesi
+    assert tg_sade.saglik_cumlesi("capital_latch:learner", "capital_latch") == (
+        "Ana para kilidi: kasa ana paranın %15 altına indi", "Yeni girişler kapalı; açmak için /devam yaz.")

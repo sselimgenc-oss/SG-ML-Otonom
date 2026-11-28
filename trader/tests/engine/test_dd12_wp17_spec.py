@@ -104,6 +104,7 @@ def test_pano_ml1_sekmesi_tanimli_ogrenme_sekmesi_yok():
         (ROOT / "src/trader_panel/static" / n).read_text(encoding="utf-8")
         for n in ("index.html", "panel.js") if (ROOT / "src/trader_panel/static" / n).exists())
     assert "['ml1', 'ML1']" in text and 'id="sek-ml1"' in text
+    text = text.replace("m.ogrenme", "m.OGR")        # 28.11: ML1 ozet karti `ogrenme.bugun` (aday sayisi) okur; sekme/kart degil
     assert not re.search(r"[ÖO]ğrenme|ogrenme|Öğrenme", text, re.IGNORECASE), "eski Öğrenme sekmesi kalmamali (26.11: ML1)"
 
 

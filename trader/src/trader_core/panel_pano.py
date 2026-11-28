@@ -21,7 +21,7 @@ from . import tg_sade as TS
 
 TR = P.TR
 MIN_ORAN = 5            # kazanma orani / ort. kazanc-kayip icin asgari kapanan islem
-FARK_GOSTER = 5 / 100    # toplam K/Z dokumunde "diger fark" satiri: |fark| bu dolar tutarindan (0,05) kucukse gizlenir (yuvarlama gurultusu)
+FARK_GOSTER = 1.0        # toplam K/Z dokumunde "diger fark" satiri: |fark| bu dolar tutarindan (1,00) kucukse gizlenir (yuvarlama gurultusu)
 
 REJIM_TR = {"range": "yatay piyasa", "trend": "trend", "trending": "trend", "ranging": "yatay piyasa"}
 # giris kapisi / duraklatma kodu -> kisa sade neden (ham kod gosterilmez)
@@ -36,7 +36,7 @@ NEDEN_KISA = {
     "ml_no_model": "ML1 modeli yok", "daily_loss": "günlük zarar limiti doldu",
 }
 GENEL_NEDEN = "güvenlik kuralı devrede"
-SAGLIK_TR = {"OK": "Sağlam", "WARN": "Dikkat", "CRIT": "Sorun var", "UNKNOWN": "Bilinmiyor", "SKIPPED": "Atlandı"}
+SAGLIK_TR = {"OK": "Sistem sağlıklı", "WARN": "Dikkat", "CRIT": "Sorun var", "UNKNOWN": "Bilinmiyor", "SKIPPED": "Atlandı"}
 
 
 # ----------------------------------------------------------------------------- bicim yardimcilari (veri katmani)
@@ -140,7 +140,8 @@ def closed_row(t: L.TradeRecord, ctx: Ctx) -> dict:
     return {"id": t.trade_id, "coin": TS.coin(t.pair), "yon": TS.yon(t.side), "kol": ctx.kol(t),
             "kapanis": tsi_kisa(t.exit_ts), "acilis": tsi_kisa(t.entry_ts),
             "kz": pnl, "kz_yuzde": (pnl / notional * 100.0) if notional else None,
-            "neden": TS.ilk_buyuk(TS.kapanis_neden(t.exit_reason, pnl, t.setup, t.planned_target)),
+            "neden": (neden := TS.ilk_buyuk(TS.kapanis_neden(t.exit_reason, pnl, t.setup, t.planned_target))),
+            "neden_kisa": neden.partition(" (")[0],
             "neden_aciklama": TS.kapanis_aciklama(t.exit_reason, pnl, t.setup, t.planned_target),
             "r": _f(t.r_multiple), "ml1_puan": _puan(ctx, t), "zd": _zd(ctx, t),
             "giris": _px(t.entry_price), "cikis": _px(t.exit_price), "sure": sure_metni(t.entry_ts, t.exit_ts),
@@ -248,6 +249,14 @@ def kz_donem(trades: list, a: datetime | None, b: datetime | None = None) -> flo
                      if t.exit_ts is not None and (a is None or t.exit_ts >= a) and (b is None or t.exit_ts < b))
 
 
+def bugun_yuzde(pnl: float, dse: Any, start: Any) -> float | None:
+    """Bugunku K/Z yuzdesi tek yerden: taban = gun basi kasa (gecerliyse), yoksa baslangic sermayesi."""
+    base = _f(dse)
+    if base is None or base <= 0:
+        base = _f(start)
+    return (pnl / base * 100.0) if base else None
+
+
 def toplam_kz(ctx: Ctx, status: Mapping | None, state: str, start: float | None) -> dict:
     """TOPLAM K/Z tek kaynak: kasa - baslangic sermayesi (acik islemler dahil; motorun `equity` degeri). Yalniz kapanan islemlerin toplami
     ayri ad ('Kapanan islemlerden'). Canli degilse (durum bayat/okunamiyor) ya da kasa/baslangic sayi degilse kapanan toplami gosterilir
@@ -258,11 +267,13 @@ def toplam_kz(ctx: Ctx, status: Mapping | None, state: str, start: float | None)
     if state == "live" and eq is not None and st is not None:
         toplam = eq - st
         unreal = _f(d.get("unrealized_pnl_usd"))
-        acik = (unreal - math.fsum(t.fee_entry or 0.0 for t in ctx.open)) if unreal is not None else None
+        komisyon = -math.fsum(t.fee_entry or 0.0 for t in ctx.open)
+        acik = (unreal + komisyon) if unreal is not None else None
         fark = (toplam - kapanan - acik) if acik is not None else None
-        return {"toplam": toplam, "kapanan": kapanan, "acik": acik, "fark": fark, "kaynak": "kasa",
+        return {"toplam": toplam, "kapanan": kapanan, "acik": acik, "acik_brut": unreal,
+                "acik_komisyon": komisyon if unreal is not None else None, "fark": fark, "kaynak": "kasa",
                 "fark_goster": fark is not None and abs(fark) >= FARK_GOSTER}
-    return {"toplam": kapanan, "kapanan": kapanan, "acik": None, "fark": None, "kaynak": "kapanan", "fark_goster": False}
+    return {"toplam": kapanan, "kapanan": kapanan, "acik": None, "acik_brut": None, "acik_komisyon": None, "fark": None, "kaynak": "kapanan", "fark_goster": False}
 
 
 def serit_view(ctx: Ctx, status: Mapping | None, state: str, kill_file: bool | None, start: float | None, now: datetime,
@@ -272,7 +283,6 @@ def serit_view(ctx: Ctx, status: Mapping | None, state: str, kill_file: bool | N
     pnl_bugun = kz_donem(ctx.closed, gun_basi(now), gun_basi(now, -1))
     tk = tk if tk is not None else toplam_kz(ctx, status, state, start)
     toplam = tk["toplam"]                                                # TOPLAM K/Z: kz_view ile ayni nesne
-    dse = _f(d.get("day_start_equity")) or start
     acik_n = len(d.get("open_positions") or []) if state == "live" else len(ctx.open)
     unreal = _f(d.get("unrealized_pnl_usd")) if state == "live" else None
     # zirveden dusus: kapanan islem egrisinin zirvesi (+ canli equity)
@@ -288,7 +298,7 @@ def serit_view(ctx: Ctx, status: Mapping | None, state: str, kill_file: bool | N
     elif eq is not None and start:
         dd, dd_pct = min(eq - start, 0.0), min((eq / start - 1.0) * 100.0, 0.0)
     return {"kasa": eq, "baslangic": start,
-            "bugun": pnl_bugun, "bugun_yuzde": (pnl_bugun / dse * 100.0) if dse else None,
+            "bugun": pnl_bugun, "bugun_yuzde": bugun_yuzde(pnl_bugun, d.get("day_start_equity"), start),
             "toplam": toplam, "toplam_yuzde": (toplam / start * 100.0) if (start and toplam is not None) else None,
             "toplam_kaynak": tk["kaynak"],
             "acik": acik_n, "acik_kz": unreal, "dusus": dd, "dusus_yuzde": dd_pct,
@@ -296,14 +306,15 @@ def serit_view(ctx: Ctx, status: Mapping | None, state: str, kill_file: bool | N
 
 
 # ----------------------------------------------------------------------------- K/Z
-def kz_view(ctx: Ctx, start: float | None, now: datetime, curve: Mapping | None, tk: Mapping | None = None) -> dict:
+def kz_view(ctx: Ctx, start: float | None, now: datetime, curve: Mapping | None, tk: Mapping | None = None,
+            day_start_equity: Any = None) -> dict:
     """K/Z sekmesi. `tk` = toplam_kz sonucu (ust seritle ayni nesne); verilmezse yalniz kapanan toplami hesaplanir."""
     cl = [t for t in ctx.closed if t.exit_ts is not None]
     d30 = gun_basi(now, 29)
     donemler = {}
     for ad, a in (("bugun", gun_basi(now)), ("7g", gun_basi(now, 6)), ("30g", d30)):
         v = kz_donem(cl, a, gun_basi(now, -1) if ad == "bugun" else None)
-        donemler[ad] = {"kz": v, "yuzde": (v / start * 100.0) if start else None}
+        donemler[ad] = {"kz": v, "yuzde": bugun_yuzde(v, day_start_equity, start) if ad == "bugun" else ((v / start * 100.0) if start else None)}
     egri = []
     if curve and curve.get("points"):
         egri = [[tsi_gun(P.parse_z(p[0])), p[1]] for p in curve["points"] if (P.parse_z(p[0]) or now) >= d30]
@@ -363,7 +374,7 @@ def _saglik_cumleleri(alerts: list) -> tuple[list[str], list[str]]:
     return out[:8], senden[:3]
 
 
-def mutabakat_view(path: str) -> dict | None:
+def mutabakat_view(path: str, now: datetime | None = None) -> dict | None:
     """`var/durum/mutabakat_v1.json` -> {"son": "20.11 04:40" (TSI), "islem": N, "uyusmazlik": N}; yok/bozuk/yanlis sema -> None (satir gizlenir)."""
     try:
         d = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -375,7 +386,8 @@ def mutabakat_view(path: str) -> dict | None:
     n, u = d.get("islem_sayisi"), d.get("uyusmazlik_sayisi")
     if made is None or not all(isinstance(x, int) and not isinstance(x, bool) and x >= 0 for x in (n, u)):
         return None
-    return {"son": tsi_kisa(made), "islem": n, "uyusmazlik": u}
+    now = now or datetime.now(P.UTC)
+    return {"son": tsi_kisa(made), "islem": n, "uyusmazlik": u, "yas_s": max((now - made).total_seconds(), 0.0)}
 
 
 def teknik_view(*, health: Mapping | None, risk_rows: list | None, budget: Mapping | None, tut: Mapping | None,

@@ -377,7 +377,7 @@ def test_ayar_dogrulama_sanal_agirlik_ve_sinama_aralik():
 def test_durum_satiri_ana_satir_degismez_sanal_notu_yalniz_panelde():
     ogr = MG.ogr_durumu({"asama": "ogrenme", "kapali_islem": 37, "gercek": 20, "sanal": 17, "min_islem": 200}, 0, {}, False)
     oz = {"ogr": ogr}
-    assert MG.durum_satiri(oz) == "ML1 öğrenme aşamasında: 37/200 kapanan işlem; süzme başlamadı"          # gercek/sanal ana satirda YOK
+    assert MG.durum_satiri(oz) == "ML1 öğrenme aşamasında: 37/200 kapanan işlem; puanlama başlamadı"          # gercek/sanal ana satirda YOK
     assert MG.sanal_notu(oz) == "37 içinde sanal: 17"
     assert MG.sanal_notu({"ogr": MG.ogr_durumu({"kapali_islem": 5, "sanal": 0}, 0, {}, False)}) is None
     assert MG.sanal_notu({"ogr": MG.ogr_durumu(None, 0, {}, False)}) is None

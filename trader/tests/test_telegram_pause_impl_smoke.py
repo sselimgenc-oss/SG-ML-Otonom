@@ -234,7 +234,7 @@ def test_report_has_per_bot_pause_line(rig, tmp_path):
     assert "ana bot: yeni işlemler duraklatıldı — risk kademesi incelemesi bekliyor (motor tarafından, 30.12 13:00)" in secs["Duraklatma"]()
     status(rig, loop_at=T0.strftime("%Y-%m-%dT%H:%M:%SZ"), entries_open=True)
     out = T.build_report(rig.cfg, T0, "2026-12-30", {"Duraklatma": secs["Duraklatma"]})
-    assert "Yeni işlemler duraklatıldı." in out
+    assert "Yeni işlemler duraklatıldı: risk kademesi incelemesi bekliyor." in out
     assert "ikiz bot" not in out and "drawdown_review" not in out
     assert "Duraklatma" not in T.default_sections(rig.cfg, T0, "2026-12-30")
 
@@ -282,3 +282,21 @@ def test_durdur_confirm_unreadable_file_says_so(rig):
     t = say(rig, "0427", 2)
     assert "learner" in t and "okunamıyor" in t and "user_cmd" in t
     assert rig.pauses["twin"].active()
+
+
+# ---------------------------------------------------------------- /durum: bilinmeyen ve bayat durum (V-04)
+def test_durum_fresh_unknown_and_stale(rig):
+    d = rig
+    status(d, loop_at=T0.strftime("%Y-%m-%dT%H:%M:%SZ"), entries_open=True, open_positions=[])
+    fresh = say(d, "/durum", 1)
+    assert fresh.splitlines()[0] == "[ML] Anlık durum (deneme parası)" and "Bot çalışıyor." in fresh
+    assert "Son bilinen" not in fresh and "yanıt vermiyor" not in fresh and "doğrulanamadı" not in fresh
+    status(d, entries_open=True, open_positions=[])                       # loop_at yok: zaman okunamadi -> "Bot çalışıyor." yazilmaz
+    bilinmiyor = say(d, "/durum", 2)
+    assert "Bot çalışıyor." not in bilinmiyor
+    assert "Bot durumu doğrulanamadı (son sinyal zamanı okunamadı)." in bilinmiyor
+    status(d, loop_at=(T0 - timedelta(minutes=180)).strftime("%Y-%m-%dT%H:%M:%SZ"), entries_open=True, open_positions=[])
+    eski = say(d, "/durum", 3).splitlines()
+    assert eski[0] == "[ML] Son bilinen durum · 180 dk önce (deneme parası)"
+    assert eski[1] == "Bot yanıt vermiyor! (son sinyal 180 dk önce)"                 # uyari 2. satirda, rakamlardan once
+    assert not any("Bot çalışıyor." in x for x in eski)

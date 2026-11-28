@@ -117,14 +117,14 @@ def test_durum_rozeti_dort_hal(oz):
 def test_eski_sinav_kaldirildi_yeni_ml1_durum_satiri():
     assert not hasattr(MG, "SINAV") and not hasattr(MG, "sinav") and not hasattr(MG, "ozet_satirlari") and not hasattr(MG, "KANITLI_ZD")
     oz = {"ogr": MG.ogr_durumu(None, 37, {"1h": 20, "4h": 12, "1d": 5, "15m": 9}, False)}
-    assert MG.durum_satiri(oz) == "ML1 öğrenme aşamasında: 37/200 kapanan işlem; süzme başlamadı"
-    assert MG.tf_satiri(oz) == "Kapanan işlem: 1s 20 · 4s 12 · 1g 5" and oz["ogr"]["kaynak"] == "defter"
+    assert MG.durum_satiri(oz) == "ML1 öğrenme aşamasında: 37/200 kapanan işlem; puanlama başlamadı"
+    assert MG.tf_satiri(oz) == "Kapanan işlem: 1 saat 20 · 4 saat 12 · 1 gün 5" and oz["ogr"]["kaynak"] == "defter"
     oz = {"ogr": MG.ogr_durumu({"asama": "ogrenme", "kapali_islem": 240, "min_islem": 200, "kapali_islem_tf": {"1h": 100, "4h": 90, "1d": 50},
                                 "son_sinama": {"gecti": False, "neden": "sinama_auc"}}, 0, {}, False)}
-    assert MG.durum_satiri(oz) == "ML1 öğrenme aşamasında: 240/200 kapanan işlem; süzme başlamadı (son deneme: geçmedi (sinama_auc))"
+    assert MG.durum_satiri(oz) == "ML1 öğrenme aşamasında: 240/200 kapanan işlem; puanlama başlamadı (son deneme: geçmedi (sinama_auc))"
     assert oz["ogr"]["kaynak"] == "durum"
     suz = {"ogr": MG.ogr_durumu(None, 250, {}, True)}
-    assert MG.durum_satiri(suz) == "ML1 süzme aşamasında: 250 kapanan işlem"
+    assert MG.durum_satiri(suz) == "ML1 puanlama aşamasında: 250 kapanan işlem"
 
 
 def test_iyelik_belirtme_eki():
@@ -167,3 +167,34 @@ def test_sinama_metni_son_deneme_gecmediyse():
     o = MG.ml1_ozet(d, c, a, NOW, {"son_sinama": {"gecti": False, "neden": "sinama_logloss"}})
     assert o["ogrenme"]["son_sinama"]["neden"] == "sinama_logloss" and o["ogr"]["son_sinama"]["neden"] == "sinama_logloss"
     assert MG.ml1_ozet(d, c, a, NOW)["ogrenme"]["son_sinama"] is None
+
+
+# ----------------------------------------------------------------------------- 28.11 duzeltme: V-09, K-02, G-07, A-13
+def test_kisa_yutan_islemi_ml1_sekmesinde_yonlu_adla_kapanan_ile_ayni(tmp_path):
+    from datetime import timedelta
+
+    from trader_core import panel_pano as PP
+    p = tmp_path / "l.sqlite"
+    ml1_defter(str(p), ek=[lambda led: kayit(led, 20, bar=BUGUN + timedelta(hours=10), tf="1h", setup="MF1-YUTAN", pair="XLM/USDT", skor=0.7,
+                                             grup="CANDLE_ENGULF", side="short", cikis=(True, "target"))])
+    d, c, a = _oku(str(p))
+    grup = next(g for g in MG.gruplar(d, c)["ml1"] if g["grup"] == "Mum: yutan ailesi")
+    kollar = {(k["kol"], k["zd"]) for k in grup["kollar"]}
+    assert ("Mum: ayı yutan", "1 saat") in kollar and ("Mum: yutan", "15m") in kollar      # short yonlu ad; long eski ad; zaman dilimi ayri alan
+    assert all(" · " not in k["kol"] for k in grup["kollar"])                              # ad icinde zaman dilimi tekrar yok
+    ctx = PP.Ctx(str(p), "learner")
+    t = next(x for x in ctx.closed if x.setup.startswith("MF1-YUTAN") and x.side == "short")
+    assert PP.closed_row(t, ctx)["kol"].partition(" · ")[0] == "Mum: ayı yutan"             # Kapanan sekmesindeki adin ad kismi
+
+
+def test_hiz_satiri_olculmediyse_none_telegram_ml1_satiri_dusurur(oz):
+    o, _ = oz
+    assert MG.hiz_satiri(o) is None
+    assert MG.hiz_satiri({"ogr": {"gunluk_hiz": 4.5, "tahmini_varis": "2026-12-14", "min_islem": 200}}).startswith("Hız: son 7 günde")
+
+
+def test_tf_satiri_sade_kelimeler(oz):
+    o, _ = oz
+    s = MG.tf_satiri(o)
+    assert s.startswith("Kapanan işlem: 1 saat ") and " · 4 saat " in s and " · 1 gün " in s
+    assert not any(x in s for x in ("1s ", "4s ", "1g "))
