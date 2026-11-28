@@ -184,6 +184,14 @@ class PanelData:
         except (OSError, ValueError, TypeError):
             return {}
 
+    def _ogr_durum(self, bot: str) -> dict | None:
+        """ML1 ogrenicinin durum.json'u (defterin yanindaki ml1_ogren/); okunamazsa None (sayilar yalniz defterden)."""
+        try:
+            d = json.loads((Path(self._ledger_path(bot)).parent / "ml1_ogren" / "durum.json").read_text(encoding="utf-8"))
+            return d if isinstance(d, dict) else None
+        except (OSError, ValueError, TypeError):
+            return None
+
     def _max_positions(self, mode: Any = "paper") -> int | None:
         v = self._motor_ayari(mode).get("max_positions")
         return v if isinstance(v, int) and not isinstance(v, bool) and v > 0 else None
@@ -233,7 +241,7 @@ class PanelData:
             kz = PP.kz_view(ctx, start, now, curve, tk)
             mode = (status or {}).get("mode") or "paper"
             try:
-                ml1 = PP.ml1_view(ctx, now, aktif=((self._motor_ayari(mode).get("ml1") or {}).get("aktif")))
+                ml1 = PP.ml1_view(ctx, now, aktif=((self._motor_ayari(mode).get("ml1") or {}).get("aktif")), ogr_durum=self._ogr_durum(b))
             except Exception:  # noqa: BLE001 - ML1 gorunumu istege bagli; okunamazsa gizlenir
                 ml1 = None
             safe = {}

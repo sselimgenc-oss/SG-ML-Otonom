@@ -138,3 +138,23 @@ def test_kapanan_satirinda_dogru_etiket_ve_ml1_alanlari(ml1_env):
     assert rows[1]["neden"] == "Kâr al" and rows[1]["ml1_puan"] == pytest.approx(0.70) and rows[1]["zd"] == "4 saat"
     assert rows[2]["neden"] == "Stop" and rows[7]["ml1_puan"] is None
     assert not any(r["neden"] == "Elle" for r in rows.values())
+
+
+def test_pano_ogrenici_durum_dosyasini_okur(ml1_env, tmp_path):
+    """Hata 28.11: pano ogrenicinin durum.json'unu hic okumuyordu (sanal notu, hiz, esik hep bos). Artik defterin yanindaki ml1_ogren/durum.json okunur."""
+    assert _pano(ml1_env)["ml1"]["sanal_notu"] is None
+    d = tmp_path / "var/learner/ml1_ogren"
+    d.mkdir(parents=True)
+    (d / "durum.json").write_text(json.dumps({"asama": "ogrenme", "kapali_islem": 40, "gercek": 15, "sanal": 25, "min_islem": 200, "esik": 0.5,
+                                              "kapali_islem_tf": {"1h": 30, "4h": 8, "1d": 2}, "gunluk_hiz": 4.0, "tahmini_varis": "2026-12-28"}))
+    m = _pano(ml1_env)["ml1"]
+    assert m["sanal_notu"] == "40 içinde sanal: 25" and m["ogr"]["kaynak"] == "durum"
+    assert "henüz ölçülemedi" not in m["hiz_satiri"]
+
+
+def test_pano_bozuk_durum_dosyasi_defterden_devam(ml1_env, tmp_path):
+    d = tmp_path / "var/learner/ml1_ogren"
+    d.mkdir(parents=True)
+    (d / "durum.json").write_text("{bozuk")
+    m = _pano(ml1_env)["ml1"]
+    assert m["ogr"]["kaynak"] == "defter" and m["sanal_notu"] is None
