@@ -1,23 +1,23 @@
 # İşlem mutabakatı
 
-Son kontrol: 2026-11-28 07:40 (TSİ). İşlem: 17 (kapanan 10, açık 7). Uyuşmazlık: 0.
+Son kontrol: 2026-11-28 14:56 (TSİ). İşlem: 19 (kapanan 11, açık 8). Uyuşmazlık: 0.
 
 ## Kontroller
 
 | Kontrol | Sonuç | Ayrıntı |
 |---|---|---|
-| Kasa = başlangıç + Σ net K/Z | geçti | Kasa 994,90 $ tutuyor |
-| Net K/Z: SQL toplamı = motor toplamı = brüt - komisyon - fonlama | geçti | Defter toplamları tutuyor (-3,80 $) |
+| Kasa = başlangıç + Σ net K/Z | geçti | Kasa 1.006,82 $ tutuyor |
+| Net K/Z: SQL toplamı = motor toplamı = brüt - komisyon - fonlama | geçti | Defter toplamları tutuyor (+8,17 $) |
 | Long toplamı (motor = panel) | geçti | Long işlemler panelle aynı (1 işlem) |
-| Short toplamı (motor = panel) | geçti | Short işlemler panelle aynı (9 işlem) |
-| Toplam kapanan (motor = panel 'tümü') | geçti | Kapanan işlemlerin toplamı panelle aynı (10 işlem) |
-| Açık pozisyon sayısı (motor = panel = şerit = durum) | geçti | 7 açık işlem, hepsi aynı |
+| Short toplamı (motor = panel) | geçti | Short işlemler panelle aynı (10 işlem) |
+| Toplam kapanan (motor = panel 'tümü') | geçti | Kapanan işlemlerin toplamı panelle aynı (11 işlem) |
+| Açık pozisyon sayısı (motor = panel = şerit = durum) | geçti | 8 açık işlem, hepsi aynı |
 | Açık K/Z fiyat kaynağı (panel = motor mark) | geçti | Açık işlemlerin kâr/zararı panelle aynı |
 | Günlük zarar limiti oranı (panel = kâğıt ayarı) | geçti | Günlük zarar limiti %8,00 (panelle aynı) |
 
 ## Bilgi
 
-- Açık işlemlerin anlık kâr/zararı: kasada -17,46 $, panelde -17,49 $ · fark 0,03 $ (fiyat zamanlaması, uyuşmazlık sayılmaz)
+- Açık işlemlerin anlık kâr/zararı: kasada -14,48 $, panelde -14,40 $ · fark 0,09 $ (fiyat zamanlaması, uyuşmazlık sayılmaz)
 
 ## Telegram kaynağı
 
@@ -47,4 +47,6 @@ Yok.
 | 15 | Grafik: üçlü tepe · 1 saat | BTC | short | açık | 2026-11-27 18:00 | — | 59.166,100000 | — | — | 0,0887 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
 | 16 | PA: değer boşluğu · 4 saat | META | long | açık | 2026-11-27 19:00 | — | 635,720000 | — | — | 0,1271 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
 | 17 | Mum: iç çubuk · 1 saat | BZ | long | açık | 2026-11-27 23:00 | — | 90,840000 | — | — | 0,3502 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
-| 18 | Mum: ayı yutan · 1 saat | SOL | short | açık | 2026-11-28 06:00 | — | 71,650000 | — | — | 0,4077 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
+| 18 | Mum: ayı yutan · 1 saat | SOL | short | kapalı | 2026-11-28 06:00 | 2026-11-28 13:50 | 71,650000 | 70,530000 | 12,7456 | 0,8090 | -0,0361 | 11,9727 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
+| 19 | Trend aşağı kırılımı · 1 saat | ETH | short | açık | 2026-11-28 14:00 | — | 1.645,520000 | — | — | 0,3694 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
+| 20 | Grafik: üçlü tepe · 1 saat | SOL | short | açık | 2026-11-28 14:00 | — | 70,690000 | — | — | 0,1053 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
