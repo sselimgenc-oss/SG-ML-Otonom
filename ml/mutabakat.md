@@ -1,23 +1,23 @@
 # İşlem mutabakatı
 
-Son kontrol: 2026-11-27 20:34 (TSİ). İşlem: 15 (kapanan 9, açık 6). Uyuşmazlık: 0.
+Son kontrol: 2026-11-28 07:40 (TSİ). İşlem: 17 (kapanan 10, açık 7). Uyuşmazlık: 0.
 
 ## Kontroller
 
 | Kontrol | Sonuç | Ayrıntı |
 |---|---|---|
-| Kasa = başlangıç + Σ net K/Z | geçti | Kasa 996,87 $ tutuyor |
-| Net K/Z: SQL toplamı = motor toplamı = brüt - komisyon - fonlama | geçti | Defter toplamları tutuyor (-2,50 $) |
+| Kasa = başlangıç + Σ net K/Z | geçti | Kasa 994,90 $ tutuyor |
+| Net K/Z: SQL toplamı = motor toplamı = brüt - komisyon - fonlama | geçti | Defter toplamları tutuyor (-3,80 $) |
 | Long toplamı (motor = panel) | geçti | Long işlemler panelle aynı (1 işlem) |
-| Short toplamı (motor = panel) | geçti | Short işlemler panelle aynı (8 işlem) |
-| Toplam kapanan (motor = panel 'tümü') | geçti | Kapanan işlemlerin toplamı panelle aynı (9 işlem) |
-| Açık pozisyon sayısı (motor = panel = şerit = durum) | geçti | 6 açık işlem, hepsi aynı |
-| Açık K/Z fiyat kaynağı (panel = motor mark) | geçti | Açık işlemlerin kâr/zararı panelle aynı; fiyat bekleniyor (piyasa kapalı/veri yok): #1, #11, #12, #13, #15, #16 |
+| Short toplamı (motor = panel) | geçti | Short işlemler panelle aynı (9 işlem) |
+| Toplam kapanan (motor = panel 'tümü') | geçti | Kapanan işlemlerin toplamı panelle aynı (10 işlem) |
+| Açık pozisyon sayısı (motor = panel = şerit = durum) | geçti | 7 açık işlem, hepsi aynı |
+| Açık K/Z fiyat kaynağı (panel = motor mark) | geçti | Açık işlemlerin kâr/zararı panelle aynı |
 | Günlük zarar limiti oranı (panel = kâğıt ayarı) | geçti | Günlük zarar limiti %8,00 (panelle aynı) |
 
 ## Bilgi
 
-- Fiyatı gelmeyen açık işlemler: #1, #11, #12, #13, #15, #16 · fiyat bekleniyor (piyasa kapalı/veri yok); uyuşmazlık sayılmaz
+- Açık işlemlerin anlık kâr/zararı: kasada -17,46 $, panelde -17,49 $ · fark 0,03 $ (fiyat zamanlaması, uyuşmazlık sayılmaz)
 
 ## Telegram kaynağı
 
@@ -31,7 +31,7 @@ Yok.
 
 | İşlem no | Kol | Coin | Yön | Durum | Açılış (TSİ) | Kapanış (TSİ) | Giriş | Çıkış | Brüt $ | Komisyon $ | Fonlama $ | Net K/Z $ | Panel | Telegram açıldı | Telegram kapandı |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 1 | Gösterge: RSI(2) tepe · 4 saat | SOL | short | açık | 2026-11-26 23:00 | — | 71,230000 | — | — | 0,0994 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
+| 1 | Gösterge: RSI(2) tepe · 4 saat | SOL | short | kapalı | 2026-11-26 23:00 | 2026-11-28 03:00 | 71,230000 | 71,640000 | -1,1439 | 0,1993 | -0,0445 | -1,2987 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 2 | Gösterge: RSI(2) tepe · 1 saat | ETH | short | kapalı | 2026-11-27 00:00 | 2026-11-27 02:00 | 1.703,510000 | 1.693,470000 | 3,2429 | 0,5486 | 0,0000 | 2,6943 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 3 | Düşüş trendi: tepkiden satış · 1 saat | TRX | short | kapalı | 2026-11-27 02:00 | 2026-11-27 06:08 | 0,303910 | 0,305300 | -4,5884 | 1,0055 | 0,0099 | -5,6038 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
 | 4 | Düşüş trendi: 3 yükselen dibin kırılımıyla satış · 1 saat | BTC | short | kapalı | 2026-11-27 02:00 | 2026-11-27 05:07 | 60.511,200000 | 61.009,500000 | -7,9728 | 0,9722 | -0,0955 | -8,8495 | aynı | gönderildi (kayıt) | gönderildi (kayıt) |
@@ -46,3 +46,5 @@ Yok.
 | 13 | Grafik: üçlü tepe · 1 saat | GOOGL | short | açık | 2026-11-27 18:00 | — | 272,170000 | — | — | 0,1238 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
 | 15 | Grafik: üçlü tepe · 1 saat | BTC | short | açık | 2026-11-27 18:00 | — | 59.166,100000 | — | — | 0,0887 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
 | 16 | PA: değer boşluğu · 4 saat | META | long | açık | 2026-11-27 19:00 | — | 635,720000 | — | — | 0,1271 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
+| 17 | Mum: iç çubuk · 1 saat | BZ | long | açık | 2026-11-27 23:00 | — | 90,840000 | — | — | 0,3502 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
+| 18 | Mum: ayı yutan · 1 saat | SOL | short | açık | 2026-11-28 06:00 | — | 71,650000 | — | — | 0,4077 | 0,0000 | — | aynı | gönderildi (kayıt) | — |
